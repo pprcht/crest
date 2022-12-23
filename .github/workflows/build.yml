@@ -107,7 +107,7 @@ jobs:
 
     - name: Install github-release
       run: |
-        go install github.com/github-release/github-release
+        go install github.com/github-release/github-release@latest
         echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
@@ -152,6 +152,7 @@ jobs:
 
     - name: Create SHA256 checksum
       run: |
+        ll
         cd ${{ env.OUTPUT_INTEL }}
         sha256sum ${{ env.OUTPUT_INTEL }} > sha256.txt
 
