@@ -36,6 +36,7 @@ option(WITH_GFN0    "Enable support for GFN0-xTB" TRUE)
 option(WITH_GFNFF   "Enable support for GFN-FF"   TRUE)
 option(WITH_XHCFF   "Enable support for XHCFF"    FALSE)
 option(WITH_LWONIOM "Enable support for lwONIOM"  TRUE)
+option(WITH_LMPMACE "Enable support for LAMMPS with MACE"  FALSE)
 
 option(STATICBUILD  "Attempt to link everything statically" FALSE) # doesn't work yet
 

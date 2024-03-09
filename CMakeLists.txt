@@ -93,6 +93,14 @@ if(NOT TARGET "lwoniom::lwoniom" AND WITH_LWONIOM)
    add_compile_definitions(WITH_LWONIOM)
 endif()
 
+
+# LAMMPS with MATCH
+if(NOT TARGET "lammps-mace::lammps-mace" AND WITH_LMPMACE)
+   find_package("lammps-mace" REQUIRED)
+   add_compile_definitions(WITH_LMPMACE)
+endif()
+
+
 # Sources: initialize program sources (prog) and library sources (srcs) empty
 set(prog)
 set(srcs)
