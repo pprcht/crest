@@ -18,10 +18,10 @@ set(_lib "lammps")
 set(_pkg "LAMMPS")
 if(WITH_LMPMACE)
   set(_url "https://github.com/ACEsuit/lammps")
+  set(torch_url "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-1.13.0%2Bcpu.zip")
 else()
   set(_url "https://github.com/lammps/lammps")
 endif()
-
 
 #########################################################################################
 set(package "${_lib}")
@@ -43,8 +43,7 @@ if(EXISTS "${${_pkg_uc}_SOURCE_DIR}/CMakeLists.txt")
   OPTION(PKG_OPENMP "" OFF)
 
   if(WITH_LMPMACE)
-    message(STATUS "WITH_LMPMACE: ${WITH_LMPMACE}")
-    message(STATUS "setting MACE option for LAMMPS build")
+    message(STATUS "WITH_LMPMACE: ${WITH_LMPMACE} - setting MACE option for LAMMPS build")
     OPTION(PKG_ML-MACE "MACE option" ON)
     # MACE requires libtorch
     # The FetchContent can be tricky, I needed to upgrade my CMake to 3.28
@@ -56,8 +55,10 @@ if(EXISTS "${${_pkg_uc}_SOURCE_DIR}/CMakeLists.txt")
     # Also, C++14 standard is required for libtorch, apparently
     set(CMAKE_CXX_STANDARD 14)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    
+    message(STATUS "Downloading libtorch ...")
     include(FetchContent)
-    FetchContent_Declare(libtorch URL "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-1.13.0%2Bcpu.zip")
+    FetchContent_Declare(libtorch URL "${toch_url}")
     FetchContent_MakeAvailable(libtorch)
     set(CMAKE_PREFIX_PATH "${libtorch_SOURCE_DIR};${CMAKE_PREFIX_PATH}")
     message(STATUS "libtorch directory: ${libtorch_SOURCE_DIR}")
@@ -74,17 +75,20 @@ if(EXISTS "${${_pkg_uc}_SOURCE_DIR}/CMakeLists.txt")
   # Add the LAMMPS Fortran interface they provide
   set(lammps_fortran_path "${PROJECT_SOURCE_DIR}/subprojects/${package}/fortran")
   add_library(lammps_fortran STATIC "${lammps_fortran_path}/lammps.f90")
+  # Move the liblammps_fortran.a and lammps_fortran.mod to the correct dir
+  set_target_properties(lammps_fortran PROPERTIES
+  ARCHIVE_OUTPUT_DIRECTORY "${${_pkg_uc}_BINARY_DIR}")
+  set_target_properties(lammps_fortran PROPERTIES
+  Fortran_MODULE_DIRECTORY "${${_pkg_uc}_BINARY_DIR}")
       
   # Add the LAMMPS library
   add_library("${package}::${package}" INTERFACE IMPORTED)
-  target_link_libraries("${package}::${package}" INTERFACE "${package}")
-
-  # We need the module directory in the subproject before we finish the configure stage
-  if(NOT EXISTS "${${_pkg_uc}_BINARY_DIR}/include")
-    make_directory("${${_pkg_uc}_BINARY_DIR}/include")
-  endif()
+  target_link_libraries("${package}::${package}" INTERFACE "${package}") 
+  # Compile lammps_fortran into it
+  set_property(TARGET "${package}::${package}" APPEND PROPERTY INTERFACE_LINK_LIBRARIES lammps_fortran)
 
 else()
+
    message(FATAL_ERROR "LAMMPS could not be found!"
            "This is a special CREST build configuration."
            "Please place the source in subprojects/lammps")
