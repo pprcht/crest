@@ -278,6 +278,8 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
         job%id = jobtype%lj
+      case ('lammps','mace') 
+        job%id = jobtype%lammps
       case default
         job%id = jobtype%unknown
       end select
@@ -342,6 +344,9 @@ contains !> MODULE PROCEDURES START HERE
     case ('gbsa','alpb','cpcm')
       job%solvmodel = key
       job%solvent = val
+
+    case ('lammps_input')
+      job%lmp_input = val
 
     case ('refine','refinement')
       select case (val)

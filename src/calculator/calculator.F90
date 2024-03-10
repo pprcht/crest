@@ -358,6 +358,10 @@ contains  !> MODULE PROCEDURES START HERE
       !> ORCA-style SPs
       call orca_engrad(molptr,calc%calcs(id),calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus)
 
+    case (jobtype%lammps)
+      !> LAMMPS library call
+      call lmp_engrad(molptr,calc%calcs(id),calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus) 
+
     case (jobtype%lj) 
       !> Lennard-Jones potential calculation
       if (allocated(calc%calcs(id)%other)) then

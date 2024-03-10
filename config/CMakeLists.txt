@@ -103,6 +103,8 @@ set(gfnffvar "${WITH_GFNFF}")
 set(tblitevar "${WITH_TBLITE}")
 set(xhcffvar "${WITH_XHCFF}")
 set(lwoniomvar "${WITH_LWONIOM}")
+set(lammpsvar "${WITH_LAMMPS}")
+set(lmpmacevar "${WITH_LMPMACE}")
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/assets/template/metadata.f90"

@@ -22,6 +22,7 @@ list(APPEND srcs
   "${dir}/constraints.f90"
   "${dir}/gfn0_api.F90"
   "${dir}/gfnff_api.F90"
+  "${dir}/lammps_interface.F90"
   "${dir}/lj.f90"
   "${dir}/lwoniom.F90"
   "${dir}/oniom_hessian.F90"

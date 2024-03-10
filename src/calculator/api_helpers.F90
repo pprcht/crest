@@ -27,7 +27,7 @@ module api_helpers
   use tblite_api
   use gfn0_api
   use gfnff_api
-!=========================================================================================!
+  use lammps_interface
   implicit none
   public
 
@@ -154,22 +154,6 @@ contains    !> MODULE PROCEDURES START HERE
       allocate (calc%tblite)
       loadnew = .true.
     end if
-    !if (.not.allocated(calc%tblite%wfn)) then
-    !  allocate (calc%tblite%wfn)
-    !  loadnew = .true.
-    !end if
-    !if (.not.allocated(calc%tblite%calc)) then
-    !  allocate (calc%tblite%calc)
-    !  loadnew = .true.
-    !end if
-    !if (.not.allocated(calc%tblite%ctx)) then
-    !  allocate (calc%tblite%ctx)
-    !  loadnew = .true.
-    !end if
-    !if (.not.allocated(calc%tblite%res)) then
-    !  allocate (calc%tblite%res)
-    !  loadnew = .true.
-    !end if
     if (calc%apiclean) loadnew = .true.
   end subroutine tblite_init
   subroutine tblite_wbos(calc,mol,iostatus)
@@ -355,5 +339,38 @@ contains    !> MODULE PROCEDURES START HERE
 #endif
   end subroutine xhcff_initcheck
 
+!========================================================================================!
+
+  subroutine lmp_init(calc,loadnew)
+!*****************************************
+!* LAMMPS input handler/helper
+!* allocate a new lmp object if necessary
+!*****************************************
+    implicit none
+    type(calculation_settings),intent(inout) :: calc
+    logical,intent(out) :: loadnew
+    loadnew = .false.
+    if (.not.allocated(calc%lmp)) then
+      allocate (calc%lmp)
+      loadnew = .true.
+    end if
+    if (calc%apiclean) loadnew = .true.
+  end subroutine lmp_init
+  subroutine lmp_wbos(calc,mol,iostatus)
+    implicit none
+    type(calculation_settings),intent(inout) :: calc
+    type(coord),intent(in) :: mol
+    integer,intent(out) :: iostatus
+    iostatus = 0
+#ifdef WITH_LAMMPS
+    if (.not.calc%rdwbo) return
+    if (allocated(calc%wbo)) deallocate (calc%wbo)
+    allocate (calc%wbo(mol%nat,mol%nat),source=0.0_wp)
+    call lmp_getwbos(calc%lmp,mol%nat,calc%wbo)
+#endif
+  end subroutine lmp_wbos
+
+
+!========================================================================================!
 !========================================================================================!
 end module api_helpers

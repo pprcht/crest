@@ -34,6 +34,7 @@ module api_engrad
   use gfn0_api
   use gfnff_api
   use xhcff_api
+  use lammps_interface
   implicit none
   !--- private module variables and parameters
   private
@@ -42,6 +43,7 @@ module api_engrad
   public :: gfn0_engrad,gfn0occ_engrad
   public :: gfnff_engrad
   public :: xhcff_engrad
+  public :: lmp_engrad
 
 !=========================================================================================!
 !=========================================================================================!
@@ -321,6 +323,58 @@ contains    !> MODULE PROCEDURES START HERE
 
     return
   end subroutine xhcff_engrad
+
+!=======================================================================================!
+
+  subroutine lmp_engrad(mol,calc,energy,grad,iostatus)
+!*****************************************************
+!* Interface singlepoint call between CREST and 
+!* the LAMMPS package. Can drive a lot of potentials.
+!*****************************************************
+    implicit none
+    !> INPUT
+    type(coord) :: mol
+    type(calculation_settings) :: calc
+    !> OUTPUT
+    real(wp),intent(inout) :: energy
+    real(wp),intent(inout) :: grad(3,mol%nat)
+    integer,intent(out) :: iostatus
+    !> LOCAL
+    character(len=:),allocatable :: cpath
+    logical :: loadnew
+    logical :: pr
+
+    integer :: i,j,k,l,ich,och,io
+    logical :: ex
+    iostatus = 0
+    pr = .false.
+!>--- setup system call information
+    !$omp critical
+    call lmp_init(calc,loadnew)
+!>--- printout handling
+    call api_handle_output(calc,'lmps.out',mol,pr)
+!>-- populate parameters and wavefunction
+    if (loadnew) then
+      call lmp_setup(mol,calc%lmp,calc%lmp_input)
+    end if
+    !$omp end critical
+
+!>--- do the engrad call
+    call initsignal()
+    call lmp_sp(mol,calc%lmp,energy,grad,iostatus)
+    if (iostatus /= 0) return
+    if (pr) then
+      call lmp_print(calc%prch,calc%lmp)
+      call api_print_e_grd(pr,calc%prch,mol,energy,grad)
+    end if
+
+!>--- postprocessing, getting other data
+    !$omp critical
+    call lmp_wbos(calc,mol,iostatus)
+    !$omp end critical
+
+    return
+  end subroutine lmp_engrad
 
 !========================================================================================!
 !========================================================================================!

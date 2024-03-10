@@ -26,6 +26,7 @@ module calc_type
   use gfn0_api
   use gfnff_api,only:gfnff_data
   use xhcff_api,only:xhcff_calculator
+  use lammps_interface,only:lammps
 !>--- other types
   use orca_type
   use lwoniom_module
@@ -49,10 +50,11 @@ module calc_type
     integer :: gfnff     = 9
     integer :: xhcff     = 10
     integer :: lj        = 11
+    integer :: lammps    = 12
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(12) = [ &
+  character(len=45),parameter,private :: jobdescription(13) = [ &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -64,7 +66,8 @@ module calc_type
      & 'GFN0*-xTB calculation via GFN0 lib          ', &
      & 'GFN-FF calculation via GFNFF lib            ', &
      & 'XHCFF calculation via XHCFF-lib             ', &
-     & 'Lennard-Jones potential calculation         ' ]
+     & 'Lennard-Jones potential calculation         ', &
+     & 'Calculation via LAMMPS library interface    '  ]
 !&>
 
 !=========================================================================================!
@@ -154,6 +157,10 @@ module calc_type
 
     !> ORCA job template
     type(orca_input) :: ORCA
+
+    !> LAMMPS object
+    character(len=:),allocatable :: lmp_input
+    type(lammps),allocatable :: lmp
 
 !>--- Type procedures
   contains
