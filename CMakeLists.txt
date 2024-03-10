@@ -93,13 +93,15 @@ if(NOT TARGET "lwoniom::lwoniom" AND WITH_LWONIOM)
    add_compile_definitions(WITH_LWONIOM)
 endif()
 
-
 # LAMMPS with MATCH
-if(NOT TARGET "lammps-mace::lammps-mace" AND WITH_LMPMACE)
-   find_package("lammps-mace" REQUIRED)
+if(NOT TARGET "lammps::lammps" AND (WITH_LAMMPS OR WITH_LMPMACE))
+   find_package("lammps" REQUIRED)
+   add_compile_definitions(WITH_LMPS)
+   if(WITH_LMPMACE)
    add_compile_definitions(WITH_LMPMACE)
+   endif()
+   set(LINK_LMP TRUE)
 endif()
-
 
 # Sources: initialize program sources (prog) and library sources (srcs) empty
 set(prog)
@@ -140,6 +142,7 @@ if(WITH_OBJECT AND NOT STATICBUILD)
       $<$<BOOL:${WITH_XHCFF}>:xhcff::xhcff>
       $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
       $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
+      $<$<BOOL:${LINK_LMP}>:lammps::lammps>
       $<$<BOOL:${WITH_OpenMP}>:OpenMP::OpenMP_Fortran>
    )
 
@@ -191,6 +194,7 @@ target_link_libraries(
    $<$<BOOL:${WITH_XHCFF}>:xhcff::xhcff>
    $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
    $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
+   $<$<BOOL:${LINK_LMP}>:lammps::lammps>
    $<$<BOOL:${STATICBUILD}>:-static>
 )
 
@@ -236,6 +240,7 @@ if (WITH_OBJECT AND NOT STATICBUILD)
       $<$<BOOL:${WITH_XHCFF}>:xhcff::xhcff>
       $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
       $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
+      $<$<BOOL:${LINK_LMP}>:lammps::lammps>
    )
 
    set_target_properties(
