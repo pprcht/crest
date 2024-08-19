@@ -95,7 +95,7 @@ CONTAINS
     real(dp),dimension(3,3) :: Rmatrix
     real(dp),dimension(4,4) :: S
     real(dp),dimension(4) :: q
-    real(dp) :: tmp(3)
+    real(dp) :: tmp(3),ndble
     integer :: io
 
     ! make copies of the original coordinates
@@ -105,11 +105,12 @@ CONTAINS
     ! calculate the barycenters, centroidal coordinates, and the norms
     x_norm = 0.0_dp
     y_norm = 0.0_dp
+    ndbl = 1.0_dp / dble(n) 
     do i = 1,3
       xi(:) = x(i,:)
       yi(:) = y(i,:)
-      x_center(i) = sum(xi(1:n)) / dble(n)
-      y_center(i) = sum(yi(1:n)) / dble(n)
+      x_center(i) = sum(xi(1:n)) * ndble
+      y_center(i) = sum(yi(1:n)) * ndble
       xi(:) = xi(:) - x_center(i)
       yi(:) = yi(:) - y_center(i)
       x(i,:) = xi(:)
