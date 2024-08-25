@@ -105,7 +105,7 @@ CONTAINS
     ! calculate the barycenters, centroidal coordinates, and the norms
     x_norm = 0.0_dp
     y_norm = 0.0_dp
-    ndbl = 1.0_dp / dble(n) 
+    ndble = 1.0_dp / dble(n) 
     do i = 1,3
       xi(:) = x(i,:)
       yi(:) = y(i,:)
