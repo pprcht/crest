@@ -27,24 +27,20 @@ subdir('discretize')
 subdir('entropy')
 subdir('legacy_algos')
 subdir('msreact')
-
+subdir('sorting')
 
 srcs += files(
   'atmasses.f90',
   'axis_module.f90',
   'biasmerge.f90',
   'bondconstraint.f90',
-  'canonical.f90',
-  'ccegen.f90',
   'choose_settings.f90',
   'classes.f90',
   'cleanup.f90',
   'cn.f90',
   'compress.f90',
   'confparse.f90',
-  'cregen.f90',
   'crest_pars.f90',
-  'ensemblecomp.f90',
   'eval_timer.f90',
   'filemod.f90',
   'flexi.F90',
@@ -55,7 +51,6 @@ srcs += files(
   'internals2.f90',
   'iomod.F90',
   'legacy_wrappers.f90',
-  'ls_rmsd.f90',
   'marqfit.f90',
   'minitools.f90',
   'miscdata.f90',
@@ -64,16 +59,13 @@ srcs += files(
   'printouts.f90',
   'prmat.f90',
   'propcalc.f90',
-  'quicksort.f90',
   'readl.f90',
   'restartlog.f90',
-  'rotcompare.f90',
   'scratch.f90',
   'sdfio.f90',
   'select.f90',
   'signal.c',
   'sigterm.f90',
-  'sortens.f90',
   'strucreader.f90',
   'symmetry2.f90',
   'symmetry_i.c',
@@ -81,8 +73,6 @@ srcs += files(
   'trackorigin.f90',
   'utilmod.f90',
   'wallsetup.f90',
-  'zdata.f90',
-  'ztopology.f90',
 )
 
 prog += files(

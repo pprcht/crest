@@ -585,20 +585,23 @@ end function quick_rmsd
 subroutine quick_rmsd_tool(fname1,fname2,heavy)
   use crest_parameters
   use strucrd
+  use irmsd_module
   implicit none
-  character(len=*) :: fname1
-  character(len=*) :: fname2
-  logical :: heavy
-  type(coord) :: mol1
+  character(len=*),intent(in) :: fname1
+  character(len=*),intent(in) :: fname2
+  logical,intent(in) :: heavy
+  type(coord) :: mol,ref
   real(wp) :: rmsdval
-  real(wp) :: quick_rmsd
 
-  call mol1%open(fname1)
+  call ref%open(fname1)
+  call mol%open(fname2)
+!  mol1%xyz = mol1%xyz*bohr !to Angstroem
+!
+!  rmsdval = quick_rmsd(fname2,mol1%nat,mol1%at,mol1%xyz,heavy)
 
-  mol1%xyz = mol1%xyz*bohr !to Angstroem
-
-  rmsdval = quick_rmsd(fname2,mol1%nat,mol1%at,mol1%xyz,heavy)
-
+  rmsdval = rmsd(ref,mol)
+   
+  rmsdval = rmsdval * autoaa
   if (heavy) then
     write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
   else
