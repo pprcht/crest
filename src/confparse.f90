@@ -647,6 +647,16 @@ subroutine parseflags(env,arg,nra)
           call quick_rmsd_tool(ctmp,dtmp,.false.)
         end if
         stop
+   
+      case ('-hungarian','-hungarianheavy','-hhungarian')
+        ctmp = trim(arg(i+1))
+        dtmp = trim(arg(i+2))
+        if ((argument == '-hungarianheavy').or.(argument=='-hhungarian')) then
+          call quick_hungarian_match(ctmp,dtmp,.true.)
+        else
+          call quick_hungarian_match(ctmp,dtmp,.false.)
+        end if
+        stop
 
       case ('-symmetries')
         ctmp = trim(arg(i+1))

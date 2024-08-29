@@ -141,7 +141,7 @@ contains  !> MODULE PROCEDURES START HERE
         end do
       end if
 
-      deallocate (scratchptr)
+      nullify(scratchptr)
       if (allocated(tmpscratch)) deallocate (tmpscratch)
 
     else
@@ -187,6 +187,56 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine min_rmsd
 
 !========================================================================================!
+
+  subroutine atswp(mol,ati,atj)
+  !********************************
+  !* swap atom ati with atj in mol
+  !********************************
+     implicit none
+     type(coord),intent(inout) :: mol
+     integer,intent(in) :: ati,atj 
+     real(wp) :: xyztmp(3)
+     integer :: attmp
+     xyztmp(1:3) = mol%xyz(1:3,ati)
+     attmp = mol%at(ati)
+     mol%xyz(1:3,ati) = mol%xyz(1:3,atj)
+     mol%at(ati) = mol%at(atj)
+     mol%xyz(1:3,atj) = xyztmp(1:3)
+     mol%at(atj) = attmp
+  end subroutine atswp
+
+!========================================================================================!
+
+  subroutine compute_hungarian(ref,mol,hcache)
+    implicit none
+    !> IN & OUTPUT
+    type(coord),intent(in)    :: ref 
+    type(coord),intent(inout) :: mol
+    type(hungarian_cache),intent(inout),optional,target :: hcache
+
+    !> LOCAL
+    type(hungarian_cache),pointer :: hptr
+    type(hungarian_cache),allocatable,target :: local_hcache
+    integer :: natmax
+    
+
+    if (present(hcache)) then
+      hptr => hcache
+    else
+      allocate (local_hcache)
+      natmax = max(ref%nat,mol%nat)
+      call local_hcache%allocate(natmax,natmax)
+      hptr => local_hcache
+    end if
+
+    !> Compute the cost matrix, which is simply the distance matrix 
+    !> between the two molecules.
+    !> To avoid computational overhead we can skip the square root. 
+    !> It won't affect the result 
+
+
+
+  end subroutine compute_hungarian
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

@@ -592,15 +592,24 @@ subroutine quick_rmsd_tool(fname1,fname2,heavy)
   logical,intent(in) :: heavy
   type(coord) :: mol,ref
   real(wp) :: rmsdval
+  integer :: i
+  logical,allocatable :: mask(:)
 
   call ref%open(fname1)
   call mol%open(fname2)
-!  mol1%xyz = mol1%xyz*bohr !to Angstroem
-!
-!  rmsdval = quick_rmsd(fname2,mol1%nat,mol1%at,mol1%xyz,heavy)
+  
+  if(heavy)then
+    allocate(mask(ref%nat), source=.false.)
+    do i=1,ref%nat
+      if(ref%at(i) > 1)then
+        mask(i) = .true.
+      endif
+    enddo
+    rmsdval = rmsd(ref,mol,mask=mask)
+  else
+    rmsdval = rmsd(ref,mol)
+  endif
 
-  rmsdval = rmsd(ref,mol)
-   
   rmsdval = rmsdval * autoaa
   if (heavy) then
     write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
@@ -651,6 +660,88 @@ function quick_rmsd2(nat,at,xyz,xyz2,heavy) result(rout)
   deallocate (c1,c0)
   return
 end function quick_rmsd2
+
+!=========================================================================================!
+
+subroutine quick_hungarian_match(fname1,fname2,heavy)
+  use crest_parameters
+  use strucrd
+  use hungarian_module
+  implicit none
+  character(len=*),intent(in) :: fname1
+  character(len=*),intent(in) :: fname2
+  logical,intent(in) :: heavy
+  type(coord) :: mol,ref
+  real(wp) :: rmsdval
+  integer :: i,ii,jj,nat
+  logical,allocatable :: mask(:)
+  real(wp),allocatable :: C(:,:)
+  real(wp),allocatable :: answers(:)
+  integer,allocatable :: mapping(:) 
+  integer,allocatable :: hmap(:),rhmap(:)
+  real(wp) :: dists(3)
+
+  call ref%open(fname1)
+  call mol%open(fname2)
+  
+  if(heavy)then
+    allocate(mask(ref%nat), source=.false.)
+    allocate(hmap(ref%nat), rhmap(ref%nat), source=0)
+    nat=count((ref%at(:) > 1)) 
+    ii=0
+    do i=1,ref%nat
+      if(ref%at(i) > 1)then
+        mask(i) = .true.
+        ii=ii+1
+        hmap(i) = ii
+        rhmap(ii) = i
+      endif
+    enddo
+  else
+    allocate(mask(ref%nat), source=.true.)
+    nat=ref%nat
+  endif
+  
+  allocate( C(nat,nat), answers(nat) )
+  allocate( mapping(nat+1) )  
+  do ii=1,nat 
+    if(.not.mask(ii)) cycle
+    do jj=1,ii
+      if(.not.mask(jj)) cycle
+      dists(:)=(ref%xyz(:,ii)-mol%xyz(:,jj) )**2
+      if(heavy)then
+        C(hmap(jj),hmap(ii)) = sqrt(sum(dists))
+        C(hmap(ii),hmap(jj)) = C(hmap(jj),hmap(ii))
+      else
+        C(ii,jj) = sqrt(sum(dists))
+        C(jj,ii) = C(ii,jj)
+      endif
+    enddo
+  enddo
+  call hungarian(C,nat,nat,answers,mapping) 
+
+  write(*,*) 'Mapping:'
+  do i=1,nat
+     if(heavy)then
+       write(*,'(i6," --> ",i6)') rhmap(i),rhmap(mapping(i))    
+     else
+       write(*,'(i6," --> ",i6)') i,mapping(i)
+     endif
+  enddo  
+  write(*,*) 
+
+  rmsdval = sqrt(answers(nat) / real(nat,wp))
+
+  rmsdval = abs(rmsdval) * autoaa
+  if (heavy) then
+    write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
+  else
+    write (*,'(1x,a,f16.8)') 'Calculated RMSD (Å):',rmsdval
+  end if
+
+  return
+end subroutine quick_hungarian_match
+
 
 !=========================================================================================!
 
