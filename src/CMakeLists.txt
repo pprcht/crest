@@ -57,6 +57,7 @@ list(APPEND srcs
   "${dir}/internals.f90"
   "${dir}/internals2.f90"
   "${dir}/iomod.F90"
+  "${dir}/irmsd_module.f90"
   "${dir}/legacy_wrappers.f90"
   "${dir}/ls_rmsd.f90"
   "${dir}/marqfit.f90"

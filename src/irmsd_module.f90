@@ -1,6 +1,6 @@
 
 
-module rmsd_module
+module irmsd_module
 !*****************************************
 !* Module that implements a more
 !* modern interface to calculating RMSDs
@@ -16,11 +16,43 @@ module rmsd_module
 
     real(wp),parameter :: bigval = huge(bigval)
 
+
+    public :: rmsd_cache
+    type :: rmsd_cache
+!****************************************************
+!* cache implementation to avoid repeated allocation
+!* and enable shared-memory parallelism
+!****************************************************
+      real(wp),allocatable :: xyzscratch(:,:,:) 
+      integer,allocatable  :: rankscratch(:,:)
+      integer,allocatable  :: orderscratch(:)
+      logical,allocatable  :: assignedscratch(:)
+    contains
+      procedure :: allocate => allocate_rmsd_cache
+    end type rmsd_cache
+
+
 !========================================================================================!
 !========================================================================================!
 contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
+
+
+  subroutine allocate_rmsd_cache(self,nat)
+     implicit none
+     class(rmsd_cache),intent(inout) :: self
+     integer,intent(in) :: nat
+     if(allocated(self%xyzscratch)) deallocate(self%xyzscratch)
+     if(allocated(self%rankscratch)) deallocate(self%rankscratch)
+     if(allocated(self%orderscratch)) deallocate(self%orderscratch)
+     if(allocated(self%assignedscratch)) deallocate(self%assignedscratch)
+     allocate(self%assignedscratch(nat), source=.false.)
+     allocate(self%orderscratch(nat), source=0)
+     allocate(self%rankscratch(nat,2), source=0)
+     allocate(self%xyzscratch(3,nat,2), source=0.0_wp)
+  end subroutine allocate_rmsd_cache
+
 
 function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
 !************************************************************************
@@ -43,12 +75,13 @@ function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
     real(wp),intent(out),optional          :: rotmat(3,3)
     real(wp),intent(out),target,optional   :: gradient(3,ref%nat)
     !> variables
-    real(wp) :: x_center(3),y_center(3),Udum(3,3),gdum(3,3)
+    real(wp) :: x_center(3),y_center(3),Udum(3,3)
+    real(wp),target :: gdum(3,3)
     integer  :: nat,getrotmat 
-    real(wp),allocatable :: tmpscratch(:,:,:)
+    real(wp),allocatable,target :: tmpscratch(:,:,:)
     logical :: getgrad
-    real(wp),pointer :: grdptr !(:,:)
-    real(wp),pointer :: scratchptr !(:,:,:)
+    real(wp),pointer :: grdptr(:,:)
+    real(wp),pointer :: scratchptr(:,:,:)
     integer :: ic,k
 
     !> initialize to large value
@@ -112,7 +145,7 @@ function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
       if(allocated(tmpscratch)) deallocate(tmpscratch)
 
     else
-!>--- standard calculation
+!>--- standard calculation (Quarternion algorithm)
       call rmsd_classic(ref%nat,mol%xyz,ref%xyz, &
       &    getrotmat, Udum, x_center, y_center, rmsdval, &
       &    getgrad, grdptr)
@@ -124,5 +157,36 @@ function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
 end function rmsd
 
 !========================================================================================!
+
+subroutine min_rmsd(ref,mol,rcache,rmsdout)
+    implicit none
+    !> IN & OUTPUT
+    type(coord),intent(in)    :: ref
+    type(coord),intent(inout) :: mol
+    type(rmsd_cache),intent(inout),optional,target :: rcache
+    real(wp),intent(out),optional :: rmsdout
+
+    !> LOCAL
+    type(rmsd_cache),pointer :: cptr
+    type(rmsd_cache),allocatable,target :: local_rcache
+    integer :: natmax
+
+    
+    if(present(rcache))then
+      cptr => rcache
+    else
+      allocate(local_rcache)
+      natmax = max(ref%nat,mol%nat)
+      call local_rcache%allocate(natmax)
+      cptr => local_rcache
+    endif
+
+
+
+
+end subroutine min_rmsd
+
 !========================================================================================!
-end module rmsd_module
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!========================================================================================!
+end module irmsd_module
