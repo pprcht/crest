@@ -26,7 +26,7 @@ module irmsd_module
     integer,allocatable  :: orderscratch(:)
     logical,allocatable  :: assignedscratch(:)
 
-    type(hungarian_cache),allocatable :: hcache
+    type(assignment_cache),allocatable :: acache
   contains
     procedure :: allocate => allocate_rmsd_cache
   end type rmsd_cache
@@ -45,13 +45,13 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%rankscratch)) deallocate (self%rankscratch)
     if (allocated(self%orderscratch)) deallocate (self%orderscratch)
     if (allocated(self%assignedscratch)) deallocate (self%assignedscratch)
-    if (allocated(self%hcache)) deallocate (self%hcache)
+    if (allocated(self%acache)) deallocate (self%acache)
     allocate (self%assignedscratch(nat),source=.false.)
     allocate (self%orderscratch(nat),source=0)
     allocate (self%rankscratch(nat,2),source=0)
     allocate (self%xyzscratch(3,nat,2),source=0.0_wp)
-    allocate (self%hcache)
-    call self%hcache%allocate(nat,nat)
+    allocate (self%acache)
+    call self%acache%allocate(nat,nat)
   end subroutine allocate_rmsd_cache
 
   function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
@@ -207,26 +207,26 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine compute_hungarian(ref,mol,hcache)
+  subroutine compute_hungarian(ref,mol,acache)
     implicit none
     !> IN & OUTPUT
     type(coord),intent(in)    :: ref 
     type(coord),intent(inout) :: mol
-    type(hungarian_cache),intent(inout),optional,target :: hcache
+    type(assignment_cache),intent(inout),optional,target :: acache
 
     !> LOCAL
-    type(hungarian_cache),pointer :: hptr
-    type(hungarian_cache),allocatable,target :: local_hcache
+    type(assignment_cache),pointer :: aptr
+    type(assignment_cache),allocatable,target :: local_acache
     integer :: natmax
     
 
-    if (present(hcache)) then
-      hptr => hcache
+    if (present(acache)) then
+      aptr => acache
     else
-      allocate (local_hcache)
+      allocate (local_acache)
       natmax = max(ref%nat,mol%nat)
-      call local_hcache%allocate(natmax,natmax)
-      hptr => local_hcache
+      call local_acache%allocate(natmax,natmax)
+      aptr => local_acache
     end if
 
     !> Compute the cost matrix, which is simply the distance matrix 

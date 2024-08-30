@@ -23,8 +23,8 @@ module hungarian_module
   real(sp),parameter,private :: inf = huge(1.0_sp) !> Use huge intrinsic for large numbers
   integer,parameter,private  :: infi = huge(1) !> Use huge intrinsic for large numbers
 
-  public :: hungarian_cache
-  type :: hungarian_cache
+  public :: assignment_cache
+  type :: assignment_cache
     integer :: J,W
     real(sp),allocatable :: Cost(:,:)  !> Cost(J,W)
     real(sp),allocatable :: answers(:) !> answers(J)
@@ -37,9 +37,9 @@ module hungarian_module
     integer,allocatable  :: prv(:)     !> prv(W+1)
     logical,allocatable  :: in_Z(:)    !> in_Z(W+1)
   contains
-    procedure :: allocate => allocate_hungarian_cache
-    procedure :: deallocate => deallocate_hungarian_cache
-  end type hungarian_cache
+    procedure :: allocate => allocate_assignment_cache
+    procedure :: deallocate => deallocate_assignment_cache
+  end type assignment_cache
 
   interface ckmin
     module procedure ckmin_int
@@ -52,9 +52,9 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine allocate_hungarian_cache(self,J,W)
+  subroutine allocate_assignment_cache(self,J,W)
     implicit none
-    class(hungarian_cache),intent(inout) :: self
+    class(assignment_cache),intent(inout) :: self
     integer,intent(in) :: J,W
     !> Store dimensions
     self%J = J
@@ -70,11 +70,11 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (self%min_to(W+1))
     allocate (self%prv(W+1))
     allocate (self%in_Z(W+1))
-  end subroutine allocate_hungarian_cache
+  end subroutine allocate_assignment_cache
 
-  subroutine deallocate_hungarian_cache(self)
+  subroutine deallocate_assignment_cache(self)
     implicit none
-    class(hungarian_cache),intent(inout) :: self
+    class(assignment_cache),intent(inout) :: self
     ! Deallocate arrays if they are allocated
     if (allocated(self%Cost)) deallocate (self%Cost)
     if (allocated(self%answers)) deallocate (self%answers)
@@ -85,7 +85,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%min_to)) deallocate (self%min_to)
     if (allocated(self%prv)) deallocate (self%prv)
     if (allocated(self%in_Z)) deallocate (self%in_Z)
-  end subroutine deallocate_hungarian_cache
+  end subroutine deallocate_assignment_cache
 
 !========================================================================================!
 
@@ -134,7 +134,7 @@ contains  !> MODULE PROCEDURES START HERE
     !*                the ww-th worker (or -1 if no job is assigned)
     !****************************************************************
     integer,intent(in) :: J,W
-    type(hungarian_cache),intent(inout) :: cache
+    type(assignment_cache),intent(inout) :: cache
     integer  :: jj_cur,ww_cur,jj,ww_next,ww
     real(sp) :: delta
 
@@ -210,7 +210,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: J,W
     integer,intent(out) :: answers(J)
     integer,intent(out) :: job(W+1)
-    type(hungarian_cache) :: cache
+    type(assignment_cache) :: cache
 
     call cache%allocate(J,W)
     cache%Cost(1:J,1:W) = real(C(1:J,1:W),sp)
@@ -230,7 +230,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: J,W
     real(sp),intent(out) :: answers(J)
     integer,intent(out) :: job(W+1)
-    type(hungarian_cache) :: cache
+    type(assignment_cache) :: cache
 
     call cache%allocate(J,W)
     cache%Cost(1:J,1:W) = C(1:J,1:W)
@@ -250,7 +250,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: J,W
     real(wp),intent(out) :: answers(J)
     integer,intent(out) :: job(W+1)
-    type(hungarian_cache) :: cache
+    type(assignment_cache) :: cache
 
     call cache%allocate(J,W)
     cache%Cost(1:J,1:W) = real(C(1:J,1:W),sp)
