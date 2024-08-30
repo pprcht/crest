@@ -648,10 +648,11 @@ subroutine parseflags(env,arg,nra)
         end if
         stop
    
-      case ('-hungarian','-hungarianheavy','-hhungarian')
+      case ('-hungarian','-hungarianheavy','-hhungarian','-lsap','-hlsap','-lsapheavy')
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
-        if ((argument == '-hungarianheavy').or.(argument=='-hhungarian')) then
+        if ((argument == '-hungarianheavy').or.(argument=='-hhungarian').or. &
+           &(argument == '-lsapheavy').or.(argument=='-hlsap') ) then
           call quick_hungarian_match(ctmp,dtmp,.true.)
         else
           call quick_hungarian_match(ctmp,dtmp,.false.)

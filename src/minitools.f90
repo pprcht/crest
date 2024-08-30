@@ -673,12 +673,13 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   logical,intent(in) :: heavy
   type(coord) :: mol,ref
   real(wp) :: rmsdval
-  integer :: i,ii,jj,nat
+  integer :: i,ii,jj,nat,io
   logical,allocatable :: mask(:)
   real(wp),allocatable :: C(:,:)
   real(wp),allocatable :: answers(:)
   integer,allocatable :: mapping(:) 
   integer,allocatable :: hmap(:),rhmap(:)
+  integer,allocatable :: a(:),b(:)
   real(wp) :: dists(3)
 
   call ref%open(fname1)
@@ -706,33 +707,35 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   allocate( mapping(nat+1) )  
   do ii=1,nat 
     if(.not.mask(ii)) cycle
-    do jj=1,ii
+    do jj=1,nat
       if(.not.mask(jj)) cycle
-      dists(:)=(ref%xyz(:,ii)-mol%xyz(:,jj) )**2
+      dists(:)=(ref%xyz(:,ii)-mol%xyz(:,jj))**2
       if(heavy)then
         C(hmap(jj),hmap(ii)) = sqrt(sum(dists))
-        C(hmap(ii),hmap(jj)) = C(hmap(jj),hmap(ii))
       else
-        C(ii,jj) = sqrt(sum(dists))
-        C(jj,ii) = C(ii,jj)
+        C(jj,ii) = sqrt(sum(dists))
       endif
     enddo
   enddo
-  call hungarian(C,nat,nat,answers,mapping) 
+  allocate(a(nat),b(nat))
+  call lsap(C,nat,nat,a,b)
 
-  write(*,*) 'Mapping:'
+  write(*,'(a,3(1x,a))') 'Assignment:',fname2,'-->',fname1
   do i=1,nat
      if(heavy)then
-       write(*,'(i6," --> ",i6)') rhmap(i),rhmap(mapping(i))    
+       write(*,'(i6," --> ",i6)') rhmap(a(i)),rhmap(b(i))    
      else
-       write(*,'(i6," --> ",i6)') i,mapping(i)
+       write(*,'(i6," --> ",i6)') a(i),b(i)
      endif
   enddo  
   write(*,*) 
 
-  rmsdval = sqrt(answers(nat) / real(nat,wp))
-
-  rmsdval = abs(rmsdval) * autoaa
+  !> reconstruct RMSD from assignment (since our costs are already distances!)
+  rmsdval = 0.0_wp
+  do i=1,nat
+    rmsdval = rmsdval + C(a(i),b(i)) / real(nat,wp)
+  enddo
+  rmsdval = sqrt(abs(rmsdval)) * autoaa 
   if (heavy) then
     write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
   else
