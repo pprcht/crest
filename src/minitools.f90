@@ -667,13 +667,14 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   use crest_parameters
   use strucrd
   use hungarian_module
+  use axis_module, only: axis
   implicit none
   character(len=*),intent(in) :: fname1
   character(len=*),intent(in) :: fname2
   logical,intent(in) :: heavy
   type(coord) :: mol,ref
   real(wp) :: rmsdval
-  integer :: i,ii,jj,nat,io
+  integer :: i,ii,jj,nat,io,ich
   logical,allocatable :: mask(:)
   real(wp),allocatable :: C(:,:)
   real(wp),allocatable :: answers(:)
@@ -684,7 +685,11 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
 
   call ref%open(fname1)
   call mol%open(fname2)
-  
+
+  !> align to rotational axes and shift to center of mass
+  call axis(ref%nat,ref%at,ref%xyz)
+  call axis(mol%nat,mol%at,mol%xyz)
+
   if(heavy)then
     allocate(mask(ref%nat), source=.false.)
     allocate(hmap(ref%nat), rhmap(ref%nat), source=0)
@@ -729,6 +734,11 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
      endif
   enddo  
   write(*,*) 
+  !> write the rotated and shifted coordinates to one file
+  open(newunit=ich,file='lsap.xyz')
+  call ref%append(ich)
+  call mol%append(ich)
+  close(ich)
 
   !> reconstruct RMSD from assignment (since our costs are already distances!)
   rmsdval = 0.0_wp
@@ -745,6 +755,35 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   return
 end subroutine quick_hungarian_match
 
+!=========================================================================================!
+
+subroutine irmsd_tool(fname1,fname2)
+  use crest_parameters
+  use strucrd
+  use irmsd_module
+  implicit none
+  character(len=*),intent(in) :: fname1
+  character(len=*),intent(in) :: fname2
+  type(coord) :: mol,ref
+  real(wp) :: rmsdval
+  integer :: i,ich
+
+  call ref%open(fname1)
+  call mol%open(fname2)
+
+  call min_rmsd(ref,mol,rmsdout=rmsdval)
+
+    !> write the rotated and shifted coordinates to one file
+  open(newunit=ich,file='irmsd.xyz')
+  call ref%append(ich)
+  call mol%append(ich)
+  close(ich)
+
+  rmsdval = rmsdval * autoaa
+  write (*,'(1x,a,f16.8)') 'Calculated RMSD (Å):',rmsdval
+
+  return
+end subroutine irmsd_tool
 
 !=========================================================================================!
 

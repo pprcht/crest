@@ -647,7 +647,13 @@ subroutine parseflags(env,arg,nra)
           call quick_rmsd_tool(ctmp,dtmp,.false.)
         end if
         stop
-   
+
+      case ('-irmsd')
+        ctmp = trim(arg(i+1))
+        dtmp = trim(arg(i+2))
+        call irmsd_tool(ctmp,dtmp)
+        stop
+
       case ('-hungarian','-hungarianheavy','-hhungarian','-lsap','-hlsap','-lsapheavy')
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))

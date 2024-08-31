@@ -213,6 +213,7 @@ module strucrd
     procedure :: get_CN => coord_get_CN         !> calculate coordination number
     procedure :: get_z => coord_get_z           !> calculate nuclear charge
     procedure :: cn_to_bond => coord_cn_to_bond !> generate neighbour matrix from CN
+    procedure :: swap => atswp                  !> swap two atoms coordinates and their at() entries
   end type coord
 !=========================================================================================!
   !ensemble class. contains all structures of an ensemble
@@ -2369,6 +2370,25 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     deallocate (substr)
   end subroutine get_atlist
+
+!=========================================================================================!
+
+  subroutine atswp(self,ati,atj)
+  !********************************
+  !* swap atom ati with atj in mol
+  !********************************
+     implicit none
+     class(coord),intent(inout) :: self
+     integer,intent(in) :: ati,atj
+     real(wp) :: xyztmp(3)
+     integer :: attmp
+     xyztmp(1:3) = self%xyz(1:3,ati)
+     attmp = self%at(ati)
+     self%xyz(1:3,ati) = self%xyz(1:3,atj)
+     self%at(ati) = self%at(atj)
+     self%xyz(1:3,atj) = xyztmp(1:3)
+     self%at(atj) = attmp
+  end subroutine atswp
 
 !=========================================================================================!
 !=========================================================================================!

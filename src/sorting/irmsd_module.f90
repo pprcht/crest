@@ -12,6 +12,7 @@ module irmsd_module
   private
 
   public :: rmsd
+  public :: min_rmsd
 
   real(wp),parameter :: bigval = huge(bigval)
 
@@ -22,9 +23,12 @@ module irmsd_module
 !* and enable shared-memory parallelism
 !****************************************************
     real(wp),allocatable :: xyzscratch(:,:,:)
-    integer,allocatable  :: rankscratch(:,:)
-    integer,allocatable  :: orderscratch(:)
-    logical,allocatable  :: assignedscratch(:)
+    integer,allocatable  :: rank(:,:)
+    integer,allocatable  :: order(:)
+    integer,allocatable  :: current_order(:)
+    integer,allocatable  :: target_order(:)
+    integer,allocatable  :: iwork(:)
+    logical,allocatable  :: assigned(:)
 
     type(assignment_cache),allocatable :: acache
   contains
@@ -42,16 +46,22 @@ contains  !> MODULE PROCEDURES START HERE
     class(rmsd_cache),intent(inout) :: self
     integer,intent(in) :: nat
     if (allocated(self%xyzscratch)) deallocate (self%xyzscratch)
-    if (allocated(self%rankscratch)) deallocate (self%rankscratch)
-    if (allocated(self%orderscratch)) deallocate (self%orderscratch)
-    if (allocated(self%assignedscratch)) deallocate (self%assignedscratch)
+    if (allocated(self%rank)) deallocate (self%rank)
+    if (allocated(self%order)) deallocate (self%order)
+    if (allocated(self%current_order)) deallocate (self%current_order)
+    if (allocated(self%target_order)) deallocate (self%target_order)
+    if (allocated(self%iwork)) deallocate (self%iwork)
+    if (allocated(self%assigned)) deallocate (self%assigned)
     if (allocated(self%acache)) deallocate (self%acache)
-    allocate (self%assignedscratch(nat),source=.false.)
-    allocate (self%orderscratch(nat),source=0)
-    allocate (self%rankscratch(nat,2),source=0)
+    allocate (self%assigned(nat),source=.false.)
+    allocate (self%order(nat),source=0)
+    allocate (self%current_order(nat),source=0)
+    allocate (self%target_order(nat),source=0)
+    allocate (self%iwork(nat),source=0)
+    allocate (self%rank(nat,2),source=0)
     allocate (self%xyzscratch(3,nat,2),source=0.0_wp)
     allocate (self%acache)
-    call self%acache%allocate(nat,nat)
+    call self%acache%allocate(nat,nat,.true.) !> assume we are only using the LSAP implementation
   end subroutine allocate_rmsd_cache
 
   function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
@@ -141,7 +151,7 @@ contains  !> MODULE PROCEDURES START HERE
         end do
       end if
 
-      nullify(scratchptr)
+      nullify (scratchptr)
       if (allocated(tmpscratch)) deallocate (tmpscratch)
 
     else
@@ -169,18 +179,45 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
     type(rmsd_cache),pointer :: cptr
     type(rmsd_cache),allocatable,target :: local_rcache
-    integer :: natmax
+    integer :: nat,ii
     real(wp) :: calc_rmsd
+    logical,parameter :: debug = .true.
 
+    !> Initialization
     if (present(rcache)) then
       cptr => rcache
     else
       allocate (local_rcache)
-      natmax = max(ref%nat,mol%nat)
-      call local_rcache%allocate(natmax)
+      if (ref%nat .ne. mol%nat) then
+        error stop 'Unequal molecule size in min_rmsd()'
+      end if
+      nat = max(ref%nat,mol%nat)
+      call local_rcache%allocate(nat)
+      call fallbackranks(ref,mol,nat,local_rcache%rank)
       cptr => local_rcache
     end if
 
+    !> First sorting, to at least restore rank order
+    if (.not.all(cptr%rank(:,1) .eq. cptr%rank(:,2))) then
+      call rank_2_order(ref%nat,cptr%rank(:,1),cptr%target_order)
+      call rank_2_order(mol%nat,cptr%rank(:,2),cptr%current_order)
+      if (debug) then
+        write (*,*) 'current order & rank & target order'
+        do ii = 1,mol%nat
+          write (*,*) cptr%current_order(ii),cptr%rank(ii,2),cptr%target_order(ii)
+        end do
+      end if
+      call molatomsort(mol,mol%nat,cptr%current_order,cptr%target_order,cptr%iwork)
+      cptr%rank(:,2) = cptr%rank(:,1) !> since the ranks must be equal now!
+      if (debug) then
+        write (*,*) 'sorted order & rank'
+        do ii = 1,mol%nat
+          write (*,*) cptr%current_order(ii),cptr%rank(ii,2)
+        end do
+      end if
+    end if
+
+    !> final RMSD
     calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch)
 
     if (present(rmsdout)) rmsdout = calc_rmsd
@@ -188,55 +225,137 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine atswp(mol,ati,atj)
-  !********************************
-  !* swap atom ati with atj in mol
-  !********************************
-     implicit none
-     type(coord),intent(inout) :: mol
-     integer,intent(in) :: ati,atj 
-     real(wp) :: xyztmp(3)
-     integer :: attmp
-     xyztmp(1:3) = mol%xyz(1:3,ati)
-     attmp = mol%at(ati)
-     mol%xyz(1:3,ati) = mol%xyz(1:3,atj)
-     mol%at(ati) = mol%at(atj)
-     mol%xyz(1:3,atj) = xyztmp(1:3)
-     mol%at(atj) = attmp
-  end subroutine atswp
+  subroutine fallbackranks(ref,mol,nat,ranks)
+!*****************************************************************
+!* If we are doing ranks on-the-fly (i.e. without canonical algo)
+!* we can fall back to just using the atom types
+!*****************************************************************
+    implicit none
+    type(coord),intent(in) :: ref,mol
+    integer,intent(in)     :: nat
+    integer,intent(inout)  :: ranks(nat,2)
+
+    integer,allocatable :: typemap(:),rtypemap(:)
+    integer :: k,ii
+    allocate (typemap(nat),source=0)
+    k = 0
+    do ii = 1,ref%nat
+      if (.not.any(typemap(:) .eq. ref%at(ii))) then
+        k = k+1
+        typemap(k) = ref%at(ii)
+      end if
+    end do
+    do ii = 1,mol%nat
+      if (.not.any(typemap(:) .eq. mol%at(ii))) then
+        k = k+1
+        typemap(k) = mol%at(ii)
+      end if
+    end do
+    k = maxval(typemap(:))
+    allocate (rtypemap(k),source=0)
+    do ii = 1,nat
+      if (typemap(ii) == 0) cycle
+      rtypemap(typemap(ii)) = ii
+    end do
+    !> assign
+    do ii = 1,ref%nat
+      ranks(ii,1) = rtypemap(ref%at(ii))
+    end do
+    do ii = 1,mol%nat
+      ranks(ii,2) = rtypemap(mol%at(ii))
+    end do
+    deallocate (rtypemap)
+    deallocate (typemap)
+  end subroutine fallbackranks
 
 !========================================================================================!
 
   subroutine compute_hungarian(ref,mol,acache)
     implicit none
     !> IN & OUTPUT
-    type(coord),intent(in)    :: ref 
+    type(coord),intent(in)    :: ref
     type(coord),intent(inout) :: mol
     type(assignment_cache),intent(inout),optional,target :: acache
 
     !> LOCAL
     type(assignment_cache),pointer :: aptr
     type(assignment_cache),allocatable,target :: local_acache
-    integer :: natmax
-    
+    integer :: nat
 
     if (present(acache)) then
       aptr => acache
     else
       allocate (local_acache)
-      natmax = max(ref%nat,mol%nat)
-      call local_acache%allocate(natmax,natmax)
+      if (ref%nat .ne. mol%nat) then
+        error stop 'Unequal molecule size in compute_hungarian()'
+      end if
+      nat = max(ref%nat,mol%nat)
+      call local_acache%allocate(nat,nat,.true.)
       aptr => local_acache
     end if
 
-    !> Compute the cost matrix, which is simply the distance matrix 
+    !> Compute the cost matrix, which is simply the distance matrix
     !> between the two molecules.
-    !> To avoid computational overhead we can skip the square root. 
-    !> It won't affect the result 
-
-
+    !> To avoid computational overhead we can skip the square root.
+    !> It won't affect the result
 
   end subroutine compute_hungarian
+
+!========================================================================================!
+
+  subroutine rank_2_order(nat,rank,order)
+    implicit none
+    integer,intent(in) :: nat
+    integer,intent(in) :: rank(nat)
+    integer,intent(out) :: order(nat)
+    integer :: ii,jj,k,maxrank
+    order(:) = 0
+    maxrank = maxval(rank(:))
+    k = 0
+    do ii = 1,maxrank
+      do jj = 1,nat
+        if (rank(jj) == ii) then
+          k = k+1
+          order(jj) = k
+        end if
+      end do
+    end do
+  end subroutine rank_2_order
+
+  subroutine molatomsort(mol,n,current_order,target_order,index_map)
+    implicit none
+    type(coord),intent(inout) :: mol
+    integer,intent(in) :: n
+    integer,intent(inout) :: current_order(n)
+    integer,intent(in) :: target_order(n)
+    integer,intent(inout) :: index_map(n)
+    integer :: i,j,correct_atom,current_position
+
+    !> Step 1: Create a mapping from target_order to current_order positions
+    do i = 1,n
+      index_map(current_order(i)) = i
+    end do
+
+    !> Step 2: Restore the target order
+    do i = 1,n
+      correct_atom = target_order(i)
+      current_position = index_map(correct_atom)
+
+      if (i /= current_position) then
+        !> Swap atoms i and current_position in molecule
+        call mol%swap(i,current_position)
+
+        !> Update the index map since the atoms have been swapped
+        index_map(current_order(i)) = current_position
+        index_map(current_order(current_position)) = i
+
+        !> Update the current_order array to reflect the swap
+        j = current_order(i)
+        current_order(i) = current_order(current_position)
+        current_order(current_position) = j
+      end if
+    end do
+  end subroutine molatomsort
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
