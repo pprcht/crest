@@ -760,6 +760,7 @@ end subroutine quick_hungarian_match
 subroutine irmsd_tool(fname1,fname2)
   use crest_parameters
   use strucrd
+  use axis_module
   use irmsd_module
   implicit none
   character(len=*),intent(in) :: fname1
@@ -771,6 +772,7 @@ subroutine irmsd_tool(fname1,fname2)
   call ref%open(fname1)
   call mol%open(fname2)
 
+  call axis(ref%nat,ref%at,ref%xyz)
   call min_rmsd(ref,mol,rmsdout=rmsdval)
 
     !> write the rotated and shifted coordinates to one file

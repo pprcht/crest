@@ -55,7 +55,9 @@ module canonical_mod
     procedure :: iterate
     procedure :: rankprint
     procedure :: stereo => analyze_stereo
+    procedure :: hasstereo => has_stereo
     procedure :: compare => compare_canonical_sorter
+    procedure :: add_h_ranks
   end type canonical_sorter
 
   logical,parameter :: debug = .false.
@@ -513,6 +515,42 @@ contains  !> MODULE PROCEDURES START HERE
     deallocate (neiranks,isstereo)
   end subroutine analyze_stereo
 
+!===========================================================================================!
+
+  function has_stereo(self,mol) result(yesno)
+    implicit none
+    logical :: yesno
+    class(canonical_sorter),intent(in) :: self
+    type(coord),intent(in) :: mol
+    integer :: i,ii,zero,nei,j,jj,maxrank
+    integer :: k,l,rs
+    integer,allocatable :: neiranks(:,:)
+    real(wp) :: coords(3,4)
+    logical,allocatable :: isstereo(:)
+    allocate (isstereo(mol%nat),source=.false.)
+    allocate (neiranks(4,mol%nat),source=0)
+    maxrank = maxval(self%rank(:))
+    do i = 1,self%hatms
+      ii = self%hmap(i)
+      zero = count(self%neigh(:,ii) == 0)
+      nei = self%maxnei-zero
+!>--- consider only atoms with 4 unique (in terms of ranks) neighbours as stereocenter
+      if (nei == 4) then 
+        do j = 1,4
+          jj = self%neigh(j,ii)
+          if (mol%at(jj) == 1) then !> one hydrogen allowed
+            neiranks(j,ii) = maxrank+1
+          else
+            neiranks(j,ii) = self%rank(jj)
+          end if
+        end do
+        isstereo(ii) = unique_neighbours(4,neiranks(:,ii))
+      end if
+    end do
+    yesno = any(isstereo(:))
+    deallocate (neiranks,isstereo)
+  end function has_stereo
+
 !========================================================================================!
 
   function compare_canonical_sorter(self,other) result(yesno)
@@ -568,6 +606,44 @@ contains  !> MODULE PROCEDURES START HERE
     deallocate (sorted_invariants)
     return
   end function compare_canonical_sorter
+
+!========================================================================================!
+
+  subroutine add_h_ranks(self,mol)
+!******************************************************************
+!* Mapps ranks of the heavy atoms back to the full molecule order
+!* And continues ranks for H atoms, based on neighbor list
+!******************************************************************
+    implicit none
+    class(canonical_sorter),intent(inout) :: self
+    type(coord),intent(in) :: mol
+    integer,allocatable :: rankh(:) 
+    integer :: i,ii,zero,nei,j,jj,maxrank
+    logical :: hneigh
+!>--- if there is no H, or this routine was already called, return
+    if(size(self%rank,1).eq.mol%nat) return
+!>--- otherwise, analyze and resize
+    maxrank=maxval(self%rank(:),1)
+    allocate(rankh(mol%nat), source=0)
+    do i = 1,self%hatms
+      ii = self%hmap(i)
+      zero = count(self%neigh(:,ii) == 0)
+      nei = self%maxnei-zero
+      rankh(ii) = self%rank(i)
+      hneigh = .false.
+      do j=1,nei
+         jj = self%neigh(j,ii)
+         if (mol%at(jj) == 1) then
+           if(.not.hneigh)then
+              hneigh=.true.
+              maxrank=maxrank+1
+           endif 
+           rankh(jj)=maxrank
+         endif
+      enddo 
+    enddo
+    call move_alloc(rankh,self%rank)
+  end subroutine add_h_ranks
 
 !========================================================================================!
 !========================================================================================!

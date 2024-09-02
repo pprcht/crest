@@ -8,6 +8,7 @@ module irmsd_module
   use ls_rmsd,only:rmsd_classic => rmsd
   use strucrd
   use hungarian_module
+  use axis_module
   implicit none
   private
 
@@ -24,16 +25,23 @@ module irmsd_module
 !****************************************************
     real(wp),allocatable :: xyzscratch(:,:,:)
     integer,allocatable  :: rank(:,:)
-    integer,allocatable  :: order(:)
+    integer,allocatable  :: best_order(:,:)
     integer,allocatable  :: current_order(:)
     integer,allocatable  :: target_order(:)
     integer,allocatable  :: iwork(:)
-    logical,allocatable  :: assigned(:)
+    logical,allocatable  :: assigned(:)  !> atom-wise
+    logical,allocatable  :: rassigned(:) !> rank-wise
+
+    integer :: nranks = 0
+    integer,allocatable :: ngroup(:)
+    logical :: stereocheck = .false.
 
     type(assignment_cache),allocatable :: acache
   contains
     procedure :: allocate => allocate_rmsd_cache
   end type rmsd_cache
+
+  real(wp),parameter :: inf = huge(1.0_wp)
 
 !========================================================================================!
 !========================================================================================!
@@ -47,18 +55,23 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: nat
     if (allocated(self%xyzscratch)) deallocate (self%xyzscratch)
     if (allocated(self%rank)) deallocate (self%rank)
-    if (allocated(self%order)) deallocate (self%order)
+    if (allocated(self%best_order)) deallocate (self%best_order)
     if (allocated(self%current_order)) deallocate (self%current_order)
     if (allocated(self%target_order)) deallocate (self%target_order)
     if (allocated(self%iwork)) deallocate (self%iwork)
     if (allocated(self%assigned)) deallocate (self%assigned)
+    if (allocated(self%rassigned)) deallocate (self%rassigned)
+    if (allocated(self%ngroup)) deallocate (self%ngroup)
     if (allocated(self%acache)) deallocate (self%acache)
     allocate (self%assigned(nat),source=.false.)
-    allocate (self%order(nat),source=0)
+    allocate (self%rassigned(nat),source=.false.)
+    allocate (self%best_order(nat,3),source=0)
     allocate (self%current_order(nat),source=0)
     allocate (self%target_order(nat),source=0)
     allocate (self%iwork(nat),source=0)
     allocate (self%rank(nat,2),source=0)
+    self%nranks = 0
+    allocate (self%ngroup(nat), source=0)
     allocate (self%xyzscratch(3,nat,2),source=0.0_wp)
     allocate (self%acache)
     call self%acache%allocate(nat,nat,.true.) !> assume we are only using the LSAP implementation
@@ -179,11 +192,12 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
     type(rmsd_cache),pointer :: cptr
     type(rmsd_cache),allocatable,target :: local_rcache
-    integer :: nat,ii
+    integer :: nat,ii,rnk
     real(wp) :: calc_rmsd
+    real(wp) :: tmprmsd_sym(3)
     logical,parameter :: debug = .true.
 
-    !> Initialization
+!>--- Initialization
     if (present(rcache)) then
       cptr => rcache
     else
@@ -197,7 +211,13 @@ contains  !> MODULE PROCEDURES START HERE
       cptr => local_rcache
     end if
 
-    !> First sorting, to at least restore rank order
+!>-- Consistency check
+    cptr%nranks = maxval(cptr%rank(:,1))
+    if(cptr%nranks .ne. maxval(cptr%rank(:,2)))then
+      error stop "Different atom identities in min_rmsd, can't restore an atom order!"
+    endif
+
+!>--- First sorting, to at least restore rank order
     if (.not.all(cptr%rank(:,1) .eq. cptr%rank(:,2))) then
       call rank_2_order(ref%nat,cptr%rank(:,1),cptr%target_order)
       call rank_2_order(mol%nat,cptr%rank(:,2),cptr%current_order)
@@ -217,11 +237,81 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end if
 
-    !> final RMSD
+!>--- Count symmetry equivalent groups and assign all unique atoms immediately   
+!     Note, the rank can be zero if we only are looking at heavy atoms
+    if(all(cptr%ngroup(:) .eq. 0))then 
+      do ii=1,ref%nat
+         rnk = cptr%rank(ii,1)
+         if(rnk>0)then
+           cptr%ngroup(rnk) = cptr%ngroup(rnk) + 1
+         endif
+      enddo
+    endif
+    !> assignment reset
+    cptr%assigned(:) = .false.
+    cptr%rassigned(:) = .false.
+    cptr%rassigned(cptr%nranks:) = .true.
+    do ii=1,ref%nat
+      rnk = cptr%rank(ii,2)
+      if(rnk < 1)then
+        cptr%assigned(ii) = .true.
+        cycle
+      endif
+      if(cptr%ngroup(rnk) .eq. 1)then
+        cptr%assigned(ii) = .true.
+      endif
+    enddo
+    if(debug)then
+      write (*,*)  'rank & # members'
+      do ii = 1,mol%nat
+        if(cptr%ngroup(ii) > 0)then
+          write (*,*) ii,cptr%ngroup(ii)
+        endif
+      end do
+    endif
+
+!>--- Perform the desired symmetry operations, align with rotational axis, run LSAP algo
+    tmprmsd_sym(:) = inf  !> initialize to huge
+    call axis(mol%nat, mol%at, mol%xyz)
+    call min_rmsd_iterate_through_groups(ref,mol,1,cptr)
+
+    !> mirror z
+    if(cptr%stereocheck)then
+      mol%xyz(3,:) = -mol%xyz(3,:)
+      call axis(mol%nat, mol%at, mol%xyz)
+      call min_rmsd_iterate_through_groups(ref,mol,1,cptr)
+    endif
+
+
+!>--- select the best match among the ones after symmetry operations and use its ordering
+
+
+!>--- final RMSD with fully restored atom order
     calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch)
 
     if (present(rmsdout)) rmsdout = calc_rmsd
   end subroutine min_rmsd
+
+!========================================================================================!
+
+  subroutine min_rmsd_iterate_through_groups(ref,mol,step,rcache)
+      implicit none
+      type(coord),intent(in) :: ref
+      type(coord),intent(inout) :: mol
+      integer,intent(in) :: step
+      type(rmsd_cache),intent(inout) :: rcache
+      integer :: rr
+      logical,parameter :: debug=.true.
+
+      if(debug)then
+      write(*,*) '# ranks:',rcache%nranks
+      endif
+      do rr=1,rcache%nranks
+        if(rcache%rassigned(rr)) cycle
+ 
+      enddo
+
+  end subroutine min_rmsd_iterate_through_groups
 
 !========================================================================================!
 
@@ -270,17 +360,23 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine compute_hungarian(ref,mol,acache)
+  subroutine compute_hungarian(ref,mol,ranks,targetrank,acache)
+!**************************************************************
+!* Run the linear assignment algorithm on the desired subset
+!* of atoms (via rank and targetrank)
+!**************************************************************
     implicit none
     !> IN & OUTPUT
     type(coord),intent(in)    :: ref
     type(coord),intent(inout) :: mol
+    integer,intent(in) :: ranks(:)
+    integer,intent(in) :: targetrank
     type(assignment_cache),intent(inout),optional,target :: acache
 
     !> LOCAL
     type(assignment_cache),pointer :: aptr
     type(assignment_cache),allocatable,target :: local_acache
-    integer :: nat
+    integer :: nat,i,ii,jj
 
     if (present(acache)) then
       aptr => acache
@@ -300,6 +396,11 @@ contains  !> MODULE PROCEDURES START HERE
     !> It won't affect the result
 
   end subroutine compute_hungarian
+
+
+!========================================================================================!
+
+
 
 !========================================================================================!
 
@@ -321,6 +422,8 @@ contains  !> MODULE PROCEDURES START HERE
       end do
     end do
   end subroutine rank_2_order
+
+!========================================================================================!
 
   subroutine molatomsort(mol,n,current_order,target_order,index_map)
     implicit none
