@@ -29,6 +29,7 @@ module irmsd_module
     integer,allocatable  :: current_order(:)
     integer,allocatable  :: target_order(:)
     integer,allocatable  :: iwork(:)
+    integer,allocatable  :: iwork2(:,:)
     logical,allocatable  :: assigned(:)  !> atom-wise
     logical,allocatable  :: rassigned(:) !> rank-wise
 
@@ -59,6 +60,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%current_order)) deallocate (self%current_order)
     if (allocated(self%target_order)) deallocate (self%target_order)
     if (allocated(self%iwork)) deallocate (self%iwork)
+    if (allocated(self%iwork2)) deallocate (self%iwork2)
     if (allocated(self%assigned)) deallocate (self%assigned)
     if (allocated(self%rassigned)) deallocate (self%rassigned)
     if (allocated(self%ngroup)) deallocate (self%ngroup)
@@ -69,9 +71,10 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (self%current_order(nat),source=0)
     allocate (self%target_order(nat),source=0)
     allocate (self%iwork(nat),source=0)
+    allocate (self%iwork2(nat,2),source=0)
     allocate (self%rank(nat,2),source=0)
     self%nranks = 0
-    allocate (self%ngroup(nat), source=0)
+    allocate (self%ngroup(nat),source=0)
     allocate (self%xyzscratch(3,nat,2),source=0.0_wp)
     allocate (self%acache)
     call self%acache%allocate(nat,nat,.true.) !> assume we are only using the LSAP implementation
@@ -213,9 +216,9 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>-- Consistency check
     cptr%nranks = maxval(cptr%rank(:,1))
-    if(cptr%nranks .ne. maxval(cptr%rank(:,2)))then
+    if (cptr%nranks .ne. maxval(cptr%rank(:,2))) then
       error stop "Different atom identities in min_rmsd, can't restore an atom order!"
-    endif
+    end if
 
 !>--- First sorting, to at least restore rank order
     if (.not.all(cptr%rank(:,1) .eq. cptr%rank(:,2))) then
@@ -237,54 +240,52 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end if
 
-!>--- Count symmetry equivalent groups and assign all unique atoms immediately   
+!>--- Count symmetry equivalent groups and assign all unique atoms immediately
 !     Note, the rank can be zero if we only are looking at heavy atoms
-    if(all(cptr%ngroup(:) .eq. 0))then 
-      do ii=1,ref%nat
-         rnk = cptr%rank(ii,1)
-         if(rnk>0)then
-           cptr%ngroup(rnk) = cptr%ngroup(rnk) + 1
-         endif
-      enddo
-    endif
+    if (all(cptr%ngroup(:) .eq. 0)) then
+      do ii = 1,ref%nat
+        rnk = cptr%rank(ii,1)
+        if (rnk > 0) then
+          cptr%ngroup(rnk) = cptr%ngroup(rnk)+1
+        end if
+      end do
+    end if
     !> assignment reset
     cptr%assigned(:) = .false.
     cptr%rassigned(:) = .false.
-    cptr%rassigned(cptr%nranks:) = .true.
-    do ii=1,ref%nat
+    cptr%rassigned(cptr%nranks+1:) = .true. !> skip unneeded allocation space
+    do ii = 1,ref%nat
       rnk = cptr%rank(ii,2)
-      if(rnk < 1)then
+      if (rnk < 1) then
         cptr%assigned(ii) = .true.
         cycle
-      endif
-      if(cptr%ngroup(rnk) .eq. 1)then
+      end if
+      if (cptr%ngroup(rnk) .eq. 1) then
         cptr%assigned(ii) = .true.
-      endif
-    enddo
-    if(debug)then
-      write (*,*)  'rank & # members'
+      end if
+    end do
+    if (debug) then
+      write (*,*) 'rank & # members'
       do ii = 1,mol%nat
-        if(cptr%ngroup(ii) > 0)then
+        if (cptr%ngroup(ii) > 0) then
           write (*,*) ii,cptr%ngroup(ii)
-        endif
+        end if
       end do
-    endif
+    end if
 
 !>--- Perform the desired symmetry operations, align with rotational axis, run LSAP algo
     tmprmsd_sym(:) = inf  !> initialize to huge
-    call axis(mol%nat, mol%at, mol%xyz)
+    call axis(mol%nat,mol%at,mol%xyz)
     call min_rmsd_iterate_through_groups(ref,mol,1,cptr)
 
     !> mirror z
-    if(cptr%stereocheck)then
+    if (cptr%stereocheck) then
       mol%xyz(3,:) = -mol%xyz(3,:)
-      call axis(mol%nat, mol%at, mol%xyz)
+      call axis(mol%nat,mol%at,mol%xyz)
       call min_rmsd_iterate_through_groups(ref,mol,1,cptr)
-    endif
-
+    end if
 
 !>--- select the best match among the ones after symmetry operations and use its ordering
-
 
 !>--- final RMSD with fully restored atom order
     calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch)
@@ -295,21 +296,24 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine min_rmsd_iterate_through_groups(ref,mol,step,rcache)
-      implicit none
-      type(coord),intent(in) :: ref
-      type(coord),intent(inout) :: mol
-      integer,intent(in) :: step
-      type(rmsd_cache),intent(inout) :: rcache
-      integer :: rr
-      logical,parameter :: debug=.true.
+    implicit none
+    type(coord),intent(in) :: ref
+    type(coord),intent(inout) :: mol
+    integer,intent(in) :: step
+    type(rmsd_cache),intent(inout),target :: rcache
+    integer :: rr
+    type(assignment_cache),pointer :: aptr
+    logical,parameter :: debug = .true.
 
-      if(debug)then
-      write(*,*) '# ranks:',rcache%nranks
-      endif
-      do rr=1,rcache%nranks
-        if(rcache%rassigned(rr)) cycle
- 
-      enddo
+    if (debug) then
+      write (*,*) '# ranks:',rcache%nranks
+    end if
+    aptr => rcache%acache
+    do rr = 1,rcache%nranks
+      if (rcache%rassigned(rr)) cycle
+      call compute_hungarian(ref,mol,rcache%rank,rcache%ngroup,rr, &
+      &                      rcache%iwork2,aptr)
+    end do
 
   end subroutine min_rmsd_iterate_through_groups
 
@@ -360,7 +364,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine compute_hungarian(ref,mol,ranks,targetrank,acache)
+  subroutine compute_hungarian(ref,mol,ranks,ngroups,targetrank,iwork2,acache)
 !**************************************************************
 !* Run the linear assignment algorithm on the desired subset
 !* of atoms (via rank and targetrank)
@@ -369,14 +373,19 @@ contains  !> MODULE PROCEDURES START HERE
     !> IN & OUTPUT
     type(coord),intent(in)    :: ref
     type(coord),intent(inout) :: mol
-    integer,intent(in) :: ranks(:)
+    integer,intent(in) :: ranks(:,:)
+    integer,intent(in) :: ngroups(:)
     integer,intent(in) :: targetrank
+    integer,intent(inout) :: iwork2(:,:)
     type(assignment_cache),intent(inout),optional,target :: acache
 
     !> LOCAL
     type(assignment_cache),pointer :: aptr
     type(assignment_cache),allocatable,target :: local_acache
-    integer :: nat,i,ii,jj
+    integer :: nat,i,j,ii,jj,rnknat,iostatus
+    real(sp) :: dists(3)
+
+    logical,parameter :: debug = .true.
 
     if (present(acache)) then
       aptr => acache
@@ -394,13 +403,45 @@ contains  !> MODULE PROCEDURES START HERE
     !> between the two molecules.
     !> To avoid computational overhead we can skip the square root.
     !> It won't affect the result
+    !> Also, since aptr%Cost is a flattened matrix, we only fill
+    !> the first rnknat**2 entries
+    rnknat = ngroups(targetrank)
+    ii = 0
+    do i = 1,ref%nat
+      if (ranks(i,1) .ne. targetrank) cycle
+      ii = ii+1
+      iwork2(ii,1) = i !> mapping using the first column of iwork2
+      jj = 0
+      do j = 1,mol%nat
+        if (ranks(j,2) .ne. targetrank) cycle
+        jj = jj+1
+        dists(:)=(ref%xyz(:,i)-mol%xyz(:,j))**2 !> use i and j
+        aptr%Cost(jj+(ii-1)*rnknat) = sum(dists)
+      end do
+    end do
+
+
+    if (debug) then
+      write (*,*) 'target rank',targetrank,'# atoms',rnknat
+    end if
+
+    call lsap(aptr,rnknat,rnknat,.false.,iostatus)
+
+    !> paasing back the determined order as second column of iwork2
+    if(iostatus==0)then
+      if(debug)then
+        do i=1,rnknat
+          write (*,*) iwork2(aptr%a(i),1),'-->',iwork2(aptr%b(i),1)
+        enddo 
+      endif  
+    else
+      !> in the unlikely case we have a failure of the LSAP
+      !> we do just a 1:1 mapping, just so that the algo doesn't crash
+      iwork2(1:rnknat,2) = iwork2(1:rnknat,1) 
+    endif
+
 
   end subroutine compute_hungarian
-
-
-!========================================================================================!
-
-
 
 !========================================================================================!
 

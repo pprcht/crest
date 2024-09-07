@@ -40,7 +40,7 @@ module hungarian_module
   public :: assignment_cache
   type :: assignment_cache
     integer :: J,W
-    real(sp),allocatable :: Cost(:,:)  !> Cost(J,W)
+    real(sp),allocatable :: Cost(:)  !> Cost(J*W), 1D for more efficient memory access
     !> Hungarian algo related
     real(sp),allocatable :: answers(:) !> answers(J)
     integer,allocatable  :: job(:)     !> job(W+1)
@@ -75,8 +75,9 @@ contains  !> MODULE PROCEDURES START HERE
 
   subroutine allocate_assignment_cache(self,J,W,lsapcache)
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     class(assignment_cache),intent(inout) :: self
-    integer,intent(in) :: J,W
     logical,intent(in),optional :: lsapcache
     logical :: yesno
     yesno = .false.
@@ -88,7 +89,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (J > W) then
       error stop 'linear assignment problems require rectengular matrices!'
     end if
-    allocate (self%Cost(J,W))
+    allocate (self%Cost(J*W))
 
     !> Allocate arrays based on input dimensions & algo type
     if (.not.yesno) then
@@ -185,7 +186,8 @@ contains  !> MODULE PROCEDURES START HERE
     !*   job(W+1)   - Vector where job(ww) is the job assigned to
     !*                the ww-th worker (or -1 if no job is assigned)
     !****************************************************************
-    integer,intent(in) :: J,W
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     type(assignment_cache),intent(inout) :: cache
     integer  :: jj_cur,ww_cur,jj,ww_next,ww
     real(sp) :: delta
@@ -204,7 +206,7 @@ contains  !> MODULE PROCEDURES START HERE
       job = -1
       ys = 0
       yt = 0
-      Ct = transpose(C)
+      !Ct = transpose(reshape(C,[J,W]))
 
       do jj_cur = 1,J   !> O(n¹)
         ww_cur = W+1
@@ -219,7 +221,8 @@ contains  !> MODULE PROCEDURES START HERE
           delta = inf
           do ww = 1,W !> O(n²) -> O(n³)
             if (.not.in_Z(ww)) then
-              if (ckmin(min_to(ww),Ct(ww,jj)-ys(jj)-yt(ww))) then
+              !if (ckmin(min_to(ww),Ct(ww,jj)-ys(jj)-yt(ww))) then
+              if (ckmin(min_to(ww),C(jj+(ww-1)*J)-ys(jj)-yt(ww))) then
                 prv(ww) = ww_cur
               end if
               if (ckmin(delta,min_to(ww))) then
@@ -258,14 +261,15 @@ contains  !> MODULE PROCEDURES START HERE
     !* Wrapper for integer precision
     !*********************************************
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     integer,intent(in) :: C(J,W)
-    integer,intent(in) :: J,W
     integer,intent(out) :: answers(J)
     integer,intent(out) :: job(W+1)
     type(assignment_cache) :: cache
 
     call cache%allocate(J,W)
-    cache%Cost(1:J,1:W) = real(C(1:J,1:W),sp)
+    cache%Cost(1:J*W) = reshape(real(C(1:J,1:W),sp),[J*W])
     call hungarian_cached(cache,J,W)
 
     answers(1:J) = nint(cache%answers(1:J))
@@ -278,14 +282,15 @@ contains  !> MODULE PROCEDURES START HERE
     !* Wrapper for single precision
     !*********************************************
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     real(sp),intent(in) :: C(J,W)
-    integer,intent(in) :: J,W
     real(sp),intent(out) :: answers(J)
     integer,intent(out) :: job(W+1)
     type(assignment_cache) :: cache
 
     call cache%allocate(J,W)
-    cache%Cost(1:J,1:W) = C(1:J,1:W)
+    cache%Cost(1:J*W) = reshape(C(1:J,1:W),[J*W])
     call hungarian_cached(cache,J,W)
 
     answers(1:J) = cache%answers(1:J)
@@ -298,14 +303,15 @@ contains  !> MODULE PROCEDURES START HERE
     !* Wrapper for double precision
     !*********************************************
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     real(wp),intent(in) :: C(J,W)
-    integer,intent(in) :: J,W
     real(wp),intent(out) :: answers(J)
     integer,intent(out) :: job(W+1)
     type(assignment_cache) :: cache
 
     call cache%allocate(J,W)
-    cache%Cost(1:J,1:W) = real(C(1:J,1:W),sp)
+    cache%Cost(1:J*W) = reshape(real(C(1:J,1:W),sp),[J*W])
     call hungarian_cached(cache,J,W)
 
     answers(1:J) = real(cache%answers(1:J),wp)
@@ -327,12 +333,13 @@ contains  !> MODULE PROCEDURES START HERE
 !* of the C++ lsap algorithm in SciPy
 !****************************************************************
 
-  function augmenting_path(nc,cost,u,v,path,row4col, &
+  function augmenting_path(nr,nc,cost,u,v,path,row4col, &
                           &  shortestPathCosts,i,SR,SC, &
                           &  remaining,minValue) result(sink)
     implicit none
+    integer,intent(in) :: nr              !> Number of columns (jobs)
     integer,intent(in) :: nc              !> Number of columns (workers)
-    real(sp),intent(in) :: cost(:,:)      !> Cost matrix
+    real(sp),intent(in) :: cost(:)        !> Cost matrix (1D, nr*nc length)
     real(sp),intent(inout) :: u(:)        !> Dual variables for rows (jobs)
     real(sp),intent(inout) :: v(:)        !> Dual variables for columns (workers)
     integer,intent(inout) :: path(:)      !> Path array
@@ -369,7 +376,7 @@ contains  !> MODULE PROCEDURES START HERE
 
       do it = 1,num_remaining
         j = remaining(it)
-        r = minValue+cost(i,j)-u(i)-v(j)
+        r = minValue+cost(i+((j-1)*nr))-u(i)-v(j)
         if (r < shortestPathCosts(j)) then
           path(j) = i
           shortestPathCosts(j) = r
@@ -435,6 +442,8 @@ contains  !> MODULE PROCEDURES START HERE
 
       !> Handle trivial inputs
       if (nr == 1.or.nc == 1) then
+        a(1) = 1
+        b(1) = 1
         iostatus = 0
         return
       end if
@@ -462,7 +471,7 @@ contains  !> MODULE PROCEDURES START HERE
       do curRow = 1,nr
         curRowtmp = curRow
         !> Call augmenting_path routine
-        sink = augmenting_path(nc,cost,u,v,path,row4col,  &
+        sink = augmenting_path(nr,nc,cost,u,v,path,row4col,  &
                               & shortestPathCosts,curRowtmp, &
                               & SR,SC,remaining,minValue)
         if (sink < 0) then
@@ -511,15 +520,16 @@ contains  !> MODULE PROCEDURES START HERE
     !* Wrapper for integer precision
     !*********************************************
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     integer,intent(in) :: C(J,W)
-    integer,intent(in) :: J,W
     integer,intent(out),allocatable :: a(:)
     integer,intent(out),allocatable :: b(:)
     type(assignment_cache) :: cache
     integer :: io
 
     call cache%allocate(J,W,.true.)
-    cache%Cost(1:J,1:W) = real(C(1:J,1:W),sp)
+    cache%Cost(1:J*W) = reshape(real(C(1:J,1:W),sp), [J*W])
     call lsap_cached(cache,J,W,.false.,io)
 
     allocate(a(J), b(J))
@@ -534,15 +544,16 @@ contains  !> MODULE PROCEDURES START HERE
     !* Wrapper for single precision
     !*********************************************
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     real(sp),intent(in) :: C(J,W)
-    integer,intent(in) :: J,W
     integer,intent(out),allocatable :: a(:)
     integer,intent(out),allocatable :: b(:)
     type(assignment_cache) :: cache
     integer :: io
 
     call cache%allocate(J,W,.true.)
-    cache%Cost(1:J,1:W) = C(1:J,1:W)
+    cache%Cost(1:J*W) = reshape(C(1:J,1:W), [J*W])
     call lsap_cached(cache,J,W,.false.,io)
 
     allocate(a(J), b(J))
@@ -557,15 +568,16 @@ contains  !> MODULE PROCEDURES START HERE
     !* Wrapper for double precision
     !*********************************************
     implicit none
+    integer,intent(in) :: J
+    integer,intent(in) :: W
     real(wp),intent(in) :: C(J,W)
-    integer,intent(in) :: J,W
     integer,intent(out),allocatable :: a(:)
     integer,intent(out),allocatable :: b(:)
     type(assignment_cache) :: cache
     integer :: io
 
     call cache%allocate(J,W,.true.)
-    cache%Cost(1:J,1:W) = real(C(1:J,1:W),sp)
+    cache%Cost(1:J*W) = reshape(real(C(1:J,1:W),sp), [J*W])
     call lsap_cached(cache,J,W,.false.,io)
 
     allocate(a(J), b(J))
