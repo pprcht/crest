@@ -15,6 +15,8 @@ module irmsd_module
   public :: rmsd
   public :: min_rmsd
 
+  public :: fallbackranks
+
   real(wp),parameter :: bigval = huge(bigval)
 
   public :: rmsd_cache
@@ -28,6 +30,7 @@ module irmsd_module
     integer,allocatable  :: best_order(:,:)
     integer,allocatable  :: current_order(:)
     integer,allocatable  :: target_order(:)
+    integer,allocatable  :: target_order_bkup(:,:)
     integer,allocatable  :: iwork(:)
     integer,allocatable  :: iwork2(:,:)
     logical,allocatable  :: assigned(:)  !> atom-wise
@@ -59,6 +62,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%best_order)) deallocate (self%best_order)
     if (allocated(self%current_order)) deallocate (self%current_order)
     if (allocated(self%target_order)) deallocate (self%target_order)
+    if (allocated(self%target_order_bkup)) deallocate (self%target_order_bkup)
     if (allocated(self%iwork)) deallocate (self%iwork)
     if (allocated(self%iwork2)) deallocate (self%iwork2)
     if (allocated(self%assigned)) deallocate (self%assigned)
@@ -70,6 +74,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (self%best_order(nat,3),source=0)
     allocate (self%current_order(nat),source=0)
     allocate (self%target_order(nat),source=0)
+    allocate (self%target_order_bkup(nat,2),source=0)
     allocate (self%iwork(nat),source=0)
     allocate (self%iwork2(nat,2),source=0)
     allocate (self%rank(nat,2),source=0)
@@ -195,9 +200,9 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
     type(rmsd_cache),pointer :: cptr
     type(rmsd_cache),allocatable,target :: local_rcache
-    integer :: nat,ii,rnk
+    integer :: nat,ii,rnk,dumpunit
     real(wp) :: calc_rmsd
-    real(wp) :: tmprmsd_sym(3)
+    real(wp) :: tmprmsd_sym(3),dum
     logical,parameter :: debug = .true.
 
 !>--- Initialization
@@ -220,7 +225,7 @@ contains  !> MODULE PROCEDURES START HERE
       error stop "Different atom identities in min_rmsd, can't restore an atom order!"
     end if
 
-!>--- First sorting, to at least restore rank order
+!>--- First sorting, to at least restore rank order (only if that's not the case!)
     if (.not.all(cptr%rank(:,1) .eq. cptr%rank(:,2))) then
       call rank_2_order(ref%nat,cptr%rank(:,1),cptr%target_order)
       call rank_2_order(mol%nat,cptr%rank(:,2),cptr%current_order)
@@ -255,6 +260,8 @@ contains  !> MODULE PROCEDURES START HERE
     cptr%rassigned(:) = .false.
     cptr%rassigned(cptr%nranks+1:) = .true. !> skip unneeded allocation space
     do ii = 1,ref%nat
+      cptr%iwork(ii) = ii         !> also init iwork
+      cptr%current_order(ii) = ii !> also init current_order
       rnk = cptr%rank(ii,2)
       if (rnk < 1) then
         cptr%assigned(ii) = .true.
@@ -274,18 +281,48 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
 !>--- Perform the desired symmetry operations, align with rotational axis, run LSAP algo
+    if (debug) then
+      open (newunit=dumpunit,file='debugirmsd.xyz')
+      call ref%append(dumpunit)
+    end if
     tmprmsd_sym(:) = inf  !> initialize to huge
     call axis(mol%nat,mol%at,mol%xyz)
-    call min_rmsd_iterate_through_groups(ref,mol,1,cptr)
+    call min_rmsd_iterate_through_groups(ref,mol,1,cptr,dum)
+    tmprmsd_sym(1) = dum
+    cptr%target_order_bkup(:,1) = cptr%iwork(:)
+    if (debug) then
+      write (*,*) 'Total LSAP cost:',dum
+      call mol%append(dumpunit)
+    end if
 
     !> mirror z
     if (cptr%stereocheck) then
       mol%xyz(3,:) = -mol%xyz(3,:)
       call axis(mol%nat,mol%at,mol%xyz)
-      call min_rmsd_iterate_through_groups(ref,mol,1,cptr)
+      call min_rmsd_iterate_through_groups(ref,mol,1,cptr,dum)
+      tmprmsd_sym(2) = dum
+      cptr%target_order_bkup(:,2) = cptr%iwork(:)
+      if (debug) then
+        write (*,*) 'Total LSAP cost (mirrored):',dum
+        call mol%append(dumpunit)
+      end if
+    end if
+
+    if (debug) then
+      close (dumpunit)
     end if
 
 !>--- select the best match among the ones after symmetry operations and use its ordering
+    ii = minloc(tmprmsd_sym(:),1)
+    write (*,*) ii
+    cptr%target_order(:) = cptr%target_order_bkup(:,ii)
+    if (debug) then
+      write (*,*) 'Determined remapping'
+      do ii = 1,mol%nat
+        write (*,*) cptr%current_order(ii),'-->',cptr%target_order(ii)
+      end do
+    end if
+    !call molatomsort(mol,mol%nat,cptr%current_order,cptr%target_order,cptr%iwork)
 
 !>--- final RMSD with fully restored atom order
     calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch)
@@ -295,15 +332,20 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine min_rmsd_iterate_through_groups(ref,mol,step,rcache)
+  subroutine min_rmsd_iterate_through_groups(ref,mol,step,rcache,val)
     implicit none
     type(coord),intent(in) :: ref
     type(coord),intent(inout) :: mol
     integer,intent(in) :: step
     type(rmsd_cache),intent(inout),target :: rcache
-    integer :: rr
+    real(wp),intent(out) :: val
+    integer :: rr,ii,jj
+    real(wp) :: val0
     type(assignment_cache),pointer :: aptr
     logical,parameter :: debug = .true.
+
+    !> reset val
+    val = 0.0_wp
 
     if (debug) then
       write (*,*) '# ranks:',rcache%nranks
@@ -311,8 +353,19 @@ contains  !> MODULE PROCEDURES START HERE
     aptr => rcache%acache
     do rr = 1,rcache%nranks
       if (rcache%rassigned(rr)) cycle
-      call compute_hungarian(ref,mol,rcache%rank,rcache%ngroup,rr, &
-      &                      rcache%iwork2,aptr)
+
+      !> LSAP wrapper that computes the relevant Cost matrix for the atoms of rank rr
+      call compute_linear_sum_assignment( &
+      &        ref,mol,rcache%rank,rcache%ngroup,rr, &
+      &        rcache%iwork2,aptr,val0)
+
+      do ii = 1,rcache%ngroup(rr)
+        rcache%iwork(rcache%iwork2(ii,1)) = rcache%iwork2(ii,2)
+      end do
+
+      !> add up the total LSAP cost (of considered ranks)
+      !> we need this if we have to decide on a mapping in case of false enantiomers
+      val = val+val0
     end do
 
   end subroutine min_rmsd_iterate_through_groups
@@ -364,7 +417,8 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine compute_hungarian(ref,mol,ranks,ngroups,targetrank,iwork2,acache)
+  subroutine compute_linear_sum_assignment(ref,mol,ranks, &
+                        & ngroups,targetrank,iwork2,acache,val0)
 !**************************************************************
 !* Run the linear assignment algorithm on the desired subset
 !* of atoms (via rank and targetrank)
@@ -378,6 +432,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: targetrank
     integer,intent(inout) :: iwork2(:,:)
     type(assignment_cache),intent(inout),optional,target :: acache
+    real(wp),intent(out) :: val0
 
     !> LOCAL
     type(assignment_cache),pointer :: aptr
@@ -387,12 +442,14 @@ contains  !> MODULE PROCEDURES START HERE
 
     logical,parameter :: debug = .true.
 
+    val0 = 0.0_wp
+
     if (present(acache)) then
       aptr => acache
     else
       allocate (local_acache)
       if (ref%nat .ne. mol%nat) then
-        error stop 'Unequal molecule size in compute_hungarian()'
+        error stop 'Unequal molecule size in compute_linear_sum_assignment()'
       end if
       nat = max(ref%nat,mol%nat)
       call local_acache%allocate(nat,nat,.true.)
@@ -415,11 +472,10 @@ contains  !> MODULE PROCEDURES START HERE
       do j = 1,mol%nat
         if (ranks(j,2) .ne. targetrank) cycle
         jj = jj+1
-        dists(:)=(ref%xyz(:,i)-mol%xyz(:,j))**2 !> use i and j
+        dists(:) = (ref%xyz(:,i)-mol%xyz(:,j))**2 !> use i and j
         aptr%Cost(jj+(ii-1)*rnknat) = sum(dists)
       end do
     end do
-
 
     if (debug) then
       write (*,*) 'target rank',targetrank,'# atoms',rnknat
@@ -428,20 +484,25 @@ contains  !> MODULE PROCEDURES START HERE
     call lsap(aptr,rnknat,rnknat,.false.,iostatus)
 
     !> paasing back the determined order as second column of iwork2
-    if(iostatus==0)then
-      if(debug)then
-        do i=1,rnknat
+    if (iostatus == 0) then
+      if (debug) then
+        do i = 1,rnknat
           write (*,*) iwork2(aptr%a(i),1),'-->',iwork2(aptr%b(i),1)
-        enddo 
-      endif  
+        end do
+      end if
+      do i = 1,rnknat
+        jj = aptr%a(i)
+        ii = aptr%b(i)
+        val0 = val0+aptr%Cost(jj+(ii-1)*rnknat)
+        iwork2(i,2) = iwork2(aptr%b(i),1)
+      end do
     else
       !> in the unlikely case we have a failure of the LSAP
       !> we do just a 1:1 mapping, just so that the algo doesn't crash
-      iwork2(1:rnknat,2) = iwork2(1:rnknat,1) 
-    endif
+      iwork2(1:rnknat,2) = iwork2(1:rnknat,1)
+    end if
 
-
-  end subroutine compute_hungarian
+  end subroutine compute_linear_sum_assignment
 
 !========================================================================================!
 

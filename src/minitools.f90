@@ -768,12 +768,17 @@ subroutine irmsd_tool(fname1,fname2)
   type(coord) :: mol,ref
   real(wp) :: rmsdval
   integer :: i,ich
+  type(rmsd_cache) :: rcache
 
   call ref%open(fname1)
   call mol%open(fname2)
 
   call axis(ref%nat,ref%at,ref%xyz)
-  call min_rmsd(ref,mol,rmsdout=rmsdval)
+
+  call rcache%allocate(ref%nat) 
+  call fallbackranks(ref,mol,ref%nat,rcache%rank)
+
+  call min_rmsd(ref,mol,rcache=rcache,rmsdout=rmsdval)
 
     !> write the rotated and shifted coordinates to one file
   open(newunit=ich,file='irmsd.xyz')
