@@ -798,6 +798,7 @@ contains  !> MODULE PROCEDURES START HERE
       do i = 1,rnknat
         jj = aptr%a(i)
         ii = aptr%b(i)
+        if(ii == -1 .or. jj == -1) cycle  !> cycle bad assignments
         val0 = val0+aptr%Cost(jj+(ii-1)*rnknat)
         iwork2(i,2) = iwork2(aptr%b(i),1)
       end do

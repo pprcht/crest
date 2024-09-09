@@ -495,7 +495,7 @@ contains  !> MODULE PROCEDURES START HERE
 
         !> Augment previous solution
         j = sink
-        do jj=1,nc
+        do jj=1,nc+1  !> avoid infinite loop
           i = path(j)
           row4col(j) = i
           call swap(col4row(i),j)
@@ -503,7 +503,7 @@ contains  !> MODULE PROCEDURES START HERE
         end do
       end do
 
-      !> Finalize the assignment based on transposition
+      !> Finalize the assignment
       do i = 1,nr
         a(i) = i
         b(i) = col4row(i)

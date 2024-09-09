@@ -826,7 +826,7 @@ subroutine irmsd_tool(fname1,fname2)
   write (stdout,*)
 
   rmsdval = rmsdval*autoaa
-  write (*,'(1x,a,f16.8)') 'Calculated RMSD (Å):',rmsdval
+  write (*,'(1x,a,f16.8)') 'Calculated iRMSD (Å):',rmsdval
 
   return
 end subroutine irmsd_tool
