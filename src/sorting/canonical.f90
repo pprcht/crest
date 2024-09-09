@@ -2,7 +2,7 @@
 module canonical_mod
 !*************************************************************************
 !* Implementation of different algorithms for determining atom identities
-!* 
+!*
 !* A) Implementation of the CANGEN algorithm by Weininger et al.
 !* D.Weininger et al., J. Chem. Inf. Comput. Sci., 1989, 29, 97-101.
 !* doi.org/10.1021/ci00062a008
@@ -228,9 +228,9 @@ contains  !> MODULE PROCEDURES START HERE
 
     case default !> CANGEN
 
-      if(.not.present(wbo))then
+      if (.not.present(wbo)) then
         error stop 'CANGEN implementation requires wbo matrix as argument'
-      endif
+      end if
       do i = 1,k
         ii = self%hmap(i)
         ati = mol%at(ii)
@@ -241,7 +241,7 @@ contains  !> MODULE PROCEDURES START HERE
           if (Amat(j,ii) .ne. 0) then
             if (mol%at(j) .eq. 1) then
               counth = counth+1 !> count H neighbours
-                 countbo2 = countbo2-wbo(j,ii) !> but NOT in total bond order
+              countbo2 = countbo2-wbo(j,ii) !> but NOT in total bond order
             end if
             countb = countb+1 !> count all neighbours
             !countbo2 = countbo2+wbo(j,ii)  !> sum the total bond order
@@ -477,7 +477,7 @@ contains  !> MODULE PROCEDURES START HERE
       zero = count(self%neigh(:,ii) == 0)
       nei = self%maxnei-zero
 !>--- consider only atoms with 4 unique (in terms of CANGEN ranks) neighbours as stereocenter
-      if (nei == 4) then 
+      if (nei == 4) then
         do j = 1,4
           jj = self%neigh(j,ii)
           if (mol%at(jj) == 1) then !> one hydrogen allowed
@@ -535,7 +535,7 @@ contains  !> MODULE PROCEDURES START HERE
       zero = count(self%neigh(:,ii) == 0)
       nei = self%maxnei-zero
 !>--- consider only atoms with 4 unique (in terms of ranks) neighbours as stereocenter
-      if (nei == 4) then 
+      if (nei == 4) then
         do j = 1,4
           jj = self%neigh(j,ii)
           if (mol%at(jj) == 1) then !> one hydrogen allowed
@@ -617,32 +617,40 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     class(canonical_sorter),intent(inout) :: self
     type(coord),intent(in) :: mol
-    integer,allocatable :: rankh(:) 
-    integer :: i,ii,zero,nei,j,jj,maxrank
+    integer,allocatable :: rankh(:)
+    integer,allocatable :: rankmap(:)
+    integer :: i,ii,zero,nei,j,jj,maxrank,rr
     logical :: hneigh
 !>--- if there is no H, or this routine was already called, return
-    if(size(self%rank,1).eq.mol%nat) return
+    if (size(self%rank,1) .eq. mol%nat) return
 !>--- otherwise, analyze and resize
-    maxrank=maxval(self%rank(:),1)
-    allocate(rankh(mol%nat), source=0)
+    maxrank = maxval(self%rank(:),1)
+    allocate (rankmap(maxrank),source=0)
+    allocate (rankh(mol%nat),source=0)
     do i = 1,self%hatms
       ii = self%hmap(i)
       zero = count(self%neigh(:,ii) == 0)
       nei = self%maxnei-zero
-      rankh(ii) = self%rank(i)
-      hneigh = .false.
-      do j=1,nei
-         jj = self%neigh(j,ii)
-         if (mol%at(jj) == 1) then
-           if(.not.hneigh)then
-              hneigh=.true.
-              maxrank=maxrank+1
-           endif 
-           rankh(jj)=maxrank
-         endif
-      enddo 
-    enddo
+      rr = self%rank(i)
+      rankh(ii) = rr
+
+      do j = 1,nei
+        jj = self%neigh(j,ii)
+        if (mol%at(jj) == 1) then
+
+!>--- rankmap will map the new ranks of H atoms attached to
+!>    the already ranked heavy atoms. This way equivalent H's will get the same rank
+!>    I.e. if two methyl groups have same ranks, their H's must also have the same ranks
+          if (rankmap(rr) == 0) then
+            maxrank = maxrank+1
+            rankmap(rr) = maxrank
+          end if
+          rankh(jj) = rankmap(rr)
+        end if
+      end do
+    end do
     call move_alloc(rankh,self%rank)
+    deallocate (rankmap)
   end subroutine add_h_ranks
 
 !========================================================================================!

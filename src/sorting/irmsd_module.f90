@@ -15,9 +15,21 @@ module irmsd_module
   public :: rmsd
   public :: min_rmsd
 
-  public :: fallbackranks
+  public :: checkranks,fallbackranks
 
   real(wp),parameter :: bigval = huge(bigval)
+
+  type :: rmsd_core_cache
+!*************************************
+!* Memory cache for rmsd_core routine
+!*************************************
+    real(wp),allocatable :: x(:,:)
+    real(wp),allocatable :: y(:,:)
+    real(wp),allocatable :: xi(:)
+    real(wp),allocatable :: yi(:)
+  contains
+    procedure :: allocate => allocate_rmsd_core_cache
+  end type rmsd_core_cache
 
   public :: rmsd_cache
   type :: rmsd_cache
@@ -30,7 +42,7 @@ module irmsd_module
     integer,allocatable  :: best_order(:,:)
     integer,allocatable  :: current_order(:)
     integer,allocatable  :: target_order(:)
-    integer,allocatable  :: target_order_bkup(:,:)
+    integer,allocatable  :: order_bkup(:,:)
     integer,allocatable  :: iwork(:)
     integer,allocatable  :: iwork2(:,:)
     logical,allocatable  :: assigned(:)  !> atom-wise
@@ -40,18 +52,37 @@ module irmsd_module
     integer,allocatable :: ngroup(:)
     logical :: stereocheck = .false.
 
+    type(rmsd_core_cache),allocatable :: ccache
     type(assignment_cache),allocatable :: acache
   contains
     procedure :: allocate => allocate_rmsd_cache
   end type rmsd_cache
 
   real(wp),parameter :: inf = huge(1.0_wp)
+  real(wp),parameter :: imat(3,3) = reshape([1.0_wp,0.0_wp,0.0_wp, &
+                                    &        0.0_wp,1.0_wp,0.0_wp, &
+                                    &        0.0_wp,0.0_wp,1.0_wp], &
+                                    &        [3,3])
 
 !========================================================================================!
 !========================================================================================!
 contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
+
+  subroutine allocate_rmsd_core_cache(self,nat)
+    implicit none
+    class(rmsd_core_cache),intent(inout) :: self
+    integer,intent(in) :: nat
+    if (allocated(self%x)) deallocate (self%x)
+    if (allocated(self%y)) deallocate (self%y)
+    if (allocated(self%xi)) deallocate (self%xi)
+    if (allocated(self%yi)) deallocate (self%yi)
+    allocate (self%xi(nat),source=0.0_wp)
+    allocate (self%yi(nat),source=0.0_wp)
+    allocate (self%x(3,nat),source=0.0_wp)
+    allocate (self%y(3,nat),source=0.0_wp)
+  end subroutine allocate_rmsd_core_cache
 
   subroutine allocate_rmsd_cache(self,nat)
     implicit none
@@ -62,26 +93,29 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%best_order)) deallocate (self%best_order)
     if (allocated(self%current_order)) deallocate (self%current_order)
     if (allocated(self%target_order)) deallocate (self%target_order)
-    if (allocated(self%target_order_bkup)) deallocate (self%target_order_bkup)
+    if (allocated(self%order_bkup)) deallocate (self%order_bkup)
     if (allocated(self%iwork)) deallocate (self%iwork)
     if (allocated(self%iwork2)) deallocate (self%iwork2)
     if (allocated(self%assigned)) deallocate (self%assigned)
     if (allocated(self%rassigned)) deallocate (self%rassigned)
     if (allocated(self%ngroup)) deallocate (self%ngroup)
+    if (allocated(self%ccache)) deallocate (self%ccache)
     if (allocated(self%acache)) deallocate (self%acache)
     allocate (self%assigned(nat),source=.false.)
     allocate (self%rassigned(nat),source=.false.)
     allocate (self%best_order(nat,3),source=0)
     allocate (self%current_order(nat),source=0)
     allocate (self%target_order(nat),source=0)
-    allocate (self%target_order_bkup(nat,2),source=0)
+    allocate (self%order_bkup(nat,2),source=0)
     allocate (self%iwork(nat),source=0)
     allocate (self%iwork2(nat,2),source=0)
     allocate (self%rank(nat,2),source=0)
     self%nranks = 0
     allocate (self%ngroup(nat),source=0)
     allocate (self%xyzscratch(3,nat,2),source=0.0_wp)
+    allocate (self%ccache)
     allocate (self%acache)
+    call self%ccache%allocate(nat)
     call self%acache%allocate(nat,nat,.true.) !> assume we are only using the LSAP implementation
   end subroutine allocate_rmsd_cache
 
@@ -189,7 +223,125 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
+  subroutine rmsd_core(nat,xyz1,xyz2,calc_u,U,error,calc_g,grad,ccache)
+!**********************************************************
+!* Rewrite or RMSD code with modified memory management
+!* Adapted from ls_rmsd, and using some of its subroutines
+!* The goal is to offload memory allocation to outside
+!* the routine in case it is repeadetly called
+!**********************************************************
+    use ls_rmsd,only:dstmev,rotation_matrix
+    implicit none
+    integer,intent(in) :: nat
+    real(wp),intent(in) :: xyz1(3,nat)
+    real(wp),intent(in) :: xyz2(3,nat)
+    logical,intent(in) :: calc_u
+    real(wp),dimension(3,3),intent(out) :: U
+    real(wp),intent(out) :: error
+    logical,intent(in) :: calc_g
+    real(wp),intent(inout) :: grad(:,:)
+    type(rmsd_core_cache),intent(inout) :: ccache
+
+    !> LOCAL
+    integer :: i,j
+    real(wp) :: x_center(3)
+    real(wp) :: y_center(3)
+    real(wp) :: x_norm,y_norm,lambda
+    real(wp) :: Rmatrix(3,3)
+    real(wp) :: S(4,4)
+    real(wp) :: q(4)
+    real(wp) :: tmp(3),rnat
+    integer :: io
+
+    !> associate
+    associate (x => ccache%x,y => ccache%y,xi => ccache%xi,yi => ccache%yi)
+
+      !> make copies of the original coordinates
+      x(:,:) = xyz1(:,:)
+      y(:,:) = xyz2(:,:)
+
+      !> calculate the barycenters, centroidal coordinates, and the norms
+      x_norm = 0.0_wp
+      y_norm = 0.0_wp
+      rnat = 1.0_wp/real(nat,wp)
+      do i = 1,3
+        xi(:) = x(i,:)
+        yi(:) = y(i,:)
+        x_center(i) = sum(xi(1:nat))*rnat
+        y_center(i) = sum(yi(1:nat))*rnat
+        xi(:) = xi(:)-x_center(i)
+        yi(:) = yi(:)-y_center(i)
+        x(i,:) = xi(:)
+        y(i,:) = yi(:)
+        x_norm = x_norm+dot_product(xi,xi)
+        y_norm = y_norm+dot_product(yi,yi)
+      end do
+
+      !> calculate the R matrix
+      do i = 1,3
+        do j = 1,3
+          Rmatrix(i,j) = dot_product(x(i,:),y(j,:))
+        end do
+      end do
+
+      !> S matrix
+      S(1,1) = Rmatrix(1,1)+Rmatrix(2,2)+Rmatrix(3,3)
+      S(2,1) = Rmatrix(2,3)-Rmatrix(3,2)
+      S(3,1) = Rmatrix(3,1)-Rmatrix(1,3)
+      S(4,1) = Rmatrix(1,2)-Rmatrix(2,1)
+
+      S(1,2) = S(2,1)
+      S(2,2) = Rmatrix(1,1)-Rmatrix(2,2)-Rmatrix(3,3)
+      S(3,2) = Rmatrix(1,2)+Rmatrix(2,1)
+      S(4,2) = Rmatrix(1,3)+Rmatrix(3,1)
+
+      S(1,3) = S(3,1)
+      S(2,3) = S(3,2)
+      S(3,3) = -Rmatrix(1,1)+Rmatrix(2,2)-Rmatrix(3,3)
+      S(4,3) = Rmatrix(2,3)+Rmatrix(3,2)
+
+      S(1,4) = S(4,1)
+      S(2,4) = S(4,2)
+      S(3,4) = S(4,3)
+      S(4,4) = -Rmatrix(1,1)-Rmatrix(2,2)+Rmatrix(3,3)
+
+      !> Calculate eigenvalues and eigenvectors, and
+      !> take the maximum eigenvalue lambda and the corresponding eigenvector q.
+      call dstmev(S,lambda,q,io)
+      if (io /= 0) then
+        error = -1.0_wp
+        return
+      end if
+
+      if (calc_u) then
+        !> reset
+        U(:,:) = Imat(:,:)
+        !> convert quaternion q to rotation matrix U
+        call rotation_matrix(q,U)
+      end if
+
+      !> RMS Deviation
+      error = sqrt(max(0.0_wp, ((x_norm+y_norm)-2.0_wp*lambda))*rnat)
+
+      if (calc_g) then
+        !> Gradient of the error of xyz1 w.r.t xyz2
+        do i = 1,nat
+          do j = 1,3
+            tmp(:) = matmul(transpose(U(:,:)),y(:,i))
+            grad(j,i) = ((x(j,i)-tmp(j))/error)*rnat
+          end do
+        end do
+      end if
+
+    end associate
+  end subroutine rmsd_core
+
+!========================================================================================!
+
   subroutine min_rmsd(ref,mol,rcache,rmsdout)
+!*********************************************************************
+!* Main routine to determine minium RMSD considering atom permutation
+!*********************************************************************
     implicit none
     !> IN & OUTPUT
     type(coord),intent(in)    :: ref
@@ -261,7 +413,7 @@ contains  !> MODULE PROCEDURES START HERE
     cptr%rassigned(cptr%nranks+1:) = .true. !> skip unneeded allocation space
     do ii = 1,ref%nat
       cptr%iwork(ii) = ii         !> also init iwork
-      cptr%current_order(ii) = ii !> also init current_order
+      cptr%target_order(ii) = ii  !> also init target_order
       rnk = cptr%rank(ii,2)
       if (rnk < 1) then
         cptr%assigned(ii) = .true.
@@ -289,7 +441,7 @@ contains  !> MODULE PROCEDURES START HERE
     call axis(mol%nat,mol%at,mol%xyz)
     call min_rmsd_iterate_through_groups(ref,mol,1,cptr,dum)
     tmprmsd_sym(1) = dum
-    cptr%target_order_bkup(:,1) = cptr%iwork(:)
+    cptr%order_bkup(:,1) = cptr%iwork(:)
     if (debug) then
       write (*,*) 'Total LSAP cost:',dum
       call mol%append(dumpunit)
@@ -301,28 +453,31 @@ contains  !> MODULE PROCEDURES START HERE
       call axis(mol%nat,mol%at,mol%xyz)
       call min_rmsd_iterate_through_groups(ref,mol,1,cptr,dum)
       tmprmsd_sym(2) = dum
-      cptr%target_order_bkup(:,2) = cptr%iwork(:)
+      cptr%order_bkup(:,2) = cptr%iwork(:)
       if (debug) then
         write (*,*) 'Total LSAP cost (mirrored):',dum
         call mol%append(dumpunit)
       end if
-    end if
-
-    if (debug) then
-      close (dumpunit)
+      mol%xyz(3,:) = -mol%xyz(3,:)  !> restore z
     end if
 
 !>--- select the best match among the ones after symmetry operations and use its ordering
     ii = minloc(tmprmsd_sym(:),1)
-    write (*,*) ii
-    cptr%target_order(:) = cptr%target_order_bkup(:,ii)
+    if(ii == 2)then
+      mol%xyz(3,:) = -mol%xyz(3,:)
+    endif
+    cptr%current_order(:) = cptr%order_bkup(:,ii)
     if (debug) then
       write (*,*) 'Determined remapping'
       do ii = 1,mol%nat
         write (*,*) cptr%current_order(ii),'-->',cptr%target_order(ii)
       end do
     end if
-    !call molatomsort(mol,mol%nat,cptr%current_order,cptr%target_order,cptr%iwork)
+    call molatomsort(mol,mol%nat,cptr%current_order,cptr%target_order,cptr%iwork)
+    if (debug) then
+      call mol%append(dumpunit)
+      close (dumpunit)
+    end if
 
 !>--- final RMSD with fully restored atom order
     calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch)
@@ -524,6 +679,43 @@ contains  !> MODULE PROCEDURES START HERE
       end do
     end do
   end subroutine rank_2_order
+
+!========================================================================================!
+  
+  function checkranks(nat,ranks1,ranks2) result(yesno)
+!***********************************************************************
+!* Check two rank arrays to see if we have the same amount of
+!* atoms in the same ranks (a condition to bein able to work with them)
+!***********************************************************************
+    implicit none
+    logical :: yesno
+    integer,intent(in) :: nat
+    integer,intent(in) :: ranks1(nat)
+    integer,intent(in) :: ranks2(nat)
+    integer :: ii,jj,maxrank1,maxrank2
+    integer :: count1,count2
+    yesno=.false.
+
+    maxrank1 = maxval(ranks1)
+    maxrank2 = maxval(ranks2)
+    !> different maxranks, so we can't have the same and return
+    if(maxrank1 .ne. maxrank2) return
+
+    do ii=1,maxrank1
+       count1 = 0
+       count2 = 0
+       do jj=1,nat
+         if(ranks1(jj) .eq. ii) count1 = count1 + 1
+         if(ranks2(jj) .eq. ii) count2 = count2 + 1
+       enddo
+       !> not the same amount of atoms in rank ii, return from function
+       if(count1 .ne. count2) return
+    enddo
+    
+    !> if we reach this point we can assume the given ranks are o.k.
+    yesno = .true.
+  end function checkranks
+
 
 !========================================================================================!
 

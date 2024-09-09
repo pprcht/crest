@@ -762,6 +762,7 @@ subroutine irmsd_tool(fname1,fname2)
   use strucrd
   use axis_module
   use irmsd_module
+  use canonical_mod
   implicit none
   character(len=*),intent(in) :: fname1
   character(len=*),intent(in) :: fname2
@@ -769,14 +770,44 @@ subroutine irmsd_tool(fname1,fname2)
   real(wp) :: rmsdval
   integer :: i,ich
   type(rmsd_cache) :: rcache
+  type(canonical_sorter) :: canmol
+  type(canonical_sorter) :: canref
+  logical,parameter :: debug=.true.
 
+  !> read the geometries
   call ref%open(fname1)
   call mol%open(fname2)
 
+  !> move ref to CMA and align rotational axes
   call axis(ref%nat,ref%at,ref%xyz)
 
+  !> allocate memory
   call rcache%allocate(ref%nat) 
-  call fallbackranks(ref,mol,ref%nat,rcache%rank)
+
+  !> canonical atom ranks
+  call canref%init(ref,invtype='apsp+')
+  call canref%add_h_ranks(ref)
+  rcache%stereocheck = .not.(canref%hasstereo(ref))
+  call canref%shrink()
+
+  call canmol%init(mol,invtype='apsp+')
+  call canmol%add_h_ranks(mol)
+  call canmol%shrink()
+
+  !> check if we can work with the determined ranks 
+  if(checkranks(ref%nat,canref%rank,canmol%rank))then
+     rcache%rank(:,1) = canref%rank(:)
+     rcache%rank(:,2) = canmol%rank(:)
+     if(debug)then
+       write(*,*) 'iRMSD ranks:'
+       do i=1,ref%nat
+         write(*,*) rcache%rank(i,1),rcache%rank(i,2)
+       enddo
+     endif
+  else
+  !> if not, fall back to atom types  
+     call fallbackranks(ref,mol,ref%nat,rcache%rank)
+  endif
 
   call min_rmsd(ref,mol,rcache=rcache,rmsdout=rmsdval)
 
