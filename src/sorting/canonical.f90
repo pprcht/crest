@@ -619,7 +619,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord),intent(in) :: mol
     integer,allocatable :: rankh(:)
     integer,allocatable :: rankmap(:)
-    integer :: i,ii,zero,nei,j,jj,maxrank,rr
+    integer :: i,ii,zero,nei,j,jj,maxrank,rr,maxrank2
     logical :: hneigh
 !>--- if there is no H, or this routine was already called, return
     if (size(self%rank,1) .eq. mol%nat) return
@@ -642,13 +642,27 @@ contains  !> MODULE PROCEDURES START HERE
 !>    the already ranked heavy atoms. This way equivalent H's will get the same rank
 !>    I.e. if two methyl groups have same ranks, their H's must also have the same ranks
           if (rankmap(rr) == 0) then
-            maxrank = maxrank+1
-            rankmap(rr) = maxrank
+            !maxrank = maxrank+1
+            rankmap(rr) = maxrank + rr
           end if
           rankh(jj) = rankmap(rr)
         end if
       end do
     end do
+!>--- clean up "gaps" in rank assignment
+    maxrank=maxval(rankh,1)
+    maxrank2 = maxrank
+    do i=1,maxrank    
+      if(i > maxrank2) exit
+      ii = count(rankh(:) == i)
+      if(ii == 0) maxrank2 = maxrank2 - 1
+      do while (ii == 0)
+       do jj=1,mol%nat
+         if(rankh(jj) > i) rankh(jj) = rankh(jj) - 1
+       enddo
+       ii = count(rankh(:) == i)
+      enddo
+    enddo
     call move_alloc(rankh,self%rank)
     deallocate (rankmap)
   end subroutine add_h_ranks

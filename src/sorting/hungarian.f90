@@ -424,7 +424,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: nr,nc
     logical,intent(in) :: maximize
     integer :: iostatus
-    integer :: curRow,curRow_iter,currowtmp,i,j,sink
+    integer :: curRow,curRow_iter,currowtmp,i,j,jj,sink
     real(sp) :: minValue
     logical :: transposed
     integer :: tmpx
@@ -495,7 +495,7 @@ contains  !> MODULE PROCEDURES START HERE
 
         !> Augment previous solution
         j = sink
-        do
+        do jj=1,nc
           i = path(j)
           row4col(j) = i
           call swap(col4row(i),j)

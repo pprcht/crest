@@ -5,7 +5,6 @@ module irmsd_module
 !* modern interface to calculating RMSDs
 !*****************************************
   use crest_parameters
-  use ls_rmsd,only:rmsd_classic => rmsd
   use strucrd
   use hungarian_module
   use axis_module
@@ -64,6 +63,21 @@ module irmsd_module
                                     &        0.0_wp,0.0_wp,1.0_wp], &
                                     &        [3,3])
 
+  real(wp),parameter :: Rx180(3,3) = reshape([1.0_wp,0.0_wp,0.0_wp,   &
+                                     &          0.0_wp,-1.0_wp,0.0_wp,   &
+                                     &          0.0_wp,0.0_wp,-1.0_wp], &
+                                     &          [3,3])
+
+  real(wp),parameter :: Ry180(3,3) = reshape([-1.0_wp,0.0_wp,0.0_wp,   &
+                                     &          0.0_wp,1.0_wp,0.0_wp,   &
+                                     &          0.0_wp,0.0_wp,-1.0_wp], &
+                                     &          [3,3])
+
+  real(wp),parameter :: Rz180(3,3) = reshape([-1.0_wp,0.0_wp,0.0_wp,   &
+                                     &          0.0_wp,-1.0_wp,0.0_wp,   &
+                                     &          0.0_wp,0.0_wp,1.0_wp], &
+                                     &          [3,3])
+
 !========================================================================================!
 !========================================================================================!
 contains  !> MODULE PROCEDURES START HERE
@@ -106,7 +120,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (self%best_order(nat,3),source=0)
     allocate (self%current_order(nat),source=0)
     allocate (self%target_order(nat),source=0)
-    allocate (self%order_bkup(nat,2),source=0)
+    allocate (self%order_bkup(nat,8),source=0)
     allocate (self%iwork(nat),source=0)
     allocate (self%iwork2(nat,2),source=0)
     allocate (self%rank(nat,2),source=0)
@@ -119,7 +133,11 @@ contains  !> MODULE PROCEDURES START HERE
     call self%acache%allocate(nat,nat,.true.) !> assume we are only using the LSAP implementation
   end subroutine allocate_rmsd_cache
 
-  function rmsd(ref,mol,mask,scratch,rotmat,gradient) result(rmsdval)
+!========================================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!========================================================================================!
+
+  function rmsd(ref,mol,mask,scratch,rotmat,gradient,ccache) result(rmsdval)
 !************************************************************************
 !* function rmsd
 !* Calculate the molecular RMSD via a quaternion algorithm
@@ -139,10 +157,14 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(inout),target,optional :: scratch(3,ref%nat,2)
     real(wp),intent(out),optional          :: rotmat(3,3)
     real(wp),intent(out),target,optional   :: gradient(3,ref%nat)
+    type(rmsd_core_cache),intent(inout),optional,target :: ccache
     !> variables
+    type(rmsd_core_cache),allocatable,target :: ccachetmp
+    type(rmsd_core_cache),pointer :: ccptr
     real(wp) :: x_center(3),y_center(3),Udum(3,3)
     real(wp),target :: gdum(3,3)
     integer  :: nat,getrotmat
+    logical  :: calc_u
     real(wp),allocatable,target :: tmpscratch(:,:,:)
     logical :: getgrad
     real(wp),pointer :: grdptr(:,:)
@@ -156,7 +178,11 @@ contains  !> MODULE PROCEDURES START HERE
 
     !> get rotation matrix?
     getrotmat = 0
-    if (present(rotmat)) getrotmat = 1
+    calc_u = .false.
+    if (present(rotmat)) then
+      getrotmat = 1
+      calc_u = .true.
+    end if
 
     !> get gradient?
     if (present(gradient)) then
@@ -166,6 +192,15 @@ contains  !> MODULE PROCEDURES START HERE
     else
       getgrad = .false.
       grdptr => gdum
+    end if
+
+    !> use present cache?
+    if (present(ccache)) then
+      ccptr => ccache
+    else
+      allocate (ccachetmp)
+      call ccachetmp%allocate(ref%nat)
+      ccptr => ccachetmp
     end if
 
 !>--- substructure?
@@ -190,9 +225,8 @@ contains  !> MODULE PROCEDURES START HERE
       end do
 
       !> calculate
-      call rmsd_classic(nat,scratchptr(1:3,1:nat,1),scratchptr(1:3,1:nat,2), &
-      &    getrotmat,Udum,x_center,y_center,rmsdval, &
-      &    getgrad,grdptr)
+      call rmsd_core(nat,scratchptr(1:3,1:nat,1),scratchptr(1:3,1:nat,2), &
+      &          calc_u,Udum,rmsdval,getgrad,grdptr,ccptr)
 
       !> go backwards through gradient (if necessary) to restore atom order
       if (getgrad) then
@@ -211,13 +245,12 @@ contains  !> MODULE PROCEDURES START HERE
 
     else
 !>--- standard calculation (Quarternion algorithm)
-      call rmsd_classic(ref%nat,mol%xyz,ref%xyz, &
-      &    getrotmat,Udum,x_center,y_center,rmsdval, &
-      &    getgrad,grdptr)
+      call rmsd_core(ref%nat,mol%xyz,ref%xyz, &
+      &          calc_u,Udum,rmsdval,getgrad,grdptr,ccptr)
     end if
 
     !> pass on rotation matrix if asked for
-    if (getrotmat > 0) rotmat = Udum
+    if (calc_u) rotmat = Udum
 
   end function rmsd
 
@@ -338,9 +371,16 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine min_rmsd(ref,mol,rcache,rmsdout)
+  subroutine min_rmsd(ref,mol,rcache,rmsdout,align)
 !*********************************************************************
 !* Main routine to determine minium RMSD considering atom permutation
+!* Input
+!*   ref  - the reference structure
+!*   mol  - the structure to be matched to ref
+!* Optinal arguments
+!*   rcache  - memory cache
+!*   rmsdout - the calculated RMSD scalar
+!*   align   - quarternion-align mol in the last stage
 !*********************************************************************
     implicit none
     !> IN & OUTPUT
@@ -348,14 +388,16 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord),intent(inout) :: mol
     type(rmsd_cache),intent(inout),optional,target :: rcache
     real(wp),intent(out),optional :: rmsdout
+    logical,intent(in),optional :: align
 
     !> LOCAL
     type(rmsd_cache),pointer :: cptr
     type(rmsd_cache),allocatable,target :: local_rcache
     integer :: nat,ii,rnk,dumpunit
     real(wp) :: calc_rmsd
-    real(wp) :: tmprmsd_sym(3),dum
-    logical,parameter :: debug = .true.
+    real(wp) :: tmprmsd_sym(8),dum
+    real(wp) :: rotmat(3,3)
+    logical,parameter :: debug = .false.
 
 !>--- Initialization
     if (present(rcache)) then
@@ -421,6 +463,7 @@ contains  !> MODULE PROCEDURES START HERE
       end if
       if (cptr%ngroup(rnk) .eq. 1) then
         cptr%assigned(ii) = .true.
+        cptr%rassigned(rnk) = .true.
       end if
     end do
     if (debug) then
@@ -433,29 +476,33 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
 !>--- Perform the desired symmetry operations, align with rotational axis, run LSAP algo
+!>    Since the rotational axis alignment can be a bit arbitrary w.r.t 180° rotations
+!>    we need to check these as well.
     if (debug) then
       open (newunit=dumpunit,file='debugirmsd.xyz')
       call ref%append(dumpunit)
     end if
-    tmprmsd_sym(:) = inf  !> initialize to huge
+    !> initialize to huge
+    tmprmsd_sym(:) = inf
+    !> initial alignment of mol
     call axis(mol%nat,mol%at,mol%xyz)
-    call min_rmsd_iterate_through_groups(ref,mol,1,cptr,dum)
-    tmprmsd_sym(1) = dum
-    cptr%order_bkup(:,1) = cptr%iwork(:)
+
+    !> Running the checks
+    call min_rmsd_rotcheck(ref,mol,cptr,tmprmsd_sym,1)
     if (debug) then
-      write (*,*) 'Total LSAP cost:',dum
+      write (*,*) 'Total LSAP cost:',minval(tmprmsd_sym(1:4))
       call mol%append(dumpunit)
     end if
 
-    !> mirror z
+    !> mirror z and re-run the same checks
     if (cptr%stereocheck) then
-      mol%xyz(3,:) = -mol%xyz(3,:)
-      call axis(mol%nat,mol%at,mol%xyz)
-      call min_rmsd_iterate_through_groups(ref,mol,1,cptr,dum)
-      tmprmsd_sym(2) = dum
-      cptr%order_bkup(:,2) = cptr%iwork(:)
+      mol%xyz(3,:) = -mol%xyz(3,:)  !> mirror z
+      call axis(mol%nat,mol%at,mol%xyz) !> align
+
+      !> Running the checks
+      call min_rmsd_rotcheck(ref,mol,cptr,tmprmsd_sym,2)
       if (debug) then
-        write (*,*) 'Total LSAP cost (mirrored):',dum
+        write (*,*) 'Total LSAP cost (inverted):',minval(tmprmsd_sym(5:8))
         call mol%append(dumpunit)
       end if
       mol%xyz(3,:) = -mol%xyz(3,:)  !> restore z
@@ -463,16 +510,36 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- select the best match among the ones after symmetry operations and use its ordering
     ii = minloc(tmprmsd_sym(:),1)
-    if(ii == 2)then
+    if (debug) then
+      write (*,*) 'final alignment:',ii,"/ 8"
+    end if
+    if (ii > 4) then
       mol%xyz(3,:) = -mol%xyz(3,:)
-    endif
+      if (debug) write (*,*) 'inverting'
+    end if
+    select case (ii) !> 180° rotations
+    case (1,5)
+      continue
+    case (2,6)
+      mol%xyz = matmul(Rx180,mol%xyz)
+      if (debug) write (*,*) '180°x'
+    case (3,7)
+      mol%xyz = matmul(Rx180,mol%xyz)
+      mol%xyz = matmul(Ry180,mol%xyz)
+      if (debug) write (*,*) '180°x, 180°y'
+    case (4,8)
+      mol%xyz = matmul(Ry180,mol%xyz)
+      if (debug) write (*,*) '180°y'
+    end select
     cptr%current_order(:) = cptr%order_bkup(:,ii)
+
     if (debug) then
       write (*,*) 'Determined remapping'
       do ii = 1,mol%nat
         write (*,*) cptr%current_order(ii),'-->',cptr%target_order(ii)
       end do
     end if
+
     call molatomsort(mol,mol%nat,cptr%current_order,cptr%target_order,cptr%iwork)
     if (debug) then
       call mol%append(dumpunit)
@@ -480,24 +547,30 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
 !>--- final RMSD with fully restored atom order
-    calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch)
+    if (present(align)) then
+      calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch,ccache=cptr%ccache,rotmat=rotmat)
+      if (align) then
+        mol%xyz = matmul(rotmat,mol%xyz)
+      end if
+    else
+      calc_rmsd = rmsd(ref,mol,scratch=cptr%xyzscratch,ccache=cptr%ccache)
+    end if
 
     if (present(rmsdout)) rmsdout = calc_rmsd
   end subroutine min_rmsd
 
 !========================================================================================!
 
-  subroutine min_rmsd_iterate_through_groups(ref,mol,step,rcache,val)
+  subroutine min_rmsd_iterate_through_groups(ref,mol,rcache,val)
     implicit none
     type(coord),intent(in) :: ref
     type(coord),intent(inout) :: mol
-    integer,intent(in) :: step
     type(rmsd_cache),intent(inout),target :: rcache
     real(wp),intent(out) :: val
     integer :: rr,ii,jj
     real(wp) :: val0
     type(assignment_cache),pointer :: aptr
-    logical,parameter :: debug = .true.
+    logical,parameter :: debug = .false.
 
     !> reset val
     val = 0.0_wp
@@ -524,6 +597,83 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
   end subroutine min_rmsd_iterate_through_groups
+
+!========================================================================================!
+
+  subroutine min_rmsd_rotcheck(ref,mol,cptr,values,step)
+    implicit none
+    type(coord),intent(in) :: ref
+    type(coord),intent(inout) :: mol
+    type(rmsd_cache),intent(inout),target :: cptr
+    real(wp),intent(inout) :: values(:)
+    integer,intent(in) :: step
+    integer :: rr,ii,jj,debugunit2
+    real(wp) :: vals(4),dum
+    logical,parameter :: debug = .false.
+
+    !> reset val
+    vals(:) = 0.0_wp
+
+    if (debug) then
+      open (newunit=debugunit2,file='rotdebug.xyz')
+      call ref%append(debugunit2)
+    end if
+    call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
+    vals(1) = dum
+    if (debug) call mol%append(debugunit2)
+    cptr%order_bkup(:,1+4*(step-1)) = cptr%iwork(:)
+
+    mol%xyz = matmul(Rx180,mol%xyz)
+    call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
+    vals(2) = dum
+    if (debug) call mol%append(debugunit2)
+    cptr%order_bkup(:,2+4*(step-1)) = cptr%iwork(:)
+
+    mol%xyz = matmul(Ry180,mol%xyz)
+    call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
+    vals(3) = dum
+    if (debug) call mol%append(debugunit2)
+    cptr%order_bkup(:,3+4*(step-1)) = cptr%iwork(:)
+
+    mol%xyz = matmul(Rx180,mol%xyz)
+    call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
+    vals(4) = dum
+    if (debug) call mol%append(debugunit2)
+    cptr%order_bkup(:,4+4*(step-1)) = cptr%iwork(:)
+
+    mol%xyz = matmul(Ry180,mol%xyz) !> restore
+
+    if (debug) then
+      close (debugunit2)
+      write (*,*) 'vals:',vals(:)
+    end if
+
+    do ii = 1,4
+      values(ii+4*(step-1)) = vals(ii)
+    end do
+  end subroutine min_rmsd_rotcheck
+
+!=========================================================================================!
+
+  subroutine min_rmsd_quadalign(ref,mol,rotate)
+    implicit none
+    type(coord),intent(in) :: ref
+    type(coord),intent(inout) :: mol
+    logical,intent(out) :: rotate(3)
+    integer :: rr,ii,jj,acount
+    real(wp) :: val0
+    integer :: tmp1,tmp2
+    type(assignment_cache),pointer :: aptr
+    logical,parameter :: debug = .false.
+
+    rotate(:) = .false.
+
+    do jj = 1,3
+      tmp1 = count(ref%xyz(jj,:) > 0.0_wp)
+      tmp2 = count(mol%xyz(jj,:) > 0.0_wp)
+      if (tmp1 .ne. tmp2) rotate(jj) = .true.
+    end do
+  end subroutine min_rmsd_quadalign
 
 !========================================================================================!
 
@@ -595,7 +745,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: nat,i,j,ii,jj,rnknat,iostatus
     real(sp) :: dists(3)
 
-    logical,parameter :: debug = .true.
+    logical,parameter :: debug = .false.
 
     val0 = 0.0_wp
 
@@ -681,7 +831,7 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine rank_2_order
 
 !========================================================================================!
-  
+
   function checkranks(nat,ranks1,ranks2) result(yesno)
 !***********************************************************************
 !* Check two rank arrays to see if we have the same amount of
@@ -694,28 +844,27 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: ranks2(nat)
     integer :: ii,jj,maxrank1,maxrank2
     integer :: count1,count2
-    yesno=.false.
+    yesno = .false.
 
     maxrank1 = maxval(ranks1)
     maxrank2 = maxval(ranks2)
     !> different maxranks, so we can't have the same and return
-    if(maxrank1 .ne. maxrank2) return
+    if (maxrank1 .ne. maxrank2) return
 
-    do ii=1,maxrank1
-       count1 = 0
-       count2 = 0
-       do jj=1,nat
-         if(ranks1(jj) .eq. ii) count1 = count1 + 1
-         if(ranks2(jj) .eq. ii) count2 = count2 + 1
-       enddo
-       !> not the same amount of atoms in rank ii, return from function
-       if(count1 .ne. count2) return
-    enddo
-    
+    do ii = 1,maxrank1
+      count1 = 0
+      count2 = 0
+      do jj = 1,nat
+        if (ranks1(jj) .eq. ii) count1 = count1+1
+        if (ranks2(jj) .eq. ii) count2 = count2+1
+      end do
+      !> not the same amount of atoms in rank ii, return from function
+      if (count1 .ne. count2) return
+    end do
+
     !> if we reach this point we can assume the given ranks are o.k.
     yesno = .true.
   end function checkranks
-
 
 !========================================================================================!
 

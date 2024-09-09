@@ -25,7 +25,7 @@ subroutine splitfile(fname,up,low)
 !********************************************************
   use crest_parameters
   use iomod
-  use strucrd,only: rdensemble,coord
+  use strucrd,only:rdensemble,coord
   implicit none
   character(len=*) :: fname
   integer :: up,low
@@ -48,9 +48,6 @@ subroutine splitfile(fname,up,low)
 
   call getcwd(thispath) !current dir= thispath
 
-  !call rdensembleparam(fname,nat,nall)
-  !allocate (xyz(3,nat,nall),at(nat))
-  !call rdensemble(fname,nat,nall,at,xyz)
   call rdensemble(fname,nall,structures)
 
   r = makedir("SPLIT")  !create new directory
@@ -75,7 +72,6 @@ subroutine splitfile(fname,up,low)
     write (tmppath2,'(a,i0)') "STRUC",i
     r = makedir(trim(tmppath2))
     call chdir(tmppath2)
-    !call wrxyz("struc.xyz",nat,at,xyz(:,:,i))
     call structures(i)%write("struc.xyz")
     call chdir(tmppath1)
   end do
@@ -414,7 +410,6 @@ subroutine testtopo(fname,env,tmode)
   case ('methyl')
     do i = 1,zmol%nat
       l1 = zmol%methyl(i)
-      !write(*,*) l1
       if (l1) write (*,'(a,i0,a)') 'Atom ',i,' is methyl (or similar)'
     end do
 
@@ -597,20 +592,20 @@ subroutine quick_rmsd_tool(fname1,fname2,heavy)
 
   call ref%open(fname1)
   call mol%open(fname2)
-  
-  if(heavy)then
-    allocate(mask(ref%nat), source=.false.)
-    do i=1,ref%nat
-      if(ref%at(i) > 1)then
+
+  if (heavy) then
+    allocate (mask(ref%nat),source=.false.)
+    do i = 1,ref%nat
+      if (ref%at(i) > 1) then
         mask(i) = .true.
-      endif
-    enddo
+      end if
+    end do
     rmsdval = rmsd(ref,mol,mask=mask)
   else
     rmsdval = rmsd(ref,mol)
-  endif
+  end if
 
-  rmsdval = rmsdval * autoaa
+  rmsdval = rmsdval*autoaa
   if (heavy) then
     write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
   else
@@ -667,7 +662,7 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   use crest_parameters
   use strucrd
   use hungarian_module
-  use axis_module, only: axis
+  use axis_module,only:axis
   implicit none
   character(len=*),intent(in) :: fname1
   character(len=*),intent(in) :: fname2
@@ -678,7 +673,7 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   logical,allocatable :: mask(:)
   real(wp),allocatable :: C(:,:)
   real(wp),allocatable :: answers(:)
-  integer,allocatable :: mapping(:) 
+  integer,allocatable :: mapping(:)
   integer,allocatable :: hmap(:),rhmap(:)
   integer,allocatable :: a(:),b(:)
   real(wp) :: dists(3)
@@ -690,62 +685,62 @@ subroutine quick_hungarian_match(fname1,fname2,heavy)
   call axis(ref%nat,ref%at,ref%xyz)
   call axis(mol%nat,mol%at,mol%xyz)
 
-  if(heavy)then
-    allocate(mask(ref%nat), source=.false.)
-    allocate(hmap(ref%nat), rhmap(ref%nat), source=0)
-    nat=count((ref%at(:) > 1)) 
-    ii=0
-    do i=1,ref%nat
-      if(ref%at(i) > 1)then
+  if (heavy) then
+    allocate (mask(ref%nat),source=.false.)
+    allocate (hmap(ref%nat),rhmap(ref%nat),source=0)
+    nat = count((ref%at(:) > 1))
+    ii = 0
+    do i = 1,ref%nat
+      if (ref%at(i) > 1) then
         mask(i) = .true.
-        ii=ii+1
+        ii = ii+1
         hmap(i) = ii
         rhmap(ii) = i
-      endif
-    enddo
+      end if
+    end do
   else
-    allocate(mask(ref%nat), source=.true.)
-    nat=ref%nat
-  endif
-  
-  allocate( C(nat,nat), answers(nat) )
-  allocate( mapping(nat+1) )  
-  do ii=1,nat 
-    if(.not.mask(ii)) cycle
-    do jj=1,nat
-      if(.not.mask(jj)) cycle
-      dists(:)=(ref%xyz(:,ii)-mol%xyz(:,jj))**2
-      if(heavy)then
+    allocate (mask(ref%nat),source=.true.)
+    nat = ref%nat
+  end if
+
+  allocate (C(nat,nat),answers(nat))
+  allocate (mapping(nat+1))
+  do ii = 1,nat
+    if (.not.mask(ii)) cycle
+    do jj = 1,nat
+      if (.not.mask(jj)) cycle
+      dists(:) = (ref%xyz(:,ii)-mol%xyz(:,jj))**2
+      if (heavy) then
         C(hmap(jj),hmap(ii)) = sqrt(sum(dists))
       else
         C(jj,ii) = sqrt(sum(dists))
-      endif
-    enddo
-  enddo
-  allocate(a(nat),b(nat))
+      end if
+    end do
+  end do
+  allocate (a(nat),b(nat))
   call lsap(C,nat,nat,a,b)
 
-  write(*,'(a,3(1x,a))') 'Assignment:',fname2,'-->',fname1
-  do i=1,nat
-     if(heavy)then
-       write(*,'(i6," --> ",i6)') rhmap(a(i)),rhmap(b(i))    
-     else
-       write(*,'(i6," --> ",i6)') a(i),b(i)
-     endif
-  enddo  
-  write(*,*) 
+  write (*,'(a,3(1x,a))') 'Assignment:',fname2,'-->',fname1
+  do i = 1,nat
+    if (heavy) then
+      write (*,'(i6," --> ",i6)') rhmap(a(i)),rhmap(b(i))
+    else
+      write (*,'(i6," --> ",i6)') a(i),b(i)
+    end if
+  end do
+  write (*,*)
   !> write the rotated and shifted coordinates to one file
-  open(newunit=ich,file='lsap.xyz')
+  open (newunit=ich,file='lsap.xyz')
   call ref%append(ich)
   call mol%append(ich)
-  close(ich)
+  close (ich)
 
   !> reconstruct RMSD from assignment (since our costs are already distances!)
   rmsdval = 0.0_wp
-  do i=1,nat
-    rmsdval = rmsdval + C(a(i),b(i)) / real(nat,wp)
-  enddo
-  rmsdval = sqrt(abs(rmsdval)) * autoaa 
+  do i = 1,nat
+    rmsdval = rmsdval+C(a(i),b(i))/real(nat,wp)
+  end do
+  rmsdval = sqrt(abs(rmsdval))*autoaa
   if (heavy) then
     write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
   else
@@ -772,7 +767,12 @@ subroutine irmsd_tool(fname1,fname2)
   type(rmsd_cache) :: rcache
   type(canonical_sorter) :: canmol
   type(canonical_sorter) :: canref
-  logical,parameter :: debug=.true.
+  logical,parameter :: debug = .false.
+
+  write (stdout,*) 'iRMSD algorithm'
+  write (stdout,*) 'reference: ',fname1
+  write (stdout,*) 'processed: ',fname2
+  write (stdout,*)
 
   !> read the geometries
   call ref%open(fname1)
@@ -782,42 +782,50 @@ subroutine irmsd_tool(fname1,fname2)
   call axis(ref%nat,ref%at,ref%xyz)
 
   !> allocate memory
-  call rcache%allocate(ref%nat) 
+  call rcache%allocate(ref%nat)
 
   !> canonical atom ranks
   call canref%init(ref,invtype='apsp+')
   call canref%add_h_ranks(ref)
-  rcache%stereocheck = .not.(canref%hasstereo(ref))
+  rcache%stereocheck = .not. (canref%hasstereo(ref))
   call canref%shrink()
+  write(*,*) 'false enantiomers possible?: ',rcache%stereocheck
 
   call canmol%init(mol,invtype='apsp+')
   call canmol%add_h_ranks(mol)
   call canmol%shrink()
-
-  !> check if we can work with the determined ranks 
-  if(checkranks(ref%nat,canref%rank,canmol%rank))then
-     rcache%rank(:,1) = canref%rank(:)
-     rcache%rank(:,2) = canmol%rank(:)
-     if(debug)then
-       write(*,*) 'iRMSD ranks:'
-       do i=1,ref%nat
-         write(*,*) rcache%rank(i,1),rcache%rank(i,2)
-       enddo
-     endif
+ 
+  !> check if we can work with the determined ranks
+  if (checkranks(ref%nat,canref%rank,canmol%rank)) then
+    write(stdout,*) 'using canonical atom identities as rank backend'
+    rcache%rank(:,1) = canref%rank(:)
+    rcache%rank(:,2) = canmol%rank(:)
+    if (debug) then
+      write (*,*) 'iRMSD ranks:'
+      write (*,*) 'atom',' rank('//fname1//')',' rank('//fname2//')'
+      do i = 1,ref%nat
+        write (*,*) i,rcache%rank(i,1),rcache%rank(i,2)
+      end do
+      write (*,*)
+    end if
   else
-  !> if not, fall back to atom types  
-     call fallbackranks(ref,mol,ref%nat,rcache%rank)
-  endif
+    !> if not, fall back to atom types
+    write(stdout,*) 'using atom types as rank backend'
+    call fallbackranks(ref,mol,ref%nat,rcache%rank)
+  end if
 
-  call min_rmsd(ref,mol,rcache=rcache,rmsdout=rmsdval)
+  call min_rmsd(ref,mol,rcache=rcache,rmsdout=rmsdval,align=.true.)
 
-    !> write the rotated and shifted coordinates to one file
-  open(newunit=ich,file='irmsd.xyz')
+  !> write the rotated and shifted coordinates to one file
+  open (newunit=ich,file='irmsd.xyz')
   call ref%append(ich)
   call mol%append(ich)
-  close(ich)
+  close (ich)
+  write (stdout,*)
+  write (stdout,*) 'aligned structures written to irmsd.xyz'
+  write (stdout,*)
 
-  rmsdval = rmsdval * autoaa
+  rmsdval = rmsdval*autoaa
   write (*,'(1x,a,f16.8)') 'Calculated RMSD (Å):',rmsdval
 
   return
