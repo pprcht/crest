@@ -77,72 +77,15 @@ recursive subroutine quicksort(n,arr)
 end subroutine quicksort
 
 !=============================================================!
-! classical quicksort algorithm, sort HIGH-to-LOW
-!=============================================================!
-recursive subroutine revquicksort(n,arr)
-  implicit none
-  integer :: n,arr(n),i,j,k,m
-  integer :: pivot
-  integer,allocatable :: R(:),L(:)
-  integer :: rr,ll,rc,lc,pp
-
-  if (n .le. 1) return
-
-  pivot = arr(1)
-  pp = 0
-  do i = 1,n
-    if (arr(i) .eq. pivot) pp = pp+1
-  end do
-
-  ll = 0
-  do i = 1,n
-    if (arr(i) .ge. pivot) then
-      ll = ll+1
-    end if
-  end do
-  ll = ll-pp
-  rr = n-ll-pp
-  allocate (L(ll),R(rr))
-
-  lc = 0
-  rc = 0
-  do j = 1,n
-    if (arr(j) .gt. pivot) then
-      lc = lc+1
-      L(lc) = arr(j)
-    else if (arr(j) .lt. pivot) then
-      rc = rc+1
-      R(rc) = arr(j)
-    end if
-  end do
-
-  call revquicksort(ll,L)
-  call revquicksort(rr,R)
-
-  do i = 1,ll
-    arr(i) = L(i)
-  end do
-  do k = 1,pp
-    m = k+ll
-    arr(m) = pivot
-  end do
-  do j = 1,rr
-    m = j+ll+pp
-    arr(m) = R(j)
-  end do
-
-  deallocate (R,L)
-end subroutine revquicksort
-
-!=============================================================!
 ! other variant of quicksort algos
 !=============================================================!
 recursive subroutine qsort(a,first,last,ind)
+  use iso_fortran_env,only:wp => real64
   implicit none
-  real*8 a(*),x,t
-  integer ind(*)
-  integer first,last
-  integer i,j,ii
+  real(wp) :: a(:)
+  real(wp) :: x,t
+  integer :: ind(:)
+  integer :: first,last,i,j,ii
 
   x = a((first+last)/2)
   i = first
@@ -165,10 +108,11 @@ recursive subroutine qsort(a,first,last,ind)
 end subroutine qsort
 
 recursive subroutine qqsort(a,first,last)
+  use iso_fortran_env,only:wp => real64
   implicit none
-  real*8 a(*),x,t
-  integer first,last
-  integer i,j
+  real(wp) :: a(:)
+  real(wp) :: x,t
+  integer :: first,last,i,j
 
   x = a((first+last)/2)
   i = first
@@ -190,12 +134,12 @@ recursive subroutine qqsort(a,first,last)
 end subroutine qqsort
 
 recursive subroutine maskqsort(a,first,last,mask)
+  use iso_fortran_env,only:wp => real64
   implicit none
-  real*8 a(*),t
-  integer x
-  integer mask(*)
-  integer first,last
-  integer i,j,ii
+  real(wp) :: a(:)
+  real(wp) :: t
+  integer :: x,first,last,i,j,ii
+  integer :: mask(:)
 
   x = mask((first+last)/2)
   i = first
@@ -218,13 +162,12 @@ recursive subroutine maskqsort(a,first,last,mask)
 end subroutine maskqsort
 
 recursive subroutine matqsort(adim,nall,a,adum,first,last,mask)
+  use iso_fortran_env,only:wp => real64
   implicit none
-  integer :: adim,nall
-  real*8 a(adim,nall),adum(adim)
-  integer x
-  integer mask(nall)
-  integer first,last
-  integer i,j,ii
+  integer  :: adim,nall
+  real(wp) :: a(adim,nall),adum(adim)
+  integer :: x,first,last,i,j,ii
+  integer :: mask(nall)
 
   x = mask((first+last)/2)
   i = first
@@ -251,10 +194,8 @@ recursive subroutine stringqsort(sdim,strs,first,last,mask)
   integer :: sdim
   character(len=*) :: strs(sdim)
   character(len=len(strs(1))) :: str
-  integer x
-  integer mask(sdim)
-  integer first,last
-  integer i,j,ii
+  integer :: x,first,last,i,j,ii
+  integer :: mask(sdim)
   x = mask((first+last)/2)
   i = first
   j = last
