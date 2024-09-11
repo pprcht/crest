@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2020 Philipp Pracht
+! Copyright (C) 2020-2024 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -16,6 +16,77 @@
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
+
+module quicksort_interface
+!********************************************************
+!* module to load an interface to the quicksort routines
+!* mandatory to handle optional input arguments
+!********************************************************
+  implicit none
+  interface
+    recursive subroutine quicksort(n,arr)
+      implicit none
+      integer :: n,arr(n)
+    end subroutine quicksort
+
+    recursive subroutine qsort(a,first,last,ind)
+      use iso_fortran_env,only:wp => real64
+      implicit none
+      real(wp) :: a(:)
+      integer :: ind(:)
+      integer :: first,last
+    end subroutine qsort
+
+    recursive subroutine qqsort(a,first,last)
+      use iso_fortran_env,only:wp => real64
+      implicit none
+      real(wp) :: a(:)
+      integer :: first,last
+    end subroutine qqsort
+
+    recursive subroutine maskqsort(a,first,last,mask)
+      use iso_fortran_env,only:wp => real64
+      implicit none
+      real(wp) :: a(:)
+      integer :: first,last
+      integer :: mask(:)
+    end subroutine maskqsort
+
+    recursive subroutine matqsort(adim,nall,a,adum,first,last,mask)
+      use iso_fortran_env,only:wp => real64
+      implicit none
+      integer  :: adim,nall
+      real(wp) :: a(adim,nall),adum(adim)
+      integer :: first,last
+      integer :: mask(nall)
+    end subroutine matqsort
+
+    recursive subroutine stringqsort(sdim,strs,first,last,mask)
+      implicit none
+      integer :: sdim
+      character(len=*) :: strs(sdim)
+      integer :: first,last
+      integer :: mask(sdim)
+    end subroutine stringqsort
+
+    subroutine maskinvert(nall,mask)
+      implicit none
+      integer :: nall
+      integer :: mask(nall)
+    end subroutine maskinvert
+
+    recursive subroutine ensemble_qsort(nall,structures,first,last,mask)
+      use crest_parameters
+      use strucrd,only:coord
+      implicit none
+      integer,intent(in) :: nall
+      type(coord),intent(inout) :: structures(nall)
+      integer,intent(in) :: first,last
+      integer,intent(inout),optional :: mask(nall)
+    end subroutine ensemble_qsort
+
+  end interface
+end module quicksort_interface
 
 !=============================================================!
 ! classical quicksort algorithm, sort LOW-to-HIGH
@@ -230,3 +301,67 @@ subroutine maskinvert(nall,mask)
   deallocate (imask)
   return
 end subroutine maskinvert
+
+!========================================================================================!
+
+recursive subroutine ensemble_qsort(nall,structures,first,last,mask)
+  use crest_parameters
+  use strucrd,only:coord
+  implicit none
+  integer,intent(in) :: nall
+  type(coord),intent(inout) :: structures(nall)
+  integer,intent(in) :: first,last
+  integer,intent(inout),optional :: mask(nall)
+
+  !> LOCAL
+  type(coord),allocatable :: tmpmol
+  integer :: i,j,mm,ii
+  real(wp) :: ee
+
+  if (present(mask)) then
+!>--- sort according to a given mask (reference order)
+    mm = mask((first+last)/2)
+    i = first
+    j = last
+    do
+      do while (mask(i) < mm)
+        i = i+1
+      end do
+      do while (mm < mask(j))
+        j = j-1
+      end do
+      if (i >= j) exit
+      ii = mask(i); mask(i) = mask(j); mask(j) = ii
+      allocate (tmpmol)
+      tmpmol = structures(i); structures(i) = structures(j); structures(j) = tmpmol
+      deallocate (tmpmol)
+      i = i+1
+      j = j-1
+    end do
+    if (first < i-1) call ensemble_qsort(nall,structures,first,i-1,mask)
+    if (j+1 < last) call ensemble_qsort(nall,structures,j+1,last,mask)
+
+  else
+!>--- standard, sort according to energy of structures
+    ee = structures((first+last)/2)%energy
+    i = first
+    j = last
+    do
+      do while (structures(i)%energy < ee)
+        i = i+1
+      end do
+      do while (ee < structures(j)%energy)
+        j = j-1
+      end do
+      if (i >= j) exit
+      allocate (tmpmol)
+      tmpmol = structures(i); structures(i) = structures(j); structures(j) = tmpmol
+      deallocate (tmpmol)
+      i = i+1
+      j = j-1
+    end do
+    if (first < i-1) call ensemble_qsort(nall,structures,first,i-1)
+    if (j+1 < last) call ensemble_qsort(nall,structures,j+1,last)
+  end if
+end subroutine ensemble_qsort
+
