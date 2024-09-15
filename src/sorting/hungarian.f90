@@ -404,8 +404,9 @@ contains  !> MODULE PROCEDURES START HERE
       end if
 
       SC(j) = .true.
-      num_remaining = num_remaining-1
+
       remaining(indx) = remaining(num_remaining)
+      num_remaining = num_remaining-1
     end do
   end function augmenting_path
 

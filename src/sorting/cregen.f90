@@ -49,6 +49,16 @@ module cregen_interface
       integer,intent(in),optional :: quickset
       character(len=*),intent(in),optional :: infile
     end subroutine newcregen
+
+    subroutine cregen_irmsd_all(nall,structures,printlvl)
+      use strucrd
+      implicit none
+      !> INPUT
+      integer,intent(in) :: nall
+      type(coord),intent(inout),target :: structures(nall)
+      integer,intent(in),optional :: printlvl
+    end subroutine cregen_irmsd_all
+
   end interface
 end module cregen_interface
 
@@ -163,7 +173,7 @@ subroutine newcregen(env,quickset,infile)
   call rdensemble(fname,nat,nallref,at,xyz,comments)
   !call rdensemble(fname,nallref,structures)
   !allocate(references, source=structures)
- 
+
 !>--- track ensemble for restart
   call trackensemble(fname,nat,nallref,at,xyz,comments)
 
@@ -464,7 +474,7 @@ subroutine cregen_director(env,simpleset,checkbroken,sortE,sortRMSD,sortRMSD2, &
   logical,intent(out) :: anal
   logical,intent(out) :: topocheck
   logical,intent(out) :: checkez
-  logical,intent(out) :: saveelow 
+  logical,intent(out) :: saveelow
 
   checkbroken = .true. !> fragmentized structures are sorted out
   sortE = .true.       !> sort based on energy
@@ -1504,6 +1514,170 @@ contains
     return
   end subroutine heavymask
 end subroutine cregen_CRE
+
+!=========================================================================================!
+
+subroutine cregen_irmsd_all(nall,structures,printlvl)
+!********************************************
+!* Proof-of-concept routine to run all
+!* pairs of RMSD for an array of structures
+!********************************************
+  use crest_parameters
+  use crest_data
+  use strucrd
+  use axis_module
+  use canonical_mod
+  use irmsd_module
+  use utilities,only:lin
+  implicit none
+  !> INPUT
+  integer,intent(in) :: nall
+  type(coord),intent(inout),target :: structures(nall)
+  integer,intent(in),optional :: printlvl
+
+  !> LOCAL
+  integer :: i,j,ii,jj,T,nallpairs,cc,nat
+  integer :: prlvl,iunit
+  type(rmsd_cache),allocatable :: rcaches(:)
+  !type(rmsd_cache) :: rcaches
+  type(coord),allocatable,target :: workmols(:)
+  type(canonical_sorter),allocatable :: sorters(:)
+  real(wp),allocatable :: rmsds(:)
+  type(coord),pointer :: ref,mol
+  type(coord) :: molloc
+  real(wp) :: rmsdval,runtime
+  logical :: stereocheck
+  type(timer) :: profiler
+
+  logical,parameter :: debug = .true.
+  real(wp),allocatable :: debugrmsds(:)
+
+  !> for implementing OpenMP parallelism
+  T = 1
+
+  !> print level
+  if (present(printlvl)) then
+    prlvl = printlvl
+  else
+    prlvl = 0
+  end if
+
+  !> set up timer
+  call profiler%init(3)
+
+  !> prepare workspace
+  nallpairs = (nall*(nall+1))/2
+  allocate (rmsds(nallpairs),source=0.0_wp)
+  if (debug) then
+    allocate (debugrmsds(nallpairs),source=0.0_wp)
+  end if
+
+  allocate (rcaches(T))
+  ref => structures(1)
+  nat = ref%nat
+  allocate (workmols(T))
+  do i = 1,T
+    mol => workmols(i)
+    allocate (mol%at(ref%nat))
+    allocate (mol%xyz(3,ref%nat))
+    nullify (mol)
+    call rcaches(i)%allocate(ref%nat)
+  end do
+
+  !> set up ranks for each structure
+  call profiler%start(1)
+  allocate (sorters(nall))
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Setting up canonical atom ranks ... '
+    flush (stdout)
+  end if
+  do ii = 1,nall
+    mol => structures(ii)
+    call axis(mol%nat,mol%at,mol%xyz)
+    call sorters(ii)%init(mol,invtype='apsp+')
+    call sorters(ii)%add_h_ranks(mol)
+    if (ii == 1) then
+      stereocheck = .not. (sorters(ii)%hasstereo(ref))
+    end if
+    call sorters(ii)%shrink()
+  end do
+  call profiler%stop(1)
+  if (prlvl > 0) then
+    call profiler%write_timing(stdout,1,'done.',.true.)
+    runtime = (profiler%get(1)/real(nall,wp))*1000.0_wp
+    write (stdout,'(a,f0.3,a)') 'CREGEN> Corresponding to approximately ',runtime, &
+    &                       ' ms per processed structure'
+  end if
+
+  !> And finally, run the RMSD checks
+  call profiler%start(2)
+  if (prlvl > 0) then
+    write (stdout,*)
+    write (stdout,'(a)',advance='no') 'CREGEN> Running all pair RMSDs ... '
+    flush (stdout)
+  end if
+  cc = 1
+  do ii = 1,nall
+    rcaches(cc)%stereocheck = stereocheck
+    rcaches(cc)%rank(1:nat,1) = sorters(ii)%rank(1:nat)
+    do jj = ii+1,nall
+      workmols(cc)%nat = structures(jj)%nat
+      workmols(cc)%at(:) = structures(jj)%at(:)
+      workmols(cc)%xyz(:,:) = structures(jj)%xyz(:,:)
+      !molloc = structures(jj)
+      rcaches(cc)%rank(:,2) = sorters(jj)%rank(:)
+      call min_rmsd(structures(ii),workmols(cc), &
+      &        rcache=rcaches(cc),rmsdout=rmsdval)
+      rmsds(lin(ii,jj)) = rmsdval
+    end do
+  end do
+  call profiler%stop(2)
+  if (prlvl > 0) then
+    call profiler%write_timing(stdout,2,'done.',.true.)
+    !write (stdout,'(a)',advance='yes') 'done.'
+    runtime = (profiler%get(2)/real(nallpairs,wp))*1000.0_wp
+    write (stdout,'(a,f0.3,a)') 'CREGEN> Corresponding to approximately ',runtime, &
+    &                       ' ms per processed RMSD'
+
+  end if
+
+  if (debug) then
+    !> RMSD without permutation
+    do ii = 1,nall
+      do jj = ii+1,nall
+        rmsdval = rmsd(structures(ii),structures(jj))
+        debugrmsds(lin(ii,jj)) = rmsdval
+      end do
+    end do
+  end if
+
+  if (prlvl > 1) then
+    write (stdout,'(a)') 'CREGEN> Writing cregen_rmsds.csv with RMSDs in Angström'
+    open (newunit=iunit,file='cregen_rmsds.csv')
+    if (debug) then
+      write (iunit,'(a,3(",",a))') 'A','B','rmsd','rmsdref'
+      do ii = 1,nall
+        do jj = ii+1,nall
+          write (iunit,'(i0,",",i0,2(",",f0.7))') &
+          & min(ii,jj),max(ii,jj),rmsds(lin(ii,jj))*autoaa,debugrmsds(lin(ii,jj))*autoaa
+        end do
+      end do
+    else
+      write (iunit,'(a,",",a,",",a)') 'A','B','rmsd'
+      do ii = 1,nall
+        do jj = ii+1,nall
+          write (iunit,'(i0,",",i0,",",f0.7)') min(ii,jj),max(ii,jj),rmsds(lin(ii,jj))*autoaa
+        end do
+      end do
+    end if
+    close (iunit)
+  end if
+
+  deallocate (sorters)
+  deallocate (workmols)
+  deallocate (rcaches)
+  deallocate (rmsds)
+end subroutine cregen_irmsd_all
 
 !=========================================================================================!
 
