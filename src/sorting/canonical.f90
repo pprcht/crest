@@ -109,7 +109,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine init_canonical_sorter(self,mol,wbo,invtype)
+  subroutine init_canonical_sorter(self,mol,wbo,invtype,heavy)
 !*****************************************************************
 !* Initializes the canonical_sorter and runs the CANGEN algorithm
 !*****************************************************************
@@ -118,6 +118,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord),intent(in) :: mol
     real(wp),intent(in),optional :: wbo(mol%nat,mol%nat)
     character(len=*),intent(in),optional :: invtype
+    logical,intent(in),optional :: heavy
     integer :: nodes
     integer,allocatable :: Amat(:,:) !> adjacency matrix for FULL molecule
     integer :: counth,countb,countbo
@@ -126,7 +127,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,l,ii,ati,atj,maxnei
     integer,allocatable :: ichrgs(:),frag(:)
     character(len=:),allocatable :: myinvtype
-    logical :: use_icharges
+    logical :: use_icharges,include_H,anyH
 
 !>--- optional argument handling
     if (present(invtype)) then
@@ -134,6 +135,12 @@ contains  !> MODULE PROCEDURES START HERE
     else
       myinvtype = 'cangen'
     end if
+    if (present(heavy)) then
+      include_H = .not.heavy
+    else
+      include_H = .false.
+    end if
+    anyH = any(mol%at(:).eq.1)
 
 !>--- all atoms of the full mol. graph are nodes
     nodes = mol%nat
@@ -141,7 +148,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- map to heavy atom-only representation
     k = 0
     do i = 1,mol%nat
-      if (mol%at(i) .ne. 1) k = k+1
+      if (mol%at(i) .ne. 1.or.include_h) k = k+1
     end do
     self%nat = nodes
     self%hatms = k
@@ -178,7 +185,7 @@ contains  !> MODULE PROCEDURES START HERE
     k = 0
     do i = 1,nodes
       l = 0
-      if (mol%at(i) .ne. 1) then
+      if (mol%at(i) .ne. 1.or.include_h) then
         k = k+1
         self%nmap(i) = k
         self%hmap(k) = i
@@ -192,8 +199,11 @@ contains  !> MODULE PROCEDURES START HERE
         end if
       end do
     end do
+    !> H's excluded from hadjac, always
     do i = 1,k
+      if (mol%at(self%hmap(i)) .eq. 1) cycle
       do j = 1,i-1
+        if (mol%at(self%hmap(j)) .eq. 1) cycle
         self%hadjac(j,i) = Amat(self%hmap(j),self%hmap(i))
         self%hadjac(i,j) = self%hadjac(j,i)
       end do
@@ -278,6 +288,14 @@ contains  !> MODULE PROCEDURES START HERE
       call debugprint(self,mol)
     end if
     call self%iterate(mol) !> iterate recursively until ranking doesn't change
+
+!>--- finally, if required, add H atoms
+    if (include_H .and. anyH) then
+      !> sinc H's will have been added with rank 1, shift all ranks
+      self%rank(:) = self%rank(:)-1
+      call self%add_h_ranks(mol)
+    end if
+
   end subroutine init_canonical_sorter
 
 !========================================================================================!
@@ -621,49 +639,35 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: rankmap(:)
     integer :: i,ii,zero,nei,j,jj,maxrank,rr,maxrank2
     logical :: hneigh
-!>--- if there is no H, or this routine was already called, return
-    if (size(self%rank,1) .eq. mol%nat) return
+!>--- self%rank must already have the correct dimension!
+    if (size(self%rank,1) .ne. mol%nat) then
+      stop 'wrong dimension for adding H to canonical ranks!'
+    end if
+
 !>--- otherwise, analyze and resize
     maxrank = maxval(self%rank(:),1)
+
+!>--- cycle through atoms, assign ranks depending on neighbour list
     allocate (rankmap(maxrank),source=0)
-    allocate (rankh(mol%nat),source=0)
+    rr = 0
     do i = 1,self%hatms
-      ii = self%hmap(i)
-      zero = count(self%neigh(:,ii) == 0)
-      nei = self%maxnei-zero
-      rr = self%rank(i)
-      rankh(ii) = rr
-
-      do j = 1,nei
-        jj = self%neigh(j,ii)
-        if (mol%at(jj) == 1) then
-
-!>--- rankmap will map the new ranks of H atoms attached to
-!>    the already ranked heavy atoms. This way equivalent H's will get the same rank
-!>    I.e. if two methyl groups have same ranks, their H's must also have the same ranks
-          if (rankmap(rr) == 0) then
-            !maxrank = maxrank+1
-            rankmap(rr) = maxrank + rr
-          end if
-          rankh(jj) = rankmap(rr)
-        end if
-      end do
+      if (mol%at(i) .ne. 1) cycle
+      ii = self%neigh(1,i)
+      jj = self%rank(ii)
+      rankmap(jj) = 1
     end do
-!>--- clean up "gaps" in rank assignment
-    maxrank=maxval(rankh,1)
-    maxrank2 = maxrank
-    do i=1,maxrank    
-      if(i > maxrank2) exit
-      ii = count(rankh(:) == i)
-      if(ii == 0) maxrank2 = maxrank2 - 1
-      do while (ii == 0)
-       do jj=1,mol%nat
-         if(rankh(jj) > i) rankh(jj) = rankh(jj) - 1
-       enddo
-       ii = count(rankh(:) == i)
-      enddo
-    enddo
-    call move_alloc(rankh,self%rank)
+    do i = 1,maxrank
+      if (rankmap(i) .eq. 1) then
+        rr = rr+1
+        rankmap(i) = maxrank+rr
+      end if
+    end do
+    do i = 1,self%hatms
+      if (mol%at(i) .ne. 1) cycle
+      ii = self%neigh(1,i)
+      jj = self%rank(ii)
+      self%rank(i) = rankmap(jj)
+    end do
     deallocate (rankmap)
   end subroutine add_h_ranks
 

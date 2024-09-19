@@ -762,7 +762,7 @@ subroutine irmsd_tool(fname1,fname2)
   character(len=*),intent(in) :: fname1
   character(len=*),intent(in) :: fname2
   type(coord) :: mol,ref
-  real(wp) :: rmsdval
+  real(wp) :: rmsdval,tmpd(3),tmpdist
   integer :: i,ich
   type(rmsd_cache) :: rcache
   type(canonical_sorter) :: canmol
@@ -785,14 +785,14 @@ subroutine irmsd_tool(fname1,fname2)
   call rcache%allocate(ref%nat)
 
   !> canonical atom ranks
-  call canref%init(ref,invtype='apsp+')
-  call canref%add_h_ranks(ref)
+  call canref%init(ref,invtype='apsp+',heavy=.false.)
+  !call canref%add_h_ranks(ref)
   rcache%stereocheck = .not. (canref%hasstereo(ref))
   call canref%shrink()
   write(*,*) 'false enantiomers possible?: ',rcache%stereocheck
 
-  call canmol%init(mol,invtype='apsp+')
-  call canmol%add_h_ranks(mol)
+  call canmol%init(mol,invtype='apsp+',heavy=.false.)
+  !call canmol%add_h_ranks(mol)
   call canmol%shrink()
  
   !> check if we can work with the determined ranks
@@ -824,6 +824,14 @@ subroutine irmsd_tool(fname1,fname2)
   write (stdout,*)
   write (stdout,*) 'aligned structures written to irmsd.xyz'
   write (stdout,*)
+
+  do i=1,mol%nat
+    tmpd(:) = (mol%xyz(:,i) - ref%xyz(:,i))**2
+    tmpdist = sqrt(sum(tmpd(:)))*autoaa
+    if(tmpdist > 0.01_wp)then
+      write(*,*) i,mol%at(i),tmpdist
+    endif  
+  enddo
 
   rmsdval = rmsdval*autoaa
   write (*,'(1x,a,f16.8)') 'Calculated iRMSD (Å):',rmsdval

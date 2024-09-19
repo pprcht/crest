@@ -1594,8 +1594,8 @@ subroutine cregen_irmsd_all(nall,structures,printlvl)
   do ii = 1,nall
     mol => structures(ii)
     call axis(mol%nat,mol%at,mol%xyz)
-    call sorters(ii)%init(mol,invtype='apsp+')
-    call sorters(ii)%add_h_ranks(mol)
+    call sorters(ii)%init(mol,invtype='apsp+',heavy=.false.)
+    !call sorters(ii)%add_h_ranks(mol)
     if (ii == 1) then
       stereocheck = .not. (sorters(ii)%hasstereo(ref))
     end if
