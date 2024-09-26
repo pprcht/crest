@@ -32,24 +32,24 @@ module quicksort_interface
     recursive subroutine qsort(a,first,last,ind)
       use iso_fortran_env,only:wp => real64
       implicit none
-      real(wp) :: a(:)
-      integer :: ind(:)
+      real(wp) :: a(*)
+      integer :: ind(*)
       integer :: first,last
     end subroutine qsort
 
     recursive subroutine qqsort(a,first,last)
       use iso_fortran_env,only:wp => real64
       implicit none
-      real(wp) :: a(:)
+      real(wp) :: a(*)
       integer :: first,last
     end subroutine qqsort
 
     recursive subroutine maskqsort(a,first,last,mask)
       use iso_fortran_env,only:wp => real64
       implicit none
-      real(wp) :: a(:)
+      real(wp) :: a(*)
       integer :: first,last
-      integer :: mask(:)
+      integer :: mask(*)
     end subroutine maskqsort
 
     recursive subroutine matqsort(adim,nall,a,adum,first,last,mask)
@@ -61,10 +61,10 @@ module quicksort_interface
       integer :: mask(nall)
     end subroutine matqsort
 
-    recursive subroutine stringqsort(sdim,strs,first,last,mask)
+    recursive subroutine stringqsort(sdim,slen,strs,first,last,mask)
       implicit none
-      integer :: sdim
-      character(len=*) :: strs(sdim)
+      integer,intent(in) :: sdim,slen
+      character(len=slen) :: strs(sdim)
       integer :: first,last
       integer :: mask(sdim)
     end subroutine stringqsort
@@ -153,9 +153,9 @@ end subroutine quicksort
 recursive subroutine qsort(a,first,last,ind)
   use iso_fortran_env,only:wp => real64
   implicit none
-  real(wp) :: a(:)
+  real(wp) :: a(*)
   real(wp) :: x,t
-  integer :: ind(:)
+  integer :: ind(*)
   integer :: first,last,i,j,ii
 
   x = a((first+last)/2)
@@ -181,7 +181,7 @@ end subroutine qsort
 recursive subroutine qqsort(a,first,last)
   use iso_fortran_env,only:wp => real64
   implicit none
-  real(wp) :: a(:)
+  real(wp) :: a(*)
   real(wp) :: x,t
   integer :: first,last,i,j
 
@@ -207,10 +207,10 @@ end subroutine qqsort
 recursive subroutine maskqsort(a,first,last,mask)
   use iso_fortran_env,only:wp => real64
   implicit none
-  real(wp) :: a(:)
+  real(wp) :: a(*)
   real(wp) :: t
   integer :: x,first,last,i,j,ii
-  integer :: mask(:)
+  integer :: mask(*)
 
   x = mask((first+last)/2)
   i = first
@@ -260,11 +260,11 @@ recursive subroutine matqsort(adim,nall,a,adum,first,last,mask)
   if (j+1 < last) call matqsort(adim,nall,a,adum,j+1,last,mask)
 end subroutine matqsort
 
-recursive subroutine stringqsort(sdim,strs,first,last,mask)
+recursive subroutine stringqsort(sdim,slen,strs,first,last,mask)
   implicit none
-  integer :: sdim
-  character(len=*) :: strs(sdim)
-  character(len=len(strs(1))) :: str
+  integer,intent(in) :: sdim,slen
+  character(len=slen) :: strs(sdim)
+  character(len=slen) :: str
   integer :: x,first,last,i,j,ii
   integer :: mask(sdim)
   x = mask((first+last)/2)
@@ -283,8 +283,8 @@ recursive subroutine stringqsort(sdim,strs,first,last,mask)
     i = i+1
     j = j-1
   end do
-  if (first < i-1) call stringqsort(sdim,strs,first,i-1,mask)
-  if (j+1 < last) call stringqsort(sdim,strs,j+1,last,mask)
+  if (first < i-1) call stringqsort(sdim,slen,strs,first,i-1,mask)
+  if (j+1 < last) call stringqsort(sdim,slen,strs,j+1,last,mask)
 end subroutine stringqsort
 
 subroutine maskinvert(nall,mask)

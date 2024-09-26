@@ -646,6 +646,7 @@ subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
   use crest_data
   use strucrd
   use miscdata,only:rcov
+  use quicksort_interface
   implicit none
   !> INPUT
   type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
@@ -741,7 +742,8 @@ subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
     order = orderref
     call xyzqsort(nat,nall,xyz,c0,order,1,nall)
     order = orderref
-    call stringqsort(nall,comments,1,nall,order)
+    !call stringqsort(nall,comments,1,nall,order)
+    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
 
     llan = nall-newnall
     write (ch,'('' number of removed clashes      :'',i6)') llan
@@ -774,6 +776,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   use miscdata,only:rcov
   use utilities
   use crest_cn_module
+  use quicksort_interface
   implicit none
   type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
   integer,intent(in) :: ch ! printout channel
@@ -891,7 +894,8 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
     order = orderref
     call xyzqsort(nat,nall,xyz,c1,order,1,nall)
     order = orderref
-    call stringqsort(nall,comments,1,nall,order)
+    !call stringqsort(nall,comments,1,nall,order)
+    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
 
     llan = nall-newnall
     write (ch,'('' number of topology mismatches  :'',i6)') llan
@@ -1060,6 +1064,7 @@ subroutine cregen_esort(ch,nat,nall,xyz,comments,nallout,ewin)
 !**************************************************************
   use crest_parameters
   use strucrd
+  use quicksort_interface
   implicit none
   integer,intent(in) :: ch
   integer,intent(in) :: nat
@@ -1098,7 +1103,8 @@ subroutine cregen_esort(ch,nat,nall,xyz,comments,nallout,ewin)
   deallocate (c0)
   order = orderref
 
-  call stringqsort(nall,comments,1,nall,order)
+  !call stringqsort(nall,comments,1,nall,order)
+  call stringqsort(nall,len(comments(1)),comments,1,nall,order) 
 
   !>-- determine cut-off of energies
   if (ewin < 9999.9_wp) then
@@ -1153,6 +1159,7 @@ subroutine cregen_CRE(ch,env,nat,nall,at,xyz,comments,nallout,group,nosort)
   use ls_rmsd
   use axis_module
   use utilities
+  use quicksort_interface
   implicit none
   type(systemdata) :: env
   integer,intent(in) :: ch
@@ -1423,7 +1430,7 @@ subroutine cregen_CRE(ch,env,nat,nall,at,xyz,comments,nallout,group,nosort)
     order = orderref
     call maskqsort(er,1,nall,order)
     order = orderref
-    call stringqsort(nall,comments,1,nall,order)
+    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
     order = orderref
     call matqsort(3,nall,rot,rotdum,1,nall,order)
   end if
@@ -2115,6 +2122,7 @@ subroutine cregen_repairorder(nat,nall,xyz,comments,group)
   use crest_data
   use strucrd
   use utilities
+  use quicksort_interface
   implicit none
   integer,intent(in) :: nat
   integer,intent(in) :: nall
@@ -2168,7 +2176,8 @@ subroutine cregen_repairorder(nat,nall,xyz,comments,group)
   call xyzqsort(nat,nall,xyz,cdum,order,1,nall)
   deallocate (cdum)
   order = orderref
-  call stringqsort(nall,comments,1,nall,order)
+  !call stringqsort(nall,comments,1,nall,order)
+  call stringqsort(nall,len(comments(1)),comments,1,nall,order)
   if (ttag) then
     edum = grepenergy(comments(1))
     write (btmp,*) edum,'!t1'

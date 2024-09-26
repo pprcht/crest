@@ -21,6 +21,7 @@ module canonical_mod
   use strucrd
   use adjacency
   use geo
+  use utilities, only: nth_prime
   implicit none
   private
 
@@ -672,43 +673,6 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine add_h_ranks
 
 !========================================================================================!
-!========================================================================================!
-
-  function nth_prime(x) result(prime)
-    implicit none
-    integer,intent(in) :: x
-    integer :: prime
-    integer :: c,num,i
-    logical :: is_prime
-    integer,parameter :: prime_numbers(100) = (/2,3,5,7,11,13,17,19,23,29, &
-    & 31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109, &
-    & 113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197, &
-    & 199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283, &
-    & 293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389, &
-    & 397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487, &
-    & 491,499,503,509,521,523,541/)
-    if (x <= 100) then
-      prime = prime_numbers(x)
-      return
-    end if
-    c = 0
-    num = 1
-    do while (c < x)
-      num = num+1
-      is_prime = .true.
-      do i = 2,int(sqrt(real(num)))
-        if (mod(num,i) == 0) then
-          is_prime = .false.
-          exit
-        end if
-      end do
-      if (is_prime) then
-        c = c+1
-      end if
-    end do
-    prime = num
-  end function nth_prime
-
 !========================================================================================!
 
   subroutine debugprint(can,mol)
