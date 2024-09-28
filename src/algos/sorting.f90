@@ -41,16 +41,32 @@ subroutine crest_sort(env,tim)
 !========================================================================================!
   integer :: nall
   type(coord),allocatable :: structures(:)
-
+  integer,allocatable :: groups(:) 
 !========================================================================================!
   call tim%start(11,'Sorting') 
 !========================================================================================!
 
   call rdensemble(env%ensemblename,nall,structures)
-  write(stdout,'(a,i0,a)') 'Read ensemble with ',nall,' structures' 
+  allocate(groups(nall), source=0)
+  write(stdout,'(a,i0,a)') '> Read ensemble with ',nall,' structures' 
+  write(stdout,*)
 
-  call cregen_irmsd_all(nall,structures,2)
+  select case(env%sortmode)
 
+  case('isort')
+!>--- Assigning structures to conformers based on RTHR
+    call underline('Assigning conformers based on iRMSD and RTHR')
+    call cregen_irmsd_sort(env,nall,structures,groups,allcanon=.true.,printlvl=2)    
+
+  case('all','allpair')
+!>--- all unique pairs of the ensemble (only suitable for small ensembles)
+    call underline('Running all unique pair RMSDs incl. atom permutation')
+    call cregen_irmsd_all(nall,structures,2)
+
+  case default
+!>--- all unique pairs of the ensemble (only suitable for small ensembles)
+    call cregen_irmsd_all(nall,structures,2)
+  end select
 
 !========================================================================================!
   call tim%stop(11)

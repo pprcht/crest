@@ -384,6 +384,7 @@ module crest_data
     character(len=:),allocatable :: wbofile
     character(len=:),allocatable :: atlist
     character(len=:),allocatable :: chargesfilename
+    character(len=:),allocatable :: sortmode
 
     !>--- METADYN data
     real(wp) :: hmass

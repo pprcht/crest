@@ -59,6 +59,19 @@ module cregen_interface
       integer,intent(in),optional :: printlvl
     end subroutine cregen_irmsd_all
 
+    subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
+      use crest_data
+      use strucrd
+      implicit none
+      !> INPUT
+      type(systemdata),intent(inout) :: env
+      integer,intent(in) :: nall
+      type(coord),intent(inout),target :: structures(nall)
+      integer,intent(inout) :: groups(nall)
+      logical,intent(in),optional :: allcanon
+      integer,intent(in),optional :: printlvl
+    end subroutine cregen_irmsd_sort
+
   end interface
 end module cregen_interface
 
@@ -1104,7 +1117,7 @@ subroutine cregen_esort(ch,nat,nall,xyz,comments,nallout,ewin)
   order = orderref
 
   !call stringqsort(nall,comments,1,nall,order)
-  call stringqsort(nall,len(comments(1)),comments,1,nall,order) 
+  call stringqsort(nall,len(comments(1)),comments,1,nall,order)
 
   !>-- determine cut-off of energies
   if (ewin < 9999.9_wp) then
@@ -1685,6 +1698,181 @@ subroutine cregen_irmsd_all(nall,structures,printlvl)
   deallocate (rcaches)
   deallocate (rmsds)
 end subroutine cregen_irmsd_all
+
+!=========================================================================================!
+
+subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
+!*******************************************************
+!* Proof-of-concept routine to analyze an
+!* ensemble only via the iRMSD procedure.
+!* Conformers are identified by the rthr threshold only
+!*******************************************************
+  use crest_parameters
+  use crest_data
+  use iomod, only: to_str
+  use strucrd
+  use axis_module
+  use canonical_mod
+  use irmsd_module
+  use utilities,only:lin
+  use omp_lib
+  implicit none
+  !> INPUT
+  type(systemdata),intent(inout) :: env
+  integer,intent(in) :: nall
+  type(coord),intent(inout),target :: structures(nall)
+  integer,intent(inout) :: groups(nall)
+  logical,intent(in),optional :: allcanon
+  integer,intent(in),optional :: printlvl
+
+  !> LOCAL
+  integer :: i,j,ii,jj,T,Tn,nallpairs,cc,nat
+  integer :: gcount
+  integer :: prlvl,iunit
+  type(rmsd_cache),allocatable :: rcaches(:)
+  type(coord),allocatable,target :: workmols(:)
+  type(canonical_sorter),allocatable :: sorters(:)
+  real(wp),allocatable :: rmsds(:)
+  type(coord),pointer :: ref,mol
+  type(coord) :: molloc
+  real(wp) :: rmsdval,runtime,RTHR
+  logical :: stereocheck,individual_IDs
+  type(timer) :: profiler
+
+  logical,parameter :: debug = .true.
+
+!>--- handle optional arguments
+  if (present(allcanon)) then
+    individual_IDs = allcanon
+  else
+    individual_IDs = .false.
+  end if
+  if (present(printlvl)) then
+    prlvl = printlvl
+  else
+    prlvl = 1
+  end if
+
+!>--- set up parallelization
+  call new_ompautoset(env,'max',nall,T,Tn)
+
+!>--- set up parameters (note we are working with BOHR internally)
+  RTHR = env%rthr*aatoau 
+
+!>--- print some sorting data
+  if (prlvl > 0)then
+    write(stdout,'(a)') 'CREGEN> Info for iRMSD sorting:'
+    write(stdout,'(2x,a,i9)')   'number of structures  :',nall
+    write(stdout,'(2x,a,f9.5,a)') 'RTHR (RMSD threshold) :',RTHR*autoaa,' Å'
+    write(stdout,'(2x,a,i9)')   'OpenMP threads        :',T
+    write(stdout,'(2x,a,a9)')   'Individual atom IDs?  :',to_str(individual_IDs)
+    write(stdout,*)
+  endif
+
+!>--- Set up atom identities (either for all, or just the first structure)
+  if(individual_IDs)then
+    allocate (sorters(nall))
+  else
+    allocate (sorters(1))
+  endif
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Setting up canonical atom ranks ... '
+    flush (stdout)
+  end if
+  ref => structures(1)
+  do ii = 1,nall
+    mol => structures(ii)
+    call axis(mol%nat,mol%at,mol%xyz)
+    if(individual_IDs .or. ii == 1)then
+    call sorters(ii)%init(mol,invtype='apsp+',heavy=.false.)
+    endif
+    if (ii == 1) then
+      stereocheck = .not. (sorters(ii)%hasstereo(ref))
+    end if
+    if(individual_IDs .or. ii == 1)then
+    call sorters(ii)%shrink()
+    endif
+  end do
+  if (prlvl > 0) then
+    write (stdout,'(a)') 'done.'
+    write (stdout,*)
+  end if
+
+!>--- allocate work cache
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Allocating iRMSD work cache ... '
+    flush (stdout)
+  end if
+  allocate (rcaches(T))
+  ref => structures(1)
+  nat = ref%nat
+  allocate (workmols(T))
+  do i = 1,T
+    mol => workmols(i)
+    allocate (mol%at(ref%nat))
+    allocate (mol%xyz(3,ref%nat))
+    nullify (mol)
+    call rcaches(i)%allocate(ref%nat)
+    rcaches(i)%stereocheck = stereocheck
+  end do
+  if (prlvl > 0) then
+    write (stdout,'(a)') 'done.'
+    write (stdout,*)
+  end if
+
+!>--- run the checks
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Running all pair RMSDs ... '
+    flush (stdout)
+  end if
+
+  gcount = maxval(groups(:))
+  do ii = 1,nall
+!>--- find next unassigned conformer and assign a new group
+    if(groups(ii) .ne. 0) cycle
+    gcount = gcount + 1
+    groups(ii) = gcount
+
+!>--- Then, cross-check all other unassigned conformers
+    !$omp parallel &
+    !$omp shared(nall, nat, groups, individual_IDs, sorters, rcaches) &
+    !$omp shared(workmols, structures, ii) &
+    !$omp private(jj,rmsdval,cc)
+    !$omp do schedule(static)
+    do jj = ii+1,nall
+      cc = omp_get_thread_num() + 1
+      if(groups(jj) .ne. 0) cycle
+      if(individual_IDs)then
+        rcaches(cc)%rank(1:nat,1) = sorters(ii)%rank(1:nat)
+        rcaches(cc)%rank(1:nat,2) = sorters(jj)%rank(1:nat)
+      else
+        rcaches(cc)%rank(1:nat,1) = sorters(1)%rank(1:nat)
+        rcaches(cc)%rank(1:nat,2) = sorters(1)%rank(1:nat)
+      endif
+      workmols(cc)%nat = structures(jj)%nat
+      workmols(cc)%at(:) = structures(jj)%at(:)
+      workmols(cc)%xyz(:,:) = structures(jj)%xyz(:,:)
+      call min_rmsd(structures(ii),workmols(cc), &
+      &        rcache=rcaches(cc),rmsdout=rmsdval)
+      if(rmsdval < RTHR) groups(jj) = gcount 
+    end do
+    !$omp end do
+    !$omp end parallel
+  end do
+  if (prlvl > 0) then
+     write (stdout,'(a)') 'done.'
+     write (stdout,*)
+  end if
+
+  if(debug)then
+     write(*,*) 'assigned groups, and count'
+     do ii=1,maxval(groups(:))
+       write(*,*) ii,count(groups(:)==ii)
+     enddo
+  endif
+
+
+end subroutine cregen_irmsd_sort
 
 !=========================================================================================!
 
@@ -2497,11 +2685,13 @@ end subroutine cregen_bonusfiles
 subroutine cregen_setthreads(ch,env,pr)
   use crest_parameters
   use crest_data
+  use omp_lib
   implicit none
   type(systemdata) :: env
   integer :: ch
   logical :: pr
-  integer :: TID,OMP_GET_NUM_THREADS,OMP_GET_THREAD_NUM,nproc,T,Tn
+  !integer :: TID,OMP_GET_NUM_THREADS,OMP_GET_THREAD_NUM,
+  integer :: TID,nproc,T,Tn
 !>---- setting the threads for OMP parallel usage
   if (env%autothreads) then
     call new_ompautoset(env,'max',0,T,Tn)
