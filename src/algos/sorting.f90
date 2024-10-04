@@ -42,21 +42,34 @@ subroutine crest_sort(env,tim)
   integer :: nall
   type(coord),allocatable :: structures(:)
   integer,allocatable :: groups(:) 
-!========================================================================================!
-  call tim%start(11,'Sorting') 
+
+
 !========================================================================================!
 
+
+  write(stdout,'(a,a,a)',advance='no') '> Read ensemble ',trim(env%ensemblename),' ... '
+  flush(stdout)
   call rdensemble(env%ensemblename,nall,structures)
   allocate(groups(nall), source=0)
-  write(stdout,'(a,i0,a)') '> Read ensemble with ',nall,' structures' 
+  write(stdout,'(i0,a)') nall,' structures!' 
   write(stdout,*)
+
+!========================================================================================!
+  call tim%start(11,'Sorting') 
 
   select case(env%sortmode)
 
   case('isort')
-!>--- Assigning structures to conformers based on RTHR
+!>--- Assigning structures to conformers based on RTHR,with canonical atom IDs
     call underline('Assigning conformers based on iRMSD and RTHR')
     call cregen_irmsd_sort(env,nall,structures,groups,allcanon=.true.,printlvl=2)    
+
+
+  case('isort_noid')
+!>--- Assigning structures to conformers based on RTHR, WITHOUT canonical atom IDs
+    call underline('Assigning conformers based on iRMSD and RTHR')
+    call cregen_irmsd_sort(env,nall,structures,groups,allcanon=.false.,printlvl=2)    
+
 
   case('all','allpair')
 !>--- all unique pairs of the ensemble (only suitable for small ensembles)

@@ -757,7 +757,7 @@ subroutine parseflags(env,arg,nra)
           env%inputcoords = ctmp
           env%ensemblename = ctmp
         endif 
-        if(nra >= i+3)then
+        if(nra >= i+2)then
         ctmp = trim(arg(i+2))
         if(ctmp(1:1).ne.'-') env%sortmode=trim(ctmp)
         endif
