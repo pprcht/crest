@@ -21,6 +21,7 @@ module bh_mc_module
   use crest_parameters
   use strucrd,only:coord
   use crest_calculator
+  use optimize_module
   use bh_class_module
   use bh_step_module
   implicit none
@@ -45,15 +46,24 @@ contains  !> MODULE PROCEDURES START HERE
     type(bh_class),intent(inout) :: bh    !> BH settings
     !> LOCAL
     type(coord) :: tmpmol    !> copy to take steps
-    integer :: iter
+    type(coord) :: optmol    !> quenched structure
+    integer :: iter,iostatus
+    real(wp) :: etot
+    real(wp),allocatable :: grd
+
+
+    allocate(grd(3,mol%nat), source=0.0_wp)
+
 
     do iter = 1,bh%maxsteps
-
+       bh%iteration = iter
+     
 !>--- Take the step 
       call takestep(mol,bh,tmpmol)
 
 !>--- Quench it
-
+      call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
+      &                      .false.,.false.,iostatus)
 
 !>--- Accept/reject
 
@@ -62,6 +72,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     end do
 
+    deallocate(grd)
   end subroutine mc
 
 !=========================================================================================!
@@ -80,7 +91,6 @@ contains  !> MODULE PROCEDURES START HERE
     eold = bh%emin
     enew = mol%energy
     temp = bh%temp*kB  !> Kelvin to a.u.
-
 
     if (enew .lt. eold) then
       accept = .true.
