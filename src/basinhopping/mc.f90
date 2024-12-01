@@ -24,6 +24,7 @@ module bh_mc_module
   use optimize_module
   use bh_class_module
   use bh_step_module
+  use omp_lib
   implicit none
   private
 
@@ -50,27 +51,54 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: iter,iostatus
     real(wp) :: etot
     real(wp),allocatable :: grd
+    logical :: accept
+
+
+
+
 
 
     allocate(grd(3,mol%nat), source=0.0_wp)
-
-
     do iter = 1,bh%maxsteps
        bh%iteration = iter
      
 !>--- Take the step 
-      call takestep(mol,bh,tmpmol)
+      call takestep(mol,calc,bh,tmpmol)
 
 !>--- Quench it
       call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
       &                      .false.,.false.,iostatus)
 
 !>--- Accept/reject
+    if(iostatus == 0)then  !> successfull optimization
 
+      if(debug)then
+        write(*,*) 'Final quench energy',etot 
+      endif 
+
+      accept = mcaccept(optmol,bh)
+      if( accept )then
+
+        
+      !> check duplicates here
+
+      else
+        if(debug) write(*,*) 'Quench does not fullfill MC criterion'
+        cycle
+      endif
+    else
+       if(debug) write(*,*) "Quench failed"
+       cycle
+    endif 
 
 !>--- Update structures
+      mol = optmol
+
 
     end do
+
+!>--- Stats
+
 
     deallocate(grd)
   end subroutine mc

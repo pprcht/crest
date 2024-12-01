@@ -48,12 +48,13 @@ module bh_class_module
     integer  :: whichmin = 0   !> mapping to which structure emin refers
     real(wp) :: emax = 0.0_wp  !> highest energy structure among saved quenches
     integer  :: whichmax = 0   !> mapping of highest energy structure
-    type(coord),allocatable :: structures(:)  !> list of structures from successfull quenches
+    type(coord),allocatable :: structures(:)  !> list of structures from succesfull quenches
 
 !>--- Type procedures
   contains
     procedure :: init => bh_class_allocate
     procedure :: deallocate => bh_class_deallocate
+    procedure :: add => bh_class_add
   end type bh_class
 
 !========================================================================================!
@@ -95,8 +96,35 @@ contains  !> MODULE PROCEDURES START HERE
 
 !=========================================================================================!
 
+  subroutine bh_class_add(self,mol)
+    implicit none
+    class(bh_class) :: self
+    type(coord) :: mol
+    integer :: i,j
+    real(wp) :: mintmp,maxtmp
+    if(self%saved < self%maxsave)then
+      self%saved = self%saved + 1
+      self%structures( self%saved ) = mol
+    else
+      i = self%%whichmax
+      self%structures( i ) = mol
+    endif
 
-
+    mintmp = huge(mintmp)
+    maxtmp = -huge(maxtmp)
+    do i = 1,self%saved
+      if(structures(i)%energy < mintmp)then
+        mintmp = structures(i)%energy
+        self%whichmin = i
+      endif
+      if(structures(i)%energy > maxtmp)then
+        maxtmp = structures(i)%energy
+        self%whichmax = i
+      endif
+    enddo
+    self%emin = mintmp
+    self%emax = maxtmp
+  end subroutine bh_class_add
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

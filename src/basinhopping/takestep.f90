@@ -20,6 +20,7 @@
 module bh_step_module
   use crest_parameters
   use strucrd,only:coord
+  use crest_calculator
   use bh_class_module
   implicit none
   private
@@ -35,10 +36,11 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine takestep(mol,bh,newmol)
+  subroutine takestep(mol,calc,bh,newmol)
     implicit none
     !> IN/OUTPUT
     type(coord),intent(in)       :: mol   !> molecular system
+    type(calcdata),intent(inout) :: calc 
     type(bh_class),intent(inout) :: bh    !> BH settings
     type(coord),intent(out)      :: newmol
     !> LOCAL
@@ -46,21 +48,24 @@ contains  !> MODULE PROCEDURES START HERE
     select case(bh%steptype)
     case default !> Cartesian
       newmol = mol
-      call takestep_cart(newmol, bh%stepsize(1))
+      call takestep_cart(newmol, bh%stepsize(1), calc)
     end select
 
   end subroutine takestep
 
 !=========================================================================================!
 
-  subroutine takestep_cart(newmol,stepsize)
+  subroutine takestep_cart(newmol,stepsize,calc)
     implicit none
     type(coord),intent(inout) :: newmol
     real(wp),intent(in) :: stepsize
+    type(calcdata),intent(inout) :: calc
     real(wp) :: r(3)
     integer :: i
-
     do i = 1,newmol%nat
+      if(allocated(calc%freezelist))then
+        if(any(calc%freezelist(:).eq.i)) cycle 
+      endif
       call random_number(r)
       r(:) = (r(:)-0.5_wp)*2.0_wp
       newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize
