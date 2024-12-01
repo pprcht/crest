@@ -106,19 +106,19 @@ contains  !> MODULE PROCEDURES START HERE
       self%saved = self%saved + 1
       self%structures( self%saved ) = mol
     else
-      i = self%%whichmax
+      i = self%whichmax
       self%structures( i ) = mol
     endif
 
     mintmp = huge(mintmp)
     maxtmp = -huge(maxtmp)
     do i = 1,self%saved
-      if(structures(i)%energy < mintmp)then
-        mintmp = structures(i)%energy
+      if(self%structures(i)%energy < mintmp)then
+        mintmp = self%structures(i)%energy
         self%whichmin = i
       endif
-      if(structures(i)%energy > maxtmp)then
-        maxtmp = structures(i)%energy
+      if(self%structures(i)%energy > maxtmp)then
+        maxtmp = self%structures(i)%energy
         self%whichmax = i
       endif
     enddo

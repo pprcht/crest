@@ -50,22 +50,25 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord) :: optmol    !> quenched structure
     integer :: iter,iostatus
     real(wp) :: etot
-    real(wp),allocatable :: grd
+    real(wp),allocatable :: grd(:,:)
     logical :: accept
 
-
-
-
+   
+!>--- Add input energy to Markov chain
+    bh%emin = mol%energy    
 
 
     allocate(grd(3,mol%nat), source=0.0_wp)
-    do iter = 1,bh%maxsteps
+
+!=======================================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+    MonteCarlo : do iter = 1,bh%maxsteps
        bh%iteration = iter
      
-!>--- Take the step 
+!>--- Take the step (mol --> tmpmol)
       call takestep(mol,calc,bh,tmpmol)
 
-!>--- Quench it
+!>--- Quench it (tmpmol --> optmol)
       call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
       &                      .false.,.false.,iostatus)
 
@@ -73,29 +76,32 @@ contains  !> MODULE PROCEDURES START HERE
     if(iostatus == 0)then  !> successfull optimization
 
       if(debug)then
-        write(*,*) 'Final quench energy',etot 
+        write(*,*) 'Quench energy',etot
+        write(*,*) 'Markov chain energy',bh%emin 
       endif 
 
       accept = mcaccept(optmol,bh)
       if( accept )then
 
-        
+        if(debug) write(*,*) "accepted quench"
       !> check duplicates here
 
       else
-        if(debug) write(*,*) 'Quench does not fullfill MC criterion'
-        cycle
+        if(debug) write(*,*) 'Quench does not fulfill MC criterion'
+        cycle MonteCarlo
       endif
     else
        if(debug) write(*,*) "Quench failed"
-       cycle
+       cycle MonteCarlo
     endif 
 
 !>--- Update structures
       mol = optmol
+      call bh%add(mol)
 
-
-    end do
+    end do MonteCarlo
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!=======================================================================================!
 
 !>--- Stats
 
@@ -112,7 +118,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     logical :: accept
     type(coord),intent(in) :: mol
-    type(bh_calss),intent(in) :: bh
+    type(bh_class),intent(in) :: bh
     real(wp) :: eold,enew,temp
     real(wp) :: random,fact
     accept = .false.
@@ -129,6 +135,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
   end function mcaccept
+
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

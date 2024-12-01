@@ -17,6 +17,8 @@
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
+  "${dir}/algo.f90"
+  "${dir}/basinhopping.f90"
   "${dir}/class.f90"
   "${dir}/mc.f90"
   "${dir}/takestep.f90"

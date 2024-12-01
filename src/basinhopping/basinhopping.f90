@@ -17,18 +17,23 @@
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
 
-module bh_step_module
+module bh_module
   use crest_parameters
   use strucrd,only:coord
   use crest_calculator
+  use optimize_module
   use bh_class_module
+  use bh_step_module
+  use bh_mc_module
   implicit none
   private
 
   logical,parameter :: debug = .true.
 !  logical,parameter :: debug = .false.
 
-  public :: takestep
+!>-- RE-EXPORTS
+  public :: mc
+  public :: bh_class
 
 !========================================================================================!
 !========================================================================================!
@@ -36,43 +41,8 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine takestep(mol,calc,bh,newmol)
-    implicit none
-    !> IN/OUTPUT
-    type(coord),intent(in)       :: mol   !> molecular system
-    type(calcdata),intent(inout) :: calc 
-    type(bh_class),intent(inout) :: bh    !> BH settings
-    type(coord),intent(out)      :: newmol
-    !> LOCAL
-
-    select case(bh%steptype)
-    case default !> Cartesian
-      newmol = mol
-      call takestep_cart(newmol, bh%stepsize(1), calc)
-    end select
-
-  end subroutine takestep
-
-!=========================================================================================!
-
-  subroutine takestep_cart(newmol,stepsize,calc)
-    implicit none
-    type(coord),intent(inout) :: newmol
-    real(wp),intent(in) :: stepsize
-    type(calcdata),intent(inout) :: calc
-    real(wp) :: r(3)
-    integer :: i
-    do i = 1,newmol%nat
-      if(calc%nfreeze > 0)then
-        if(calc%freezelist(i)) cycle 
-      endif
-      call random_number(r)
-      r(:) = (r(:)-0.5_wp)*2.0_wp
-      newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize
-    end do
-  end subroutine takestep_cart
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !=========================================================================================!
-end module bh_step_module
+end module bh_module

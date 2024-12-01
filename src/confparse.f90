@@ -761,6 +761,10 @@ subroutine parseflags(env,arg,nra)
         ctmp = trim(arg(i+2))
         if(ctmp(1:1).ne.'-') env%sortmode=trim(ctmp)
         endif
+     
+      case ('-bh','-GMIN')
+        env%crestver = crest_bh
+        exit
 
       case ('-SANDBOX')
         !>--- IMPLEMENT HERE WHATEVER YOU LIKE, FOR TESTING

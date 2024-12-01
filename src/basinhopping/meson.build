@@ -15,6 +15,8 @@
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
 srcs += files(
+  'algo.90',
+  'basinhopping.f90',
   'class.f90',
   'mc.f90',
   'takestep.f90',
