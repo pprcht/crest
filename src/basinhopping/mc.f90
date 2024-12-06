@@ -22,6 +22,7 @@ module bh_mc_module
   use strucrd,only:coord
   use crest_calculator
   use optimize_module
+  use axis_module
   use bh_class_module
   use bh_step_module
   use omp_lib
@@ -76,12 +77,12 @@ contains  !> MODULE PROCEDURES START HERE
     if(iostatus == 0)then  !> successfull optimization
 
       if(debug)then
-        write(*,*) 'Quench energy',etot
-        write(*,*) 'Markov chain energy',bh%emin 
+        write(*,*) 'Quench energy',etot,' Markov chain energy',bh%emin 
       endif 
 
       accept = mcaccept(optmol,bh)
       if( accept )then
+        call axis(optmol%nat,optmol%at,optmol%xyz)
 
         if(debug) write(*,*) "accepted quench"
       !> check duplicates here

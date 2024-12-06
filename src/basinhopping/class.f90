@@ -50,6 +50,10 @@ module bh_class_module
     integer  :: whichmax = 0   !> mapping of highest energy structure
     type(coord),allocatable :: structures(:)  !> list of structures from succesfull quenches
 
+!>--- temporary storage
+    integer,allocatable  :: amat(:,:)  !> adjacency matrix
+    real(wp),allocatable :: zmat(:,:)  !> internal coordinates (to cache the memory)
+
 !>--- Type procedures
   contains
     procedure :: init => bh_class_allocate
@@ -92,6 +96,8 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     class(bh_class) :: self
     if (allocated(self%structures)) deallocate (self%structures)
+    if ( allocated(self%amat)) deallocate(self%amat)
+    if (allocated(self%zmat)) deallocate(self%zmat)
   end subroutine bh_class_deallocate
 
 !=========================================================================================!

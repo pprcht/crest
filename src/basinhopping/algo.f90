@@ -69,7 +69,7 @@ subroutine crest_basinhopping(env,tim)
 
 !>--- actual basin hopping
   call bh%init(300.0_wp,50,20)
-  bh%stepsize(1) = 1.0_wp
+  bh%stepsize(1) = 0.75_wp
 
   call tim%start(14,'Basin-Hopping (BH)')
 
