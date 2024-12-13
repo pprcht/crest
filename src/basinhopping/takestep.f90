@@ -28,7 +28,7 @@ module bh_step_module
   logical,parameter :: debug = .true.
 !  logical,parameter :: debug = .false.
 
-  public :: takestep
+  public :: takestep,steptypestr
 
 !========================================================================================!
 !========================================================================================!
@@ -36,19 +36,37 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
+  function steptypestr(steptype) result(str)
+    implicit none
+    integer,intent(in) :: steptype
+    character(len=:),allocatable :: str
+    select case (steptype)
+    case default !> Cartesian
+      str = 'Cartesian'
+    case (1) !> natural internals
+      str = 'internal '
+    case (2) !> dihedral only
+      str = 'dihedral '
+    case (3) !> intermolecular (CMA,tilt) only
+      str = 'intermol '
+    end select
+  end function steptypestr
+
+!=========================================================================================!
+
   subroutine takestep(mol,calc,bh,newmol)
     implicit none
     !> IN/OUTPUT
     type(coord),intent(in)       :: mol   !> molecular system
-    type(calcdata),intent(inout) :: calc 
+    type(calcdata),intent(inout) :: calc
     type(bh_class),intent(inout) :: bh    !> BH settings
     type(coord),intent(out)      :: newmol
     !> LOCAL
 
-    select case(bh%steptype)
+    select case (bh%steptype)
     case default !> Cartesian
       newmol = mol
-      call takestep_cart(newmol, bh%stepsize(1), calc)
+      call takestep_cart(newmol,bh%stepsize(1),calc)
     end select
 
   end subroutine takestep
@@ -63,9 +81,9 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: r(3)
     integer :: i
     do i = 1,newmol%nat
-      if(calc%nfreeze > 0)then
-        if(calc%freezelist(i)) cycle 
-      endif
+      if (calc%nfreeze > 0) then
+        if (calc%freezelist(i)) cycle
+      end if
       call random_number(r)
       r(:) = (r(:)-0.5_wp)*2.0_wp
       newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize

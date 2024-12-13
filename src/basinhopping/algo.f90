@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2022 Philipp Pracht
+! Copyright (C) 2024 Philipp Pracht, David Wales
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -22,6 +22,7 @@ subroutine crest_basinhopping(env,tim)
   use crest_data
   use crest_calculator
   use strucrd
+  use optimize_module
   use bh_module
   implicit none
   type(systemdata),intent(inout) :: env
@@ -37,33 +38,35 @@ subroutine crest_basinhopping(env,tim)
   real(wp),allocatable :: grad(:,:)
 
   character(len=80) :: atmp
-  character(len=*),parameter :: trjf='crest_quenched.xyz'
+  character(len=*),parameter :: trjf = 'crest_quenched.xyz'
 !========================================================================================!
-  write(stdout,*)
+  write (stdout,*)
   !call system('figlet dynamics')
-  write(stdout,*) " ____            _       _   _                   _             "
-  write(stdout,*) "| __ )  __ _ ___(_)_ __ | | | | ___  _ __  _ __ (_)_ __   __ _ "
-  write(stdout,*) "|  _ \ / _` / __| | '_ \| |_| |/ _ \| '_ \| '_ \| | '_ \ / _` |"
-  write(stdout,*) "| |_) | (_| \__ \ | | | |  _  | (_) | |_) | |_) | | | | | (_| |"
-  write(stdout,*) "|____/ \__,_|___/_|_| |_|_| |_|\___/| .__/| .__/|_|_| |_|\__, |"
-  write(stdout,*) "                                    |_|   |_|            |___/ "
-  write(stdout,*) ""
+  write (stdout,*) " ____            _       _   _                   _             "
+  write (stdout,*) "| __ )  __ _ ___(_)_ __ | | | | ___  _ __  _ __ (_)_ __   __ _ "
+  write (stdout,*) "|  _ \ / _` / __| | '_ \| |_| |/ _ \| '_ \| '_ \| | '_ \ / _` |"
+  write (stdout,*) "| |_) | (_| \__ \ | | | |  _  | (_) | |_) | |_) | | | | | (_| |"
+  write (stdout,*) "|____/ \__,_|___/_|_| |_|_| |_|\___/| .__/| .__/|_|_| |_|\__, |"
+  write (stdout,*) "                                    |_|   |_|            |___/ "
+  write (stdout,*) ""
   call new_ompautoset(env,'max',0,T,Tn)
   call ompprint_intern()
 
-  calc = env%calc 
+  calc = env%calc
   call env%ref%to(mol)
   write (stdout,*)
   write (stdout,*) 'Input structure:'
   call mol%append(stdout)
   write (stdout,*)
 !========================================================================================!
-  pr = .true.
 !>--- print calculation info
-  call calc%info( stdout )
+  call calc%info(stdout)
+  write (stdout,'(a)') '> Geometry optimization settings:'
+  call print_opt_data(calc,stdout,natoms=mol%nat,tag=' : ')
+  write (stdout,*)
 
 !>--- singlepoint of input structure
-  allocate(grad(3,mol%nat), source=0.0_wp)
+  allocate (grad(3,mol%nat),source=0.0_wp)
   call engrad(mol,calc,energy,grad,io)
   mol%energy = energy  !> we need this to start the Markov-chain
 
@@ -73,16 +76,16 @@ subroutine crest_basinhopping(env,tim)
 
   call tim%start(14,'Basin-Hopping (BH)')
 
-  call mc(calc,mol,bh)
+  call mc(calc,mol,bh,verbosity=2)
 
-
-  open(newunit=ich,file=trjf)
-    do i=1,bh%saved
-      call bh%structures(i)%append(ich) 
-    enddo
-  close(ich)
+  open (newunit=ich,file=trjf)
+  do i = 1,bh%saved
+    call bh%structures(i)%append(ich)
+  end do
+  close (ich)
 
   if (io == 0) then
+    write (stdout,*)
     write (stdout,*) 'BH run completed successfully'
     write (stdout,*) 'Successfull quenches written to ',trjf
   else
