@@ -71,8 +71,8 @@ subroutine crest_basinhopping(env,tim)
   mol%energy = energy  !> we need this to start the Markov-chain
 
 !>--- actual basin hopping
-  call bh%init(300.0_wp,50,20)
-  bh%stepsize(1) = 0.75_wp
+  call bh%init(300.0_wp,200,20)
+  bh%stepsize(1) = 1.0_wp
 
   call tim%start(14,'Basin-Hopping (BH)')
 

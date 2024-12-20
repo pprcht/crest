@@ -25,15 +25,14 @@ module bh_mc_module
   use axis_module
   use irmsd_module
   use canonical_mod
-
+  use quicksort_interface, only: ensemble_qsort
   use bh_class_module
   use bh_step_module
   implicit none
   private
 
-  logical,parameter :: debug = .true.
-!  logical,parameter :: debug = .false.
-!  character(len=*),parameter :: tag = 'BH> '
+!  logical,parameter :: debug = .true.
+  logical,parameter :: debug = .false.
 
   public :: mc
 
@@ -64,7 +63,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: printlvl
     character(len=10) :: tag
 
-    write(tag,'("BH[",i0,"]>")') bh%id
+    write (tag,'("BH[",i0,"]>")') bh%id
 
     if (present(verbosity)) then
       printlvl = verbosity
@@ -107,8 +106,8 @@ contains  !> MODULE PROCEDURES START HERE
       if (iostatus == 0) then  !> successfull optimization
 
         if (printlvl > 1) then
-          write (stdout,'(a,1x,a,es17.8,a,es17.8,a)') trim(tag),'Quench energy',etot, &
-          &  ' Eh, Markov chain energy',bh%emin,' Eh'
+          write (stdout,'(a,1x,a,es17.8,a,es17.8,a)') trim(tag),'Quench E=',etot, &
+          &  ' Eh, Markov E=',bh%emin,' Eh'
         end if
 
         accept = mcaccept(optmol,bh)
@@ -117,23 +116,23 @@ contains  !> MODULE PROCEDURES START HERE
 
           call axis(optmol%nat,optmol%at,optmol%xyz)
 
-          if (printlvl > 1)then
-             write (stdout,'(a)',advance='no') repeat(' ',len_trim(tag)+1)//"accepted quench"
-          endif
+          if (printlvl > 1) then
+            write (stdout,'(a)',advance='no') repeat(' ',len_trim(tag)+1)//"accepted quench"
+          end if
 
           !> check duplicates here
-          call mcduplicate(mol,bh,dupe,broken) 
-          if( broken )then
-            broke = broke + 1
-            if (printlvl > 1) write (stdout,'(a)',advance='no') & 
+          call mcduplicate(mol,bh,dupe,broken)
+          if (broken) then
+            broke = broke+1
+            if (printlvl > 1) write (stdout,'(a)',advance='no') &
             & ', but REJECTED due to topology mismatch!'
-          else if( dupe )then
-            discarded = discarded + 1
-            if (printlvl > 1) write (stdout,'(a)',advance='no') & 
+          else if (dupe) then
+            discarded = discarded+1
+            if (printlvl > 1) write (stdout,'(a)',advance='no') &
             & ', but NOT SAVED due to duplicate detection!'
-          endif 
+          end if
 
-          if(printlvl > 1) write(stdout,*)
+          if (printlvl > 1) write (stdout,*)
         else
           if (printlvl > 1) write (stdout,'(a,a)') repeat(' ',len_trim(tag)+1), &
           &                 'Quench rejected, does not fulfill MC criterion'
@@ -145,19 +144,22 @@ contains  !> MODULE PROCEDURES START HERE
       end if
 
 !>--- Update structures
-      if(.not.broken)then
+      if (.not.broken) then
         !> continue Markov chain
         mol = optmol
 
-        if(.not.dupe)then 
-          !> Save new unique structures 
+        if (.not.dupe) then
+          !> Save new unique structures
           call bh%add(mol)
-        endif
-      endif
+        end if
+      end if
 
     end do MonteCarlo
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !=======================================================================================!
+
+!>--- Post-processing
+!      call ensemble_qsort(nall,structures,first,last)
 
 !>--- Stats
     if (printlvl > 0) then
@@ -271,25 +273,57 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: rthr,ethr
     logical,intent(out) :: dupe,broken
     !> LOCAL
-    integer :: i,j,k,l
+    integer :: i,j,k,l,nat
     type(canonical_sorter) :: newsort
+    real(wp) :: rmsdval,deltaE
 
     dupe = .false.
     broken = .false.
     ethr = bh%ethr
     rthr = bh%rthr
+    nat = mol%nat
+
+    if (debug) write (*,*)
+
+    if (.not.allocated(bh%rcache)) then
+      if (debug) write (*,*) "allocating RCACHE"
+      !$omp critical
+      allocate (bh%rcache)
+      call bh%rcache%allocate(nat)
+      !$omp end critical
+    end if
 
     !$omp critical
     call newsort%init(mol,invtype='apsp+',heavy=.false.)
     !$omp end critical
 
-    do i = 1,bh%saved
+    COMPARE: do i = 1,bh%saved
+
       !> TODO
-    end do
+      deltaE = (mol%energy-bh%structures(i)%energy)*autokcal
+
+      bh%rcache%rank(1:nat,1) = newsort%rank(1:nat)
+      bh%rcache%rank(1:nat,2) = bh%sorters(i)%rank(1:nat)
+
+      call min_rmsd(mol,bh%structures(i), &
+      &        rcache=bh%rcache,rmsdout=rmsdval)
+
+      if (debug) write (*,'(a,es15.4,a,es15.4,a)') 'RMSD=',rmsdval*autoaa, &
+      &          ' Å, delta E=',deltaE,' kcal/mol'
+
+      if (abs(deltaE) .lt. ethr.and.rmsdval*autoaa .lt. rthr) then
+        dupe = .true.
+        if (deltaE < 0.0_wp) then
+          !> if the energy is lower, we replace the molecule (better conformation)
+          bh%structures(i) = mol
+        end if
+        exit COMPARE
+      end if
+    end do COMPARE
 
     !$omp critical
     call newsort%deallocate()
-    !$omp end critical 
+    !$omp end critical
   end subroutine mcduplicate
 
 !=========================================================================================!

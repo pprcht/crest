@@ -57,10 +57,10 @@ module bh_class_module
     type(coord),allocatable :: structures(:)  !> list of structures from succesfull quenches
 
 !>--- temporary storage
-    integer,allocatable  :: amat(:,:)  !> adjacency matrix
-    real(wp),allocatable :: zmat(:,:)  !> internal coordinates (to cache the memory)
-    type(rmsd_cache) :: rcache         !> similarity check cache (iRMSD)
-    logical :: stereocheck             !> check for false-rotamers?
+    integer,allocatable  :: amat(:,:)        !> adjacency matrix
+    real(wp),allocatable :: zmat(:,:)        !> internal coordinates (to cache the memory)
+    type(rmsd_cache),allocatable :: rcache   !> similarity check cache (iRMSD)
+    logical :: stereocheck                   !> check for false-rotamers?
     type(canonical_sorter),allocatable :: sorters(:) !> canonical atom ID storage
 
 !>--- Type procedures
@@ -110,6 +110,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%amat)) deallocate (self%amat)
     if (allocated(self%zmat)) deallocate (self%zmat)
     if (allocated(self%sorters)) deallocate (self%sorters)
+    if (allocated(self%rcache)) deallocate(self%rcache)
   end subroutine bh_class_deallocate
 
 !=========================================================================================!
