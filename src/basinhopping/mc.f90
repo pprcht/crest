@@ -60,7 +60,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: etot,ratio
     real(wp),allocatable :: grd(:,:)
     logical :: accept,dupe,broken
-    integer :: printlvl
+    integer :: printlvl,first,last
     character(len=10) :: tag
 
     write (tag,'("BH[",i0,"]>")') bh%id
@@ -159,7 +159,9 @@ contains  !> MODULE PROCEDURES START HERE
 !=======================================================================================!
 
 !>--- Post-processing
-!      call ensemble_qsort(nall,structures,first,last)
+      first=1
+      last=bh%saved
+      call ensemble_qsort(bh%maxsave,bh%structures,first,last)
 
 !>--- Stats
     if (printlvl > 0) then
@@ -276,12 +278,14 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,l,nat
     type(canonical_sorter) :: newsort
     real(wp) :: rmsdval,deltaE
+    logical :: topocheck
 
     dupe = .false.
     broken = .false.
     ethr = bh%ethr
     rthr = bh%rthr
     nat = mol%nat
+    topocheck = .true.
 
     if (debug) write (*,*)
 
@@ -295,6 +299,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     !$omp critical
     call newsort%init(mol,invtype='apsp+',heavy=.false.)
+    !call newsort%stereo(mol)
     !$omp end critical
 
     COMPARE: do i = 1,bh%saved
@@ -302,8 +307,10 @@ contains  !> MODULE PROCEDURES START HERE
       !> TODO
       deltaE = (mol%energy-bh%structures(i)%energy)*autokcal
 
-      bh%rcache%rank(1:nat,1) = newsort%rank(1:nat)
-      bh%rcache%rank(1:nat,2) = bh%sorters(i)%rank(1:nat)
+      if(topocheck)then
+        bh%rcache%rank(1:nat,1) = newsort%rank(1:nat)
+        bh%rcache%rank(1:nat,2) = bh%sorters(i)%rank(1:nat)
+      endif
 
       call min_rmsd(mol,bh%structures(i), &
       &        rcache=bh%rcache,rmsdout=rmsdval)

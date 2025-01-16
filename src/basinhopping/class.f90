@@ -60,8 +60,10 @@ module bh_class_module
     integer,allocatable  :: amat(:,:)        !> adjacency matrix
     real(wp),allocatable :: zmat(:,:)        !> internal coordinates (to cache the memory)
     type(rmsd_cache),allocatable :: rcache   !> similarity check cache (iRMSD)
-    logical :: stereocheck                   !> check for false-rotamers?
+    logical :: stereocheck = .false.         !> check for false-rotamers?
     type(canonical_sorter),allocatable :: sorters(:) !> canonical atom ID storage
+    logical :: topocheck = .true.            !> check for correct connectivity
+    type(canonical_sorter),allocatable :: refsort  !> use same reference connectivity for all
 
 !>--- Type procedures
   contains
@@ -111,6 +113,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%zmat)) deallocate (self%zmat)
     if (allocated(self%sorters)) deallocate (self%sorters)
     if (allocated(self%rcache)) deallocate(self%rcache)
+    if (allocated(self%refsort)) deallocate(self%refsort)
   end subroutine bh_class_deallocate
 
 !=========================================================================================!
@@ -137,6 +140,7 @@ contains  !> MODULE PROCEDURES START HERE
       !$omp critical
       call self%sorters(i)%deallocate()
       call self%sorters(i)%init(mol,invtype='apsp+',heavy=.false.)
+      call self%sorters(i)%shrink()
       !$omp end critical
     end if
 
