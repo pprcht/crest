@@ -185,6 +185,8 @@ contains   !> MODULE PROCEDURES START HERE
         env%autozsort = .false.
         env%performCross = .false.
         env%rotamermds = .false.
+      case ('bh','gmin')
+        env%crestver = crest_bh
       case ('entropy','imtd-smtd')
         env%crestver = crest_imtd  !> the entropy mode acts as subtype of the crest_imtd algo
         env%properties = abs(p_CREentropy)

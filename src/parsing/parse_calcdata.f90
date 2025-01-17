@@ -28,6 +28,7 @@ module parse_calcdata
   use crest_data
   use crest_calculator,only:calcdata,calculation_settings,jobtype,constraint,scantype
   use dynamics_module
+  use bh_module
   use gradreader_module,only:gradtype,conv2gradfmt
   use tblite_api,only:xtblvl
   use strucrd,only:get_atlist,coord
@@ -62,6 +63,7 @@ module parse_calcdata
 
   public :: parse_calculation_data
   public :: parse_dynamics_data
+  public :: parse_basinhopping_data
 
   character(len=*),parameter,private :: fmturk = '("unrecognized KEYWORD in ",a," : ",a)'
   character(len=*),parameter,private :: fmtura = '("unrecognized ARGUMENT : ",a)'
@@ -801,7 +803,7 @@ contains !> MODULE PROCEDURES START HERE
         dum4 = kv%value_fa(6)
         call constr%bondrangeconstraint(atm1,atm2,dum1,dum2,beta=dum3,T=dum4)
       case default
-        write(stdout,'(a)') '**ERROR** wrong number of arguments in bondrange constraint'
+        write (stdout,'(a)') '**ERROR** wrong number of arguments in bondrange constraint'
         call creststop(status_config)
       end select
       success = .true.
@@ -1131,6 +1133,128 @@ contains !> MODULE PROCEDURES START HERE
     end select
 
   end subroutine parse_metadyn_auto
+
+!========================================================================================!
+
+  subroutine parse_basinhopping_data(env,bh,dict,included,istat)
+!*********************************************
+!* The following routines are used to
+!* read information into the "mddata" object
+!*********************************************
+    implicit none
+    type(systemdata) :: env
+    type(bh_class) :: bh
+    type(root_object) :: dict
+    type(datablock) :: blk
+    type(calculation_settings) :: newjob
+    type(constraint) :: newcstr
+    integer :: i,j,k,l
+    logical,intent(out) :: included
+    integer,intent(inout) :: istat
+
+    included = .false.
+
+    do i = 1,dict%nblk
+      call blk%deallocate()
+      blk = dict%blk_list(i)
+      if (blk%header == 'basinhopping') then
+        included = .true.
+        call parse_bh_class(env,blk,bh,istat)
+      end if
+    end do
+    return
+  end subroutine parse_basinhopping_data
+  subroutine parse_bh_class(env,blk,bh,istat)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(datablock),intent(in) :: blk
+    type(bh_class),intent(inout) :: bh
+    integer,intent(inout) :: istat
+    integer :: i,j,nat
+    logical :: rd
+    if (blk%header .ne. 'basinhopping') return
+
+    do i = 1,blk%nkv
+      call parse_bh_auto(env,bh,blk%kv_list(i),rd)
+      if (.not.rd) then
+        istat = istat+1
+        write (stdout,fmturk) '['//blk%header//']-block',blk%kv_list(i)%key
+      end if
+    end do
+    return
+  end subroutine parse_bh_class
+  subroutine parse_bh_auto(env,bh,kv,rd)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(bh_class) :: bh
+    type(keyvalue) :: kv
+    logical,intent(out) :: rd
+    logical,allocatable :: atlist(:)
+    integer :: nat,j
+    logical :: ex
+    rd = .true.
+
+    select case (kv%key)
+!    case ('active','active_levels')
+!      mddat%active_potentials = kv%value_ia
+!
+!    case ('includermsd','atlist+')
+!      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
+!      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
+!      do j = 1,nat
+!        if (atlist(j)) env%includeRMSD(j) = 1
+!      end do
+!
+!    case ('excludermsd','atlist-')
+!      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
+!      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
+!      do j = 1,nat
+!        if (atlist(j)) env%includeRMSD(j) = 0
+!      end do
+!
+!    case ('length','length_ps')
+!      mddat%length_ps = kv%value_f
+!    case ('dump')
+!      mddat%dumpstep = kv%value_f
+!    case ('hmass')
+!      mddat%md_hmass = kv%value_f
+!    case ('tstep')
+!      mddat%tstep = kv%value_f
+!    case ('t','temp','temperature')
+!      mddat%tsoll = kv%value_f
+!      mddat%thermostat = .true.
+!
+!    case ('shake')
+!      select case (kv%id)
+!      case (valuetypes%int)
+!        if (kv%value_i <= 0) then
+!          mddat%shake = .false.
+!        else
+!          mddat%shake = .true.
+!          mddat%shk%shake_mode = min(kv%value_i,2)
+!        end if
+!      case (valuetypes%bool)
+!        mddat%shake = kv%value_b
+!        if (kv%value_b) mddat%shk%shake_mode = 1
+!      end select
+!    case ('printstep')
+!      mddat%printstep = kv%value_i
+!    case ('blocklength','blockl')
+!      mddat%blockl = kv%value_i
+!
+!    case ('restart')
+!      inquire (file=trim(kv%value_c),exist=ex)
+!      if (ex) then
+!        mddat%restart = .true.
+!        mddat%restartfile = trim(kv%value_c)
+!      end if
+
+    case default
+      rd = .false.
+      return
+    end select
+
+  end subroutine parse_bh_auto
 
 !========================================================================================!
 !========================================================================================!
