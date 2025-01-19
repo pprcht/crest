@@ -25,6 +25,7 @@ module crest_data
   use iso_fortran_env,wp => real64,dp => int64
   use crest_calculator,only:calcdata
   use dynamics_module,only:mddata
+  use bh_module,only:bh_class
   use strucrd,only:coord
   use crest_type_timer,only:timer
   use lwoniom_module, only: lwoniom_input
@@ -502,6 +503,7 @@ module crest_data
     !>--- Calculation settings for newer implementations (version >= 3.0)
     type(calcdata) :: calc
     type(mddata)   :: mddat
+    type(bh_class),allocatable :: bh_ref
     !>--- rigidconf data
     integer :: rigidconf_algo = 0
     integer :: rigidconf_toposource = 0

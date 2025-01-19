@@ -64,9 +64,11 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
 
     select case (bh%steptype)
-    case default !> Cartesian
+    case(0) !> Cartesian
       newmol = mol
       call takestep_cart(newmol,bh%stepsize(1),calc)
+    case default
+      error stop 'Steptype not implemented yet'
     end select
 
   end subroutine takestep

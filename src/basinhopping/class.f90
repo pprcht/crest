@@ -31,7 +31,8 @@ module bh_class_module
 !************************************************************************
 !* data object that contains the data for a *SINGLE* basin-hopping chain
 !************************************************************************
-    integer :: id = 0 !> Run/Thread ID
+    integer :: id = 0            !> Run/Thread ID
+    integer,allocatable :: seed  !> RNG seed, only used when allocated
 
 !>--- counters
     integer :: iteration = 0   !> current iteration
@@ -84,6 +85,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(in),optional :: temp
     integer,intent(in),optional  :: maxsteps
     integer,intent(in),optional  :: maxsave
+    real(wp) :: rand
 
     call self%deallocate()
     if (present(temp)) then
@@ -101,6 +103,15 @@ contains  !> MODULE PROCEDURES START HERE
     self%saved = 0
     allocate (self%structures(self%maxsave))
     allocate (self%sorters(self%maxsave))
+
+!>--- generate a random seed, if the object doesn't have one already
+    if (.not.allocated(self%seed)) then
+      !> Generate a real in [0,1)
+      call random_number(rand)
+      !> Scale and shift to produce an integer in [1,10mil]
+      allocate (self%seed)
+      self%seed = int(rand*100000000.0)+1
+    end if
   end subroutine bh_class_allocate
 
 !=========================================================================================!
@@ -112,8 +123,8 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%amat)) deallocate (self%amat)
     if (allocated(self%zmat)) deallocate (self%zmat)
     if (allocated(self%sorters)) deallocate (self%sorters)
-    if (allocated(self%rcache)) deallocate(self%rcache)
-    if (allocated(self%refsort)) deallocate(self%refsort)
+    if (allocated(self%rcache)) deallocate (self%rcache)
+    if (allocated(self%refsort)) deallocate (self%refsort)
   end subroutine bh_class_deallocate
 
 !=========================================================================================!

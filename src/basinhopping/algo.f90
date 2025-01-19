@@ -71,13 +71,19 @@ subroutine crest_basinhopping(env,tim)
   mol%energy = energy  !> we need this to start the Markov-chain
 
 !>--- actual basin hopping
-  call bh%init(300.0_wp,200,20)
-  bh%stepsize(1) = 1.0_wp
+  if(allocated(env%bh_ref))then
+    bh = env%bh_ref
+    call bh%init()
+  else
+    call bh%init(300.0_wp,200,20)
+    bh%stepsize(1) = 1.0_wp
+  endif
 
   call tim%start(14,'Basin-Hopping (BH)')
 
   call mc(calc,mol,bh,verbosity=2)
 
+!>--- dump saved minima
   open (newunit=ich,file=trjf)
   do i = 1,bh%saved
     call bh%structures(i)%append(ich)

@@ -1137,10 +1137,10 @@ contains !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine parse_basinhopping_data(env,bh,dict,included,istat)
-!*********************************************
+!**********************************************
 !* The following routines are used to
-!* read information into the "mddata" object
-!*********************************************
+!* read information into the "bh_class" object
+!**********************************************
     implicit none
     type(systemdata) :: env
     type(bh_class) :: bh
@@ -1190,64 +1190,53 @@ contains !> MODULE PROCEDURES START HERE
     type(keyvalue) :: kv
     logical,intent(out) :: rd
     logical,allocatable :: atlist(:)
-    integer :: nat,j
+    integer :: n,j
     logical :: ex
     rd = .true.
 
     select case (kv%key)
-!    case ('active','active_levels')
-!      mddat%active_potentials = kv%value_ia
-!
-!    case ('includermsd','atlist+')
-!      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
-!      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
-!      do j = 1,nat
-!        if (atlist(j)) env%includeRMSD(j) = 1
-!      end do
-!
-!    case ('excludermsd','atlist-')
-!      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
-!      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
-!      do j = 1,nat
-!        if (atlist(j)) env%includeRMSD(j) = 0
-!      end do
-!
-!    case ('length','length_ps')
-!      mddat%length_ps = kv%value_f
-!    case ('dump')
-!      mddat%dumpstep = kv%value_f
-!    case ('hmass')
-!      mddat%md_hmass = kv%value_f
-!    case ('tstep')
-!      mddat%tstep = kv%value_f
-!    case ('t','temp','temperature')
-!      mddat%tsoll = kv%value_f
-!      mddat%thermostat = .true.
-!
-!    case ('shake')
-!      select case (kv%id)
-!      case (valuetypes%int)
-!        if (kv%value_i <= 0) then
-!          mddat%shake = .false.
-!        else
-!          mddat%shake = .true.
-!          mddat%shk%shake_mode = min(kv%value_i,2)
-!        end if
-!      case (valuetypes%bool)
-!        mddat%shake = kv%value_b
-!        if (kv%value_b) mddat%shk%shake_mode = 1
-!      end select
-!    case ('printstep')
-!      mddat%printstep = kv%value_i
-!    case ('blocklength','blockl')
-!      mddat%blockl = kv%value_i
-!
-!    case ('restart')
-!      inquire (file=trim(kv%value_c),exist=ex)
-!      if (ex) then
-!        mddat%restart = .true.
-!        mddat%restartfile = trim(kv%value_c)
-!      end if
+    case ('maxsave')
+      bh%maxsave = kv%value_i
+
+    case ('seed')
+      if(.not.allocated(bh%seed)) allocate(bh%seed)
+      bh%seed = kv%value_i      
+
+    case ('step','stepsize')
+      select case (kv%id)
+      case (valuetypes%int)
+        bh%stepsize(1) = real(kv%value_i)
+      case (valuetypes%float)
+        bh%stepsize(1) = kv%value_f
+      case (valuetypes%float_array)
+        n = min(size(kv%value_fa,1),3)
+        bh%stepsize(1:n) = kv%value_fa(1:n) 
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%rawvalue
+        call creststop(status_config)
+      end select
+
+    case ('steps','maxsteps')
+      bh%maxsteps = kv%value_i
+
+    case ('steptype')
+      select case(kv%value_c)
+      case('cartesian')
+        bh%steptype=0
+      case('internal')
+        bh%steptype=1
+      case('dihedral')
+        bh%steptype=2
+      case('intermol')
+        bh%steptype=3
+      case default
+        write (stdout,fmtura) trim(kv%value_c)
+        call creststop(status_config)
+      end select
+
+    case ('temp','T')
+      bh%temp = kv%value_f
 
     case default
       rd = .false.

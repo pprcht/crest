@@ -25,7 +25,7 @@ module bh_mc_module
   use axis_module
   use irmsd_module
   use canonical_mod
-  use quicksort_interface, only: ensemble_qsort
+  use quicksort_interface,only:ensemble_qsort
   use bh_class_module
   use bh_step_module
   implicit none
@@ -82,6 +82,15 @@ contains  !> MODULE PROCEDURES START HERE
       !$omp end critical
     end if
 
+!>--- seed the RNG?
+    if (allocated(bh%seed)) then
+      if (printlvl > 1) then
+        write (stdout,'(a,1x,a,i0)') trim(tag), &
+        & 'Seeding current RNG instance with: ',bh%seed
+      end if
+      call RNG_seed(bh%seed)
+    end if
+
     !$omp critical
     allocate (grd(3,mol%nat),source=0.0_wp)
     !$omp end critical
@@ -132,14 +141,14 @@ contains  !> MODULE PROCEDURES START HERE
             & ', but NOT SAVED due to duplicate detection!'
           end if
 
-          if (printlvl > 1) write (stdout,*)
+          if (printlvl > 1) write (stdout,'(/)')
         else
-          if (printlvl > 1) write (stdout,'(a,a)') repeat(' ',len_trim(tag)+1), &
+          if (printlvl > 1) write (stdout,'(a,a,/)') repeat(' ',len_trim(tag)+1), &
           &                 'Quench rejected, does not fulfill MC criterion'
           cycle MonteCarlo
         end if
       else
-        if (printlvl > 1) write (stdout,'(a,1x,a)') trim(tag),"Quench failed"
+        if (printlvl > 1) write (stdout,'(a,1x,a,/)') trim(tag),"Quench failed"
         cycle MonteCarlo
       end if
 
@@ -159,9 +168,9 @@ contains  !> MODULE PROCEDURES START HERE
 !=======================================================================================!
 
 !>--- Post-processing
-      first=1
-      last=bh%saved
-      call ensemble_qsort(bh%maxsave,bh%structures,first,last)
+    first = 1
+    last = bh%saved
+    call ensemble_qsort(bh%maxsave,bh%structures,first,last)
 
 !>--- Stats
     if (printlvl > 0) then
@@ -178,6 +187,8 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine mcheader(bh)
     implicit none
     type(bh_class),intent(in) :: bh
+    character(len=80) :: atmp
+    integer :: n
 
     write (stdout,'(a)') '+'//repeat('-',63)//'+'
     write (stdout,'(a,1x)',advance='no') '|'
@@ -195,6 +206,16 @@ contains  !> MODULE PROCEDURES START HERE
     write (stdout,'(a,i5,3x)',advance='no') 'max save: ',bh%maxsave
     write (stdout,'(12x,"|")')
 
+    if (allocated(bh%seed)) then
+      write (stdout,'(a,1x)',advance='no') '|'
+      write (atmp,'(a,i0)') 'Random number generation (reference) seed: ',bh%seed
+      write (stdout,'(a,1x)',advance='no') trim(atmp)
+      n = 61-len_trim(atmp)
+      write (stdout,'(a)',advance='no') repeat(' ',n)
+      write (stdout,'("|")')
+    end if
+
+
     write (stdout,'(a,1x)',advance='no') '|'
     write (stdout,'(a,a,2x)',advance='no') 'step type: ',steptypestr(bh%steptype)
     write (stdout,'(a,3f9.5)',advance='no') 'step size:',bh%stepsize(1:3)
@@ -204,6 +225,7 @@ contains  !> MODULE PROCEDURES START HERE
     write (stdout,'(a,f9.5,a)',advance='no') 'Thresholds   ΔRMSD:',bh%rthr,' Å,  '
     write (stdout,'(a,es10.4,a)',advance='no') 'ΔE: ',bh%ethr,' kcal/mol'
     write (stdout,'(6x,"|")')
+
     write (stdout,'(a)') '+'//repeat('-',63)//'+'
   end subroutine mcheader
 
@@ -234,6 +256,26 @@ contains  !> MODULE PROCEDURES START HERE
     write (stdout,'(2x,"|")')
     write (stdout,'(a)') '+'//repeat('~',63)//'+'
   end subroutine mcstats
+
+!=========================================================================================!
+
+  subroutine RNG_seed(iseed)
+!*************************************
+!* seed the RNG to get a reproducible
+!* sequence of random numbers
+!*************************************
+    integer,intent(in) :: iseed
+    integer :: n
+    integer,allocatable :: seedArray(:)
+    !> 1) Query how many integers are needed to set the seed (compiler dependent!)
+    call random_seed(size=n)
+    !> 2) Allocate and assign a known pattern
+    allocate (seedArray(n))
+    seedArray(:) = iseed
+    !> 3) Set the seed explicitly
+    call random_seed(put=seedArray)
+    deallocate (seedArray)
+  end subroutine RNG_seed
 
 !=========================================================================================!
 
@@ -299,25 +341,25 @@ contains  !> MODULE PROCEDURES START HERE
 
     !$omp critical
     call newsort%init(mol,invtype='apsp+',heavy=.false.)
-    !call newsort%stereo(mol)
     !$omp end critical
 
     COMPARE: do i = 1,bh%saved
 
-      !> TODO
+      !> Energy difference
       deltaE = (mol%energy-bh%structures(i)%energy)*autokcal
 
-      if(topocheck)then
+      !> Geometry difference (permutation-invariant RMSD)
+      if (topocheck) then
         bh%rcache%rank(1:nat,1) = newsort%rank(1:nat)
         bh%rcache%rank(1:nat,2) = bh%sorters(i)%rank(1:nat)
-      endif
-
+      end if
       call min_rmsd(mol,bh%structures(i), &
       &        rcache=bh%rcache,rmsdout=rmsdval)
 
       if (debug) write (*,'(a,es15.4,a,es15.4,a)') 'RMSD=',rmsdval*autoaa, &
       &          ' Å, delta E=',deltaE,' kcal/mol'
 
+      !> Check
       if (abs(deltaE) .lt. ethr.and.rmsdval*autoaa .lt. rthr) then
         dupe = .true.
         if (deltaE < 0.0_wp) then

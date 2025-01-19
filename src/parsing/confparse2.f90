@@ -117,7 +117,7 @@ subroutine parseinputfile(env,fname)
 !>--- check for any basinhopping/MC setup
   call parse_basinhopping_data(env,bh,dict,l1,readstatus)
   if (l1) then
-  !  env%bh_ref = bh
+    env%bh_ref = bh
   end if
 
 !>--- terminate if there were any unrecognized keywords
