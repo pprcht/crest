@@ -150,7 +150,7 @@ contains  !> MODULE PROCEDURES START HERE
           cycle MonteCarlo
         end if
       else
-        if (printlvl > 1) write (stdout,'(a,1x,a,/)') trim(tag),"Quench failed"
+        if (printlvl > 1) write (stdout,'(a,1x,a,/)') trim(tag),"Quench "//colorify("FAILED","red")
         cycle MonteCarlo
       end if
 
