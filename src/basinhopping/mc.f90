@@ -60,7 +60,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: etot,ratio
     real(wp),allocatable :: grd(:,:)
     logical :: accept,dupe,broken
-    integer :: printlvl,first,last
+    integer :: printlvl,first,last,dynamicseed
     character(len=10) :: tag
 
     write (tag,'("BH[",i0,"]>")') bh%id
@@ -84,9 +84,10 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- seed the RNG?
     if (allocated(bh%seed)) then
+      dynamicseed = bh%seed+(bh%iteration-1)+bh%id*1000
       if (printlvl > 1) then
-        write (stdout,'(a,1x,a,i0)') trim(tag), &
-        & 'Seeding current RNG instance with: ',bh%seed
+        write (stdout,'(a,1x,2(a,i0),a)') trim(tag), &
+        & 'Seeding current RNG instance with: ',bh%seed,' (',dynamicseed,')'
       end if
       call RNG_seed(bh%seed)
     end if
@@ -100,7 +101,6 @@ contains  !> MODULE PROCEDURES START HERE
     discarded = 0
     broke = 0
     MonteCarlo: do iter = 1,bh%maxsteps
-      bh%iteration = iter
       broken = .false.
       dupe = .false.
 

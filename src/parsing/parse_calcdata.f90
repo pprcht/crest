@@ -1195,6 +1195,9 @@ contains !> MODULE PROCEDURES START HERE
     rd = .true.
 
     select case (kv%key)
+    case ('maxiter') !> these are NOT the BH steps!
+      bh%maxiter = max(1,kv%value_i)
+
     case ('maxsave')
       bh%maxsave = kv%value_i
 
@@ -1217,7 +1220,7 @@ contains !> MODULE PROCEDURES START HERE
         call creststop(status_config)
       end select
 
-    case ('steps','maxsteps')
+    case ('steps','maxsteps')  !> these are the BH steps
       bh%maxsteps = kv%value_i
 
     case ('steptype')

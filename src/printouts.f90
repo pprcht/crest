@@ -651,17 +651,17 @@ end subroutine mtdwarning
 subroutine printiter
   implicit none
   write (*,*)
-  write (*,'(90("*"))')
-  write (*,'("**",25x,"N E W   I T E R A T I O N  C Y C L E",25x,"**")')
-  write (*,'(90("*"))')
+  write (*,'(80("*"))')
+  write (*,'("**",20x,"N E W   I T E R A T I O N  C Y C L E",20x,"**")')
+  write (*,'(80("*"))')
 end subroutine printiter
 subroutine printiter2(i)
   implicit none
   integer :: i
   write (*,*)
-  write (*,'(90("*"))')
-  write (*,'("**",26x,"I T E R A T I O N    C Y C L E    ",i3,23x,"**")') i
-  write (*,'(90("*"))')
+  write (*,'(80("*"))')
+  write (*,'("**",21x,"I T E R A T I O N    C Y C L E    ",i3,18x,"**")') i
+  write (*,'(80("*"))')
 end subroutine printiter2
 
 !========================================================================================!

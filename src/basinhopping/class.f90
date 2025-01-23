@@ -39,6 +39,7 @@ module bh_class_module
     integer :: saved = 0       !> number of saved quenches
 
 !>--- paramters
+    integer  :: maxiter = 1        !> maximum repetitions of the whole BH run
     integer  :: maxsteps = 100     !> maximum steps to take
     real(wp) :: temp = 300.0_wp    !> MC acceptance temperature
     real(wp) :: scalefac = 1.0_wp  !> temperature increase factor
@@ -71,6 +72,7 @@ module bh_class_module
     procedure :: init => bh_class_allocate
     procedure :: deallocate => bh_class_deallocate
     procedure :: add => bh_class_add
+    procedure :: newiter => bh_class_newiter
   end type bh_class
 
 !========================================================================================!
@@ -110,7 +112,7 @@ contains  !> MODULE PROCEDURES START HERE
       call random_number(rand)
       !> Scale and shift to produce an integer in [1,10mil]
       allocate (self%seed)
-      self%seed = int(rand*100000000.0)+1
+      self%seed = (int(rand*100000000.0)+1)
     end if
   end subroutine bh_class_allocate
 
@@ -126,6 +128,21 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%rcache)) deallocate (self%rcache)
     if (allocated(self%refsort)) deallocate (self%refsort)
   end subroutine bh_class_deallocate
+
+!========================================================================================!
+
+  subroutine bh_class_newiter(self)
+    implicit none
+    class(bh_class) :: self
+    integer :: i
+    self%iteration = self%iteration + 1
+    !$omp critical
+      do i = 1,self%saved
+         call self%sorters(i)%deallocate() 
+      enddo
+    !$omp end critical
+    self%saved=0
+  end subroutine bh_class_newiter
 
 !=========================================================================================!
 

@@ -28,7 +28,7 @@ subroutine crest_basinhopping(env,tim)
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
   type(coord) :: mol,molnew
-  integer :: i,j,k,l,io,ich,T,Tn
+  integer :: i,j,k,l,io,ich,T,Tn,mciter
   logical :: pr,wr
 !========================================================================================!
   type(calcdata) :: calc
@@ -36,12 +36,13 @@ subroutine crest_basinhopping(env,tim)
 
   real(wp) :: energy,gnorm
   real(wp),allocatable :: grad(:,:)
+  integer :: nall
+  type(coord),allocatable :: structuredump(:) 
 
   character(len=80) :: atmp
   character(len=*),parameter :: trjf = 'crest_quenched.xyz'
 !========================================================================================!
   write (stdout,*)
-  !call system('figlet dynamics')
   write (stdout,*) " ____            _       _   _                   _             "
   write (stdout,*) "| __ )  __ _ ___(_)_ __ | | | | ___  _ __  _ __ (_)_ __   __ _ "
   write (stdout,*) "|  _ \ / _` / __| | '_ \| |_| |/ _ \| '_ \| '_ \| | '_ \ / _` |"
@@ -81,13 +82,22 @@ subroutine crest_basinhopping(env,tim)
 
   call tim%start(14,'Basin-Hopping (BH)')
 
-  call mc(calc,mol,bh,verbosity=2)
+  do mciter=1,bh%maxiter
+    if(bh%maxiter > 1) call printiter2(mciter)
+    call bh%newiter()
+    call mc(calc,mol,bh,verbosity=2)
+    if(mciter == 1)then
+      nall = bh%saved
+      allocate(structuredump(nall))
+      structuredump(1:nall) = bh%structures(1:nall)
+    else
+
+    endif
+  enddo
 
 !>--- dump saved minima
   open (newunit=ich,file=trjf)
-  do i = 1,bh%saved
-    call bh%structures(i)%append(ich)
-  end do
+  call wrensemble(ich,nall,structuredump)
   close (ich)
 
   if (io == 0) then
@@ -100,5 +110,7 @@ subroutine crest_basinhopping(env,tim)
   end if
 !========================================================================================!
   call tim%stop(14)
+
+  if(allocated(structuredump)) deallocate(structuredump)
   return
 end subroutine crest_basinhopping
