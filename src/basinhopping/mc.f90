@@ -19,6 +19,7 @@
 
 module bh_mc_module
   use crest_parameters
+  use iomod
   use strucrd,only:coord
   use crest_calculator
   use optimize_module
@@ -126,7 +127,8 @@ contains  !> MODULE PROCEDURES START HERE
           call axis(optmol%nat,optmol%at,optmol%xyz)
 
           if (printlvl > 1) then
-            write (stdout,'(a)',advance='no') repeat(' ',len_trim(tag)+1)//"accepted quench"
+            write (stdout,'(a)',advance='no') repeat(' ',len_trim(tag)+1)// &
+            & "Quench "//colorify('ACCEPTED','green')
           end if
 
           !> check duplicates here
@@ -138,13 +140,13 @@ contains  !> MODULE PROCEDURES START HERE
           else if (dupe) then
             discarded = discarded+1
             if (printlvl > 1) write (stdout,'(a)',advance='no') &
-            & ', but NOT SAVED due to duplicate detection!'
+            & ', but '//colorify('NOT SAVED','gold')//' due to duplicate detection!'
           end if
 
           if (printlvl > 1) write (stdout,'(/)')
         else
           if (printlvl > 1) write (stdout,'(a,a,/)') repeat(' ',len_trim(tag)+1), &
-          &                 'Quench rejected, does not fulfill MC criterion'
+          &                 'Quench '//colorify('REJECTED','red')//', does not fulfill MC criterion'
           cycle MonteCarlo
         end if
       else
