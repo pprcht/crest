@@ -27,6 +27,7 @@ list(APPEND srcs
   "${dir}/quicksort.f90"
   "${dir}/rotcompare.f90"
   "${dir}/sortens.f90"
+  "${dir}/unionize.f90"
   "${dir}/zdata.f90"
   "${dir}/ztopology.f90"
 )

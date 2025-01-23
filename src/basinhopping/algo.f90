@@ -22,6 +22,7 @@ subroutine crest_basinhopping(env,tim)
   use crest_data
   use crest_calculator
   use strucrd
+  use cregen_interface,only:unionizeEnsembles
   use optimize_module
   use bh_module
   implicit none
@@ -37,7 +38,7 @@ subroutine crest_basinhopping(env,tim)
   real(wp) :: energy,gnorm
   real(wp),allocatable :: grad(:,:)
   integer :: nall
-  type(coord),allocatable :: structuredump(:) 
+  type(coord),allocatable :: structuredump(:)
 
   character(len=80) :: atmp
   character(len=*),parameter :: trjf = 'crest_quenched.xyz'
@@ -72,28 +73,26 @@ subroutine crest_basinhopping(env,tim)
   mol%energy = energy  !> we need this to start the Markov-chain
 
 !>--- actual basin hopping
-  if(allocated(env%bh_ref))then
+  if (allocated(env%bh_ref)) then
     bh = env%bh_ref
     call bh%init()
   else
     call bh%init(300.0_wp,200,20)
     bh%stepsize(1) = 1.0_wp
-  endif
+  end if
 
   call tim%start(14,'Basin-Hopping (BH)')
-
-  do mciter=1,bh%maxiter
-    if(bh%maxiter > 1) call printiter2(mciter)
+  nall = 0
+  do mciter = 1,bh%maxiter
+    if (bh%maxiter > 1) call printiter2(mciter)
     call bh%newiter()
     call mc(calc,mol,bh,verbosity=2)
-    if(mciter == 1)then
-      nall = bh%saved
-      allocate(structuredump(nall))
-      structuredump(1:nall) = bh%structures(1:nall)
-    else
 
-    endif
-  enddo
+    write (stdout,'(a)') 'New structures will be appended to memory ...'
+    call unionizeEnsembles(nall,structuredump,bh%saved,bh%structures, &
+    &                      ethr=bh%ethr,rthr=bh%rthr)
+    write (stdout,'(a,i0,a)') 'Currently ',nall,' structures saved!'
+  end do
 
 !>--- dump saved minima
   open (newunit=ich,file=trjf)
@@ -111,6 +110,6 @@ subroutine crest_basinhopping(env,tim)
 !========================================================================================!
   call tim%stop(14)
 
-  if(allocated(structuredump)) deallocate(structuredump)
+  if (allocated(structuredump)) deallocate (structuredump)
   return
 end subroutine crest_basinhopping

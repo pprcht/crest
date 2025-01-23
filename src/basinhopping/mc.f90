@@ -140,7 +140,7 @@ contains  !> MODULE PROCEDURES START HERE
           else if (dupe) then
             discarded = discarded+1
             if (printlvl > 1) write (stdout,'(a)',advance='no') &
-            & ', but '//colorify('NOT SAVED','gold')//' due to duplicate detection!'
+            & ', but '//colorify('NOT SAVED','yellow')//' due to duplicate detection!'
           end if
 
           if (printlvl > 1) write (stdout,'(/)')
