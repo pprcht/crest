@@ -153,13 +153,13 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     self%nat = nodes
     self%hatms = k
-    allocate (self%nmap(nodes))
-    allocate (self%hmap(k))
-    allocate (self%invariants(k),source=0_int64)
-    allocate (self%invariants0(k),source=0)
-    allocate (self%prime(k),source=2)
-    allocate (self%rank(k),source=1)
-    allocate (self%hadjac(k,k),source=0)
+    if (.not.allocated(self%nmap)) allocate (self%nmap(nodes))
+    if (.not.allocated(self%hmap)) allocate (self%hmap(k))
+    if (.not.allocated(self%invariants)) allocate (self%invariants(k),source=0_int64)
+    if (.not.allocated(self%invariants0)) allocate (self%invariants0(k),source=0)
+    if (.not.allocated(self%prime)) allocate (self%prime(k),source=2)
+    if (.not.allocated(self%rank)) allocate (self%rank(k),source=1)
+    if (.not.allocated(self%hadjac)) allocate (self%hadjac(k,k),source=0)
 
 !>--- determine number of subgraphs via CN
     call mol%cn_to_bond(cn,Bmat,'cov')
@@ -180,7 +180,7 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     if (debug) write (stdout,*) 'maximum number of neighbours',maxnei
     self%maxnei = maxnei
-    allocate (self%neigh(maxnei,mol%nat),source=0)
+    if (.not.allocated(self%neigh)) allocate (self%neigh(maxnei,mol%nat),source=0)
 
 !>--- fill rest of self
     k = 0
@@ -277,8 +277,8 @@ contains  !> MODULE PROCEDURES START HERE
       call debugprint(self,mol)
     end if
 !>--- start assignment
-    allocate (self%newrank(k),source=0) !> workspace
-    allocate (self%newinv(k),source=0_int64) !>workspace
+    if (.not.allocated(self%newrank)) allocate (self%newrank(k),source=0) !> workspace
+    if (.not.allocated(self%newinv)) allocate (self%newinv(k),source=0_int64) !>workspace
     call self%update_ranks()
     self%rank(:) = self%newrank(:)
     if (debug) then

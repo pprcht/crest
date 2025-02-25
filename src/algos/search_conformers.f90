@@ -480,7 +480,7 @@ contains
      env%calc%optlev = 0
     end select
 
-    call print_opt_data(env%calc, stdout)
+    call print_opt_data(env%calc, stdout, natoms=env%ref%nat)
 
   end subroutine set_multilevel_options
 end subroutine crest_multilevel_oloop
@@ -615,6 +615,7 @@ subroutine crest_newcross3(env)
     call touch(trim(tmppath)) 
     call crest_crossing(env,imax,trim(refnam),env%gcmaxparent)
     if (imax .lt. 1) then
+      call remove(trim(tmppath))
       return
       exit
     end if

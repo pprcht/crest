@@ -761,6 +761,10 @@ subroutine parseflags(env,arg,nra)
         ctmp = trim(arg(i+2))
         if(ctmp(1:1).ne.'-') env%sortmode=trim(ctmp)
         endif
+     
+      case ('-bh','-GMIN')
+        env%crestver = crest_bh
+        exit
 
       case ('-SANDBOX')
         !>--- IMPLEMENT HERE WHATEVER YOU LIKE, FOR TESTING
@@ -1309,8 +1313,8 @@ subroutine parseflags(env,arg,nra)
         env%gcmax = xx(1)
       case ('-xnam')                    !> select a name for the xTB executeable
         env%ProgName = trim(arg(i+1))
-        write (*,'(2x,''-xnam :'')')
-        write (*,'(5x,''xtb executable was set to: "'',a,''"'')') trim(env%ProgName)
+        write (*,'(2x,''-xnam :'')',advance='no')
+        write (*,'(1x,''xtb executable was set to: "'',a,''"'')') trim(env%ProgName)
       case ('-niceprint')               !> progres bar printout
         env%niceprint = .true.
       case ('-origin')                  !> track the origin (i.e. the generation step) of each conformer
@@ -2209,11 +2213,16 @@ subroutine parseflags(env,arg,nra)
     env%properties = p_zsort
   end if
 
+!>--- convert ProgName to absolute path (to make legacy routines more stable)
+  ctmp = absolute_filepath(trim(env%ProgName))
+  env%ProgName = ctmp
+
 !>--- for legacy runtypes, check if xtb is present
-  if (env%legacy) then
+  if(env%legacy.or.env%QCG)then
     call checkprog_silent(env%ProgName,.true.,iostat=io)
-    if (io /= 0) error stop
-  end if
+    if(io /= 0 ) error stop
+    write(stdout,'(/,a,a)') 'Selected path to xtb binary: ',trim(env%Progname)
+  endif
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!

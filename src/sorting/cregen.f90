@@ -37,6 +37,7 @@ module cregen_interface
 !* module to load an interface to the newcregen routine
 !* mandatory to handle the optional input arguments
 !*******************************************************
+  use unionize_module  
   implicit none
   interface
     subroutine newcregen(env,quickset,infile)
@@ -73,6 +74,8 @@ module cregen_interface
     end subroutine cregen_irmsd_sort
 
   end interface
+!>--- Additional Related RE-EXPORTS
+  public :: unionizeEnsembles 
 end module cregen_interface
 
 subroutine newcregen(env,quickset,infile)

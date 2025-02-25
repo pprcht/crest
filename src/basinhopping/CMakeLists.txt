@@ -17,27 +17,11 @@
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
-  "${dir}/calculator.F90"
-  "${dir}/calc_type.f90"
-  "${dir}/printouts.F90"
-  "${dir}/constraints.f90"
-  "${dir}/gfn0_api.F90"
-  "${dir}/gfnff_api.F90"
-  "${dir}/lj.f90"
-  "${dir}/lwoniom.F90"
-  "${dir}/oniom_hessian.F90"
-  "${dir}/nonadiabatic.f90"
-  "${dir}/tblite_api.F90"
-  "${dir}/api_helpers.F90"
-  "${dir}/api_engrad.f90"
-  "${dir}/gradreader.f90"
-  "${dir}/libpvol.F90"
-  "${dir}/subprocess_types.f90"
-  "${dir}/xtb_sc.f90"
-  "${dir}/orca_sc.f90"
-  "${dir}/generic_sc.f90"
-  "${dir}/turbom_sc.f90"
-  "${dir}/subprocess_engrad.f90"
+  "${dir}/algo.f90"
+  "${dir}/basinhopping.f90"
+  "${dir}/class.f90"
+  "${dir}/mc.f90"
+  "${dir}/takestep.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

@@ -303,7 +303,9 @@ program CREST
 
   case(crest_sorting) !> interface to standalone ensemble sorting
     call crest_sort(env,tim)
-  
+ 
+  case(crest_bh) !> Standard basin-hopping
+    call crest_basinhopping(env,tim)
 
   case (crest_test)
     call crest_playground(env,tim)

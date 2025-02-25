@@ -29,6 +29,7 @@ add_subdirectory("entropy")
 add_subdirectory("legacy_algos")
 add_subdirectory("msreact")
 add_subdirectory("sorting")
+add_subdirectory("basinhopping")
 
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 

@@ -651,17 +651,17 @@ end subroutine mtdwarning
 subroutine printiter
   implicit none
   write (*,*)
-  write (*,'(90("*"))')
-  write (*,'("**",25x,"N E W   I T E R A T I O N  C Y C L E",25x,"**")')
-  write (*,'(90("*"))')
+  write (*,'(80("*"))')
+  write (*,'("**",20x,"N E W   I T E R A T I O N  C Y C L E",20x,"**")')
+  write (*,'(80("*"))')
 end subroutine printiter
 subroutine printiter2(i)
   implicit none
   integer :: i
   write (*,*)
-  write (*,'(90("*"))')
-  write (*,'("**",26x,"I T E R A T I O N    C Y C L E    ",i3,23x,"**")') i
-  write (*,'(90("*"))')
+  write (*,'(80("*"))')
+  write (*,'("**",21x,"I T E R A T I O N    C Y C L E    ",i3,18x,"**")') i
+  write (*,'(80("*"))')
 end subroutine printiter2
 
 !========================================================================================!
@@ -736,7 +736,7 @@ subroutine print_crest_metadata()
   write (*,'(2x,a,1x,a)') '-DWITH_GFN0      :',gfn0var
   write (*,'(2x,a,1x,a)') '-DWITH_GFNFF     :',gfnffvar
   write (*,'(2x,a,1x,a)') '-DWITH_TBLITE    :',tblitevar
-  write (*,'(2x,a,1x,a)') '-DWITH_XHCFF     :',xhcffvar
+  write (*,'(2x,a,1x,a)') '-DWITH_LIBPVOL   :',libpvolvar
   write (*,'(2x,a,1x,a)') '-DWITH_LWONIOM   :',lwoniomvar
 end subroutine print_crest_metadata
 

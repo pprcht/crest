@@ -28,6 +28,7 @@ module parse_calcdata
   use crest_data
   use crest_calculator,only:calcdata,calculation_settings,jobtype,constraint,scantype
   use dynamics_module
+  use bh_module
   use gradreader_module,only:gradtype,conv2gradfmt
   use tblite_api,only:xtblvl
   use strucrd,only:get_atlist,coord
@@ -62,6 +63,7 @@ module parse_calcdata
 
   public :: parse_calculation_data
   public :: parse_dynamics_data
+  public :: parse_basinhopping_data
 
   character(len=*),parameter,private :: fmturk = '("unrecognized KEYWORD in ",a," : ",a)'
   character(len=*),parameter,private :: fmtura = '("unrecognized ARGUMENT : ",a)'
@@ -185,8 +187,10 @@ contains !> MODULE PROCEDURES START HERE
       job%weight = kv%value_f
     case ('pressure')
       job%extpressure = kv%value_f
-    case ('proberad')
+    case ('proberad','pvol_proberad')
       job%proberad = kv%value_f
+    case ('radscal','pvol_radscal')
+      job%pvradscal = kv%value_f
 
 !>--- integers
     case ('uhf','multiplicity')
@@ -197,9 +201,9 @@ contains !> MODULE PROCEDURES START HERE
       job%id = kv%value_i
     case ('maxscc')
       job%maxscc = kv%value_i
-    case ('lebedev')
+    case ('lebedev','pvol_ngrid')
       job%ngrid = kv%value_i
-    case ('vdwset')
+    case ('vdwset','pvol_vdwset')
       job%vdwset = kv%value_i
     case ('config')
       call job%addconfig(kv%value_ia)
@@ -237,8 +241,8 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%gfn0occ
       case ('gfnff','gff','gfn-ff')
         job%id = jobtype%gfnff
-      case ('xhcff')
-        job%id = jobtype%xhcff
+      case ('pvol','libpvol', 'pv')
+        job%id = jobtype%libpvol
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
@@ -400,6 +404,25 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('getsasa')
       call get_atlist(env%ref%nat,job%getsasa,kv%value_c,env%ref%at)
+
+    case ('pvol_model','pgrad','pvgrad')
+      select case (kv%id)
+      case (valuetypes%int)
+        job%pvmodel = kv%value_i
+      case (valuetypes%string)
+        select case (kv%value_c)
+        case ('xhcff')
+          job%pvmodel = 0
+        case ('analytic')
+          job%pvmodel = 1
+        case default
+          write (stdout,fmtura) kv%value_c
+          call creststop(status_config)
+        end select
+      case default
+        write (stdout,fmtura) trim(kv%rawvalue)
+        call creststop(status_config)
+      end select
 
 !>--- booleans
     case ('rdwbo')
@@ -801,7 +824,7 @@ contains !> MODULE PROCEDURES START HERE
         dum4 = kv%value_fa(6)
         call constr%bondrangeconstraint(atm1,atm2,dum1,dum2,beta=dum3,T=dum4)
       case default
-        write(stdout,'(a)') '**ERROR** wrong number of arguments in bondrange constraint'
+        write (stdout,'(a)') '**ERROR** wrong number of arguments in bondrange constraint'
         call creststop(status_config)
       end select
       success = .true.
@@ -1131,6 +1154,120 @@ contains !> MODULE PROCEDURES START HERE
     end select
 
   end subroutine parse_metadyn_auto
+
+!========================================================================================!
+
+  subroutine parse_basinhopping_data(env,bh,dict,included,istat)
+!**********************************************
+!* The following routines are used to
+!* read information into the "bh_class" object
+!**********************************************
+    implicit none
+    type(systemdata) :: env
+    type(bh_class) :: bh
+    type(root_object) :: dict
+    type(datablock) :: blk
+    type(calculation_settings) :: newjob
+    type(constraint) :: newcstr
+    integer :: i,j,k,l
+    logical,intent(out) :: included
+    integer,intent(inout) :: istat
+
+    included = .false.
+
+    do i = 1,dict%nblk
+      call blk%deallocate()
+      blk = dict%blk_list(i)
+      if (blk%header == 'basinhopping') then
+        included = .true.
+        call parse_bh_class(env,blk,bh,istat)
+      end if
+    end do
+    return
+  end subroutine parse_basinhopping_data
+  subroutine parse_bh_class(env,blk,bh,istat)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(datablock),intent(in) :: blk
+    type(bh_class),intent(inout) :: bh
+    integer,intent(inout) :: istat
+    integer :: i,j,nat
+    logical :: rd
+    if (blk%header .ne. 'basinhopping') return
+
+    do i = 1,blk%nkv
+      call parse_bh_auto(env,bh,blk%kv_list(i),rd)
+      if (.not.rd) then
+        istat = istat+1
+        write (stdout,fmturk) '['//blk%header//']-block',blk%kv_list(i)%key
+      end if
+    end do
+    return
+  end subroutine parse_bh_class
+  subroutine parse_bh_auto(env,bh,kv,rd)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(bh_class) :: bh
+    type(keyvalue) :: kv
+    logical,intent(out) :: rd
+    logical,allocatable :: atlist(:)
+    integer :: n,j
+    logical :: ex
+    rd = .true.
+
+    select case (kv%key)
+    case ('maxiter') !> these are NOT the BH steps!
+      bh%maxiter = max(1,kv%value_i)
+
+    case ('maxsave')
+      bh%maxsave = kv%value_i
+
+    case ('seed')
+      if(.not.allocated(bh%seed)) allocate(bh%seed)
+      bh%seed = kv%value_i      
+
+    case ('step','stepsize')
+      select case (kv%id)
+      case (valuetypes%int)
+        bh%stepsize(1) = real(kv%value_i)
+      case (valuetypes%float)
+        bh%stepsize(1) = kv%value_f
+      case (valuetypes%float_array)
+        n = min(size(kv%value_fa,1),3)
+        bh%stepsize(1:n) = kv%value_fa(1:n) 
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%rawvalue
+        call creststop(status_config)
+      end select
+
+    case ('steps','maxsteps')  !> these are the BH steps
+      bh%maxsteps = kv%value_i
+
+    case ('steptype')
+      select case(kv%value_c)
+      case('cartesian')
+        bh%steptype=0
+      case('internal')
+        bh%steptype=1
+      case('dihedral')
+        bh%steptype=2
+      case('intermol')
+        bh%steptype=3
+      case default
+        write (stdout,fmtura) trim(kv%value_c)
+        call creststop(status_config)
+      end select
+
+    case ('temp','T')
+      bh%temp = kv%value_f
+
+    case default
+      rd = .false.
+      return
+    end select
+
+  end subroutine parse_bh_auto
 
 !========================================================================================!
 !========================================================================================!

@@ -25,6 +25,7 @@ srcs += files(
   'quicksort.f90',
   'rotcompare.f90',
   'sortens.f90',
+  'unionize.f90',
   'zdata.f90',
   'ztopology.f90',
 )
