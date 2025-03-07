@@ -584,6 +584,14 @@ subroutine parseflags(env,arg,nra)
         end if
         stop
 
+      case ('-rotalign')
+        ctmp = trim(arg(i+1))
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          call rotalign_tool(ctmp)
+        end if
+        stop
+
       case ('-printboltz')
         if (nra >= i+2) then
           ctmp = trim(arg(i+1))

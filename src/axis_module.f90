@@ -75,6 +75,8 @@ module axis_module
   end interface cma
   public :: CMAtrf
 
+  public :: uniqueax
+
 !========================================================================================!
 !========================================================================================!
 contains  !> MODULE PROCEDURES START HERE
@@ -303,7 +305,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine axis_4(nat,at,coord)
+  subroutine axis_4(nat,at,coord,rotconst)
 !****************************************************
 !* subroutine axis_4
 !* axis routine that orients the molecule along the
@@ -315,6 +317,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: nat
     integer,intent(in) :: at(nat)
     real(wp),intent(inout) :: coord(3,nat)
+    real(wp),intent(out),optional :: rotconst(3)
     real(wp) :: coordtmp(3),shift(3)
     real(wp) :: rot(3),avmom,evec(3,3)
     integer :: i,j,k
@@ -342,6 +345,10 @@ contains  !> MODULE PROCEDURES START HERE
         coord(j,i) = xsum
       end do
     end do
+    if(present(rotconst))then
+       rotconst(:) = rot(:)
+    endif
+
     return
   end subroutine axis_4
 
@@ -406,6 +413,37 @@ contains  !> MODULE PROCEDURES START HERE
   & evec(1,3) * (evec(2,1) * evec(3,2) - evec(2,2) * evec(3,1))
     return
   end function calcxsum
+
+!========================================================================================!
+
+  subroutine uniqueax(rot,unique,thr)
+!**************************************************
+!* check if a given rotational constant is unique
+!**************************************************
+    implicit none
+    real(wp),intent(in) :: rot(3)
+    logical,intent(out) :: unique(3)
+    real(wp),intent(in),optional :: thr
+    real(wp) :: thrtmp
+    real(wp) :: diff(3)
+
+    unique(:) = .false.
+
+    if(present(thr))then
+      thrtmp = thr
+    else
+      thrtmp = 0.01_wp
+    endif
+
+    diff(1) = abs(rot(2)/rot(1) - 1.0_wp)
+    diff(2) = abs(rot(3)/rot(1) - 1.0_wp)
+    diff(3) = abs(rot(3)/rot(2) - 1.0_wp)
+
+    if(diff(1) .gt. thrtmp .and. diff(2) .gt. thrtmp) unique(1) = .true.
+    if(diff(1) .gt. thrtmp .and. diff(3) .gt. thrtmp) unique(2) = .true.
+    if(diff(2) .gt. thrtmp .and. diff(3) .gt. thrtmp) unique(3) = .true.
+
+  end subroutine uniqueax
 
 !========================================================================================!
 

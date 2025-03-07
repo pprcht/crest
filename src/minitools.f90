@@ -92,7 +92,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   use axis_module
   implicit none
   character(len=*) :: fname
-  type(ensemble) :: ens
+  type(coord),allocatable :: structures(:)
 
   integer :: nat
   integer :: nall
@@ -102,6 +102,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   real(wp),allocatable :: rot(:,:)
   real(wp) :: rotaniso !function
   real(wp),allocatable :: anis(:)
+  real(wp) :: evec(3,3),evecavg(3,3) 
 
   real(wp) :: bthrerf
   real(wp) :: bmin,bmax,bshift
@@ -109,29 +110,101 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   real(wp) :: dum
   integer :: i
 
-  call ens%open(fname)
-  nat = ens%nat
-  nall = ens%nall
+  call rdensemble(fname,nall,structures)
+  nat = structures(1)%nat
 
   allocate (c1(3,nat),at(nat))
   allocate (rot(3,nall))
   allocate (anis(nall))
 
-  at = ens%at
+  at(:) = structures(1)%at(:)
+  evecavg(:,:) = 0.0_wp
+  do i = 1,nall
+    c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
+    call axis(nat,at,c1,rot(1:3,i),dum,evec)
+    evecavg(:,:) = evecavg(:,:) + evec(:,:)
+  enddo
+  evecavg(:,:) = evecavg(:,:) / real(nall)
 
   do i = 1,nall
-    c1(1:3,:) = ens%xyz(1:3,:,i)
-    call axis(nat,at,c1,rot(1:3,i),dum)
+    c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
+    call axis(nat,at,c1,rot(1:3,i),dum,evec)
     anis(i) = rotaniso(i,nall,rot)
     thr = bthrerf(bmin,anis(i),bmax,bshift)
     write (*,'(3f10.2,2x,f8.4,2x,f8.4)') rot(1:3,i),anis(i),thr
+    !write (*,'(3f20.10)') evec(:,1)
+    !write (*,'(3f20.10)') abs(dot_product(evec(:,1),evecavg(:,1))),abs(dot_product(evec(:,2),evecavg(:,2))),abs(dot_product(evec(:,3),evecavg(:,3)))
+    !write (*,'(3f20.10)') evec(:,2)
+    !write (*,'(3f20.10)') evec(:,3)
   end do
+  
 
   deallocate (anis,rot,at,c1)
 
   stop
   return
 end subroutine printaniso
+
+!=========================================================================================!
+
+subroutine rotalign_tool(fname)
+!****************************************************
+!* print the anisotropy of the rotational constants
+!* for all structures in a given ensemble file
+!****************************************************
+  use crest_parameters
+  use strucrd
+  use axis_module
+  implicit none
+  character(len=*) :: fname
+  type(coord),allocatable :: structures(:)
+
+  integer :: nat
+  integer :: nall
+  real(wp),allocatable :: c1(:,:),c2(:,:)
+  integer,allocatable :: at(:)
+
+  real(wp),allocatable :: rot(:,:)
+  real(wp) :: rotaniso !function
+  real(wp),allocatable :: anis(:)
+  real(wp) :: evec(3,3),evecavg(3,3) 
+
+  real(wp) :: bthrerf
+  real(wp) :: bmin,bmax,bshift
+  real(wp) :: thr
+  real(wp) :: dum
+  integer :: i
+
+  real(wp), parameter :: Ry90(3,3) = reshape([ &
+                                     &    0.0_wp, 0.0_wp, -1.0_wp, &  
+                                     &    0.0_wp, 1.0_wp, 0.0_wp,  &  
+                                     &    1.0_wp, 0.0_wp, 0.0_wp   &  
+                                     &    ], [3,3])
+
+
+  call rdensemble(fname,nall,structures)
+  nat = structures(1)%nat
+
+  allocate (c1(3,nat),c2(3,nat),at(nat))
+  allocate (rot(3,nall))
+
+  at(:) = structures(1)%at(:)
+  write (*,'(3a10)') 'A/MHz','B/MHz','C/MHz'
+  do i = 1,nall
+    c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
+    call axis(nat,at,c1,rot(1:3,i))
+    c2 = c1
+    structures(i)%xyz = c2*aatoau 
+    write (*,'(3f10.2)') rot(1:3,i)
+  end do
+  
+  deallocate (rot,at,c2,c1)
+
+  call wrensemble('rotalign.xyz',nall,structures)
+
+  stop
+  return
+end subroutine rotalign_tool
 
 !=========================================================================================!
 

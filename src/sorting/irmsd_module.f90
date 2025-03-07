@@ -58,25 +58,46 @@ module irmsd_module
   end type rmsd_cache
 
   real(wp),parameter :: inf = huge(1.0_wp)
-  real(wp),parameter :: imat(3,3) = reshape([1.0_wp,0.0_wp,0.0_wp, &
-                                    &        0.0_wp,1.0_wp,0.0_wp, &
+  real(wp),parameter :: imat(3,3) = reshape([1.0_wp,0.0_wp,0.0_wp,  &
+                                    &        0.0_wp,1.0_wp,0.0_wp,  &
                                     &        0.0_wp,0.0_wp,1.0_wp], &
                                     &        [3,3])
 
-  real(wp),parameter :: Rx180(3,3) = reshape([1.0_wp,0.0_wp,0.0_wp,   &
-                                     &          0.0_wp,-1.0_wp,0.0_wp,   &
+  real(wp),parameter :: Rx180(3,3) = reshape([1.0_wp,0.0_wp,0.0_wp,     &
+                                     &          0.0_wp,-1.0_wp,0.0_wp,  &
                                      &          0.0_wp,0.0_wp,-1.0_wp], &
                                      &          [3,3])
 
-  real(wp),parameter :: Ry180(3,3) = reshape([-1.0_wp,0.0_wp,0.0_wp,   &
+  real(wp),parameter :: Ry180(3,3) = reshape([-1.0_wp,0.0_wp,0.0_wp,    &
                                      &          0.0_wp,1.0_wp,0.0_wp,   &
                                      &          0.0_wp,0.0_wp,-1.0_wp], &
                                      &          [3,3])
 
   real(wp),parameter :: Rz180(3,3) = reshape([-1.0_wp,0.0_wp,0.0_wp,   &
-                                     &          0.0_wp,-1.0_wp,0.0_wp,   &
+                                     &          0.0_wp,-1.0_wp,0.0_wp, &
                                      &          0.0_wp,0.0_wp,1.0_wp], &
                                      &          [3,3])
+
+  real(wp), parameter :: Rx90(3,3) = reshape([ &
+                                     &    1.0_wp, 0.0_wp, 0.0_wp, &  
+                                     &    0.0_wp, 0.0_wp, 1.0_wp, &  
+                                     &    0.0_wp, -1.0_wp, 0.0_wp &  
+                                     &    ], [3,3])
+  real(wp),parameter :: Rx90T(3,3) = transpose(Rx90) 
+
+  real(wp), parameter :: Ry90(3,3) = reshape([ &
+                                     &    0.0_wp, 0.0_wp, -1.0_wp, &  
+                                     &    0.0_wp, 1.0_wp, 0.0_wp,  &  
+                                     &    1.0_wp, 0.0_wp, 0.0_wp   &  
+                                     &    ], [3,3])
+  real(wp),parameter :: Ry90T(3,3) = transpose(Ry90)
+
+  real(wp), parameter :: Rz90(3,3) = reshape([ &
+                                     &    0.0_wp, 1.0_wp, 0.0_wp,  &  
+                                     &   -1.0_wp, 0.0_wp, 0.0_wp,  &  
+                                     &    0.0_wp, 0.0_wp, 1.0_wp   &  
+                                     &    ], [3,3])
+  real(wp),parameter :: Rz90T(3,3) = transpose(Rz90)
 
 !========================================================================================!
 !========================================================================================!
@@ -120,7 +141,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (self%best_order(nat,3),source=0)
     allocate (self%current_order(nat),source=0)
     allocate (self%target_order(nat),source=0)
-    allocate (self%order_bkup(nat,8),source=0)
+    allocate (self%order_bkup(nat,32),source=0)
     allocate (self%iwork(nat),source=0)
     allocate (self%iwork2(nat,2),source=0)
     allocate (self%rank(nat,2),source=0)
@@ -393,10 +414,10 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
     type(rmsd_cache),pointer :: cptr
     type(rmsd_cache),allocatable,target :: local_rcache
-    integer :: nat,ii,rnk,dumpunit
+    integer :: nat,ii,rnk,dumpunit,scenario
     real(wp) :: calc_rmsd
-    real(wp) :: tmprmsd_sym(8),dum
-    real(wp) :: rotmat(3,3)
+    real(wp) :: tmprmsd_sym(32),dum
+    real(wp) :: rotmat(3,3),rotconst(3)
     logical,parameter :: debug = .false.
 
 !>--- Initialization
@@ -485,12 +506,13 @@ contains  !> MODULE PROCEDURES START HERE
     !> initialize to huge
     tmprmsd_sym(:) = inf
     !> initial alignment of mol
-    call axis(mol%nat,mol%at,mol%xyz)
+    call axis(mol%nat,mol%at,mol%xyz,rotconst)
+    call min_rmsd_rotcheck_unique(mol,rotconst,scenario)
 
-    !> Running the checks
-    call min_rmsd_rotcheck(ref,mol,cptr,tmprmsd_sym,1)
+    !> Running the checks and check of uniqueness of rotational axes
+    call min_rmsd_rotcheck_permute(ref,mol,cptr,tmprmsd_sym,1,scenario)
     if (debug) then
-      write (*,*) 'Total LSAP cost:',minval(tmprmsd_sym(1:4))
+      write (*,*) 'Total LSAP cost:',minval(tmprmsd_sym(1:16))
       call mol%append(dumpunit)
     end if
 
@@ -500,34 +522,44 @@ contains  !> MODULE PROCEDURES START HERE
       call axis(mol%nat,mol%at,mol%xyz) !> align
 
       !> Running the checks
-      call min_rmsd_rotcheck(ref,mol,cptr,tmprmsd_sym,2)
+      call min_rmsd_rotcheck_permute(ref,mol,cptr,tmprmsd_sym,2,scenario)
       if (debug) then
-        write (*,*) 'Total LSAP cost (inverted):',minval(tmprmsd_sym(5:8))
+        write (*,*) 'Total LSAP cost (inverted):',minval(tmprmsd_sym(17:32))
         call mol%append(dumpunit)
       end if
       mol%xyz(3,:) = -mol%xyz(3,:)  !> restore z
     end if
 
 !>--- select the best match among the ones after symmetry operations and use its ordering
-    ii = minloc(tmprmsd_sym(:),1)
+    ii = minloc(tmprmsd_sym(1:32),1)
     if (debug) then
-      write (*,*) 'final alignment:',ii,"/ 8"
+      write (*,*) 'final alignment:',ii,"/ 32"
     end if
-    if (ii > 4) then
+    if (ii > 16) then
       mol%xyz(3,:) = -mol%xyz(3,:)
       if (debug) write (*,*) 'inverting'
     end if
+    if ((ii > 4 .and. ii < 9) .or. (ii > 20 .and. ii < 25))then
+      if(scenario == 1) mol%xyz = matmul(Rx90,mol%xyz)
+      if(scenario == 2) mol%xyz = matmul(Rz90,mol%xyz)
+      if(scenario == 3) mol%xyz = matmul(Rz90,mol%xyz)
+      if(debug) write (*,*) '90° tilt'
+    else if ((ii > 8 .and. ii < 13) .or. (ii > 24 .and. ii < 29))then
+      mol%xyz = matmul(Ry90,mol%xyz)
+    else if ((ii > 12 .and. ii < 17) .or. (ii > 28))then
+      mol%xyz = matmul(Rx90,mol%xyz)
+    endif 
     select case (ii) !> 180° rotations
-    case (1,5)
+    case (1,5,9,13,17,21,25,29)
       continue
-    case (2,6)
+    case (2,6,10,14,18,22,26,30)
       mol%xyz = matmul(Rx180,mol%xyz)
       if (debug) write (*,*) '180°x'
-    case (3,7)
+    case (3,7,11,15,19,23,27,31)
       mol%xyz = matmul(Rx180,mol%xyz)
       mol%xyz = matmul(Ry180,mol%xyz)
       if (debug) write (*,*) '180°x, 180°y'
-    case (4,8)
+    case (4,8,12,16,20,24,28,32)
       mol%xyz = matmul(Ry180,mol%xyz)
       if (debug) write (*,*) '180°y'
     end select
@@ -600,80 +632,125 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine min_rmsd_rotcheck(ref,mol,cptr,values,step)
+  subroutine min_rmsd_rotcheck_unique(mol,rot,scenario,thr)
+!*******************************************************
+!* Based on the rotational constants, determine what we
+!* need to do with the molecule in the following
+!*******************************************************
+    implicit none
+    type(coord),intent(inout) :: mol
+    real(wp),intent(in) :: rot(3)
+    integer,intent(out) :: scenario
+    real(wp),intent(in),optional :: thr
+    logical :: unique(3)    
+    integer :: nunique
+ 
+    scenario = 0
+    call uniqueax(rot,unique,thr) 
+
+    nunique = count(unique,1)
+    select case(nunique)
+    case ( 3 ) !> 3 unique principal axes
+      scenario = 0
+    case ( 1 ) !> one unique principal axis
+      if(unique(1)) scenario = 1 !> A unique (long axis)
+      if(unique(3)) scenario = 2 !> C unique (short axis)
+    case ( 0 ) !> rotationally ambiguous system
+      scenario = 3
+    end select
+  end subroutine min_rmsd_rotcheck_unique
+
+!=======================================================================================!
+
+  subroutine min_rmsd_rotcheck_permute(ref,mol,cptr,values,step,scenario)
     implicit none
     type(coord),intent(in) :: ref
     type(coord),intent(inout) :: mol
     type(rmsd_cache),intent(inout),target :: cptr
     real(wp),intent(inout) :: values(:)
-    integer,intent(in) :: step
+    integer,intent(in) :: step,scenario
     integer :: rr,ii,jj,debugunit2
-    real(wp) :: vals(4),dum
+    real(wp) :: vals(16),dum
     logical,parameter :: debug = .false.
 
     !> reset val
-    vals(:) = 0.0_wp
+    vals(:) = inf
 
     if (debug) then
       open (newunit=debugunit2,file='rotdebug.xyz')
       call ref%append(debugunit2)
     end if
+
+    ALIGNLOOP : do ii=1,4
     call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-    vals(1) = dum
+    vals(1+4*(ii-1)) = dum
     if (debug) call mol%append(debugunit2)
-    cptr%order_bkup(:,1+4*(step-1)) = cptr%iwork(:)
+    cptr%order_bkup(:,1+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
 
     mol%xyz = matmul(Rx180,mol%xyz)
     call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-    vals(2) = dum
+    vals(2+4*(ii-1)) = dum
     if (debug) call mol%append(debugunit2)
-    cptr%order_bkup(:,2+4*(step-1)) = cptr%iwork(:)
+    cptr%order_bkup(:,2+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
 
     mol%xyz = matmul(Ry180,mol%xyz)
     call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-    vals(3) = dum
+    vals(3+4*(ii-1)) = dum
     if (debug) call mol%append(debugunit2)
-    cptr%order_bkup(:,3+4*(step-1)) = cptr%iwork(:)
+    cptr%order_bkup(:,3+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
 
     mol%xyz = matmul(Rx180,mol%xyz)
     call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-    vals(4) = dum
+    vals(4+4*(ii-1)) = dum
     if (debug) call mol%append(debugunit2)
-    cptr%order_bkup(:,4+4*(step-1)) = cptr%iwork(:)
+    cptr%order_bkup(:,4+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
 
     mol%xyz = matmul(Ry180,mol%xyz) !> restore
+
+    !exit ALIGNLOOP
+    select case(scenario)
+    case( 0 ) !> 3 Unique moments of inertia
+       exit ALIGNLOOP
+    case( 1 ) !> only one unique moment of inertia (A)
+       if( ii == 2 )then 
+          mol%xyz = matmul(Rx90T,mol%xyz)
+          exit ALIGNLOOP 
+       endif
+       mol%xyz = matmul(Rx90,mol%xyz)
+    case (2) !> only one unique moment of inertia (C)
+       if( ii == 2 )then
+          mol%xyz = matmul(Rz90T,mol%xyz)
+          exit ALIGNLOOP
+       endif
+       mol%xyz = matmul(Rz90,mol%xyz)
+    case (3)
+       if( ii == 1)then
+         mol%xyz = matmul(Rz90,mol%xyz)
+       else if(ii == 2)then
+         mol%xyz = matmul(Rz90T,mol%xyz)
+         mol%xyz = matmul(Ry90,mol%xyz)
+       else if(ii == 3)then
+         mol%xyz = matmul(Ry90T,mol%xyz)
+         mol%xyz = matmul(Rx90,mol%xyz)
+       else
+         mol%xyz = matmul(Rx90T,mol%xyz)
+         exit ALIGNLOOP
+       endif
+    end select
+    
+
+    enddo ALIGNLOOP
+
 
     if (debug) then
       close (debugunit2)
       write (*,*) 'vals:',vals(:)
     end if
 
-    do ii = 1,4
-      values(ii+4*(step-1)) = vals(ii)
+    do ii = 1,16
+      values(ii+16*(step-1)) = vals(ii)
     end do
-  end subroutine min_rmsd_rotcheck
-
-!=========================================================================================!
-
-  subroutine min_rmsd_quadalign(ref,mol,rotate)
-    implicit none
-    type(coord),intent(in) :: ref
-    type(coord),intent(inout) :: mol
-    logical,intent(out) :: rotate(3)
-    integer :: rr,ii,jj,acount
-    real(wp) :: val0
-    integer :: tmp1,tmp2
-    type(assignment_cache),pointer :: aptr
-    logical,parameter :: debug = .false.
-
-    rotate(:) = .false.
-
-    do jj = 1,3
-      tmp1 = count(ref%xyz(jj,:) > 0.0_wp)
-      tmp2 = count(mol%xyz(jj,:) > 0.0_wp)
-      if (tmp1 .ne. tmp2) rotate(jj) = .true.
-    end do
-  end subroutine min_rmsd_quadalign
+  end subroutine min_rmsd_rotcheck_permute
 
 !========================================================================================!
 
