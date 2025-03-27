@@ -825,7 +825,7 @@ end subroutine quick_hungarian_match
 
 !=========================================================================================!
 
-subroutine irmsd_tool(fname1,fname2)
+subroutine irmsd_tool(fname1,fname2,mirror)
   use crest_parameters
   use strucrd
   use axis_module
@@ -834,6 +834,7 @@ subroutine irmsd_tool(fname1,fname2)
   implicit none
   character(len=*),intent(in) :: fname1
   character(len=*),intent(in) :: fname2
+  logical,intent(in) :: mirror
   type(coord) :: mol,ref
   real(wp) :: rmsdval,tmpd(3),tmpdist
   integer :: i,ich
@@ -863,6 +864,8 @@ subroutine irmsd_tool(fname1,fname2)
   rcache%stereocheck = .not. (canref%hasstereo(ref))
   call canref%shrink()
   write(*,*) 'false enantiomers possible?: ',rcache%stereocheck
+  write(*,*) 'allow inversion?:            ',mirror
+  if(.not.mirror) rcache%stereocheck = .false. 
 
   call canmol%init(mol,invtype='apsp+',heavy=.false.)
   !call canmol%add_h_ranks(mol)

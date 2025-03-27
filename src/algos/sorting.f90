@@ -32,6 +32,7 @@ subroutine crest_sort(env,tim)
   use crest_calculator
   use strucrd 
   use cregen_interface
+  use iomod, only: catdel
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -76,6 +77,12 @@ subroutine crest_sort(env,tim)
     call underline('Running all unique pair RMSDs incl. atom permutation')
     call cregen_irmsd_all(nall,structures,2)
 
+  case('cregen')
+!>--- the original CREGEN procedure (fallback, needs nicer implementations)
+    if(allocated(structures))deallocate(structures)
+    call newcregen(env,infile=env%ensemblename)
+    call catdel('cregen.out.tmp')
+
   case default
 !>--- all unique pairs of the ensemble (only suitable for small ensembles)
     call cregen_irmsd_all(nall,structures,2)
@@ -83,5 +90,6 @@ subroutine crest_sort(env,tim)
 
 !========================================================================================!
   call tim%stop(11)
+  if(allocated(structures)) deallocate(structures)
   return
 end subroutine crest_sort

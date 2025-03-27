@@ -654,10 +654,14 @@ subroutine parseflags(env,arg,nra)
         end if
         stop
 
-      case ('-irmsd')
+      case ('-irmsd','-irmsd_noinv')
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
-        call irmsd_tool(ctmp,dtmp)
+        if(index(argument,'_noinv').ne.0)then
+          call irmsd_tool(ctmp,dtmp,.false.)
+        else 
+          call irmsd_tool(ctmp,dtmp,.true.)
+        endif
         stop
 
       case ('-hungarian','-hungarianheavy','-hhungarian','-lsap','-hlsap','-lsapheavy')
