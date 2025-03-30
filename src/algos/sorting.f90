@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2022 Philipp Pracht
+! Copyright (C) 2024 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -19,19 +19,20 @@
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
-!> Implementation of whatever, for testing implementations
+!> Implementation for standalone sorting
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
 !========================================================================================!
 !> Input/Output:
 !>  env  -  crest's systemdata object
 !>  tim  -  timer object
 !>-----------------------------------------------
-subroutine crest_playground(env,tim)
+subroutine crest_sort(env,tim)
   use crest_parameters
   use crest_data
   use crest_calculator
   use strucrd 
-  use canonical_mod
+  use cregen_interface
+  use iomod, only: catdel
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -39,53 +40,56 @@ subroutine crest_playground(env,tim)
   integer :: i,j,k,l,io,ich 
   logical :: pr,wr
 !========================================================================================!
-  type(calcdata) :: calc
-  real(wp) :: accuracy,etemp
-   
-  integer :: V,maxgen
-  integer,allocatable :: A(:,:)
-  logical,allocatable :: rings(:,:)
-  integer,allocatable :: tmp(:)
-  logical :: connected,fail
+  integer :: nall
+  type(coord),allocatable :: structures(:)
+  integer,allocatable :: groups(:) 
 
-  real(wp) :: energy
-  real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:)
 
-  type(canonical_sorter) ::  can
-!========================================================================================!
-  call tim%start(14,'Test implementation') 
-!========================================================================================!
-  !call system('figlet welcome')
-  write(*,*) "              _                          "
-  write(*,*) "__      _____| | ___ ___  _ __ ___   ___ "
-  write(*,*) "\ \ /\ / / _ \ |/ __/ _ \| '_ ` _ \ / _ \"
-  write(*,*) " \ V  V /  __/ | (_| (_) | | | | | |  __/"
-  write(*,*) "  \_/\_/ \___|_|\___\___/|_| |_| |_|\___|"
-  write(*,*) 
-!========================================================================================!
-  call env%ref%to(mol)
-  write(*,*)
-  write(*,*) 'Input structure:'
-  call mol%append(stdout)
-  write(*,*) 
 !========================================================================================!
 
-  allocate(grad(3,mol%nat), source=0.0_wp)
-  call env2calc(env,calc,mol)
-  calc%calcs(1)%rdwbo=.true.
-  call calc%info(stdout)
 
-  call engrad(mol,calc,energy,grad,io)
-  call calculation_summary(calc,mol,energy,grad)
-  
-
+  write(stdout,'(a,a,a)',advance='no') '> Read ensemble ',trim(env%ensemblename),' ... '
+  flush(stdout)
+  call rdensemble(env%ensemblename,nall,structures)
+  allocate(groups(nall), source=0)
+  write(stdout,'(i0,a)') nall,' structures!' 
   write(stdout,*)
-  write(stdout,*) 'CANGEN algorithm' 
-  call can%init(mol,calc%calcs(1)%wbo,'apsp+',heavy=.false.)
-  call can%stereo(mol)
-  call can%rankprint(mol) 
 
 !========================================================================================!
-  call tim%stop(14)
+  call tim%start(11,'Sorting') 
+
+  select case(env%sortmode)
+
+  case('isort')
+!>--- Assigning structures to conformers based on RTHR,with canonical atom IDs
+    call underline('Assigning conformers based on iRMSD and RTHR')
+    call cregen_irmsd_sort(env,nall,structures,groups,allcanon=.true.,printlvl=2)    
+
+
+  case('isort_noid')
+!>--- Assigning structures to conformers based on RTHR, WITHOUT canonical atom IDs
+    call underline('Assigning conformers based on iRMSD and RTHR')
+    call cregen_irmsd_sort(env,nall,structures,groups,allcanon=.false.,printlvl=2)    
+
+
+  case('all','allpair')
+!>--- all unique pairs of the ensemble (only suitable for small ensembles)
+    call underline('Running all unique pair RMSDs incl. atom permutation')
+    call cregen_irmsd_all(nall,structures,2)
+
+  case('cregen')
+!>--- the original CREGEN procedure (fallback, needs nicer implementations)
+    if(allocated(structures))deallocate(structures)
+    call newcregen(env,infile=env%ensemblename)
+    call catdel('cregen.out.tmp')
+
+  case default
+!>--- all unique pairs of the ensemble (only suitable for small ensembles)
+    call cregen_irmsd_all(nall,structures,2)
+  end select
+
+!========================================================================================!
+  call tim%stop(11)
+  if(allocated(structures)) deallocate(structures)
   return
-end subroutine crest_playground
+end subroutine crest_sort

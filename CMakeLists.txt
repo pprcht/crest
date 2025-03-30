@@ -27,7 +27,7 @@ endif()
 project(
   crest
   LANGUAGES "C" "Fortran"
-  VERSION  3.0.2
+  VERSION  3.1.0
   DESCRIPTION "A tool for the exploration of low-energy chemical space"
 )
 

@@ -113,8 +113,8 @@ contains !> MODULE PROCEDURES START HERE
         i = i+1
         j = j-1
       end do
-      if (first < i-1) call qsort(a,first,i-1,ind)
-      if (j+1 < last) call qsort(a,j+1,last,ind)
+      if (first < i-1) call detrotra_qsort(a,first,i-1,ind)
+      if (j+1 < last) call detrotra_qsort(a,j+1,last,ind)
     end subroutine detrotra_qsort
   end subroutine detrotra8
 

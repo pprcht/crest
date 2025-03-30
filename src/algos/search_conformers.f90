@@ -480,7 +480,7 @@ contains
      env%calc%optlev = 0
     end select
 
-    call print_opt_data(env%calc, stdout)
+    call print_opt_data(env%calc, stdout, natoms=env%ref%nat)
 
   end subroutine set_multilevel_options
 end subroutine crest_multilevel_oloop

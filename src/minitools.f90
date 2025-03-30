@@ -25,7 +25,7 @@ subroutine splitfile(fname,up,low)
 !********************************************************
   use crest_parameters
   use iomod
-  use strucrd,only: rdensemble,coord
+  use strucrd,only:rdensemble,coord
   implicit none
   character(len=*) :: fname
   integer :: up,low
@@ -48,9 +48,6 @@ subroutine splitfile(fname,up,low)
 
   call getcwd(thispath) !current dir= thispath
 
-  !call rdensembleparam(fname,nat,nall)
-  !allocate (xyz(3,nat,nall),at(nat))
-  !call rdensemble(fname,nat,nall,at,xyz)
   call rdensemble(fname,nall,structures)
 
   r = makedir("SPLIT")  !create new directory
@@ -75,7 +72,6 @@ subroutine splitfile(fname,up,low)
     write (tmppath2,'(a,i0)') "STRUC",i
     r = makedir(trim(tmppath2))
     call chdir(tmppath2)
-    !call wrxyz("struc.xyz",nat,at,xyz(:,:,i))
     call structures(i)%write("struc.xyz")
     call chdir(tmppath1)
   end do
@@ -96,7 +92,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   use axis_module
   implicit none
   character(len=*) :: fname
-  type(ensemble) :: ens
+  type(coord),allocatable :: structures(:)
 
   integer :: nat
   integer :: nall
@@ -106,6 +102,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   real(wp),allocatable :: rot(:,:)
   real(wp) :: rotaniso !function
   real(wp),allocatable :: anis(:)
+  real(wp) :: evec(3,3),evecavg(3,3) 
 
   real(wp) :: bthrerf
   real(wp) :: bmin,bmax,bshift
@@ -113,29 +110,101 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   real(wp) :: dum
   integer :: i
 
-  call ens%open(fname)
-  nat = ens%nat
-  nall = ens%nall
+  call rdensemble(fname,nall,structures)
+  nat = structures(1)%nat
 
   allocate (c1(3,nat),at(nat))
   allocate (rot(3,nall))
   allocate (anis(nall))
 
-  at = ens%at
+  at(:) = structures(1)%at(:)
+  evecavg(:,:) = 0.0_wp
+  do i = 1,nall
+    c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
+    call axis(nat,at,c1,rot(1:3,i),dum,evec)
+    evecavg(:,:) = evecavg(:,:) + evec(:,:)
+  enddo
+  evecavg(:,:) = evecavg(:,:) / real(nall)
 
   do i = 1,nall
-    c1(1:3,:) = ens%xyz(1:3,:,i)
-    call axis(nat,at,c1,rot(1:3,i),dum)
+    c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
+    call axis(nat,at,c1,rot(1:3,i),dum,evec)
     anis(i) = rotaniso(i,nall,rot)
     thr = bthrerf(bmin,anis(i),bmax,bshift)
     write (*,'(3f10.2,2x,f8.4,2x,f8.4)') rot(1:3,i),anis(i),thr
+    !write (*,'(3f20.10)') evec(:,1)
+    !write (*,'(3f20.10)') abs(dot_product(evec(:,1),evecavg(:,1))),abs(dot_product(evec(:,2),evecavg(:,2))),abs(dot_product(evec(:,3),evecavg(:,3)))
+    !write (*,'(3f20.10)') evec(:,2)
+    !write (*,'(3f20.10)') evec(:,3)
   end do
+  
 
   deallocate (anis,rot,at,c1)
 
   stop
   return
 end subroutine printaniso
+
+!=========================================================================================!
+
+subroutine rotalign_tool(fname)
+!****************************************************
+!* print the anisotropy of the rotational constants
+!* for all structures in a given ensemble file
+!****************************************************
+  use crest_parameters
+  use strucrd
+  use axis_module
+  implicit none
+  character(len=*) :: fname
+  type(coord),allocatable :: structures(:)
+
+  integer :: nat
+  integer :: nall
+  real(wp),allocatable :: c1(:,:),c2(:,:)
+  integer,allocatable :: at(:)
+
+  real(wp),allocatable :: rot(:,:)
+  real(wp) :: rotaniso !function
+  real(wp),allocatable :: anis(:)
+  real(wp) :: evec(3,3),evecavg(3,3) 
+
+  real(wp) :: bthrerf
+  real(wp) :: bmin,bmax,bshift
+  real(wp) :: thr
+  real(wp) :: dum
+  integer :: i
+
+  real(wp), parameter :: Ry90(3,3) = reshape([ &
+                                     &    0.0_wp, 0.0_wp, -1.0_wp, &  
+                                     &    0.0_wp, 1.0_wp, 0.0_wp,  &  
+                                     &    1.0_wp, 0.0_wp, 0.0_wp   &  
+                                     &    ], [3,3])
+
+
+  call rdensemble(fname,nall,structures)
+  nat = structures(1)%nat
+
+  allocate (c1(3,nat),c2(3,nat),at(nat))
+  allocate (rot(3,nall))
+
+  at(:) = structures(1)%at(:)
+  write (*,'(3a10)') 'A/MHz','B/MHz','C/MHz'
+  do i = 1,nall
+    c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
+    call axis(nat,at,c1,rot(1:3,i))
+    c2 = c1
+    structures(i)%xyz = c2*aatoau 
+    write (*,'(3f10.2)') rot(1:3,i)
+  end do
+  
+  deallocate (rot,at,c2,c1)
+
+  call wrensemble('rotalign.xyz',nall,structures)
+
+  stop
+  return
+end subroutine rotalign_tool
 
 !=========================================================================================!
 
@@ -414,7 +483,6 @@ subroutine testtopo(fname,env,tmode)
   case ('methyl')
     do i = 1,zmol%nat
       l1 = zmol%methyl(i)
-      !write(*,*) l1
       if (l1) write (*,'(a,i0,a)') 'Atom ',i,' is methyl (or similar)'
     end do
 
@@ -585,20 +653,32 @@ end function quick_rmsd
 subroutine quick_rmsd_tool(fname1,fname2,heavy)
   use crest_parameters
   use strucrd
+  use irmsd_module
   implicit none
-  character(len=*) :: fname1
-  character(len=*) :: fname2
-  logical :: heavy
-  type(coord) :: mol1
+  character(len=*),intent(in) :: fname1
+  character(len=*),intent(in) :: fname2
+  logical,intent(in) :: heavy
+  type(coord) :: mol,ref
   real(wp) :: rmsdval
-  real(wp) :: quick_rmsd
+  integer :: i
+  logical,allocatable :: mask(:)
 
-  call mol1%open(fname1)
+  call ref%open(fname1)
+  call mol%open(fname2)
 
-  mol1%xyz = mol1%xyz*bohr !to Angstroem
+  if (heavy) then
+    allocate (mask(ref%nat),source=.false.)
+    do i = 1,ref%nat
+      if (ref%at(i) > 1) then
+        mask(i) = .true.
+      end if
+    end do
+    rmsdval = rmsd(ref,mol,mask=mask)
+  else
+    rmsdval = rmsd(ref,mol)
+  end if
 
-  rmsdval = quick_rmsd(fname2,mol1%nat,mol1%at,mol1%xyz,heavy)
-
+  rmsdval = rmsdval*autoaa
   if (heavy) then
     write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
   else
@@ -648,6 +728,192 @@ function quick_rmsd2(nat,at,xyz,xyz2,heavy) result(rout)
   deallocate (c1,c0)
   return
 end function quick_rmsd2
+
+!=========================================================================================!
+
+subroutine quick_hungarian_match(fname1,fname2,heavy)
+  use crest_parameters
+  use strucrd
+  use hungarian_module
+  use axis_module,only:axis
+  implicit none
+  character(len=*),intent(in) :: fname1
+  character(len=*),intent(in) :: fname2
+  logical,intent(in) :: heavy
+  type(coord) :: mol,ref
+  real(wp) :: rmsdval
+  integer :: i,ii,jj,nat,io,ich
+  logical,allocatable :: mask(:)
+  real(wp),allocatable :: C(:,:)
+  real(wp),allocatable :: answers(:)
+  integer,allocatable :: mapping(:)
+  integer,allocatable :: hmap(:),rhmap(:)
+  integer,allocatable :: a(:),b(:)
+  real(wp) :: dists(3)
+
+  call ref%open(fname1)
+  call mol%open(fname2)
+
+  !> align to rotational axes and shift to center of mass
+  call axis(ref%nat,ref%at,ref%xyz)
+  call axis(mol%nat,mol%at,mol%xyz)
+
+  if (heavy) then
+    allocate (mask(ref%nat),source=.false.)
+    allocate (hmap(ref%nat),rhmap(ref%nat),source=0)
+    nat = count((ref%at(:) > 1))
+    ii = 0
+    do i = 1,ref%nat
+      if (ref%at(i) > 1) then
+        mask(i) = .true.
+        ii = ii+1
+        hmap(i) = ii
+        rhmap(ii) = i
+      end if
+    end do
+  else
+    allocate (mask(ref%nat),source=.true.)
+    nat = ref%nat
+  end if
+
+  allocate (C(nat,nat),answers(nat))
+  allocate (mapping(nat+1))
+  do ii = 1,nat
+    if (.not.mask(ii)) cycle
+    do jj = 1,nat
+      if (.not.mask(jj)) cycle
+      dists(:) = (ref%xyz(:,ii)-mol%xyz(:,jj))**2
+      if (heavy) then
+        C(hmap(jj),hmap(ii)) = sqrt(sum(dists))
+      else
+        C(jj,ii) = sqrt(sum(dists))
+      end if
+    end do
+  end do
+  allocate (a(nat),b(nat))
+  call lsap(C,nat,nat,a,b)
+
+  write (*,'(a,3(1x,a))') 'Assignment:',fname2,'-->',fname1
+  do i = 1,nat
+    if (heavy) then
+      write (*,'(i6," --> ",i6)') rhmap(a(i)),rhmap(b(i))
+    else
+      write (*,'(i6," --> ",i6)') a(i),b(i)
+    end if
+  end do
+  write (*,*)
+  !> write the rotated and shifted coordinates to one file
+  open (newunit=ich,file='lsap.xyz')
+  call ref%append(ich)
+  call mol%append(ich)
+  close (ich)
+
+  !> reconstruct RMSD from assignment (since our costs are already distances!)
+  rmsdval = 0.0_wp
+  do i = 1,nat
+    rmsdval = rmsdval+C(a(i),b(i))/real(nat,wp)
+  end do
+  rmsdval = sqrt(abs(rmsdval))*autoaa
+  if (heavy) then
+    write (*,'(1x,a,f16.8)') 'Calculated heavy atom RMSD (Å):',rmsdval
+  else
+    write (*,'(1x,a,f16.8)') 'Calculated RMSD (Å):',rmsdval
+  end if
+
+  return
+end subroutine quick_hungarian_match
+
+!=========================================================================================!
+
+subroutine irmsd_tool(fname1,fname2,mirror)
+  use crest_parameters
+  use strucrd
+  use axis_module
+  use irmsd_module
+  use canonical_mod
+  implicit none
+  character(len=*),intent(in) :: fname1
+  character(len=*),intent(in) :: fname2
+  logical,intent(in) :: mirror
+  type(coord) :: mol,ref
+  real(wp) :: rmsdval,tmpd(3),tmpdist
+  integer :: i,ich
+  type(rmsd_cache) :: rcache
+  type(canonical_sorter) :: canmol
+  type(canonical_sorter) :: canref
+  logical,parameter :: debug = .false.
+
+  write (stdout,*) 'iRMSD algorithm'
+  write (stdout,*) 'reference: ',fname1
+  write (stdout,*) 'processed: ',fname2
+  write (stdout,*)
+
+  !> read the geometries
+  call ref%open(fname1)
+  call mol%open(fname2)
+
+  !> move ref to CMA and align rotational axes
+  call axis(ref%nat,ref%at,ref%xyz)
+
+  !> allocate memory
+  call rcache%allocate(ref%nat)
+
+  !> canonical atom ranks
+  call canref%init(ref,invtype='apsp+',heavy=.false.)
+  !call canref%add_h_ranks(ref)
+  rcache%stereocheck = .not. (canref%hasstereo(ref))
+  call canref%shrink()
+  write(*,*) 'false enantiomers possible?: ',rcache%stereocheck
+  write(*,*) 'allow inversion?:            ',mirror
+  if(.not.mirror) rcache%stereocheck = .false. 
+
+  call canmol%init(mol,invtype='apsp+',heavy=.false.)
+  !call canmol%add_h_ranks(mol)
+  call canmol%shrink()
+ 
+  !> check if we can work with the determined ranks
+  if (checkranks(ref%nat,canref%rank,canmol%rank)) then
+    write(stdout,*) 'using canonical atom identities as rank backend'
+    rcache%rank(:,1) = canref%rank(:)
+    rcache%rank(:,2) = canmol%rank(:)
+    if (debug) then
+      write (*,*) 'iRMSD ranks:'
+      write (*,*) 'atom',' rank('//fname1//')',' rank('//fname2//')'
+      do i = 1,ref%nat
+        write (*,*) i,rcache%rank(i,1),rcache%rank(i,2)
+      end do
+      write (*,*)
+    end if
+  else
+    !> if not, fall back to atom types
+    write(stdout,*) 'using atom types as rank backend'
+    call fallbackranks(ref,mol,ref%nat,rcache%rank)
+  end if
+
+  call min_rmsd(ref,mol,rcache=rcache,rmsdout=rmsdval,align=.true.)
+
+  !> write the rotated and shifted coordinates to one file
+  open (newunit=ich,file='irmsd.xyz')
+  call ref%append(ich)
+  call mol%append(ich)
+  close (ich)
+  write (stdout,*)
+  write (stdout,*) 'aligned structures written to irmsd.xyz'
+  write (stdout,*)
+
+  do i=1,mol%nat
+    tmpd(:) = (mol%xyz(:,i) - ref%xyz(:,i))**2
+    tmpdist = sqrt(sum(tmpd(:)))*autoaa
+    if(tmpdist > 0.01_wp)then
+      write(*,*) i,mol%at(i),tmpdist
+    endif  
+  enddo
+
+  rmsdval = rmsdval*autoaa
+  write (*,'(1x,a,f16.8)') 'Calculated iRMSD (Å):',rmsdval
+
+  return
+end subroutine irmsd_tool
 
 !=========================================================================================!
 

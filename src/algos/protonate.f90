@@ -211,7 +211,7 @@ subroutine crest_new_protonate(env,tim)
 
     !>--- Run optimizations
     call tim%start(15,'Ensemble optimization (FF)')
-    call print_opt_data(tmpcalc_ff,stdout)
+    call print_opt_data(tmpcalc_ff,stdout,natoms=natp)
     write (stdout,'(a,i0,a)') '> ',npnew,' structures to optimize ...'
     call crest_oloop(env,natp,npnew,atp,xyzp(:,:,1:npnew),ep(1:npnew),.false.,tmpcalc_ff)
     call tim%stop(15)
@@ -301,7 +301,7 @@ subroutine crest_new_protonate(env,tim)
     call tmpcalc%info(stdout)
     tmpcalc%optnewinit = .true.
     call tim%start(20,'Ensemble optimization')
-    call print_opt_data(env%calc,stdout)
+    call print_opt_data(env%calc,stdout,natoms=natp)
     write (stdout,'(a,i0,a)') '> ',npnew,' structures to optimize ...'
     call crest_oloop(env,natp,npnew,atp,xyzp(:,:,1:npnew),ep,.false.,tmpcalc)
     call tim%stop(20)
@@ -695,7 +695,7 @@ subroutine crest_new_deprotonate(env,tim)
 
     !>--- Run optimizations
     call tim%start(15,'Ensemble optimization (FF)')
-    call print_opt_data(tmpcalc_ff,stdout)
+    call print_opt_data(tmpcalc_ff,stdout,natoms=natp)
     write (stdout,'(a,i0,a)') '> ',npnew,' structures to optimize ...'
     call crest_oloop(env,natp,npnew,atp,xyzp(:,:,1:npnew),ep(1:npnew),.false.,tmpcalc_ff)
     call tim%stop(15)
@@ -784,7 +784,7 @@ subroutine crest_new_deprotonate(env,tim)
     call tmpcalc%info(stdout)
     tmpcalc%optnewinit = .true.
     call tim%start(20,'Ensemble optimization')
-    call print_opt_data(env%calc,stdout)
+    call print_opt_data(env%calc,stdout,natoms=natp)
     write (stdout,'(a,i0,a)') '> ',npnew,' structures to optimize ...'
     call crest_oloop(env,natp,npnew,atp,xyzp(:,:,1:npnew),ep(1:npnew),.false.,tmpcalc)
     call tim%stop(20)
@@ -1178,7 +1178,7 @@ subroutine crest_new_tautomerize(env,tim)
 
     !>--- Run optimizations
     call tim%start(15,'Ensemble optimization (FF)')
-    call print_opt_data(tmpcalc_ff,stdout)
+    call print_opt_data(tmpcalc_ff,stdout,natoms=natp)
     write (stdout,'(a,i0,a)') '> ',npnew,' structures to optimize ...'
     call crest_oloop(env,natp,npnew,atp,xyzp(:,:,1:npnew),ep(1:npnew),.false.,tmpcalc_ff)
     call tim%stop(15)
@@ -1271,7 +1271,7 @@ subroutine crest_new_tautomerize(env,tim)
     call tmpcalc%info(stdout)
     tmpcalc%optnewinit = .true.
     call tim%start(20,'Ensemble optimization')
-    call print_opt_data(env%calc,stdout)
+    call print_opt_data(env%calc,stdout,natoms=natp)
     write (stdout,'(a,i0,a)') '> ',npnew,' structures to optimize ...'
     call crest_oloop(env,natp,npnew,atp,xyzp(:,:,1:npnew),ep,.false.,tmpcalc)
     call tim%stop(20)

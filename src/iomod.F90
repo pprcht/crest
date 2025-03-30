@@ -55,6 +55,13 @@ module iomod
     end function
   end interface
 
+  interface
+    integer(c_int) function c_isatty(fd) bind(c,name="isatty")
+      use iso_c_binding
+      integer(c_int),value :: fd
+    end function c_isatty
+  end interface
+
   interface wrshort
     module procedure wrshort_real
     module procedure wrshort_int
@@ -772,10 +779,12 @@ contains !> MODULE PROCEDURES START HERE
 !=========================================================================================!
 !=========================================================================================!
 
-!> a wrapper for the intrinsic isatty function.
-!> ifort only seems to work if isatty is declard as external
-!> while gfortran does not want that...
   function myisatty(channel) result(term)
+!************************************************************
+!* a wrapper for the intrinsic isatty function.
+!* ifort only seems to work if isatty is declard as external
+!* while gfortran does not want that...
+!************************************************************
     implicit none
     integer,intent(in) :: channel
     logical :: term
@@ -784,6 +793,60 @@ contains !> MODULE PROCEDURES START HERE
 #endif
     term = isatty(channel)
   end function myisatty
+
+  logical function is_terminal()
+!*****************************************************************************
+!* Helper function to check if stdout (fd=1) is a TTY
+!* This version runs via the iso_c interface rather than the isatty function
+!* Also, it doesn't need an output channel
+!*****************************************************************************
+    use iso_c_binding
+    implicit none
+    is_terminal = (c_isatty(1_c_int) /= 0)
+  end function is_terminal
+
+!=========================================================================================!
+!=========================================================================================!
+!=========================================================================================!
+
+  function colorify(text,color) result(colored_text)
+!******************************************************************************
+!* colorify(text, color) returns a string that wraps `text` in
+!* ANSI color codes if stdout is a TTY, or returns `text` as-is otherwise.
+!******************************************************************************
+    implicit none
+    !> INPUT
+    character(len=*),intent(in) :: text
+    character(len=*),intent(in) :: color
+    !> We will build the returned string with a deferred-length character
+    character(len=:),allocatable :: colored_text
+    !> Escape sequence for ANSI codes
+    character(len=*),parameter :: ESC = char(27)//"["
+    !> Decide if we want color (only if stdout is a terminal)
+    if (is_terminal()) then
+      select case (trim(adjustl(color)))
+      case ("red")
+        colored_text = ESC//"31m"//trim(text)//ESC//"0m"
+      case ("green")
+        colored_text = ESC//"32m"//trim(text)//ESC//"0m"
+      case ("blue")
+        colored_text = ESC//"34m"//trim(text)//ESC//"0m"
+      case ("yellow")
+        colored_text = ESC//"33m"//trim(text)//ESC//"0m"
+      case ("gold")
+        !> 256-color code for a “gold-ish” color
+        colored_text = ESC//"38;5;214m"//trim(text)//ESC//"0m"
+      case default
+        !> If color not recognized (or empty), return text unmodified
+        colored_text = text
+      end select
+
+    else
+      ! Not a terminal => no color codes
+      colored_text = text
+    end if
+
+  end function colorify
 
 !=========================================================================================!
 !=========================================================================================!

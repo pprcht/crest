@@ -25,6 +25,7 @@ module crest_data
   use iso_fortran_env,wp => real64,dp => int64
   use crest_calculator,only:calcdata
   use dynamics_module,only:mddata
+  use bh_module,only:bh_class
   use strucrd,only:coord
   use crest_type_timer,only:timer
   use lwoniom_module, only: lwoniom_input
@@ -74,6 +75,7 @@ module crest_data
   integer,parameter,public :: crest_protonate = 16
   integer,parameter,public :: crest_deprotonate = 17
   integer,parameter,public :: crest_tautomerize = 18
+  integer,parameter,public :: crest_sorting = 19
 !>> runtypes with IDs between use non-legacy routines  <<!
   integer,parameter,public :: crest_sp         = 264
   integer,parameter,public :: crest_optimize   = 265
@@ -85,6 +87,8 @@ module crest_data
   integer,parameter,public :: crest_rigcon     = 271
   integer,parameter,public :: crest_trialopt   = 272
   integer,parameter,public :: crest_ensemblesp = 273
+  integer,parameter,public :: crest_bh         = 274
+  integer,parameter,public :: crest_bhpt       = 275
 !>> <<!
   integer,parameter,public :: crest_test       = 456
 
@@ -396,6 +400,7 @@ module crest_data
     character(len=:),allocatable :: wbofile
     character(len=:),allocatable :: atlist
     character(len=:),allocatable :: chargesfilename
+    character(len=:),allocatable :: sortmode
 
     !>--- METADYN data
     real(wp) :: hmass
@@ -498,6 +503,7 @@ module crest_data
     !>--- Calculation settings for newer implementations (version >= 3.0)
     type(calcdata) :: calc
     type(mddata)   :: mddat
+    type(bh_class),allocatable :: bh_ref
     !>--- rigidconf data
     integer :: rigidconf_algo = 0
     integer :: rigidconf_toposource = 0

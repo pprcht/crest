@@ -37,6 +37,7 @@ module cregen_interface
 !* module to load an interface to the newcregen routine
 !* mandatory to handle the optional input arguments
 !*******************************************************
+  use unionize_module  
   implicit none
   interface
     subroutine newcregen(env,quickset,infile)
@@ -49,7 +50,32 @@ module cregen_interface
       integer,intent(in),optional :: quickset
       character(len=*),intent(in),optional :: infile
     end subroutine newcregen
+
+    subroutine cregen_irmsd_all(nall,structures,printlvl)
+      use strucrd
+      implicit none
+      !> INPUT
+      integer,intent(in) :: nall
+      type(coord),intent(inout),target :: structures(nall)
+      integer,intent(in),optional :: printlvl
+    end subroutine cregen_irmsd_all
+
+    subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
+      use crest_data
+      use strucrd
+      implicit none
+      !> INPUT
+      type(systemdata),intent(inout) :: env
+      integer,intent(in) :: nall
+      type(coord),intent(inout),target :: structures(nall)
+      integer,intent(inout) :: groups(nall)
+      logical,intent(in),optional :: allcanon
+      integer,intent(in),optional :: printlvl
+    end subroutine cregen_irmsd_sort
+
   end interface
+!>--- Additional Related RE-EXPORTS
+  public :: unionizeEnsembles 
 end module cregen_interface
 
 subroutine newcregen(env,quickset,infile)
@@ -163,7 +189,7 @@ subroutine newcregen(env,quickset,infile)
   call rdensemble(fname,nat,nallref,at,xyz,comments)
   !call rdensemble(fname,nallref,structures)
   !allocate(references, source=structures)
- 
+
 !>--- track ensemble for restart
   call trackensemble(fname,nat,nallref,at,xyz,comments)
 
@@ -464,7 +490,7 @@ subroutine cregen_director(env,simpleset,checkbroken,sortE,sortRMSD,sortRMSD2, &
   logical,intent(out) :: anal
   logical,intent(out) :: topocheck
   logical,intent(out) :: checkez
-  logical,intent(out) :: saveelow 
+  logical,intent(out) :: saveelow
 
   checkbroken = .true. !> fragmentized structures are sorted out
   sortE = .true.       !> sort based on energy
@@ -636,6 +662,7 @@ subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
   use crest_data
   use strucrd
   use miscdata,only:rcov
+  use quicksort_interface
   implicit none
   !> INPUT
   type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
@@ -731,7 +758,8 @@ subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
     order = orderref
     call xyzqsort(nat,nall,xyz,c0,order,1,nall)
     order = orderref
-    call stringqsort(nall,comments,1,nall,order)
+    !call stringqsort(nall,comments,1,nall,order)
+    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
 
     llan = nall-newnall
     write (ch,'('' number of removed clashes      :'',i6)') llan
@@ -764,6 +792,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   use miscdata,only:rcov
   use utilities
   use crest_cn_module
+  use quicksort_interface
   implicit none
   type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
   integer,intent(in) :: ch ! printout channel
@@ -881,7 +910,8 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
     order = orderref
     call xyzqsort(nat,nall,xyz,c1,order,1,nall)
     order = orderref
-    call stringqsort(nall,comments,1,nall,order)
+    !call stringqsort(nall,comments,1,nall,order)
+    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
 
     llan = nall-newnall
     write (ch,'('' number of topology mismatches  :'',i6)') llan
@@ -1050,6 +1080,7 @@ subroutine cregen_esort(ch,nat,nall,xyz,comments,nallout,ewin)
 !**************************************************************
   use crest_parameters
   use strucrd
+  use quicksort_interface
   implicit none
   integer,intent(in) :: ch
   integer,intent(in) :: nat
@@ -1088,7 +1119,8 @@ subroutine cregen_esort(ch,nat,nall,xyz,comments,nallout,ewin)
   deallocate (c0)
   order = orderref
 
-  call stringqsort(nall,comments,1,nall,order)
+  !call stringqsort(nall,comments,1,nall,order)
+  call stringqsort(nall,len(comments(1)),comments,1,nall,order)
 
   !>-- determine cut-off of energies
   if (ewin < 9999.9_wp) then
@@ -1143,6 +1175,7 @@ subroutine cregen_CRE(ch,env,nat,nall,at,xyz,comments,nallout,group,nosort)
   use ls_rmsd
   use axis_module
   use utilities
+  use quicksort_interface
   implicit none
   type(systemdata) :: env
   integer,intent(in) :: ch
@@ -1413,7 +1446,7 @@ subroutine cregen_CRE(ch,env,nat,nall,at,xyz,comments,nallout,group,nosort)
     order = orderref
     call maskqsort(er,1,nall,order)
     order = orderref
-    call stringqsort(nall,comments,1,nall,order)
+    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
     order = orderref
     call matqsort(3,nall,rot,rotdum,1,nall,order)
   end if
@@ -1504,6 +1537,359 @@ contains
     return
   end subroutine heavymask
 end subroutine cregen_CRE
+
+!=========================================================================================!
+
+subroutine cregen_irmsd_all(nall,structures,printlvl)
+!********************************************
+!* Proof-of-concept routine to run all
+!* pairs of RMSD for an array of structures
+!********************************************
+  use crest_parameters
+  use crest_data
+  use strucrd
+  use axis_module
+  use canonical_mod
+  use irmsd_module
+  use utilities,only:lin
+  implicit none
+  !> INPUT
+  integer,intent(in) :: nall
+  type(coord),intent(inout),target :: structures(nall)
+  integer,intent(in),optional :: printlvl
+
+  !> LOCAL
+  integer :: i,j,ii,jj,T,nallpairs,cc,nat
+  integer :: prlvl,iunit
+  type(rmsd_cache),allocatable :: rcaches(:)
+  !type(rmsd_cache) :: rcaches
+  type(coord),allocatable,target :: workmols(:)
+  type(canonical_sorter),allocatable :: sorters(:)
+  real(wp),allocatable :: rmsds(:)
+  type(coord),pointer :: ref,mol
+  type(coord) :: molloc
+  real(wp) :: rmsdval,runtime
+  logical :: stereocheck
+  type(timer) :: profiler
+
+  logical,parameter :: debug = .true.
+  real(wp),allocatable :: debugrmsds(:)
+
+  !> for implementing OpenMP parallelism
+  T = 1
+
+  !> print level
+  if (present(printlvl)) then
+    prlvl = printlvl
+  else
+    prlvl = 0
+  end if
+
+  !> set up timer
+  call profiler%init(3)
+
+  !> prepare workspace
+  nallpairs = (nall*(nall+1))/2
+  allocate (rmsds(nallpairs),source=0.0_wp)
+  if (debug) then
+    allocate (debugrmsds(nallpairs),source=0.0_wp)
+  end if
+
+  allocate (rcaches(T))
+  ref => structures(1)
+  nat = ref%nat
+  allocate (workmols(T))
+  do i = 1,T
+    mol => workmols(i)
+    allocate (mol%at(ref%nat))
+    allocate (mol%xyz(3,ref%nat))
+    nullify (mol)
+    call rcaches(i)%allocate(ref%nat)
+  end do
+
+  !> set up ranks for each structure
+  call profiler%start(1)
+  allocate (sorters(nall))
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Setting up canonical atom ranks ... '
+    flush (stdout)
+  end if
+  do ii = 1,nall
+    mol => structures(ii)
+    call axis(mol%nat,mol%at,mol%xyz)
+    call sorters(ii)%init(mol,invtype='apsp+',heavy=.false.)
+    !call sorters(ii)%add_h_ranks(mol)
+    if (ii == 1) then
+      stereocheck = .not. (sorters(ii)%hasstereo(ref))
+    end if
+    call sorters(ii)%shrink()
+  end do
+  call profiler%stop(1)
+  if (prlvl > 0) then
+    call profiler%write_timing(stdout,1,'done.',.true.)
+    runtime = (profiler%get(1)/real(nall,wp))*1000.0_wp
+    write (stdout,'(a,f0.3,a)') 'CREGEN> Corresponding to approximately ',runtime, &
+    &                       ' ms per processed structure'
+  end if
+
+  !> And finally, run the RMSD checks
+  call profiler%start(2)
+  if (prlvl > 0) then
+    write (stdout,*)
+    write (stdout,'(a)',advance='no') 'CREGEN> Running all pair RMSDs ... '
+    flush (stdout)
+  end if
+  cc = 1
+  do ii = 1,nall
+    rcaches(cc)%stereocheck = stereocheck
+    rcaches(cc)%rank(1:nat,1) = sorters(ii)%rank(1:nat)
+    do jj = ii+1,nall
+      workmols(cc)%nat = structures(jj)%nat
+      workmols(cc)%at(:) = structures(jj)%at(:)
+      workmols(cc)%xyz(:,:) = structures(jj)%xyz(:,:)
+      !molloc = structures(jj)
+      rcaches(cc)%rank(:,2) = sorters(jj)%rank(:)
+      call min_rmsd(structures(ii),workmols(cc), &
+      &        rcache=rcaches(cc),rmsdout=rmsdval)
+      rmsds(lin(ii,jj)) = rmsdval
+    end do
+  end do
+  call profiler%stop(2)
+  if (prlvl > 0) then
+    call profiler%write_timing(stdout,2,'done.',.true.)
+    !write (stdout,'(a)',advance='yes') 'done.'
+    runtime = (profiler%get(2)/real(nallpairs,wp))*1000.0_wp
+    write (stdout,'(a,f0.3,a)') 'CREGEN> Corresponding to approximately ',runtime, &
+    &                       ' ms per processed RMSD'
+
+  end if
+
+  if (debug) then
+    !> RMSD without permutation
+    do ii = 1,nall
+      do jj = ii+1,nall
+        rmsdval = rmsd(structures(ii),structures(jj))
+        debugrmsds(lin(ii,jj)) = rmsdval
+      end do
+    end do
+  end if
+
+  if (prlvl > 1) then
+    write (stdout,'(a)') 'CREGEN> Writing cregen_rmsds.csv with RMSDs in Angström'
+    open (newunit=iunit,file='cregen_rmsds.csv')
+    if (debug) then
+      write (iunit,'(a,3(",",a))') 'A','B','rmsd','rmsdref'
+      do ii = 1,nall
+        do jj = ii+1,nall
+          write (iunit,'(i0,",",i0,2(",",f0.7))') &
+          & min(ii,jj),max(ii,jj),rmsds(lin(ii,jj))*autoaa,debugrmsds(lin(ii,jj))*autoaa
+        end do
+      end do
+    else
+      write (iunit,'(a,",",a,",",a)') 'A','B','rmsd'
+      do ii = 1,nall
+        do jj = ii+1,nall
+          write (iunit,'(i0,",",i0,",",f0.7)') min(ii,jj),max(ii,jj),rmsds(lin(ii,jj))*autoaa
+        end do
+      end do
+    end if
+    close (iunit)
+  end if
+
+  deallocate (sorters)
+  deallocate (workmols)
+  deallocate (rcaches)
+  deallocate (rmsds)
+end subroutine cregen_irmsd_all
+
+!=========================================================================================!
+
+subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
+!*******************************************************
+!* Proof-of-concept routine to analyze an
+!* ensemble only via the iRMSD procedure.
+!* Conformers are identified by the rthr threshold only
+!*******************************************************
+  use crest_parameters
+  use crest_data
+  use iomod,only:to_str
+  use strucrd
+  use axis_module
+  use canonical_mod
+  use irmsd_module
+  use utilities,only:lin
+  use omp_lib
+  implicit none
+  !> INPUT
+  type(systemdata),intent(inout) :: env
+  integer,intent(in) :: nall
+  type(coord),intent(inout),target :: structures(nall)
+  integer,intent(inout) :: groups(nall)
+  logical,intent(in),optional :: allcanon
+  integer,intent(in),optional :: printlvl
+
+  !> LOCAL
+  integer :: i,j,ii,jj,T,Tn,nallpairs,cc,nat
+  integer :: gcount
+  integer :: prlvl,iunit
+  type(rmsd_cache),allocatable :: rcaches(:)
+  type(coord),allocatable,target :: workmols(:)
+  type(canonical_sorter),allocatable :: sorters(:)
+  real(wp),allocatable :: rmsds(:)
+  type(coord),pointer :: ref,mol
+  type(coord) :: molloc
+  real(wp) :: rmsdval,runtime,RTHR
+  logical :: stereocheck,individual_IDs
+  type(timer) :: profiler
+
+  logical,parameter :: debug = .true.
+
+!>--- handle optional arguments
+  if (present(allcanon)) then
+    individual_IDs = allcanon
+  else
+    individual_IDs = .false.
+  end if
+  if (present(printlvl)) then
+    prlvl = printlvl
+  else
+    prlvl = 1
+  end if
+
+!>--- set up parallelization
+  call new_ompautoset(env,'max',nall,T,Tn)
+
+!>--- set up timer
+  call profiler%init(3)
+
+!>--- set up parameters (note we are working with BOHR internally)
+  RTHR = env%rthr*aatoau
+
+!>--- print some sorting data
+  if (prlvl > 0) then
+    write (stdout,'(a)') 'CREGEN> Info for iRMSD sorting:'
+    write (stdout,'(2x,a,i9)') 'number of structures  :',nall
+    write (stdout,'(2x,a,f9.5,a)') 'RTHR (RMSD threshold) :',RTHR*autoaa,' Å'
+    write (stdout,'(2x,a,i9)') 'OpenMP threads        :',T
+    write (stdout,'(2x,a,a9)') 'Individual atom IDs?  :',to_str(individual_IDs)
+    write (stdout,*)
+  end if
+
+!>--- Set up atom identities (either for all, or just the first structure)
+  if (individual_IDs) then
+    allocate (sorters(nall))
+  else
+    allocate (sorters(1))
+  end if
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Setting up canonical atom ranks ... '
+    flush (stdout)
+    call profiler%start(1)
+  end if
+  ref => structures(1)
+  !$omp parallel &
+  !$omp shared(sorters, structures, stereocheck) &
+  !$omp private(mol,ii)
+  !$omp do schedule(dynamic)
+  do ii = 1,nall
+    mol => structures(ii)
+    call axis(mol%nat,mol%at,mol%xyz)
+    if (individual_IDs.or.ii == 1) then
+      call sorters(ii)%init(mol,invtype='apsp+',heavy=.false.)
+    end if
+    if (ii == 1) then
+      stereocheck = .not. (sorters(ii)%hasstereo(ref))
+    end if
+    if (individual_IDs.or.ii == 1) then
+      call sorters(ii)%shrink()
+    end if
+  end do
+  !$omp end do
+  !$omp end parallel
+  if (prlvl > 0) then
+    call profiler%stop(1) 
+    call profiler%write_timing(stdout,1,'done.',.true.)
+    runtime = (profiler%get(1)/real(nall,wp))*1000.0_wp
+    write (stdout,'(1x,a,f0.3,a)') '* Corresponding to approximately ',runtime, &
+    &                       ' ms per processed RMSD'
+    write (stdout,*)
+  end if
+
+!>--- allocate work cache
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Allocating iRMSD work cache ... '
+    flush (stdout)
+  end if
+  allocate (rcaches(T))
+  ref => structures(1)
+  nat = ref%nat
+  allocate (workmols(T))
+  do i = 1,T
+    mol => workmols(i)
+    allocate (mol%at(ref%nat))
+    allocate (mol%xyz(3,ref%nat))
+    nullify (mol)
+    call rcaches(i)%allocate(ref%nat)
+    rcaches(i)%stereocheck = stereocheck
+  end do
+  if (prlvl > 0) then
+    write (stdout,'(a)') 'done.'
+    write (stdout,*)
+  end if
+
+!>--- run the checks
+  if (prlvl > 0) then
+    write (stdout,'(a)',advance='no') 'CREGEN> Running all pair RMSDs ... '
+    flush (stdout)
+    call profiler%start(2)
+  end if
+  gcount = maxval(groups(:))
+  do ii = 1,nall
+!>--- find next unassigned conformer and assign a new group
+    if (groups(ii) .ne. 0) cycle
+    gcount = gcount+1
+    groups(ii) = gcount
+
+!>--- Then, cross-check all other unassigned conformers
+    !$omp parallel &
+    !$omp shared(nall, nat, groups, individual_IDs, sorters, rcaches) &
+    !$omp shared(workmols, structures, ii) &
+    !$omp private(jj,rmsdval,cc)
+    !$omp do schedule(dynamic)
+    do jj = ii+1,nall
+      cc = omp_get_thread_num()+1
+      if (groups(jj) .ne. 0) cycle
+      if (individual_IDs) then
+        rcaches(cc)%rank(1:nat,1) = sorters(ii)%rank(1:nat)
+        rcaches(cc)%rank(1:nat,2) = sorters(jj)%rank(1:nat)
+      else
+        rcaches(cc)%rank(1:nat,1) = sorters(1)%rank(1:nat)
+        rcaches(cc)%rank(1:nat,2) = sorters(1)%rank(1:nat)
+      end if
+      workmols(cc)%nat = structures(jj)%nat
+      workmols(cc)%at(:) = structures(jj)%at(:)
+      workmols(cc)%xyz(:,:) = structures(jj)%xyz(:,:)
+      call min_rmsd(structures(ii),workmols(cc), &
+      &        rcache=rcaches(cc),rmsdout=rmsdval)
+      if (rmsdval < RTHR) groups(jj) = gcount
+    end do
+    !$omp end do
+    !$omp end parallel
+  end do
+  if (prlvl > 0) then
+  call profiler%stop(2) 
+  call profiler%write_timing(stdout,2,'done.',.true.)
+    write (stdout,*)
+  end if
+
+  if (debug) then
+    write (*,*) 'assigned groups, and count'
+    do ii = 1,maxval(groups(:))
+      write (*,*) ii,count(groups(:) == ii)
+    end do
+  end if
+
+end subroutine cregen_irmsd_sort
 
 !=========================================================================================!
 
@@ -1941,6 +2327,7 @@ subroutine cregen_repairorder(nat,nall,xyz,comments,group)
   use crest_data
   use strucrd
   use utilities
+  use quicksort_interface
   implicit none
   integer,intent(in) :: nat
   integer,intent(in) :: nall
@@ -1994,7 +2381,8 @@ subroutine cregen_repairorder(nat,nall,xyz,comments,group)
   call xyzqsort(nat,nall,xyz,cdum,order,1,nall)
   deallocate (cdum)
   order = orderref
-  call stringqsort(nall,comments,1,nall,order)
+  !call stringqsort(nall,comments,1,nall,order)
+  call stringqsort(nall,len(comments(1)),comments,1,nall,order)
   if (ttag) then
     edum = grepenergy(comments(1))
     write (btmp,*) edum,'!t1'
@@ -2314,11 +2702,13 @@ end subroutine cregen_bonusfiles
 subroutine cregen_setthreads(ch,env,pr)
   use crest_parameters
   use crest_data
+  use omp_lib
   implicit none
   type(systemdata) :: env
   integer :: ch
   logical :: pr
-  integer :: TID,OMP_GET_NUM_THREADS,OMP_GET_THREAD_NUM,nproc,T,Tn
+  !integer :: TID,OMP_GET_NUM_THREADS,OMP_GET_THREAD_NUM,
+  integer :: TID,nproc,T,Tn
 !>---- setting the threads for OMP parallel usage
   if (env%autothreads) then
     call new_ompautoset(env,'max',0,T,Tn)

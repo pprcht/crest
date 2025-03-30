@@ -17,27 +17,16 @@
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
-  "${dir}/singlepoint.f90"
-  "${dir}/dynamics.f90"
-  "${dir}/numhess.f90"
-  "${dir}/optimization.f90"
-  "${dir}/playground.f90"
-  "${dir}/crossing.f90"
-  "${dir}/refine.f90"
-  "${dir}/scan.f90" 
-  "${dir}/search_1.f90"
-  "${dir}/search_mecp.f90"
-  "${dir}/setuptest.f90"
-  "${dir}/sorting.f90"
-  "${dir}/protonate.f90"
-  "${dir}/hessian_tools.f90"
-  "${dir}/ConfSolv.F90"
-  "${dir}/search_conformers.f90"
-  "${dir}/search_entropy.f90"
-  "${dir}/parallel.f90"
+  "${dir}/algo.f90"
+  "${dir}/basinhopping.f90"
+  "${dir}/class.f90"
+  "${dir}/mc.f90"
+  "${dir}/takestep.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)
+
+
 
 
 
