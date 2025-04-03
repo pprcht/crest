@@ -20,6 +20,7 @@ list(APPEND srcs
   "${dir}/ancopt.f90"
   "${dir}/gd.f90"
   "${dir}/rfo.f90"
+  "${dir}/lbfgs.f90"
   "${dir}/hessupdate.f90"
   "${dir}/modelhessian.f90"
   "${dir}/optimize_maths.f90"

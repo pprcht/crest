@@ -31,6 +31,7 @@ module optimize_module
   use ancopt_module
   use gradientdescent_module
   use rfo_module
+  use lbfgs_module
   use optimize_utils
   implicit none
   private
