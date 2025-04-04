@@ -410,7 +410,7 @@ contains  !> MODULE PROCEDURES START HERE
         write (*,chrfmt) "Hessian update    ","schlegel"
       end select
     end if
-    write (*,chrfmt) "write crestopt.log",bool2string(wr)
+    write (*,chrfmt) "write crestopt.log.xyz",bool2string(wr)
     if (linear) then
       write (*,chrfmt) "linear (good luck)",bool2string(linear)
     else

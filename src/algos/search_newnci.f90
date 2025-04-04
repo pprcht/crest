@@ -121,8 +121,8 @@ subroutine crest_search_newnci(env,tim)
       call tim%start(2,'Metadynamics (MTD)')
       call crest_search_multimd(env,mol,mddats,nsim)
       call tim%stop(2)
-!>--- a file called crest_dynamics.trj should have been written
-      ensnam = 'crest_dynamics.trj'
+!>--- a file called crest_dynamics.trj.xyz should have been written
+      ensnam = 'crest_dynamics.trj.xyz'
 !>--- deallocate for next iteration
       if (allocated(mddats)) deallocate (mddats)
 

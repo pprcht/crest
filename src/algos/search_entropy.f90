@@ -130,8 +130,8 @@ subroutine crest_search_entropy(env,tim)
       call tim%start(2,'Metadynamics (MTD)')
       call crest_search_multimd(env,mol,mddats,nsim)
       call tim%stop(2)
-!>--- a file called crest_dynamics.trj should have been written
-      ensnam = 'crest_dynamics.trj'
+!>--- a file called crest_dynamics.trj.xyz should have been written
+      ensnam = 'crest_dynamics.trj.xyz'
 !>--- deallocate for next iteration
       if (allocated(mddats)) deallocate (mddats)
 
@@ -373,10 +373,10 @@ subroutine crest_smtd_mds(env,ensnam)
 !===================================================================!
 !>--- and finally, run the sMTDs on the different starting structures
   call crest_search_multimd2(env,mols,mddats,nsim)
-!>--- output will be collected in crest_dynamics.trj
+!>--- output will be collected in crest_dynamics.trj.xyz
 !>--- but the entropy routines look for the crest_rotamers_ files
   call checkname_xyz(crefile,atmp,btmp)
-  call rename('crest_dynamics.trj',atmp)
+  call rename('crest_dynamics.trj.xyz',atmp)
 !===================================================================!
 !>--- by default, clean up the directory
   if (.not.env%keepModef) call cleanMTD

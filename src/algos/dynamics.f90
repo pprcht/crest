@@ -39,7 +39,7 @@ subroutine crest_moleculardynamics(env,tim)
   real(wp),allocatable :: grad(:,:)
 
   character(len=80) :: atmp
-  character(len=*),parameter :: trjf='crest_dynamics.trj'
+  character(len=*),parameter :: trjf='crest_dynamics.trj.xyz'
 !========================================================================================!
   write(stdout,*)
   !call system('figlet dynamics')
