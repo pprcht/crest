@@ -144,7 +144,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
 
 !>--- printout directions and timer initialization
   pr = .false. !> stdout printout
-  wr = .false. !> write crestopt.log
+  wr = .false. !> write crestopt.log.xyz
   call profiler%init(1)
   call profiler%start(1)
 
@@ -330,7 +330,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
 
 !>--- printout directions and timer initialization
   pr = .false. !> stdout printout
-  wr = .false. !> write crestopt.log
+  wr = .false. !> write crestopt.log.xyz
   if (dump) then
     open (newunit=ich,file=ensemblefile)
     open (newunit=ich2,file=ensembleelog)
@@ -542,7 +542,7 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
 !===========================================================!
 !>--- decide wether to skip this call
   if (trackrestart(env)) then
-    call restart_write_dummy('crest_dynamics.trj')
+    call restart_write_dummy('crest_dynamics.trj.xyz')
     return
   end if
 
@@ -643,7 +643,7 @@ contains
     integer :: i,io,ich,ich2
     character(len=:),allocatable :: atmp
     character(len=256) :: btmp
-    open (newunit=ich,file='crest_dynamics.trj')
+    open (newunit=ich,file='crest_dynamics.trj.xyz')
     do i = 1,n
       atmp = mddats(i)%trajectoryfile
       inquire (file=atmp,exist=ex)
@@ -850,7 +850,7 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
 !===========================================================!
 !>--- decide wether to skip this call
   if (trackrestart(env)) then
-    call restart_write_dummy('crest_dynamics.trj')
+    call restart_write_dummy('crest_dynamics.trj.xyz')
     return
   end if
 
@@ -944,7 +944,7 @@ contains
     integer :: i,io,ich,ich2
     character(len=:),allocatable :: atmp
     character(len=256) :: btmp
-    open (newunit=ich,file='crest_dynamics.trj')
+    open (newunit=ich,file='crest_dynamics.trj.xyz')
     do i = 1,n
       atmp = mddats(i)%trajectoryfile
       inquire (file=atmp,exist=ex)

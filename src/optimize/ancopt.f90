@@ -61,7 +61,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>             on output final energy
 !>      grd  - Cartesian gradient
 !>       pr  - printout bool
-!>       wr  - logfile (crestopt.log) bool
+!>       wr  - logfile (crestopt.log.xyz) bool
 !>  iostatus - return status of the routine
 !>             (success=0, error<0, not converged>0)
 !!***********************************************************************
@@ -171,7 +171,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- initialize .log file, if desired
     ilog = 942
     if (wr) then
-      open (newunit=ilog,file='crestopt.log')
+      open (newunit=ilog,file='crestopt.log.xyz')
     end if
 
 !>--- The ANCOPT iteration loop. "iter" is updated in relax() subroutine

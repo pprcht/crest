@@ -287,7 +287,7 @@ contains
     allocate (grad(3,mol%nat),source=0.0_wp)
     !>-- geometry optimization
     pr = .false. !> stdout printout
-    wr = .true. !> write crestopt.log
+    wr = .true. !> write crestopt.log.xyz
     molbackup = mol
     do j=1,calc%scans(current)%steps 
       !write(*,*) current, calc%scans(current)%steps, j
