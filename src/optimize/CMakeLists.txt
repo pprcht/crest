@@ -23,6 +23,7 @@ list(APPEND srcs
   "${dir}/lbfgs.f90"
   "${dir}/hessupdate.f90"
   "${dir}/modelhessian.f90"
+  "${dir}/coordtrafo.f90"
   "${dir}/optimize_maths.f90"
   "${dir}/optimize_module.f90"
   "${dir}/optimize_type.f90"

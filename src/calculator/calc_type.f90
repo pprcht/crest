@@ -249,6 +249,7 @@ module calc_type
     logical  :: tsopt = .false.
     integer  :: iupdat = 0  !> 0=BFGS, 1=Powell, 2=SR1, 3=Bofill, 4=Schlegel
     integer  :: opt_engine = 0 !> default: ANCOPT
+    integer  :: lbfgs_histsize = 20  !> L-BFGS history size
 
 !>--- GFN0* data, needed for special MECP application
     type(gfn0_data),allocatable  :: g0calc

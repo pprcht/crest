@@ -17,11 +17,15 @@
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
 
+!> This module implemnts a simple L-BFGS with different coordinate choices
+
 module lbfgs_module
   use,intrinsic :: iso_fortran_env,only:wp => real64
   use crest_calculator
   use strucrd
   use optimize_type  !> This module provides the 'optimizer' type.
+  use optimize_utils
+  use coordinate_transform_module
   implicit none
   private
 
@@ -33,7 +37,7 @@ contains !>  MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  function lbfgs_direction(nvar,g,k,OPT,gamma) result(d)
+  function lbfgs_direction(nvar,g,k,OPT,gamm) result(d)
     !*******************************************************************************
     !* Two-loop recursion routine to compute the search direction.
     !*
@@ -59,7 +63,7 @@ contains !>  MODULE PROCEDURES START HERE
     !*     => rho    Array of stored values 1/(y^T*s) for each correction.
     !*     => alpha  coefficients (get computed in this function)
     !*     => q      temporary workspace
-    !* @param gamma  Scaling factor for the initial Hessian approximation.
+    !* @param gamm  Scaling factor for the initial Hessian approximation.
     !*
     !* @return d     Computed search direction (negative approximate inverse
     !*               Hessian times g).
@@ -68,7 +72,7 @@ contains !>  MODULE PROCEDURES START HERE
     integer,intent(in) :: nvar,k
     type(optimizer),intent(inout) :: OPT
     real(wp),intent(in) :: g(nvar)
-    real(wp),intent(in) :: gamma
+    real(wp),intent(in) :: gamm
     !> OUTPUT
     real(wp) :: d(nvar)
     !> LOCAL
@@ -76,6 +80,9 @@ contains !>  MODULE PROCEDURES START HERE
 
     associate (S => OPT%S,Y => OPT%Y,alpha => OPT%alpha,rho => OPT%rho,q => OPT%q)
 
+      !write(*,*) k
+      !write(*,*) S(:,k)
+      !write(*,*) Y(:,k)
       !> Initialize q with the current gradient.
       q = g
 
@@ -90,9 +97,9 @@ contains !>  MODULE PROCEDURES START HERE
 
       !---------------------------------------------------------
       !> Apply the initial Hessian approximation.
-      !> We use a scaled identity matrix H0 = gamma * I.
+      !> We use a scaled identity matrix H0 = gamm * I.
       !---------------------------------------------------------
-      d = gamma*q
+      d = gamm*q
 
       !---------------------------------------------------------
       !> Second loop (forward pass): for i = 1 to k,
@@ -108,26 +115,9 @@ contains !>  MODULE PROCEDURES START HERE
     end associate
   end function lbfgs_direction
 
-  subroutine obj_func(x,f,g)
-    !************************************************************************
-    !* Dummy objective function (quadratic).
-    !*
-    !* This subroutine computes the value and gradient of the objective
-    !* function defined as f(x) = 1/2 * x^T * x. Its gradient is simply x.
-    !* Replace this with your actual function evaluations.
-    !*
-    !* @param x   Input variable vector.
-    !* @param f   Output function value.
-    !* @param g   Output gradient vector.
-    !***********************************************************************
-    real(wp),intent(in)  :: x(:)
-    real(wp),intent(out) :: f
-    real(wp),intent(out) :: g(size(x))
-    f = 0.5_wp*dot_product(x,x)
-    g = x
-  end subroutine obj_func
+!========================================================================================!
 
-  subroutine lbfgs_optimize(mol,calc,etot,grd,nvar,x,max_iter,m,tol,pr,io)
+  subroutine lbfgs_optimize(mol,calc,etot,grd,pr,io)
     !**************************************************************************
     !* L-BFGS Optimization Routine
     !*
@@ -143,11 +133,6 @@ contains !>  MODULE PROCEDURES START HERE
     !*  4. Updating the correction pairs: s = x_new - x and y = g_new - g, while managing
     !*     the history using a shifting strategy when full.
     !*
-    !* @param nvar     Integer. Dimension of the variable space.
-    !* @param x        Real(wp) array. Input coordinate vector; updated with optimized values.
-    !* @param max_iter Integer. Maximum number of iterations allowed.
-    !* @param m        Integer. Maximum number of stored corrections (history length).
-    !* @param tol      Real(wp). Convergence tolerance (stopping criteria based on f).
     !* @param io       Integer. Output status variable (0 indicates success).
     !**************************************************************************
     implicit none
@@ -156,86 +141,122 @@ contains !>  MODULE PROCEDURES START HERE
     type(calcdata),intent(in) :: calc
     real(wp),intent(inout) :: etot
     real(wp),intent(inout) :: grd(3,mol%nat)
-    integer,intent(in)     :: nvar
-    real(wp),intent(inout) :: x(nvar)
-    integer,intent(in)     :: max_iter,m
-    real(wp),intent(in)    :: tol
     logical,intent(in)     :: pr
     !> OUTPUT
     integer,intent(out)    :: io
     !> LOCAL
     type(optimizer) :: OPT
-    integer :: iter,k
-    real(wp) :: gnorm,deltaE
-    real(wp),allocatable :: g(:),d(:),g_new(:),x_new(:)
-    real(wp) :: f,f_new,gamma,step
+    integer :: iter,k,nvar,m
+    integer :: tight,max_iter
+    real(wp) :: gnorm,deltaE,energy
+    real(wp) :: ethr,gthr,maxerise
+    logical :: econverged,gconverged,converged,Erise
+    real(wp),allocatable :: x(:),g(:),d(:),g_new(:),x_new(:),gtmp(:,:)
+    real(wp) :: f,f_new,gamm,step
+    integer :: ilog
 
     !> Prepare settings
     io = 0
+    nvar = compute_nvar(mol)
+    m = calc%lbfgs_histsize
+    gnorm = norm2(grd)
+    deltaE = huge(deltaE)
+    tight = calc%optlev
+    call get_optthr(mol%nat,tight,calc,ethr,gthr)
+    max_iter = calc%maxcycle !> automatic setting in get_optthr or by user
+    maxerise = calc%maxerise
+    econverged = .false.
+    gconverged = .false.
+    converged = .false.
 
+    open (newunit=ilog,file='crestopt.log.xyz')
+    call mol%appendlog(ilog,etot)
 
+    !$omp critical
     !> Allocate the vectors for position, gradient, and search direction.
-    allocate (g(nvar),d(nvar),g_new(nvar),x_new(nvar))
+    allocate (x(nvar),g(nvar),d(nvar),g_new(nvar),x_new(nvar),gtmp(3,mol%nat))
     !> Allocate matrices to store up to m correction pairs (columns correspond to each stored pair).
     call OPT%allocatelbfgs(nvar,m)
+    !$omp end critical
+
     associate (S => OPT%S,Y => OPT%Y,rho => OPT%rho,alpha => OPT%alpha)
       S = 0.0_wp
       Y = 0.0_wp
       rho = 0.0_wp
       k = 0  ! Initially, no correction pairs are stored.
 
-      !> Evaluate the objective function and its gradient at the starting point.
-      call obj_func(x,f,g)
+      !> First trafo
+      call transform_mol('cart2v',mol,nvar,x)
+      call transform_grd('cart2v',mol,grd,nvar,g)
 
       iter = 0
-      if (pr) call print_optiter(iter)
-      gnorm = norm2(grd)
       if (pr) then
+        call print_optiter(iter)
         write (*,'(" * total energy  :",f14.7,1x,"Eh")',advance='no') etot
         write (*,'(5x,"change ΔE",e18.7,1x,"Eh")') 0.0_wp
         write (*,'(3x,"gradient norm :",f14.7,1x,"Eh/a0")') gnorm
       end if
 
-      do while (f > tol.and.iter < max_iter)
+      LBFGS_iter: do while (.not.converged.and.iter < max_iter)
         iter = iter+1
-        if (pr) call print_optiter(iter) 
+        if (pr) call print_optiter(iter)
 
         if (iter == 1) then
           !> First iteration: use the steepest descent direction.
           d = -g
         else
           !---------------------------------------------------------
-          !> Determine the scaling factor gamma for the initial Hessian.
+          !> Determine the scaling factor gamm for the initial Hessian.
           !  Here we use the most recent correction pair.
           !---------------------------------------------------------
           if (k > 0) then
-            gamma = dot_product(S(1:nvar,k),Y(1:nvar,k))/ &
-                    dot_product(Y(1:nvar,k),Y(1:nvar,k))
+            gamm = dot_product(S(1:nvar,k),Y(1:nvar,k))/ &
+                   dot_product(Y(1:nvar,k),Y(1:nvar,k))
           else
-            gamma = 1.0_wp
+            gamm = 1.0_wp
           end if
 
           !> Compute the search direction using the two-loop recursion.
-          d = lbfgs_direction(nvar,g,k,OPT,gamma)
+          d = lbfgs_direction(nvar,g,k,OPT,gamm)
         end if
 
         !---------------------------------------------------------
         !> A fixed step size could be used here for simplicity.
         !  In a full implementation, a line search could be used.
+        !  If the energy rises, we reduce the stepsize iteratively
         !---------------------------------------------------------
-        step = 1.0_wp
+        step = 0.2_wp
 
-        !> Update the position: x_new = x + step * d.
-        x_new = x+step*d
+        Erise = .true.
+        do while (Erise)
+          !> Update the position: x_new = x + step * d.
+          x_new = x+step*d
 
-        !====================================================================!
-        !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-        !> Evaluate the objective and gradient at the new position.
-        call obj_func(x_new,f_new,g_new)
-        !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-        !====================================================================!
-        if (io /= 0) exit
-        gnorm = norm2(grd) 
+          !====================================================================!
+          !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+          !> Evaluate the objective and gradient at the new position.
+          call transform_mol('v2cart',mol,nvar,x_new)
+          grd = 0.0_wp
+          call engrad(mol,calc,energy,gtmp,io)
+          call mol%appendlog(ilog,energy)
+          !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+          !====================================================================!
+          if (io /= 0) exit
+
+          call transform_grd('cart2v',mol,gtmp,nvar,g_new)
+          gnorm = norm2(gtmp)
+          deltaE = energy-etot
+
+          Erise = (deltaE > maxerise)
+          if (Erise) then
+            step = step*0.25_wp
+            if (pr) then
+              write (*,'(" * energy rise detected, decreasing stepsize")')
+            end if
+          end if
+        end do
+        econverged = abs(deltaE) .lt. ethr
+        gconverged = gnorm .lt. gthr
 
         !---------------------------------------------------------
         !> Compute the correction pair:
@@ -261,22 +282,30 @@ contains !>  MODULE PROCEDURES START HERE
         !> Update the current position, gradient, and function value.
         x = x_new
         g = g_new
-        f = f_new
+        etot = energy
 
         !> Optional: print iteration information.
         if (pr) then
           write (*,'(" * total energy  :",f14.7,1x,"Eh")',advance='no') etot
           write (*,'(5x,"change ΔE",e18.7,1x,"Eh")') deltaE
           write (*,'(3x,"gradient norm :",f14.7,1x,"Eh/a0")',advance='no') gnorm
+          call print_convd(econverged,gconverged)
         end if
-      end do
+        converged = econverged.and.gconverged
+      end do LBFGS_iter
 
       !> stop associating
     end associate
 
+    !> Final trafo
+    call transform_mol('v2cart',mol,nvar,x_new)
+    call transform_grd('v2cart',mol,grd,nvar,g_new)
+
     !> Deallocate all temporary arrays.
-    deallocate (g,d,g_new,x_new)
+    deallocate (x_new,g_new,d,g,x)
   end subroutine lbfgs_optimize
 
+!========================================================================================!
+!========================================================================================!
 end module lbfgs_module
 

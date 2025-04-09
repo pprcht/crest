@@ -23,7 +23,7 @@
 !> This module implements a standard RFO algorithm (in Cart. coords)
 
 module rfo_module
-  use iso_fortran_env, only: wp=>real64, sp=>real32
+  use iso_fortran_env,only:wp => real64,sp => real32
   use crest_calculator
   use axis_module
   use strucrd
@@ -121,7 +121,6 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),external :: ddot
     real(sp),external :: sdot
 
-
     iostatus = 0
     fail = .false.
     converged = .false.
@@ -133,7 +132,7 @@ contains  !> MODULE PROCEDURES START HERE
     iupdat = calc%iupdat
     hlow = calc%hlow_opt !> 0.01 in ancopt, 0.002 too small
     hmax = calc%hmax_opt
-    maxdispl = calc%maxdispl_opt 
+    maxdispl = calc%maxdispl_opt
     gnorm = 0.0_wp
     depred = 0.0_wp
     echng = 0.0_wp
@@ -181,23 +180,23 @@ contains  !> MODULE PROCEDURES START HERE
     npvar = OPT%nvar*(nvar1)/2 !> packed size of Hessian (note the abuse of nvar1!)
     npvar1 = nvar1*(nvar1+1)/2 !> packed size of augmented Hessian
     allocate (Uaug(nvar1,1),eaug(nvar1),Aaug(npvar1))
-    allocate ( gold(OPT%nvar),displ(OPT%nvar),grd1(OPT%nvar),source=0.0_wp)
+    allocate (gold(OPT%nvar),displ(OPT%nvar),grd1(OPT%nvar),source=0.0_wp)
     !$omp end critical
 
 !>------------------------------------------------------------------------
 !>--- put the Hessian guess into the type
 !>------------------------------------------------------------------------
-   k = 0
-   do i = 1,nat3
-     do j = 1,i
-       k = k+1
-       if( i /= j )then
-         OPT%hess(k) = 0.0_wp
-       else
-         OPT%hess(k) = calc%hguess
-       endif
-     end do
-   end do
+    k = 0
+    do i = 1,nat3
+      do j = 1,i
+        k = k+1
+        if (i /= j) then
+          OPT%hess(k) = 0.0_wp
+        else
+          OPT%hess(k) = calc%hguess
+        end if
+      end do
+    end do
 
 !>--- backup coordinates, and starting energy
     molopt%nat = mol%nat
@@ -302,13 +301,13 @@ contains  !> MODULE PROCEDURES START HERE
       alp = 1.0d-1
       if (gnorm .lt. 0.002) then ! 0.002
         alp = 1.5d-1 ! 1.5
-      endif
+      end if
       if (gnorm .lt. 0.0006) then
         alp = 2.0d-1 ! 2
-      endif
+      end if
       if (gnorm .lt. 0.0003) then
         alp = 3.0d-1 ! 3
-      endif
+      end if
 
 !>------------------------------------------------------------------------
 !> Update the Hessian
@@ -460,9 +459,9 @@ contains  !> MODULE PROCEDURES START HERE
 
 !> deallocate data
     !$omp critical
-    if (allocated(gold)) deallocate(gold)
-    if (allocated(displ)) deallocate(displ)
-    if (allocated(grd1)) deallocate(grd1)
+    if (allocated(gold)) deallocate (gold)
+    if (allocated(displ)) deallocate (displ)
+    if (allocated(grd1)) deallocate (grd1)
     if (allocated(Uaug)) deallocate (Uaug)
     if (allocated(eaug)) deallocate (eaug)
     if (allocated(Aaug)) deallocate (Aaug)

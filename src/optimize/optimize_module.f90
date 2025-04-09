@@ -82,8 +82,10 @@ contains  !> MODULE PROCEDURES START HERE
        call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
     case ( 1)
        !> l-bfgs goes here
-      write(stdout,'(a)') 'L-BFGS currently not implemented'
-      stop
+      !write(stdout,'(a)') 'L-BFGS currently not implemented'
+      !stop
+      call lbfgs_optimize(molnew,calc,etot,grd,pr,iostatus)
+
     case ( 2)
        !> rfo goes here
        call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
