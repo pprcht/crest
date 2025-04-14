@@ -37,7 +37,7 @@ module cregen_interface
 !* module to load an interface to the newcregen routine
 !* mandatory to handle the optional input arguments
 !*******************************************************
-  use unionize_module  
+  use unionize_module
   implicit none
   interface
     subroutine newcregen(env,quickset,infile)
@@ -51,13 +51,14 @@ module cregen_interface
       character(len=*),intent(in),optional :: infile
     end subroutine newcregen
 
-    subroutine cregen_irmsd_all(nall,structures,printlvl)
+    subroutine cregen_irmsd_all(nall,structures,printlvl,iinversion)
       use strucrd
       implicit none
       !> INPUT
       integer,intent(in) :: nall
       type(coord),intent(inout),target :: structures(nall)
       integer,intent(in),optional :: printlvl
+      integer,intent(in),optional :: iinversion
     end subroutine cregen_irmsd_all
 
     subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
@@ -75,7 +76,7 @@ module cregen_interface
 
   end interface
 !>--- Additional Related RE-EXPORTS
-  public :: unionizeEnsembles 
+  public :: unionizeEnsembles
 end module cregen_interface
 
 subroutine newcregen(env,quickset,infile)
@@ -1540,7 +1541,7 @@ end subroutine cregen_CRE
 
 !=========================================================================================!
 
-subroutine cregen_irmsd_all(nall,structures,printlvl)
+subroutine cregen_irmsd_all(nall,structures,printlvl,iinversion)
 !********************************************
 !* Proof-of-concept routine to run all
 !* pairs of RMSD for an array of structures
@@ -1557,12 +1558,11 @@ subroutine cregen_irmsd_all(nall,structures,printlvl)
   integer,intent(in) :: nall
   type(coord),intent(inout),target :: structures(nall)
   integer,intent(in),optional :: printlvl
-
+  integer,intent(in),optional :: iinversion
   !> LOCAL
   integer :: i,j,ii,jj,T,nallpairs,cc,nat
   integer :: prlvl,iunit
   type(rmsd_cache),allocatable :: rcaches(:)
-  !type(rmsd_cache) :: rcaches
   type(coord),allocatable,target :: workmols(:)
   type(canonical_sorter),allocatable :: sorters(:)
   real(wp),allocatable :: rmsds(:)
@@ -1630,6 +1630,18 @@ subroutine cregen_irmsd_all(nall,structures,printlvl)
     runtime = (profiler%get(1)/real(nall,wp))*1000.0_wp
     write (stdout,'(a,f0.3,a)') 'CREGEN> Corresponding to approximately ',runtime, &
     &                       ' ms per processed structure'
+  end if
+
+  !> allow user to set inversion check (false rotamers)
+  if (present(iinversion)) then
+    select case (iinversion)
+    case (0)
+      continue
+    case (1)
+      stereocheck = .true.
+    case (2)
+      stereocheck = .false.
+    end select
   end if
 
   !> And finally, run the RMSD checks
@@ -1807,13 +1819,23 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
   !$omp end do
   !$omp end parallel
   if (prlvl > 0) then
-    call profiler%stop(1) 
+    call profiler%stop(1)
     call profiler%write_timing(stdout,1,'done.',.true.)
     runtime = (profiler%get(1)/real(nall,wp))*1000.0_wp
     write (stdout,'(1x,a,f0.3,a)') '* Corresponding to approximately ',runtime, &
     &                       ' ms per processed RMSD'
     write (stdout,*)
   end if
+
+  !>--- allow user to set inversion check (false rotamers)
+  select case (env%iinversion)
+  case (0)
+    continue
+  case (1)
+    stereocheck = .true.
+  case (2)
+    stereocheck = .false.
+  end select
 
 !>--- allocate work cache
   if (prlvl > 0) then
@@ -1877,8 +1899,8 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
     !$omp end parallel
   end do
   if (prlvl > 0) then
-  call profiler%stop(2) 
-  call profiler%write_timing(stdout,2,'done.',.true.)
+    call profiler%stop(2)
+    call profiler%write_timing(stdout,2,'done.',.true.)
     write (stdout,*)
   end if
 

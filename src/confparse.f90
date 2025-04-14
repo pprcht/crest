@@ -645,24 +645,43 @@ subroutine parseflags(env,arg,nra)
         end if
 
       case ('-rmsd','-rmsdheavy','-hrmsd')
+        if ((argument == '-rmsdheavy').or.(argument == '-hrmsd')) then
+          env%sortmode = 'hrmsd'
+        else
+          env%sortmode = 'rmsd'
+        end if
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
-        if ((argument == '-rmsdheavy').or.(argument == '-hrmsd')) then
-          call quick_rmsd_tool(ctmp,dtmp,.true.)
-        else
-          call quick_rmsd_tool(ctmp,dtmp,.false.)
+        env%preopt = .false.
+        env%crestver = crest_sorting
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          env%inputcoords = ctmp
+          env%ensemblename = ctmp
         end if
-        stop
+        inquire (file=dtmp,exist=ex)
+        if (ex) then
+          env%ensemblename2 = dtmp
+        end if
 
       case ('-irmsd','-irmsd_noinv')
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
-        if(index(argument,'_noinv').ne.0)then
-          call irmsd_tool(ctmp,dtmp,.false.)
-        else 
-          call irmsd_tool(ctmp,dtmp,.true.)
-        endif
-        stop
+        env%preopt = .false.
+        env%crestver = crest_sorting
+        env%sortmode = 'irmsd'
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          env%inputcoords = ctmp
+          env%ensemblename = ctmp
+        end if
+        inquire (file=dtmp,exist=ex)
+        if (ex) then
+          env%ensemblename2 = dtmp
+        end if
+        if (index(argument,'_noinv') .ne. 0) then
+          env%iinversion = 2
+        end if
 
       case ('-hungarian','-hungarianheavy','-hhungarian','-lsap','-hlsap','-lsapheavy')
         ctmp = trim(arg(i+1))
@@ -765,15 +784,15 @@ subroutine parseflags(env,arg,nra)
         env%crestver = crest_sorting
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
-        if (ex)then
+        if (ex) then
           env%inputcoords = ctmp
           env%ensemblename = ctmp
-        endif 
-        if(nra >= i+2)then
-        ctmp = trim(arg(i+2))
-        if(ctmp(1:1).ne.'-') env%sortmode=trim(ctmp)
-        endif
-     
+        end if
+        if (nra >= i+2) then
+          ctmp = trim(arg(i+2))
+          if (ctmp(1:1) .ne. '-') env%sortmode = trim(ctmp)
+        end if
+
       case ('-bh','-GMIN')
         env%crestver = crest_bh
         exit
@@ -2230,11 +2249,11 @@ subroutine parseflags(env,arg,nra)
   env%ProgName = ctmp
 
 !>--- for legacy runtypes, check if xtb is present
-  if(env%legacy.or.env%QCG)then
+  if (env%legacy.or.env%QCG) then
     call checkprog_silent(env%ProgName,.true.,iostat=io)
-    if(io /= 0 ) error stop
-    write(stdout,'(/,a,a)') 'Selected path to xtb binary: ',trim(env%Progname)
-  endif
+    if (io /= 0) error stop
+    write (stdout,'(/,a,a)') 'Selected path to xtb binary: ',trim(env%Progname)
+  end if
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
@@ -2246,7 +2265,9 @@ subroutine parseflags(env,arg,nra)
     flush (stdout)
     call env2calc_setup(env)
     write (stdout,*) 'done.'
-    call env%calc%info(stdout)
+    if (env%crestver .ne. crest_sorting) then
+      call env%calc%info(stdout)
+    end if
   end if
 !>--- pass on opt-level to new calculator
   if (.not.env%legacy) then

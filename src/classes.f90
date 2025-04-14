@@ -347,6 +347,7 @@ module crest_data
     real(wp) :: pthrsum
     real(wp) :: tboltz
     logical  :: cgf(6)           !> collection of CREGEN options
+    integer  :: iinversion = 0   !> 0=auto,1=on, 2=off
 
     real(wp) :: mdtemps(10)      !> different temperatures for the QMDFF-MDs in V1
     real(wp) :: mdtime           !> MD length (V1&2)
