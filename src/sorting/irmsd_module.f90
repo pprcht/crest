@@ -414,7 +414,7 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
     type(rmsd_cache),pointer :: cptr
     type(rmsd_cache),allocatable,target :: local_rcache
-    integer :: nat,ii,rnk,dumpunit,scenario
+    integer :: nat,ii,rnk,dumpunit,uniquenesscase
     real(wp) :: calc_rmsd
     real(wp) :: tmprmsd_sym(32),dum
     real(wp) :: rotmat(3,3),rotconst(3)
@@ -507,22 +507,22 @@ contains  !> MODULE PROCEDURES START HERE
     tmprmsd_sym(:) = inf
     !> initial alignment of mol
     call axis(mol%nat,mol%at,mol%xyz,rotconst)
-    call min_rmsd_rotcheck_unique(mol,rotconst,scenario)
+    call min_rmsd_rotcheck_unique(mol,rotconst,uniquenesscase)
 
     !> Running the checks and check of uniqueness of rotational axes
-    call min_rmsd_rotcheck_permute(ref,mol,cptr,tmprmsd_sym,1,scenario)
+    call min_rmsd_rotcheck_permute(ref,mol,cptr,tmprmsd_sym,1,uniquenesscase)
     if (debug) then
       write (*,*) 'Total LSAP cost:',minval(tmprmsd_sym(1:16))
       call mol%append(dumpunit)
     end if
 
-    !> mirror z and re-run the same checks
+    !> mirror z and re-run the same checks (i.e. the false rotamer inversion)
     if (cptr%stereocheck) then
       mol%xyz(3,:) = -mol%xyz(3,:)  !> mirror z
       call axis(mol%nat,mol%at,mol%xyz) !> align
 
       !> Running the checks
-      call min_rmsd_rotcheck_permute(ref,mol,cptr,tmprmsd_sym,2,scenario)
+      call min_rmsd_rotcheck_permute(ref,mol,cptr,tmprmsd_sym,2,uniquenesscase)
       if (debug) then
         write (*,*) 'Total LSAP cost (inverted):',minval(tmprmsd_sym(17:32))
         call mol%append(dumpunit)
@@ -540,9 +540,9 @@ contains  !> MODULE PROCEDURES START HERE
       if (debug) write (*,*) 'inverting'
     end if
     if ((ii > 4 .and. ii < 9) .or. (ii > 20 .and. ii < 25))then
-      if(scenario == 1) mol%xyz = matmul(Rx90,mol%xyz)
-      if(scenario == 2) mol%xyz = matmul(Rz90,mol%xyz)
-      if(scenario == 3) mol%xyz = matmul(Rz90,mol%xyz)
+      if(uniquenesscase == 1) mol%xyz = matmul(Rx90,mol%xyz)
+      if(uniquenesscase == 2) mol%xyz = matmul(Rz90,mol%xyz)
+      if(uniquenesscase == 3) mol%xyz = matmul(Rz90,mol%xyz)
       if(debug) write (*,*) '90° tilt'
     else if ((ii > 8 .and. ii < 13) .or. (ii > 24 .and. ii < 29))then
       mol%xyz = matmul(Ry90,mol%xyz)
@@ -632,7 +632,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine min_rmsd_rotcheck_unique(mol,rot,scenario,thr)
+  subroutine min_rmsd_rotcheck_unique(mol,rot,uniquenesscase,thr)
 !*******************************************************
 !* Based on the rotational constants, determine what we
 !* need to do with the molecule in the following
@@ -640,35 +640,35 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(coord),intent(inout) :: mol
     real(wp),intent(in) :: rot(3)
-    integer,intent(out) :: scenario
+    integer,intent(out) :: uniquenesscase
     real(wp),intent(in),optional :: thr
     logical :: unique(3)    
     integer :: nunique
  
-    scenario = 0
+    uniquenesscase = 0
     call uniqueax(rot,unique,thr) 
 
     nunique = count(unique,1)
     select case(nunique)
     case ( 3 ) !> 3 unique principal axes
-      scenario = 0
+      uniquenesscase = 0
     case ( 1 ) !> one unique principal axis
-      if(unique(1)) scenario = 1 !> A unique (long axis)
-      if(unique(3)) scenario = 2 !> C unique (short axis)
+      if(unique(1)) uniquenesscase = 1 !> A unique (long axis)
+      if(unique(3)) uniquenesscase = 2 !> C unique (short axis)
     case ( 0 ) !> rotationally ambiguous system
-      scenario = 3
+      uniquenesscase = 3
     end select
   end subroutine min_rmsd_rotcheck_unique
 
 !=======================================================================================!
 
-  subroutine min_rmsd_rotcheck_permute(ref,mol,cptr,values,step,scenario)
+  subroutine min_rmsd_rotcheck_permute(ref,mol,cptr,values,step,uniquenesscase)
     implicit none
     type(coord),intent(in) :: ref
     type(coord),intent(inout) :: mol
     type(rmsd_cache),intent(inout),target :: cptr
     real(wp),intent(inout) :: values(:)
-    integer,intent(in) :: step,scenario
+    integer,intent(in) :: step,uniquenesscase
     integer :: rr,ii,jj,debugunit2
     real(wp) :: vals(16),dum
     logical,parameter :: debug = .false.
@@ -708,7 +708,7 @@ contains  !> MODULE PROCEDURES START HERE
     mol%xyz = matmul(Ry180,mol%xyz) !> restore
 
     !exit ALIGNLOOP
-    select case(scenario)
+    select case(uniquenesscase)
     case( 0 ) !> 3 Unique moments of inertia
        exit ALIGNLOOP
     case( 1 ) !> only one unique moment of inertia (A)
