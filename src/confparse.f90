@@ -1647,6 +1647,19 @@ subroutine parseflags(env,arg,nra)
         env%checkiso = .true.
       case ('-noezcheck','-nocheckez')
         env%checkiso = .false.
+      case ('-inversion')
+        ctmp = lowercase(trim(arg(i+1)))
+        select case (ctmp)
+        case ('auto')
+          env%iinversion = 0
+        case ('on')
+          env%iinversion = 1
+        case ('off')
+          env%iinversion = 2
+        case default
+          write (stdout,'(a,a,a,a)') 'invalid argument for ',argument,': ',trim(ctmp)
+          stop
+        end select
 !========================================================================================!
 !-------- PROPERTY CALCULATION related flags
 !========================================================================================!

@@ -1572,7 +1572,7 @@ subroutine cregen_irmsd_all(nall,structures,printlvl,iinversion)
   logical :: stereocheck
   type(timer) :: profiler
 
-  logical,parameter :: debug = .true.
+  logical,parameter :: debug = .false.
   real(wp),allocatable :: debugrmsds(:)
 
   !> for implementing OpenMP parallelism
@@ -1642,6 +1642,9 @@ subroutine cregen_irmsd_all(nall,structures,printlvl,iinversion)
     case (2)
       stereocheck = .false.
     end select
+    if (prlvl > 1) then
+      write (stdout,'(a,l2)') 'CREGEN> Check for false rotamers (geometry inversion)? -->',stereocheck
+    end if
   end if
 
   !> And finally, run the RMSD checks
@@ -1784,6 +1787,15 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
     write (stdout,'(2x,a,f9.5,a)') 'RTHR (RMSD threshold) :',RTHR*autoaa,' Å'
     write (stdout,'(2x,a,i9)') 'OpenMP threads        :',T
     write (stdout,'(2x,a,a9)') 'Individual atom IDs?  :',to_str(individual_IDs)
+    write (stdout,'(2x,a)',advance='no') 'False rotamer check?  :'
+    select case(env%iinversion)
+    case (0)
+      write(stdout,'(a9)') 'auto'
+    case (1)
+      write(stdout,'(a9)') 'on' 
+    case (2)
+      write(stdout,'(a9)') 'off' 
+    end select
     write (stdout,*)
   end if
 
@@ -1836,6 +1848,9 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
   case (2)
     stereocheck = .false.
   end select
+  if (prlvl > 1) then
+    write (stdout,'(a,l2)') 'CREGEN> Check for false rotamers (geometry inversion)? -->',stereocheck
+  end if
 
 !>--- allocate work cache
   if (prlvl > 0) then

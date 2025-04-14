@@ -73,7 +73,7 @@ subroutine crest_sort(env,tim)
     stop
 
   case ('irmsd')
-    call irmsd_tool(env%ensemblename,env%ensemblename2,env%iinversion)
+    call irmsd_tool(trim(env%ensemblename),trim(env%ensemblename2),env%iinversion)
     stop
 
   case ('isort')
