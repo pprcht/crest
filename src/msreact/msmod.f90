@@ -22,6 +22,7 @@ module msmod
   use crest_data
   use strucrd
   use iomod
+  use strucrd
   implicit none
 
   !>-- storage for a single mol
@@ -208,8 +209,8 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=80) :: fname,pipe
     character(len=:),allocatable :: jobcall
     logical :: fin
-    character(len=256) :: atmp
-    integer :: ich,iost,io,i,T,Tn
+    character(len=256) :: atmp,chrg,uhf
+    integer :: ich,iost,io,i,T,Tn,nel
     type(coord) :: mol
     real(wp),intent(out) :: etot
     real(wp) :: etemp ! electronic temperature in K
@@ -239,13 +240,27 @@ contains  !> MODULE PROCEDURES START HERE
 !---- input xyz file
     fname = env%inputcoords
 
+!---- Calculate the number of electrons from the input file
+    call readnel(fname,env%nat,nel)
+
+    ! Check parity - UHF and number of electrons should have same parity
+    if (mod(env%uhf, 2) /= mod((nel - env%chrg), 2)) then
+      write (*,*) 'Error: UHF and number of electrons must have the same parity (both odd or both even).'
+      write (*,'(A,I0,A,I0)') ' Number of electrons = ', nel - env%chrg, ', UHF = ', env%uhf
+      error stop
+    end if
+
 !    write (jobcall,'(a,1x,a,f10.4,1x,a,1x,a)') &
 !    &     trim(env%ProgName),trim(fname)//" --sp --etemp ",etemp,trim(env%gfnver),trim(pipe)
     jobcall = trim(env%ProgName)
     jobcall = trim(jobcall)//' '//trim(fname)
     write(atmp,'(f10.4)') etemp
     jobcall = trim(jobcall)//' --sp --etemp '//trim(atmp)
-    jobcall = trim(jobcall)//trim(env%gfnver)//trim(pipe)
+    jobcall = trim(jobcall)//' '//trim(env%gfnver)
+    write(chrg,'(i0)') env%chrg
+    write(uhf,'(i0)') env%uhf
+    jobcall = trim(jobcall)//' --chrg '//trim(chrg)//' --uhf '//trim(uhf)
+    jobcall = trim(jobcall)//trim(pipe)
 
     call execute_command_line(trim(jobcall),exitstat=io)
 
@@ -281,8 +296,8 @@ contains  !> MODULE PROCEDURES START HERE
         character(len=80) :: fname,pipe
         character(len=:),allocatable :: jobcall
         logical :: fin
-        character(len=256) :: atmp
-        integer :: ich,iost,io,i,T,Tn
+        character(len=256) :: atmp,uhf_wbo,chrg
+        integer :: ich,iost,io,i,T,Tn,uhf
         type(coord) :: mol
         real(wp) :: etemp ! electronic temperature in K
         logical :: tchange = .false.
@@ -309,12 +324,27 @@ contains  !> MODULE PROCEDURES START HERE
     
     !    write (jobcall,'(a,1x,a,f10.4,1x,a,1x,a)') &
     !    &     trim(env%ProgName),trim(fname)//" --sp --etemp ",etemp,trim(env%gfnver),trim(pipe)
+
+        !---- For the EI bond analysis the molecule has to be calculated in the neutral state. The GFN2 bond orders can be wrong after the ionization.
+        !---- For the CID bond analysis the molecule has to be calculated in the ionized state.
+        !---- calculating the remaining uhf for the wob calculation. Has to be modified when the CID mode is implemented.
+        !---- For EI the molecule is assumed to be in a low spin state and to be closed shell before ionization.
+        !---- For CID the molecule is assumed to be in a low spin state after the ionization.
+        if (env%msei) then
+          call getspin(env%nat,0,fname,uhf)
+          write (chrg,'(i0)') 0
+          write (uhf_wbo,'(i0)') uhf
+        elseif (env%mscid) then
+          write (chrg,'(i0)') env%chrg
+          write (uhf_wbo,'(i0)') env%uhf
+        end if
+
         jobcall = trim(env%ProgName)
         jobcall = trim(jobcall)//' '//trim(fname)
         write(atmp,'(f10.4)') etemp
         !always perform at charge 0
-        jobcall = trim(jobcall)//' --sp --chrg 0 --etemp '//trim(atmp)
-        jobcall = trim(jobcall)//trim(env%gfnver)//trim(pipe)
+        jobcall = trim(jobcall)//' --sp --chrg '//trim(chrg)//' --uhf '//trim(uhf_wbo)//' --etemp '//trim(atmp)
+        jobcall = trim(jobcall)//' '//trim(env%gfnver)//trim(pipe)
     
         call execute_command_line(trim(jobcall),exitstat=io)
     
@@ -1211,6 +1241,48 @@ contains  !> MODULE PROCEDURES START HERE
     close (ich)
     return
   end subroutine wrplist
+
+subroutine readnel(fname,nat,nel)
+!********************************
+!* read number of electrons from file
+!********************************
+    implicit none
+    character(len=*) :: fname
+    integer :: nel,nat
+    integer :: i
+    integer,allocatable :: at(:)
+    real(wp),allocatable :: xyz(:,:)
+
+    allocate(at(nat),xyz(3,nat))
+    call rdcoord(fname,nat,at,xyz) ! Read coordinates from the file
+    nel = 0
+    do i = 1,nat
+      nel = nel + at(i)
+    end do
+  end subroutine readnel
+
+!*********************************
+!* get spin multiplicity from number of electrons
+!*********************************
+!> The number of unpaired electrons is calculated in a low spin state.
+  subroutine getspin(nat, chrg, fname, isp)
+    integer, intent(in) :: nat !> number of atoms
+    integer, intent(in) :: chrg !> total charge of the molecule
+    character(len=*), intent(in) :: fname !> file name for electron calculation
+    integer, intent(out) :: isp !> number of unpaired electrons
+    integer :: nel !> number of electrons
+
+    call readnel(fname, nat, nel) !> Read number of electrons from file
+    nel = nel - chrg !> number of electrons
+    
+    isp = mod(nel, 2)
+    if (nel < 1) then
+       ! if j < 1, we have an error in the number of electrons
+       ! This subroutine sets isp = -1 and prints an error message.
+       isp = -1
+       write(*,*) "Error: Invalid number of electrons (", nel, ") in getspin. Setting isp = -1."
+    end if
+  end subroutine getspin
 
 !=======================================================================================!
 !=======================================================================================!

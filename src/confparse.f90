@@ -304,6 +304,8 @@ subroutine parseflags(env,arg,nra)
   env%solu_file = ''
 
 !>--- options for msreact
+  env%msei = .true.
+  env%mscid = .false.
   env%msiso = .false.  ! msiso and msnoiso are mutually exclusive !!!
   env%msnoiso = .false.
   env%msmolbar = .false.
@@ -1101,12 +1103,17 @@ subroutine parseflags(env,arg,nra)
 !========================================================================================!
       if (env%crestver == crest_msreac) then
         select case (argument) !> msreact
-        case ('-msnoiso') !> filter out non fragmentated structures in msreact
-          env%msnoiso = .true.
-        case ('-msiso') !> filter out fragmentated structures in msreact
-          env%msiso = .true.
-        case ('-msnbonds') ! give number of bonds up to which bias potential is added between atoms default 3
-          call readl(arg(i+1),xx,j)
+        case('-msei')
+          env%msei=.true.
+        case('-mscid')
+          env%mscid=.true.
+          env%msei=.false.
+        case('-msnoiso') !> filter out non fragmentated structures in msreact
+          env%msnoiso=.true.
+        case('-msiso') !> filter out fragmentated structures in msreact
+          env%msiso=.true.
+        case('-msnbonds') ! give number of bonds up to which bias potential is added between atoms default 3
+          call readl(arg(i + 1),xx,j)
           env%msnbonds = xx(1)
         case ('-msnshifts') ! give number of times atoms are randomly shifted before optimization
           call readl(arg(i+1),xx,j)

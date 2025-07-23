@@ -1200,6 +1200,10 @@ contains  !>--- Module routines start here
       self%id = jobtype%turbomole
       self%rdgrad = .false.
       self%binary = 'gp3'
+    case ('gxtb')
+      self%id = jobtype%turbomole 
+      self%rdgrad = .false.       
+      self%binary = 'gxtb'         
     case ('orca')
       self%id = jobtype%orca
 
