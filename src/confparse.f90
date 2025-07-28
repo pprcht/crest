@@ -1103,17 +1103,17 @@ subroutine parseflags(env,arg,nra)
 !========================================================================================!
       if (env%crestver == crest_msreac) then
         select case (argument) !> msreact
-        case('-msei')
-          env%msei=.true.
-        case('-mscid')
-          env%mscid=.true.
-          env%msei=.false.
-        case('-msnoiso') !> filter out non fragmentated structures in msreact
-          env%msnoiso=.true.
-        case('-msiso') !> filter out fragmentated structures in msreact
-          env%msiso=.true.
-        case('-msnbonds') ! give number of bonds up to which bias potential is added between atoms default 3
-          call readl(arg(i + 1),xx,j)
+        case ('-msei')
+          env%msei = .true.
+        case ('-mscid')
+          env%mscid = .true.
+          env%msei = .false.
+        case ('-msnoiso') !> filter out non fragmentated structures in msreact
+          env%msnoiso = .true.
+        case ('-msiso') !> filter out fragmentated structures in msreact
+          env%msiso = .true.
+        case ('-msnbonds') ! give number of bonds up to which bias potential is added between atoms default 3
+          call readl(arg(i+1),xx,j)
           env%msnbonds = xx(1)
         case ('-msnshifts') ! give number of times atoms are randomly shifted before optimization
           call readl(arg(i+1),xx,j)
@@ -1195,6 +1195,12 @@ subroutine parseflags(env,arg,nra)
         case default
           env%gfnver = '--gfn2'
         end select !> GFN
+
+      case ('-gxtb')
+        call gxtb_dev_warning()
+      case ('-gxtb_dev')
+        env%gfnver = 'gxtb_dev'
+
       case ('-gfn2@gfn0','-gfn2@gfn1','-gfn2@gff','-gfn2@ff','-gfn2@gfnff')
         if (.not.env%legacy) then !TODO
           write (*,'("> ",a,1x,a)') argument,'option not yet available with new calculator'

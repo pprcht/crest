@@ -241,8 +241,13 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%gfn0occ
       case ('gfnff','gff','gfn-ff')
         job%id = jobtype%gfnff
-      case ('pvol','libpvol', 'pv')
+      case ('pvol','libpvol','pv')
         job%id = jobtype%libpvol
+      case ('gxtb_dev')  
+        job%id = jobtype%turbomole 
+        job%rdgrad = .true.       
+        job%binary = 'gxtb' 
+        job%other ='-grad'
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
@@ -291,6 +296,11 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('gradmt')
       job%gradfmt = conv2gradfmt(kv%value_c)
+
+    case ('numgrad')
+      job%numgrad = kv%value_b
+    case ('gradstep')
+      job%gradstep = kv%value_f
 
     case ('efile')
       job%efile = kv%value_c
