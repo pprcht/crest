@@ -135,6 +135,7 @@ module strucrd
   public :: pdbdata
   public :: coord
   public :: ensemble
+  public :: mollist
   public :: coordline
   public :: get_atlist
 
@@ -243,6 +244,13 @@ module strucrd
     procedure :: write => write_ensemble !write to file
 
   end type ensemble
+
+!==========================================================================================!
+  type :: mollist
+     integer :: nall = 0 
+     type(coord),allocatable :: structure(:)
+  end type mollist
+
 !=========================================================================================!
 !=========================================================================================!
 contains  !> MODULE PROCEDURES START HERE

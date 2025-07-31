@@ -33,6 +33,10 @@ module bh_class_module
 !************************************************************************
     integer :: id = 0            !> Run/Thread ID
     integer,allocatable :: seed  !> RNG seed, only used when allocated
+!>--- settings
+    logical :: parallel = .false.  !> runtype definition    
+    integer :: quenchmode = 0      !> selection of how to quench structures 
+    integer :: duplicatemode = 0   !> selection of how to prune duplicates
 
 !>--- counters
     integer :: iteration = 0   !> current iteration
@@ -50,6 +54,7 @@ module bh_class_module
     &    (/0.2_wp,0.2_wp,0.2_wp/)
     integer :: maxsave = 100       !> maximum number of quenches saved
     real(wp),allocatable :: etarget  !> target energy to be hit (useful in benchmarks)
+
 
 !>--- results/properties
     real(wp) :: emin = 0.0_wp  !> current ref energy of markov chain

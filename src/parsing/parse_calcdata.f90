@@ -1272,6 +1272,9 @@ contains !> MODULE PROCEDURES START HERE
     case ('temp','T')
       bh%temp = kv%value_f
 
+    case ('parallel') 
+      bh%parallel = kv%value_b
+
     case default
       rd = .false.
       return

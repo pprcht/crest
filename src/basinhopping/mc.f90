@@ -116,8 +116,10 @@ contains  !> MODULE PROCEDURES START HERE
       if (iostatus == 0) then  !> successfull optimization
 
         if (printlvl > 1) then
+          !$omp critical
           write (stdout,'(a,1x,a,es17.8,a,es17.8,a)') trim(tag),'Quench E=',etot, &
           &  ' Eh, Markov E=',bh%emin,' Eh'
+          !$omp end critical 
         end if
 
         accept = mcaccept(optmol,bh)
@@ -376,6 +378,24 @@ contains  !> MODULE PROCEDURES START HERE
     call newsort%deallocate()
     !$omp end critical
   end subroutine mcduplicate
+
+ !========================================================================================!
+ 
+ subroutine mcquench(calc,bh,tmpmol,optmol,iostat)
+    implicit none
+    !> Input
+    type(calcdata),intent(inout) :: calc  !> potential settings 
+    type(bh_class),intent(inout) :: bh    !> BH settings        
+    type(coord),intent(in)       :: tmpmol   !> molecular system    
+    !> Output
+    type(coord),intent(out)      :: optmol   !> molecular system output
+    integer,intent(out)          :: iostat
+
+    iostat = 1
+
+
+ end subroutine mcquench
+
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

@@ -24,8 +24,8 @@ program CREST
 !  use iso_fortran_env,wp => real64
   use crest_parameters !> Datatypes and constants
   use crest_data !> module for the main data storage (imports systemdata and timer)
-  use crest_restartlog 
-    USE, INTRINSIC :: IEEE_EXCEPTIONS
+  use crest_restartlog
+  USE,INTRINSIC :: IEEE_EXCEPTIONS
   implicit none
   type(systemdata) :: env  !> MAIN STORAGE OF SYSTEM DATA
   type(timer)   :: tim     !> timer object
@@ -39,7 +39,7 @@ program CREST
   logical :: ex,ex1,ex2
 
   intrinsic :: iargc,getarg
-    LOGICAL :: overflow, division_by_zero, invalid_operation
+  LOGICAL :: overflow,division_by_zero,invalid_operation
 
   call initsignal() !SIGTERM catcher
 
@@ -113,8 +113,8 @@ program CREST
     end if
     if (env%newcregen) then
       block
-      use cregen_interface
-      call newcregen(env,0)
+        use cregen_interface
+        call newcregen(env,0)
       end block
     else
       call cregen2(env)
@@ -129,7 +129,7 @@ program CREST
     call tim%stop(1)
     call propquit(tim)
 !>--- zsort routine
-  case(p_zsort) 
+  case (p_zsort)
     call zsort
     write (*,*)
     write (*,*) 'The z-matrix of the input coord file has been sorted.'
@@ -140,7 +140,7 @@ program CREST
 
 !>--- only ensemble comparison
   case (p_compare)
-    call compare_ensembles(env)     
+    call compare_ensembles(env)
     call propquit(tim)
 ! !>--- protonation tool
 !  case (p_protonate)
@@ -241,7 +241,7 @@ program CREST
   case (crest_imtd,crest_imtd2) !> MTD-GC algo
     call confscript2i(env,tim)
 
-  case (crest_mdopt, crest_mdopt2)
+  case (crest_mdopt,crest_mdopt2)
     call mdopt(env,tim)        !> MDOPT
 
   case (crest_screen)
@@ -290,21 +290,21 @@ program CREST
     call trialOPT(env)
 
   case (crest_ensemblesp) !> singlepoints along ensemble
-    call crest_ensemble_singlepoints(env,tim)    
+    call crest_ensemble_singlepoints(env,tim)
 
-  case(crest_protonate)
+  case (crest_protonate)
     call protonate(env,tim)
- 
-  case(crest_deprotonate)
+
+  case (crest_deprotonate)
     call deprotonate(env,tim)
 
-  case(crest_tautomerize)
-    call tautomerize(env,tim) 
+  case (crest_tautomerize)
+    call tautomerize(env,tim)
 
-  case(crest_sorting) !> interface to standalone ensemble sorting
+  case (crest_sorting) !> interface to standalone ensemble sorting
     call crest_sort(env,tim)
- 
-  case(crest_bh) !> Standard basin-hopping
+
+  case (crest_bh) !> Standard basin-hopping
     call crest_basinhopping(env,tim)
 
   case (crest_test)
@@ -360,8 +360,8 @@ program CREST
 !=========================================================================================!
 !> shout down hosted subprocesses
   block
-  use ConfSolv_module
-  call cs_shutdown(io)
+    use ConfSolv_module
+    call cs_shutdown(io)
   end block
 
 !=========================================================================================!
