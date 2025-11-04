@@ -77,6 +77,12 @@ subroutine splitfile(fname,up,low)
   end do
 
   call chdir(thispath)
+  write (stdout,*)
+  write (stdout,'(a,i0,a,i0,a)') '>  Created subdirectories SPLIT/STRUC{',low,'-',nc,'}/'
+  write (stdout,'(a)') '>  All directories contain a "struc.xyz" with molecular coordinates'
+  write (stdout,'(a)') '>  The order of SPLIT/STRUC*/ is the same as in '//trim(fname)
+  write (stdout,*)
+  write (stdout,'(a)') 'exit.'
   return
 end subroutine splitfile
 
@@ -102,7 +108,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   real(wp),allocatable :: rot(:,:)
   real(wp) :: rotaniso !function
   real(wp),allocatable :: anis(:)
-  real(wp) :: evec(3,3),evecavg(3,3) 
+  real(wp) :: evec(3,3),evecavg(3,3)
 
   real(wp) :: bthrerf
   real(wp) :: bmin,bmax,bshift
@@ -122,9 +128,9 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   do i = 1,nall
     c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
     call axis(nat,at,c1,rot(1:3,i),dum,evec)
-    evecavg(:,:) = evecavg(:,:) + evec(:,:)
-  enddo
-  evecavg(:,:) = evecavg(:,:) / real(nall)
+    evecavg(:,:) = evecavg(:,:)+evec(:,:)
+  end do
+  evecavg(:,:) = evecavg(:,:)/real(nall)
 
   do i = 1,nall
     c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
@@ -132,12 +138,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
     anis(i) = rotaniso(i,nall,rot)
     thr = bthrerf(bmin,anis(i),bmax,bshift)
     write (*,'(3f10.2,2x,f8.4,2x,f8.4)') rot(1:3,i),anis(i),thr
-    !write (*,'(3f20.10)') evec(:,1)
-    !write (*,'(3f20.10)') abs(dot_product(evec(:,1),evecavg(:,1))),abs(dot_product(evec(:,2),evecavg(:,2))),abs(dot_product(evec(:,3),evecavg(:,3)))
-    !write (*,'(3f20.10)') evec(:,2)
-    !write (*,'(3f20.10)') evec(:,3)
   end do
-  
 
   deallocate (anis,rot,at,c1)
 
@@ -167,7 +168,7 @@ subroutine rotalign_tool(fname)
   real(wp),allocatable :: rot(:,:)
   real(wp) :: rotaniso !function
   real(wp),allocatable :: anis(:)
-  real(wp) :: evec(3,3),evecavg(3,3) 
+  real(wp) :: evec(3,3),evecavg(3,3)
 
   real(wp) :: bthrerf
   real(wp) :: bmin,bmax,bshift
@@ -175,12 +176,11 @@ subroutine rotalign_tool(fname)
   real(wp) :: dum
   integer :: i
 
-  real(wp), parameter :: Ry90(3,3) = reshape([ &
-                                     &    0.0_wp, 0.0_wp, -1.0_wp, &  
-                                     &    0.0_wp, 1.0_wp, 0.0_wp,  &  
-                                     &    1.0_wp, 0.0_wp, 0.0_wp   &  
-                                     &    ], [3,3])
-
+  real(wp),parameter :: Ry90(3,3) = reshape([ &
+                  &    0.0_wp,0.0_wp,-1.0_wp, &
+                  &    0.0_wp,1.0_wp,0.0_wp,  &
+                  &    1.0_wp,0.0_wp,0.0_wp   &
+                  &    ], [3,3])
 
   call rdensemble(fname,nall,structures)
   nat = structures(1)%nat
@@ -194,10 +194,10 @@ subroutine rotalign_tool(fname)
     c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
     call axis(nat,at,c1,rot(1:3,i))
     c2 = c1
-    structures(i)%xyz = c2*aatoau 
+    structures(i)%xyz = c2*aatoau
     write (*,'(3f10.2)') rot(1:3,i)
   end do
-  
+
   deallocate (rot,at,c2,c1)
 
   call wrensemble('rotalign.xyz',nall,structures)
