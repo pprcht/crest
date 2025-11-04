@@ -1033,6 +1033,7 @@ contains !> MODULE PROCEDURES START HERE
       mddat%active_potentials = kv%value_ia
 
     case ('includermsd','atlist+')
+      nat=env%ref%nat
       call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
       if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
       do j = 1,nat
@@ -1040,6 +1041,7 @@ contains !> MODULE PROCEDURES START HERE
       end do
 
     case ('excludermsd','atlist-')
+      nat=env%ref%nat
       call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
       if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
       do j = 1,nat

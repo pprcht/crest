@@ -383,19 +383,19 @@ module crest_data
     logical :: omp_allow_nested = .true.  !> allow nested OpenMP threadding
 
     !>--- various names and flags
-    character(len=128) :: ensemblename   !> ensemble input name for SCREEN,MDOPT and CREGEN
-    character(len=128) :: ensemblename2  !> another ensemble input name
-    character(len=128) :: fixfile
-    character(len=512) :: constraints    !> name of the constraint file
-    character(len=20)  :: solvent        !> the solvent
+    character(len=128) :: ensemblename  = '' !> ensemble input name for SCREEN,MDOPT and CREGEN
+    character(len=128) :: ensemblename2 = '' !> another ensemble input name
+    character(len=128) :: fixfile = ''
+    character(len=512) :: constraints = ''   !> name of the constraint file
+    character(len=20)  :: solvent = ''       !> the solvent
     character(len=:),allocatable :: solv !> the entrie gbsa flag including solvent
-    character(len=20)  :: gfnver         !> GFN version
-    character(len=20)  :: gfnver2        !> GFN version (multilevel)
-    character(len=20)  :: lmover         !> GFN version for LMO computation in xtb_lmo subroutine
-    character(len=512) :: ProgName       !> name of the xtb executable (+ path)
-    character(len=512) :: ProgIFF        !> name of xtbiff for QCG-mode
-    character(len=512) :: homedir        !> original directory from which calculation was started
-    character(len=512) :: scratchdir     !> path to the scratch directory
+    character(len=20)  :: gfnver = ''        !> GFN version
+    character(len=20)  :: gfnver2 = ''       !> GFN version (multilevel)
+    character(len=20)  :: lmover = ''        !> GFN version for LMO computation in xtb_lmo subroutine
+    character(len=512) :: ProgName = ''      !> name of the xtb executable (+ path)
+    character(len=512) :: ProgIFF = ''       !> name of xtbiff for QCG-mode
+    character(len=512) :: homedir = ''       !> original directory from which calculation was started
+    character(len=512) :: scratchdir = ''    !> path to the scratch directory
     character(len=:),allocatable :: cmd
     character(len=:),allocatable :: inputcoords
     character(len=:),allocatable :: wbofile
@@ -467,8 +467,8 @@ module crest_data
     character(len=:), allocatable :: directed_file !name of the directed list
     character(len=64), allocatable :: directed_list(:,:) !How many solvents at which atom to add
     integer, allocatable :: directed_number(:) !Numbers of solvents added per defined atom
-    character(len=20) :: ensemble_opt         !> Method for ensemble optimization in qcg mode
-    character(len=20) :: freqver              !> Method for frequency computation in qcg mode
+    character(len=20) :: ensemble_opt = ''     !> Method for ensemble optimization in qcg mode
+    character(len=20) :: freqver = ''          !> Method for frequency computation in qcg mode
     real(wp)          :: freq_scal            !> Frequency scaling factor
     character(len=:),allocatable :: solu_file,solv_file !> solute  and solvent input file
     character(len=5) :: docking_qcg_flag = '--qcg'

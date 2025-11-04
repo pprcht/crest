@@ -50,8 +50,7 @@ program CREST
 !=========================================================================================!
 !> set defaults and pars flags
   args = iargc()
-  l = len_trim(cmd)
-  allocate (arg(args),source=repeat(' ',l))
+  allocate (arg(args),source=repeat(' ',1024))
   do i = 1,args
     call getarg(i,arg(i))
   end do

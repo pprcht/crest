@@ -850,9 +850,11 @@ subroutine parseflags(env,arg,nra)
 !========================================================================================!
 !> after this point there should always be a "coord" file present
 !========================================================================================!
-  allocate (env%includeRMSD(env%nat))
-  env%includeRMSD = 1
-
+ if(.not.allocated(env%includeRMSD))then
+    allocate (env%includeRMSD(env%nat))
+    env%includeRMSD = 1
+ endif
+ 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
 !> parse the input flags
