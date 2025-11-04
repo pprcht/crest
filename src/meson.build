@@ -54,6 +54,7 @@ srcs += files(
   'marqfit.f90',
   'minitools.f90',
   'miscdata.f90',
+  'mempeak.c',
   'ncigeo.f90',
   'ompmklset.F90',
   'printouts.f90',

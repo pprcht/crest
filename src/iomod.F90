@@ -62,6 +62,13 @@ module iomod
     end function c_isatty
   end interface
 
+  interface
+     function get_peak_rss_kb() bind(C, name="get_peak_rss_kb") result(kb)
+       import :: c_long_long
+       integer(c_long_long) :: kb
+     end function
+  end interface
+
   interface wrshort
     module procedure wrshort_real
     module procedure wrshort_int

@@ -58,6 +58,7 @@ list(APPEND srcs
   "${dir}/marqfit.f90"
   "${dir}/minitools.f90"
   "${dir}/miscdata.f90"
+  "${dir}/mempeak.c"
   "${dir}/ncigeo.f90"
   "${dir}/ompmklset.F90"
   "${dir}/printouts.f90"
