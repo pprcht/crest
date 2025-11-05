@@ -243,11 +243,11 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%gfnff
       case ('pvol','libpvol','pv')
         job%id = jobtype%libpvol
-      case ('gxtb_dev')  
-        job%id = jobtype%turbomole 
-        job%rdgrad = .true.       
-        job%binary = 'gxtb' 
-        job%other ='-grad'
+      case ('gxtb_dev')
+        job%id = jobtype%turbomole
+        job%rdgrad = .true.
+        job%binary = 'gxtb'
+        job%other = '-grad'
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
@@ -985,7 +985,7 @@ contains !> MODULE PROCEDURES START HERE
         included = .true.
         call parse_mddat(env,blk,mddat,istat)
       else if (blk%header == 'dynamics.meta') then
-        call parse_metadyn(blk,mddat,istat)
+        call parse_metadyn(env,blk,mddat,istat)
         included = .true.
       end if
     end do
@@ -1033,15 +1033,15 @@ contains !> MODULE PROCEDURES START HERE
       mddat%active_potentials = kv%value_ia
 
     case ('includermsd','atlist+')
-      nat=env%ref%nat
+      nat = env%ref%nat
       call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
-      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
+      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=0)
       do j = 1,nat
         if (atlist(j)) env%includeRMSD(j) = 1
       end do
 
     case ('excludermsd','atlist-')
-      nat=env%ref%nat
+      nat = env%ref%nat
       call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
       if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
       do j = 1,nat
@@ -1094,13 +1094,14 @@ contains !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine parse_metadyn(blk,mddat,istat)
+  subroutine parse_metadyn(env,blk,mddat,istat)
 !**************************************************
 !* The following routines are used to
 !* read information into the "metadynamics" object
 !* and add it to a mol.dynamics data object
 !***************************************************
     implicit none
+    type(systemdata),intent(inout) :: env 
     type(datablock),intent(in) :: blk
     type(mddata),intent(inout) :: mddat
     integer,intent(inout) :: istat
@@ -1112,7 +1113,7 @@ contains !> MODULE PROCEDURES START HERE
     success = .false.
     if (blk%header .ne. 'dynamics.meta') return
     do i = 1,blk%nkv
-      call parse_metadyn_auto(mtd,blk%kv_list(i),success,rd)
+      call parse_metadyn_auto(env,mtd,blk%kv_list(i),success,rd)
       if (.not.rd) then
         istat = istat+1
         write (stdout,fmturk) '[['//blk%header//']]-block',blk%kv_list(i)%key
@@ -1121,12 +1122,15 @@ contains !> MODULE PROCEDURES START HERE
     if (success) call mddat%add(mtd)
     return
   end subroutine parse_metadyn
-  subroutine parse_metadyn_auto(mtd,kv,success,rd)
+  subroutine parse_metadyn_auto(env,mtd,kv,success,rd)
     implicit none
+    type(systemdata),intent(inout) :: env
     type(keyvalue) :: kv
     type(mtdpot) :: mtd
     logical,intent(inout) :: success
     logical,intent(out) :: rd
+    integer :: j,nat 
+    logical,allocatable :: atlist(:)
     rd = .true.
 
     select case (kv%key)
@@ -1159,6 +1163,22 @@ contains !> MODULE PROCEDURES START HERE
     case ('biasfile')
       mtd%mtdtype = cv_rmsd_static
       mtd%biasfile = kv%value_c
+
+    case ('includermsd','atlist+')
+      nat = env%ref%nat
+      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
+      if (.not.allocated(mtd%atinclude)) allocate (mtd%atinclude(nat),source=.false.)
+      do j = 1,nat
+        if (atlist(j)) mtd%atinclude(j) = .true.
+      end do
+
+    case ('excludermsd','atlist-')
+      nat = env%ref%nat
+      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
+      if (.not.allocated(mtd%atinclude)) allocate (mtd%atinclude(nat),source=.true.)
+      do j = 1,nat
+        if (atlist(j)) mtd%atinclude(j) = .false.
+      end do
 
     case default
       rd = .false.
@@ -1235,8 +1255,8 @@ contains !> MODULE PROCEDURES START HERE
       bh%maxsave = kv%value_i
 
     case ('seed')
-      if(.not.allocated(bh%seed)) allocate(bh%seed)
-      bh%seed = kv%value_i      
+      if (.not.allocated(bh%seed)) allocate (bh%seed)
+      bh%seed = kv%value_i
 
     case ('step','stepsize')
       select case (kv%id)
@@ -1246,7 +1266,7 @@ contains !> MODULE PROCEDURES START HERE
         bh%stepsize(1) = kv%value_f
       case (valuetypes%float_array)
         n = min(size(kv%value_fa,1),3)
-        bh%stepsize(1:n) = kv%value_fa(1:n) 
+        bh%stepsize(1:n) = kv%value_fa(1:n)
       case default
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) kv%rawvalue
@@ -1257,15 +1277,15 @@ contains !> MODULE PROCEDURES START HERE
       bh%maxsteps = kv%value_i
 
     case ('steptype')
-      select case(kv%value_c)
-      case('cartesian')
-        bh%steptype=0
-      case('internal')
-        bh%steptype=1
-      case('dihedral')
-        bh%steptype=2
-      case('intermol')
-        bh%steptype=3
+      select case (kv%value_c)
+      case ('cartesian')
+        bh%steptype = 0
+      case ('internal')
+        bh%steptype = 1
+      case ('dihedral')
+        bh%steptype = 2
+      case ('intermol')
+        bh%steptype = 3
       case default
         write (stdout,fmtura) trim(kv%value_c)
         call creststop(status_config)
@@ -1274,7 +1294,7 @@ contains !> MODULE PROCEDURES START HERE
     case ('temp','T')
       bh%temp = kv%value_f
 
-    case ('parallel') 
+    case ('parallel')
       bh%parallel = kv%value_b
 
     case default

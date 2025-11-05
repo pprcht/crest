@@ -1006,7 +1006,7 @@ subroutine parallel_md_block_printout(MD,vz)
     if (MD%shk%shake_mode == 2) then
       write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (all bonds) |")') to_str(MD%shake)
     else
-      write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (H only) |")') to_str(MD%shake)
+      write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (H only)    |")') to_str(MD%shake)
     end if
   end if
   if (allocated(MD%active_potentials)) then
@@ -1024,6 +1024,9 @@ subroutine parallel_md_block_printout(MD,vz)
     else
       write (stdout,'(2x,"|   Vbias exponent (α)   :",f8.4,"          |")') MD%mtd(1)%alpha
     end if
+    if (allocated(MD%mtd(1)%atinclude))then
+      write (stdout,'(2x,"|   # active atoms      :",i9," atoms    |")') count(MD%mtd(1)%atinclude,1)
+    endif  
   end if
 
   !$omp end critical

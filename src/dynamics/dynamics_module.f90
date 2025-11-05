@@ -198,30 +198,30 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- settings printout
     if (pr) then
-      write (*,*)
-      write (*,'("> ",a)') 'Molecular dynamics settings'
-      write (*,'('' MD time /ps        :'',f10.2)') dat%length_ps
-      write (*,'('' dt /fs             :'',f10.2)') dat%tstep
-      write (*,'('' temperature /K     :'',f10.2)') dat%tsoll
-      write (*,'('' max steps          :'',i10  )') dat%length_steps
-      write (*,'('' block length (av.) :'',i10  )') dat%blockl
-      write (*,'('' dumpstep(trj) /fs  :'',f10.2,i6)') dat%dumpstep,dat%sdump
-      write (*,'('' # deg. of freedom  :'',i10  )') nfreedom
+      write (stdout,*)
+      write (stdout,'(1x,15("─"),1x,a,1x,14("─"))') 'Molecular Dynamics Settings'
+      write (stdout,'("  MD time /ps",t25,       ":",f10.2)') dat%length_ps
+      write (stdout,'("  dt /fs",t25,            ":",f10.2)') dat%tstep
+      write (stdout,'("  temperature /K",t25,    ":",f10.2)') dat%tsoll
+      write (stdout,'("  max steps",t25,         ":",i10  )') dat%length_steps
+      write (stdout,'("  block length (av.)",t25,":",i10  )') dat%blockl
+      write (stdout,'("  dumpstep(trj) /fs",t25, ":",f10.2,1x,"(",i0,")")') dat%dumpstep,dat%sdump
+      write (stdout,'("  # deg. of freedom",t25, ":",i10  )') nfreedom
       if(calc%nfreeze > 0)then
-      write (*,'('' # frozen atoms     :'',i10  )') calc%nfreeze
+      write (stdout,'("  # frozen atoms",t25,     ":",i10  )') calc%nfreeze
       endif
       call thermostatprint(dat,pr)
-      write (*,'('' SHAKE constraint   :'',8x,l)') dat%shake
+      write (stdout,'("  SHAKE constraint",t25,   ":",9x,l)') dat%shake
       if (dat%shake) then
         if (dat%shk%shake_mode == 2) then
-          write (*,'('' # SHAKE bonds      :'',i10,a)') dat%nshake,' (all bonds)'
+          write (stdout,'("  # SHAKE bonds",t25,":",i10,a)') dat%nshake,' (all bonds)'
         elseif (dat%shk%shake_mode == 1) then
-          write (*,'('' # SHAKE bonds      :'',i10,a)') dat%nshake,' (H only)'
+          write (stdout,'("  # SHAKE bonds",t25,":",i10,a)') dat%nshake,' (H only)'
         end if
       end if
-      write (*,'('' hydrogen mass /u   :'',f10.5 )') dat%md_hmass
+      write (stdout,'("  hydrogen mass /u",t25,":",f10.5 )') dat%md_hmass
       if(allocated(dat%active_potentials))then
-       write (*,'('' active potentials  :'',i10)') size(dat%active_potentials,1)
+       write (stdout,'("  active potentials",t25,":",i10)') size(dat%active_potentials,1)
       endif
     end if
 
@@ -292,12 +292,12 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- begin printout
     if (pr) then
-      write (*,'(/,"> ",a)') 'Starting simulation'
+      write (stdout,'(/,"> ",a)') 'Starting simulation'
       if (.not.dat%thermostat) then
-        write (*,'(/,11x,"time (ps)",7x,"<Epot>",8x,"Ekin",5x,"<T>",7x,"T",12x, &
+        write (stdout,'(/,11x,"time (ps)",7x,"<Epot>",8x,"Ekin",5x,"<T>",7x,"T",12x, &
            &         "Etot",7x,"error")')
       else
-        write (*,'(/,11x,"time (ps)",7x,"<Epot>",8x,"Ekin",5x,"<T>",7x,"T",12x, &
+        write (stdout,'(/,11x,"time (ps)",7x,"<Epot>",8x,"Ekin",5x,"<T>",7x,"T",12x, &
            &         "Etot")')
       end if
     end if
@@ -363,12 +363,12 @@ contains  !> MODULE PROCEDURES START HERE
         if (pr) then
           rt = float(t)*dat%tstep + rtshift
           if (.not.dat%thermostat) then
-            write (*,'(i7,f10.2,F16.5,F12.4,2F8.1,F16.5,4F10.4)') &
+            write (stdout,'(i7,f10.2,F16.5,F12.4,2F8.1,F16.5,4F10.4)') &
                &   t,0.001_wp*rt, (Epav+Epot)/float(t), &
                &   Ekin,Tav/float(t),temp,Epot+Ekin, &
                &   Edum/float(t)-Epot-Ekin
           else
-            write (*,'(i7,f10.2,F16.5,F12.4,2F8.1,F16.5)') &
+            write (stdout,'(i7,f10.2,F16.5,F12.4,2F8.1,F16.5)') &
                &   t,0.001_wp*rt, (Epav+epot)/float(t), &
                &   Ekin,Tav/float(t),temp,Epot+Ekin
           end if
@@ -471,13 +471,13 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- averages printout
     if (pr) then
-      write (*,*)
-      write (*,*) 'average properties '
-      write (*,*) '----------------------'
-      write (*,*) '<Epot> / Eh          :',Epav/float(t)
-      write (*,*) '<Ekin> / Eh          :',Ekav/float(t)
-      write (*,*) '<Etot> / Eh          :', (Ekav+Epav)/float(t)
-      write (*,*) '<T> / K              :',Tav/float(t)
+      write (stdout,*)
+      write (stdout,*) 'average properties '
+      write (stdout,*) '----------------------'
+      write (stdout,*) '<Epot> / Eh          :',Epav/float(t)
+      write (stdout,*) '<Ekin> / Eh          :',Ekav/float(t)
+      write (stdout,*) '<Etot> / Eh          :', (Ekav+Epav)/float(t)
+      write (stdout,*) '<T> / K              :',Tav/float(t)
     end if
 
 !>--- write restart file
@@ -488,11 +488,11 @@ contains  !> MODULE PROCEDURES START HERE
     if (pr) then
       select case (term)
       case (0)
-        write (*,*) 'normal MD termination'
+        write (stdout,*) 'normal MD termination'
       case (1)
         write (stderr,*) 'error in MD calculation'
       case (2)
-        write (*,*) 'MD terminated, but still taking as converged.'
+        write (stdout,*) 'MD terminated, but still taking as converged.'
       end select
     end if
 
@@ -595,8 +595,8 @@ contains  !> MODULE PROCEDURES START HERE
         slope = 99.0_wp
       end if
       if (pr) then
-        write (*,'(''block <Epot> / <T> :'',f14.5,f7.1,4x, &
-           &             ''drift:'',d10.2,3x,''Tbath :'',f6.1)')  &
+        write (stdout,'("block <Epot> / <T> :",f14.5,f7.1,4x, &
+           &             "drift:",d10.2,3x,"Tbath :",f6.1)')  &
            &             bave,bavt,slope,dat%tsoll
       end if
     else
@@ -610,7 +610,7 @@ contains  !> MODULE PROCEDURES START HERE
   contains
     subroutine regress(n1,n2,rege,slope)
       implicit none
-      real(wp) :: rege(*),slope
+      real(wp) :: rege(stdout),slope
       integer :: n1,n2,n
       real(wp) :: sx,sy,sxx,sxy,x
       integer :: i,j,k,l,ich,och,io
@@ -724,7 +724,7 @@ contains  !> MODULE PROCEDURES START HERE
       fail = .true.
     end if
     if(.not.fail)then
-      write (*,'(1x,a,8x,l)') 'read restart file  :',.not.fail
+      write (stdout,'(1x,a,8x,l)') 'read restart file  :',.not.fail
     endif
 
     return
@@ -821,12 +821,12 @@ contains  !> MODULE PROCEDURES START HERE
     if (dat%thermostat) then
       select case (trim(dat%thermotype))
       case ('berendsen')
-        write (*,'('' thermostat         :'',1x,a  )') trim(dat%thermotype)
+        write (stdout,'("  thermostat",t25,":",1x,a  )') trim(dat%thermotype)
       case default !>-- (also berendsen thermostat)
-        write (*,'('' thermostat         :'',1x,a  )') 'berendsen'
+        write (stdout,'("  thermostat",t25,":",1x,a  )') 'berendsen'
       end select
     else
-      write (*,'('' thermostat         :'',1x,a  )') 'OFF'
+      write (stdout,'("  thermostat",t25,":",1x,a  )') 'OFF'
     end if
 
     return
