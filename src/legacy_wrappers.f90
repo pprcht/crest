@@ -146,17 +146,29 @@ subroutine env2calc_modify(env)
 !* Modify the calc object within env with
 !* additional settings
 !******************************************
+  use crest_parameters
   use crest_data
   use crest_calculator
   use strucrd
-  use lwoniom_module 
+  use lwoniom_module
   implicit none
   !> INOUT
   type(systemdata),intent(inout) :: env
   !> LOCAL
+  integer :: i,j
 
 !>--- pass on opt-level to new calculator
   env%calc%optlev = nint(env%optlev)
+
+!>--- pass electric field to tblite
+  if (allocated(env%ref%efield)) then
+    do i = 1,env%calc%ncalculations
+      if (env%calc%calcs(i)%id == jobtype%tblite) then
+        if (.not.allocated(env%calc%calcs(i)%efield)) allocate (env%calc%calcs(i)%efield(3),source=0.0_wp)
+        env%calc%calcs(i)%efield(1:3) = env%ref%efield(1:3)
+      end if
+    end do
+  end if
 
 !>--- ONIOM setup from toml file
   if (allocated(env%ONIOM_toml)) then

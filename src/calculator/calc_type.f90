@@ -130,6 +130,7 @@ module calc_type
     logical :: getlmocent = .false.
     integer :: nprot = 0
     real(wp),allocatable :: protxyz(:,:) 
+    real(wp),allocatable :: efield(:)  !> in V/Å
 
 !>--- API constructs
     integer  :: tblitelvl = 2

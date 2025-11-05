@@ -311,6 +311,7 @@ module crest_data
     integer,allocatable :: topo(:)
     real(wp),allocatable :: charges(:)
     real(wp),allocatable :: wbo(:,:)
+    real(wp),allocatable :: efield(:)
   contains
     procedure :: rdcharges => read_charges
     procedure :: to => ref_to_mol

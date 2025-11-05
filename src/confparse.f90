@@ -1264,6 +1264,21 @@ subroutine parseflags(env,arg,nra)
             env%ref%ichrg = idum
           end if
         end if
+
+      case ('-efield')  !> electric field in V/Ang, only compatibe with tblite
+        if(.not.allocated(env%ref%efield)) allocate(env%ref%efield(3), source=0.0_wp)
+        if (nra >= i+3) then
+          ctmp = trim(arg(i+1))
+          read(ctmp,*,iostat=io) env%ref%efield(1)
+          ctmp = trim(arg(i+2))                    
+          read(ctmp,*,iostat=io) env%ref%efield(2) 
+          ctmp = trim(arg(i+3))                     
+          read(ctmp,*,iostat=io) env%ref%efield(3)  
+          write(stdout,'("  --efield: ",3(1x,es10.3)," V/Å")') env%ref%efield(1:3)
+        else
+          write(stdout,'(a)') 
+        endif
+
       case ('-dscal','-dispscal','-dscal_global','-dispscal_global')
         env%cts%dispscal_md = .true.
         if (index(argument,'_global') .ne. 0) then
