@@ -46,7 +46,7 @@ subroutine parseflags(env,arg,nra)
   use optimize_module
   use parse_inputfile
   use crest_restartlog
-  use lwoniom_module
+
   implicit none
   type(systemdata),intent(inout) :: env
   integer,intent(in) :: nra
@@ -2291,24 +2291,20 @@ subroutine parseflags(env,arg,nra)
     flush (stdout)
     call env2calc_setup(env)
     write (stdout,*) 'done.'
-    if (env%crestver .ne. crest_sorting) then
-      call env%calc%info(stdout)
-    end if
-  end if
-!>--- pass on opt-level to new calculator
-  if (.not.env%legacy) then
-    env%calc%optlev = nint(env%optlev)
   end if
 
-!>--- ONIOM setup from toml file
-  if (allocated(env%ONIOM_toml)) then
-    allocate (env%calc%ONIOM)
-    call ONIOM_read_toml(env%ONIOM_toml,env%nat,env%ref%at,env%ref%xyz,env%calc%ONIOM)
-    call env%calc%ONIOMexpand()
-  end if
+!>--- pass on other settings (from cli) to new calculator
+  if (.not.env%legacy) then
+    call env2calc_modify(env)
+  endif
 
 !>--- important printouts
   if (.not.env%legacy) then
+
+    if (env%crestver .ne. crest_sorting) then 
+      call env%calc%info(stdout)              
+    end if                                    
+
     call print_frozen(env)
   end if
 

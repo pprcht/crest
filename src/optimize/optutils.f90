@@ -334,7 +334,8 @@ contains  !> MODULE PROCEDURES START HERE
                                   '(10x,"│",3x,a,i18,      10x,"│")'
     character(len=*),parameter :: chrfmt = &
                                   '(10x,"│",3x,a,a18,      10x,"│")'
-
+    character(len=*),parameter :: chrfmt2 = &                          
+                                  '(10x,"│",3x,a,a14,      t63,"│")'  
 !>--- set params
     engine = calc%opt_engine
     iupdat = calc%iupdat
@@ -410,7 +411,7 @@ contains  !> MODULE PROCEDURES START HERE
         write (*,chrfmt) "Hessian update    ","schlegel"
       end select
     end if
-    write (*,chrfmt) "write crestopt.log.xyz",bool2string(wr)
+    write (*,chrfmt2) "write crestopt.log.xyz",bool2string(wr)
     if (linear) then
       write (*,chrfmt) "linear (good luck)",bool2string(linear)
     else

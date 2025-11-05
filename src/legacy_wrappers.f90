@@ -141,6 +141,32 @@ subroutine env2calc_setup(env)
   ! env%calc = calc
 end subroutine env2calc_setup
 
+subroutine env2calc_modify(env)
+!******************************************
+!* Modify the calc object within env with
+!* additional settings
+!******************************************
+  use crest_data
+  use crest_calculator
+  use strucrd
+  use lwoniom_module 
+  implicit none
+  !> INOUT
+  type(systemdata),intent(inout) :: env
+  !> LOCAL
+
+!>--- pass on opt-level to new calculator
+  env%calc%optlev = nint(env%optlev)
+
+!>--- ONIOM setup from toml file
+  if (allocated(env%ONIOM_toml)) then
+    if (.not.allocated(env%calc%ONIOM)) allocate (env%calc%ONIOM)
+    call ONIOM_read_toml(env%ONIOM_toml,env%nat,env%ref%at,env%ref%xyz,env%calc%ONIOM)
+    call env%calc%ONIOMexpand()
+  end if
+
+end subroutine env2calc_modify
+
 !================================================================================!
 subroutine confscript2i(env,tim)
   use iso_fortran_env,only:wp => real64
