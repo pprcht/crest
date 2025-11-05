@@ -23,7 +23,8 @@
 !====================================================!
 
 module tblite_api
-  use iso_fortran_env,only:wp => real64,stdout => output_unit
+!  use iso_fortran_env,only:wp => real64,stdout => output_unit
+  use crest_parameters
   use strucrd
 #ifdef WITH_TBLITE
   use mctc_env,only:error_type
@@ -96,6 +97,7 @@ module tblite_api
   public :: tblite_setup,tblite_singlepoint,tblite_addsettings
   public :: tblite_getwbos
   public :: tblite_add_solv
+  public :: tblite_add_efield
   public :: tblite_getcharges
   public :: tblite_getdipole
 
@@ -136,22 +138,22 @@ contains  !> MODULE PROCEDURES START HERE
     tblite%lvl = lvl
     select case (tblite%lvl)
     case (xtblvl%gfn1)
-      if (pr) call tblite%ctx%message("tblite> setting up GFN1-xTB calculation")
+      if (pr) call tblite%ctx%message("tblite> Setting up GFN1-xTB calculation")
       call new_gfn1_calculator(tblite%calc,mctcmol,error)
     case (xtblvl%gfn2)
-      if (pr) call tblite%ctx%message("tblite> setting up GFN2-xTB calculation")
+      if (pr) call tblite%ctx%message("tblite> Setting up GFN2-xTB calculation")
       call new_gfn2_calculator(tblite%calc,mctcmol,error)
     case (xtblvl%ipea1)
-      if (pr) call tblite%ctx%message("tblite> setting up IPEA1-xTB calculation")
+      if (pr) call tblite%ctx%message("tblite> Setting up IPEA1-xTB calculation")
       call new_ipea1_calculator(tblite%calc,mctcmol,error)
     case (xtblvl%ceh)
-      if (pr) call tblite%ctx%message("tblite> setting up CEH calculation")
+      if (pr) call tblite%ctx%message("tblite> Setting up CEH calculation")
       call new_ceh_calculator(tblite%calc,mctcmol,error)
     case (xtblvl%eeq)
-      if (pr) call tblite%ctx%message("tblite> setting up D4 EEQ charges calculation")
+      if (pr) call tblite%ctx%message("tblite> Setting up D4 EEQ charges calculation")
       call new_ceh_calculator(tblite%calc,mctcmol,error) !> doesn't matter but needs initialization
     case (xtblvl%param)
-      if (pr) call tblite%ctx%message("tblite> setting up xtb calculator from parameter file")
+      if (pr) call tblite%ctx%message("tblite> Setting up xtb calculator from parameter file")
       if (allocated(tblite%paramfile)) then
         call tblite_read_param_record(tblite%paramfile,param,io)
         call new_xtb_calculator(tblite%calc,mctcmol,param,error)
@@ -167,6 +169,7 @@ contains  !> MODULE PROCEDURES START HERE
       call tblite%ctx%message("Error: Unknown method in tblite!")
       error stop
     end select
+    if (pr) call tblite%ctx%message('')
 
 !>-- setup wavefunction object
     etemp_au = etemp*ktoau
@@ -226,7 +229,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     select case (tblite%lvl)
     case (xtblvl%gfn1)
-      method ='gfn1'
+      method = 'gfn1'
     case (xtblvl%gfn2)
       method = 'gfn2'
     end select
@@ -251,19 +254,19 @@ contains  !> MODULE PROCEDURES START HERE
     case ('gbsa')
       if (pr) call tblite%ctx%message("tblite> using GBSA/"//solvdum)
       alpb_tmp%dielectric_const = solv_data%eps
-      alpb_tmp%alpb=.false.
+      alpb_tmp%alpb = .false.
       !alpb_tmp%method=method
-      alpb_tmp%solvent=solv_data%solvent
+      alpb_tmp%solvent = solv_data%solvent
       !alpb_tmp%xtb=.true.
-      allocate (solv_inp%alpb, source=alpb_tmp)
-      cds_tmp%alpb=.false.
-      cds_tmp%solvent=solv_data%solvent
-      !cds_tmp%method=method 
-      allocate (solv_inp%cds, source=cds_tmp)
-      shift_tmp%alpb=.false.
-      shift_tmp%solvent=solv_data%solvent
+      allocate (solv_inp%alpb,source=alpb_tmp)
+      cds_tmp%alpb = .false.
+      cds_tmp%solvent = solv_data%solvent
+      !cds_tmp%method=method
+      allocate (solv_inp%cds,source=cds_tmp)
+      shift_tmp%alpb = .false.
+      shift_tmp%solvent = solv_data%solvent
       !shift_tmp%method=method
-      allocate (solv_inp%shift, source=shift_tmp)
+      allocate (solv_inp%shift,source=shift_tmp)
     case ('cpcm')
       if (pr) call tblite%ctx%message("tblite> using CPCM/"//solvdum)
       allocate (solv_inp%cpcm)
@@ -271,27 +274,27 @@ contains  !> MODULE PROCEDURES START HERE
     case ('alpb')
       if (pr) call tblite%ctx%message("tblite> using ALPB/"//solvdum)
       alpb_tmp%dielectric_const = solv_data%eps
-      alpb_tmp%alpb=.true.
+      alpb_tmp%alpb = .true.
       !alpb_tmp%method=method
-      alpb_tmp%solvent=solv_data%solvent
+      alpb_tmp%solvent = solv_data%solvent
       !alpb_tmp%xtb=.true.
-      allocate (solv_inp%alpb, source=alpb_tmp)
-      cds_tmp%alpb=.true.
-      cds_tmp%solvent=solv_data%solvent
-      !cds_tmp%method=method 
-      allocate (solv_inp%cds, source=cds_tmp)
-      shift_tmp%alpb=.true.
-      shift_tmp%solvent=solv_data%solvent
+      allocate (solv_inp%alpb,source=alpb_tmp)
+      cds_tmp%alpb = .true.
+      cds_tmp%solvent = solv_data%solvent
+      !cds_tmp%method=method
+      allocate (solv_inp%cds,source=cds_tmp)
+      shift_tmp%alpb = .true.
+      shift_tmp%solvent = solv_data%solvent
       !shift_tmp%method=method
-      allocate (solv_inp%shift, source=shift_tmp)
+      allocate (solv_inp%shift,source=shift_tmp)
     case default
       if (pr) call tblite%ctx%message("tblite> Unknown tblite implicit solvation model!")
       return
     end select
 
-    str = 'tblite> WARNING: implicit solvation energies are not entirely '// &
-    &'consistent with the xtb implementation.'
-    if (pr) call tblite%ctx%message(str)
+    !str = 'tblite> WARNING: implicit solvation energies are not entirely '// &
+    !&'consistent with the xtb implementation.'
+    !if (pr) call tblite%ctx%message(str)
 
 !>--- add electrostatic (Born part) to calculator
     call new_solvation(solv,mctcmol,solv_inp,error,method)
@@ -443,6 +446,37 @@ contains  !> MODULE PROCEDURES START HERE
     tblite%accuracy = accuracy
 #endif
   end subroutine tblite_addsettings
+
+  subroutine tblite_add_efield(tblite,efield)
+!**********************************************************
+!* tblite_add_efield
+!* if efield is allocated, add it to the tblite calculator
+!**********************************************************
+#ifdef WITH_TBLITE
+    use tblite_container,only:container_type
+    use tblite_external_field,only:electric_field
+#endif
+    implicit none
+    type(tblite_data),intent(inout) :: tblite
+    real(wp),intent(in),allocatable :: efield(:)
+    class(container_type),allocatable :: cont
+    logical :: pr
+    character(len=90) :: str
+#ifdef WITH_TBLITE
+    pr = (tblite%ctx%verbosity > 0)
+    if (allocated(efield)) then
+      if (pr) then
+        write (str,'(a,3(es10.3),a)') "tblite> Calculation includes the following electric field:" 
+        call tblite%ctx%message(trim(str)) 
+        write (str,'(8x, a,3(es15.5,1x),a)') "[",efield,"] V/Å"
+        call tblite%ctx%message(trim(str))
+        call tblite%ctx%message('') 
+      end if
+      cont = electric_field(efield*vatoau)
+      call tblite%calc%push_back(cont)
+    end if
+#endif
+  end subroutine tblite_add_efield
 
 !========================================================================================!
 

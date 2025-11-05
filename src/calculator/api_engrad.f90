@@ -95,6 +95,8 @@ contains    !> MODULE PROCEDURES START HERE
 
       call tblite_addsettings(calc%tblite,calc%maxscc,calc%rdwbo,calc%saveint,calc%accuracy)
 
+      call tblite_add_efield(calc%tblite,calc%efield)
+
       call tblite_add_solv(mol,calc%chrg,calc%uhf,calc%tblite, &
       &    calc%solvmodel,calc%solvent)
     end if
