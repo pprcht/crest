@@ -1646,7 +1646,7 @@ subroutine parseflags(env,arg,nra)
         env%preopt = .false.
       case ('-topo','-topocheck')
         env%checktopo = .true.
-      case ('-notopo','-notopocheck')
+      case ('-notopo','-notopocheck','-noreftopo')
         env%checktopo = .false.
         ctmp = trim(arg(i+1))
         if (ctmp(1:1) .ne. '-') then
@@ -1655,7 +1655,6 @@ subroutine parseflags(env,arg,nra)
             env%checktopo = .true.
           end if
         end if
-      case ('-noreftopo')
         env%reftopo = .false.
       case ('-ezcheck','-checkez')
         env%checkiso = .true.
