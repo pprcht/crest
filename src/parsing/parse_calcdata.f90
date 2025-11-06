@@ -175,6 +175,7 @@ contains !> MODULE PROCEDURES START HERE
     type(keyvalue) :: kv
     logical,intent(out) :: rd
     logical :: ex
+    integer :: n
     rd = .true.
     select case (kv%key)
 
@@ -191,6 +192,15 @@ contains !> MODULE PROCEDURES START HERE
       job%proberad = kv%value_f
     case ('radscal','pvol_radscal')
       job%pvradscal = kv%value_f
+    case ('efield')
+      n = size(kv%value_fa,1)
+      if (n .ne. 3) then
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) trim(kv%rawvalue)
+        call creststop(status_config)
+      end if
+      allocate (job%efield(3),source=0.0_wp)
+      job%efield(:) = kv%value_fa(:)
 
 !>--- integers
     case ('uhf','multiplicity')
@@ -1101,7 +1111,7 @@ contains !> MODULE PROCEDURES START HERE
 !* and add it to a mol.dynamics data object
 !***************************************************
     implicit none
-    type(systemdata),intent(inout) :: env 
+    type(systemdata),intent(inout) :: env
     type(datablock),intent(in) :: blk
     type(mddata),intent(inout) :: mddat
     integer,intent(inout) :: istat
@@ -1129,7 +1139,7 @@ contains !> MODULE PROCEDURES START HERE
     type(mtdpot) :: mtd
     logical,intent(inout) :: success
     logical,intent(out) :: rd
-    integer :: j,nat 
+    integer :: j,nat
     logical,allocatable :: atlist(:)
     rd = .true.
 
