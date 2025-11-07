@@ -151,6 +151,7 @@ module calc_type
 !>--- tblite data
     type(tblite_data),allocatable :: tblite
     character(len=:),allocatable :: tbliteparam
+    logical :: ceh_guess = .false.
 
 !>--- GFN0-xTB data
     type(gfn0_data),allocatable :: g0calc

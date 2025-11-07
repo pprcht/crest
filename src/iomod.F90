@@ -63,10 +63,10 @@ module iomod
   end interface
 
   interface
-     function get_peak_rss_kb() bind(C, name="get_peak_rss_kb") result(kb)
-       import :: c_long_long
-       integer(c_long_long) :: kb
-     end function
+    function get_peak_rss_kb() bind(C,name="get_peak_rss_kb") result(kb)
+      import :: c_long_long
+      integer(c_long_long) :: kb
+    end function
   end interface
 
   interface wrshort
@@ -1230,6 +1230,47 @@ contains !> MODULE PROCEDURES START HERE
     end if
 
   end subroutine split_path
+
+!=========================================================================================!
+
+  function random_tmp_name() result(fname)
+    implicit none
+    character(len=20) :: fname
+    character(len=16) :: core
+    integer :: i,idx
+    real(wp) :: idxr
+    character(len=*),parameter :: letters = &
+    & "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    integer,parameter :: lenletters = len(letters)
+
+    do i = 1,len(core)
+      call random_number(idxr)
+      idx = int(idxr*lenletters)+1
+      core(i:i) = letters(idx:idx)
+    end do
+
+    fname = trim(core)//".tmp"
+  end function random_tmp_name
+
+!==========================================================================================!
+!
+  function dump_array_to_tmp(arr) result(fname)
+    implicit none
+    real(wp),intent(in) :: arr(:)
+    character(len=:),allocatable :: fname
+    integer :: unit,i
+
+    fname = trim(random_tmp_name())
+
+    open (newunit=unit,file=fname,status="replace",action="write",iostat=i)
+    if (i /= 0) stop "Could not open temp file."
+
+    do i = 1,size(arr)
+      write (unit,'(f25.15)') arr(i)
+    end do
+
+    close (unit)
+  end function dump_array_to_tmp
 
 !========================================================================================!
 !========================================================================================!

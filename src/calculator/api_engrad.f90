@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2021 - 2023 Philipp Pracht
+! Copyright (C) 2021 - 2025 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -27,7 +27,7 @@ module api_engrad
   use iso_fortran_env,only:wp => real64,stdout => output_unit
   use strucrd
   use calc_type
-  use iomod,only:makedir,directory_exist,remove
+  use iomod,only:makedir,directory_exist,remove,dump_array_to_tmp
   !> API modules
   use api_helpers
   use tblite_api
@@ -63,7 +63,6 @@ contains    !> MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: grad(3,mol%nat)
     integer,intent(out) :: iostatus
 
-    character(len=:),allocatable :: cpath
     logical :: loadnew,pr
 
     integer :: i,j,k,l,ich,och,io
@@ -76,22 +75,22 @@ contains    !> MODULE PROCEDURES START HERE
     call tblite_init(calc,loadnew)
 !>--- tblite printout handling
     call api_handle_output(calc,'tblite.out',mol,pr)
-    if (pr .or. calc%prstdout) then
+    if (pr.or.calc%prstdout) then
       !> tblite uses its context (ctx) type, rather than calc%prch
       calc%tblite%ctx%unit = calc%prch
       calc%tblite%ctx%verbosity = 1
-      if(calc%prstdout)then
+      if (calc%prstdout) then
         !> special case, fwd to stdout (be carefule with this!)
         calc%tblite%ctx%unit = stdout
         calc%tblite%ctx%verbosity = 2
-      endif
+      end if
     else
       calc%tblite%ctx%verbosity = 0
     end if
 
 !>-- populate parameters and wavefunction
     if (loadnew) then
-      call tblite_setup(mol,calc%chrg,calc%uhf,calc%tblitelvl,calc%etemp,calc%tblite)
+      call tblite_setup(mol,calc%chrg,calc%uhf,calc%tblitelvl,calc%etemp,calc%tblite,calc%ceh_guess)
 
       call tblite_addsettings(calc%tblite,calc%maxscc,calc%rdwbo,calc%saveint,calc%accuracy)
 
@@ -107,7 +106,7 @@ contains    !> MODULE PROCEDURES START HERE
     call tblite_singlepoint(mol,calc%chrg,calc%uhf,calc%tblite, &
     &                       energy,grad,iostatus)
     if (iostatus /= 0) return
-    if(.not.calc%prstdout) &
+    if (.not.calc%prstdout) &
     & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
 
 !>--- postprocessing, getting other data
@@ -136,7 +135,6 @@ contains    !> MODULE PROCEDURES START HERE
     integer,intent(out) :: iostatus
     !> LOCAL
     type(gfn0_results) :: res
-    character(len=:),allocatable :: cpath
     logical :: loadnew
     logical :: pr
 
@@ -163,7 +161,7 @@ contains    !> MODULE PROCEDURES START HERE
     if (iostatus /= 0) return
     if (pr) then
       call gfn0_print(calc%prch,g0calc,res)
-      if(.not.calc%prstdout) &
+      if (.not.calc%prstdout) &
       & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
     end if
 
@@ -193,7 +191,6 @@ contains    !> MODULE PROCEDURES START HERE
     integer,intent(out) :: iostatus
     !> LOCAL
     type(gfn0_results) :: res
-    character(len=:),allocatable :: cpath
     logical :: loadnew,pr
     integer :: i,j,k,l,ich,och,io
     logical :: ex
@@ -219,7 +216,7 @@ contains    !> MODULE PROCEDURES START HERE
     if (iostatus /= 0) return
     if (pr) then
       call gfn0_print(calc%prch,g0calc,res)
-      if(.not.calc%prstdout) &
+      if (.not.calc%prstdout) &
       & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
     end if
 
@@ -245,13 +242,14 @@ contains    !> MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: grad(3,mol%nat)
     integer,intent(out) :: iostatus
 
-    character(len=:),allocatable :: cpath
     logical :: loadnew,pr
     integer :: i,j,k,l,ich,och,io
     logical :: ex
+    character(len=:),allocatable :: tmpchrgs
+    real(wp),allocatable :: q(:)
     iostatus = 0
     pr = .false.
-!>--- setup system call information
+!>--- setup calculation data
     !$omp critical
     call gfnff_init(calc,loadnew)
 !>--- printout handling
@@ -259,7 +257,19 @@ contains    !> MODULE PROCEDURES START HERE
 
 !>--- populate parameters and neighbourlists
     if (loadnew) then
+      if (calc%ceh_guess) then
+        !> A bit hacky and additional I/O, but would need adjusting submodule code otherwise
+        call tblite_quick_ceh_q(mol,q,calc%chrg)
+        tmpchrgs = dump_array_to_tmp(q)
+        calc%ff_dat%refcharges = tmpchrgs
+      end if
+
       call gfnff_api_setup(mol,calc%chrg,calc%ff_dat,iostatus,pr,calc%prch)
+
+      if (calc%ceh_guess) then
+        call remove(tmpchrgs)
+        deallocate (q)
+      end if
     end if
     !$omp end critical
     if (iostatus /= 0) return
@@ -272,7 +282,7 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- printout
     if (pr) then
       call gfnff_printout(calc%prch,calc%ff_dat)
-      if(.not.calc%prstdout) & 
+      if (.not.calc%prstdout) &
       & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
     end if
 
@@ -298,7 +308,6 @@ contains    !> MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: grad(3,mol%nat)
     integer,intent(out) :: iostatus
 
-    character(len=:),allocatable :: cpath
     logical :: loadnew,pr
     integer :: i,j,k,l,ich,och,io
     logical :: ex
@@ -326,7 +335,7 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- printout
     if (pr) then
       !> the libpvol_sp call includes the printout within libpvol-lib
-      if(.not.calc%prstdout) &
+      if (.not.calc%prstdout) &
       & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
     end if
 

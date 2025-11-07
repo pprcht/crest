@@ -49,7 +49,7 @@ subroutine crest_playground(env,tim)
   logical :: connected,fail
 
   real(wp) :: energy
-  real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:)
+  real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:),q(:)
 
   type(canonical_sorter) ::  can
 !========================================================================================!
@@ -78,12 +78,14 @@ subroutine crest_playground(env,tim)
   call engrad(mol,calc,energy,grad,io)
   call calculation_summary(calc,mol,energy,grad)
   
-
-  write(stdout,*)
-  write(stdout,*) 'CANGEN algorithm' 
-  call can%init(mol,calc%calcs(1)%wbo,'apsp+',heavy=.false.)
-  call can%stereo(mol)
-  call can%rankprint(mol) 
+  block
+  use tblite_api  
+  use iomod, only: dump_array_to_tmp
+  call tblite_quick_ceh_q(mol,q,env%chrg,pr=.true.)
+  write(*,*) 'q:'
+  write(*,*) q
+  write(*,*) dump_array_to_tmp(q)
+  end block
 
 !========================================================================================!
   call tim%stop(14)
