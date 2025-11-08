@@ -24,6 +24,7 @@
 !======================================================!
 subroutine crest_solvtool(env, tim)
    use iso_fortran_env, wp => real64
+   use qcg_printouts
    use crest_data
    use iomod
    use zdata
@@ -450,6 +451,7 @@ end subroutine read_directed_input
 subroutine qcg_grow(env, solu, solv, clus, tim)
    use crest_parameters
    use crest_data
+   use qcg_printouts
    use iomod
    use zdata
    use strucrd
@@ -844,6 +846,7 @@ end subroutine qcg_grow
 subroutine qcg_ensemble(env, solu, solv, clus, ens, tim, fname_results)
    use crest_parameters
    use crest_data
+   use qcg_printouts
    use iomod
    use zdata
    use strucrd
@@ -1499,6 +1502,7 @@ end subroutine qcg_ensemble
 subroutine qcg_cff(env, solu, solv, clus, ens, solv_ens, tim)
    use crest_parameters
    use crest_data
+   use qcg_printouts
    use iomod
    use zdata
    use strucrd
@@ -1965,6 +1969,7 @@ end subroutine qcg_cff
 subroutine qcg_freq(env, tim, solu, solv, solu_ens, solv_ens)
    use crest_parameters
    use crest_data
+   use qcg_printouts
    use iomod
    use zdata
    use strucrd
@@ -2220,6 +2225,7 @@ end subroutine qcg_freq
 subroutine qcg_eval(env, solu, solu_ens, solv_ens)
    use iso_fortran_env, wp => real64
    use crest_data
+   use qcg_printouts
    use iomod
    use zdata
    use strucrd

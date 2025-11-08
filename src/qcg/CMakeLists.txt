@@ -20,6 +20,7 @@ list(APPEND srcs
   "${dir}/volume.f90"
   "${dir}/solvtool_misc.f90"
   "${dir}/solvtool.f90"
+  "${dir}/qcg_printouts.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)
