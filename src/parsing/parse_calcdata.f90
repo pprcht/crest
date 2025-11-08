@@ -462,6 +462,8 @@ contains !> MODULE PROCEDURES START HERE
       job%apiclean = kv%value_b
     case ('lmo','lmocent')
       job%getlmocent = kv%value_b
+    case ('ceh_guess')
+      job%ceh_guess = kv%value_b
 
     case default
       !>--- keyword not correctly read/found

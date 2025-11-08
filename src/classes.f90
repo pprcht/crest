@@ -539,6 +539,7 @@ module crest_data
     logical :: autozsort             !> do the ZSORT in the beginning ?
     logical :: allowrestart = .true. !> allow restart in crest algos?
     logical :: better                !> found a better conformer and restart in V1
+    logical :: ceh_guess = .false.   !> use CEH guess in tblite or gfnff, if available
     logical :: cff                   !> CFF used in QCG-energy calculation
     logical :: cluster = .false.     !> perform a clustering analysis
     logical :: checktopo = .true.    !> perform topolgy check in CREGEN

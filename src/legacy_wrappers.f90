@@ -170,6 +170,13 @@ subroutine env2calc_modify(env)
     end do
   end if
 
+  !>--- pass on CEH guess flag
+  if (env%ceh_guess) then
+    do i = 1,env%calc%ncalculations
+      env%calc%calcs(i)%ceh_guess = env%ceh_guess
+    end do
+  end if
+
 !>--- ONIOM setup from toml file
   if (allocated(env%ONIOM_toml)) then
     if (.not.allocated(env%calc%ONIOM)) allocate (env%calc%ONIOM)

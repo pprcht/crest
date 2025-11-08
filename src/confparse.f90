@@ -1279,6 +1279,9 @@ subroutine parseflags(env,arg,nra)
           write(stdout,'(a)') 
         endif
 
+      case ('-ceh_guess') 
+        env%ceh_guess=.true.
+
       case ('-dscal','-dispscal','-dscal_global','-dispscal_global')
         env%cts%dispscal_md = .true.
         if (index(argument,'_global') .ne. 0) then

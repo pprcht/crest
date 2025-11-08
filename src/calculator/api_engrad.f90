@@ -258,8 +258,11 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- populate parameters and neighbourlists
     if (loadnew) then
       if (calc%ceh_guess) then
+        if(pr)then
+           write(calc%prch,'(/,a)') 'Initializing (fragement) charges from CEH model'
+        endif
         !> A bit hacky and additional I/O, but would need adjusting submodule code otherwise
-        call tblite_quick_ceh_q(mol,q,calc%chrg)
+        call tblite_quick_ceh_q(mol,q,calc%chrg,pr=pr,prch=calc%prch)
         tmpchrgs = dump_array_to_tmp(q)
         calc%ff_dat%refcharges = tmpchrgs
       end if

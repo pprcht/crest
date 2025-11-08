@@ -666,7 +666,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine tblite_quick_ceh_q(mol,q,chrg,uhf,pr)
+  subroutine tblite_quick_ceh_q(mol,q,chrg,uhf,pr,prch)
     !*********************************************************
     !* Calculate CEH charges
     !*********************************************************
@@ -676,6 +676,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(out),allocatable :: q(:)
     integer,intent(in),optional :: uhf
     logical,intent(in),optional :: pr
+    integer,intent(in),optional :: prch
 #ifdef WITH_TBLITE
     type(structure_type) :: mctcmol
     !> LOCAL
@@ -699,6 +700,7 @@ contains  !> MODULE PROCEDURES START HERE
 #ifdef WITH_TBLITE
     uhf_loc = 0
     if (present(uhf)) uhf_loc = uhf
+    if(present(prch)) ctx%unit=prch
 
     !>--- make an mctcmol object from mol
     call tblite_mol2mol(mol,chrg,uhf_loc,mctcmol)
