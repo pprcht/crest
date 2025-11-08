@@ -21,7 +21,7 @@
 ! A quick single point xtb calculation without wbo
 !--------------------------------------------------------------------------------------------
 subroutine xtb_sp_qcg(env,fname)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   implicit none
@@ -55,7 +55,7 @@ end subroutine xtb_sp_qcg
 ! A quick single xtb optimization gets zmol and overwrites it with optimized stuff
 !--------------------------------------------------------------------------------------------
 subroutine xtb_opt_qcg(env,zmol,constrain)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -106,7 +106,7 @@ end subroutine xtb_opt_qcg
 !___________________________________________________________________________________
 
 subroutine xtb_lmo(env,fname)!,chrg)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -147,7 +147,7 @@ end subroutine xtb_lmo
 !___________________________________________________________________________________
 
 subroutine xtb_iff(env,file_lmo1,file_lmo2,solu,clus)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -191,7 +191,7 @@ end subroutine xtb_iff
 !___________________________________________________________________________________
 
 subroutine xtb_dock(env,fnameA,fnameB,solu,clus)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -251,7 +251,7 @@ end subroutine xtb_dock
 !___________________________________________________________________________________
 
 subroutine opt_cluster(env,solu,clus,fname,without_pot)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -316,7 +316,7 @@ end subroutine opt_cluster
 !___________________________________________________________________________________
 
 subroutine ensemble_lmo(env,fname,self,NTMP,TMPdir,conv)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -383,7 +383,7 @@ end subroutine ensemble_lmo
 !___________________________________________________________________________________
 
 subroutine ensemble_iff(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,NTMP,TMPdir,conv)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -452,7 +452,7 @@ end subroutine ensemble_iff
 
 subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
         &,n_solvent,NTMP,TMPdir,conv)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use zdata
@@ -544,7 +544,7 @@ end subroutine ensemble_dock
 !___________________________________________________________________________________
 
 subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use strucrd
@@ -701,7 +701,7 @@ end subroutine cff_opt
 !___________________________________________________________________________________
 
 subroutine ens_sp(env,fname,NTMP,TMPdir)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use strucrd
@@ -783,7 +783,7 @@ end subroutine ens_sp
 !___________________________________________________________________________________
 
 subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use iomod
   use crest_data
   use strucrd
@@ -910,7 +910,7 @@ end
 !============================================================!
 
 subroutine wr_cluster_cut(fname_cluster,n1,n2,iter,fname_solu_cut,fname_solv_cut)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use strucrd
 
   implicit none
@@ -952,7 +952,7 @@ subroutine wr_cluster_cut(fname_cluster,n1,n2,iter,fname_solu_cut,fname_solv_cut
 end subroutine wr_cluster_cut
 
 subroutine check_iff(neg_E)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
 
   implicit none
@@ -986,7 +986,7 @@ end subroutine check_iff
 ! write a wall potential in a file used as xtb input
 
 subroutine write_wall(env,n1,rabc1,rabc12,fname)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
 
   implicit none
@@ -1018,7 +1018,7 @@ subroutine write_wall(env,n1,rabc1,rabc12,fname)
 end subroutine write_wall
 
 subroutine check_dock(neg_E)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   use iomod,only:minigrep,grepval
 
@@ -1041,7 +1041,7 @@ subroutine check_dock(neg_E)
 end subroutine check_dock
 
 subroutine write_constraint(env,coord_name,fname)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   use iomod
 

@@ -23,7 +23,7 @@ subroutine crest_solvtool(env,tim)
 !***********************************************
 !* Main driver for all QCG runtypes
 !***********************************************
-  use iso_fortran_env,wp => real64
+  use crest_parameters,only:wp,autokcal
   use qcg_printouts
   use crest_data
   use iomod
@@ -39,8 +39,6 @@ subroutine crest_solvtool(env,tim)
 
   integer :: progress,io
   character(len=512) :: thispath
-
-  real(wp),parameter         :: eh = 627.509541d0
 
 !--- Molecule settings
   solute%nmol = 1
@@ -65,7 +63,7 @@ subroutine crest_solvtool(env,tim)
   else
     write (*,*)
     write (*,*) '  The use of the aISS algorithm is requested (recommend).'
-    write (*,*) '  This requires xtb version 6.7.1 or newer.'
+    write (*,*) '  This requires xtb version 6.6.0 or newer.'
     write (*,*) '  xTB-IFF can still be used with the --xtbiff flag.'
     write (*,*)
   end if
@@ -73,7 +71,6 @@ subroutine crest_solvtool(env,tim)
 !------------------------------------------------------------------------------
 !   Setup
 !------------------------------------------------------------------------------
-
   call write_qcg_setup(env) !Just an outprint of setup
   call read_qcg_input(env,solute,solvent) !Reading mol. data and determining r,V,A
   call qcg_setup(env,solute,solvent)
@@ -127,7 +124,7 @@ subroutine crest_solvtool(env,tim)
     end if
     call pr_qcg_esolv()
     write (*,'(2x,"|",9x,F8.2," kcal/mol ",12x,"|")') &
-           &   full_ensemble%g-solvent_ensemble%g-(solute%energy*eh)
+           &   full_ensemble%g-solvent_ensemble%g-(solute%energy*autokcal)
     write (*,'(2x,''========================================='')')
     call chdir(thispath)
     progress = progress+1
@@ -139,12 +136,9 @@ subroutine crest_solvtool(env,tim)
   if (progress .le. env%qcg_runtype.and.progress .eq. 3) then !gsolv
     call qcg_freq(env,tim,solute,solvent,full_ensemble,solvent_ensemble)
     call qcg_eval(env,solute,full_ensemble,solvent_ensemble)
-
     progress = progress+1
   end if
 
-  !<----------------------------------
-!  call tim%stop(2) !stop a timer
 
 !------------------------------------------------------------------------------
 !   Cleanup and deallocation
@@ -323,7 +317,7 @@ end subroutine qcg_setup
 !==============================================================================!
 
 subroutine read_qcg_input(env,solu,solv)
-  use iso_fortran_env,wp => real64
+  use crest_parameters
   use crest_data
   use iomod
   use zdata
@@ -334,7 +328,6 @@ subroutine read_qcg_input(env,solu,solv)
   type(systemdata)               :: env
   type(zmolecule),intent(inout) :: solu,solv
   logical                        :: pr
-  real(wp),parameter            :: amutokg = 1.66053886E-27
   real(wp),parameter            :: third = 1.0d0/3.0d0
   integer                        :: i
   real(wp)                       :: r_solu,r_solv
@@ -383,13 +376,13 @@ subroutine read_qcg_input(env,solu,solv)
 
 end subroutine read_qcg_input
 
-!==============================================================================! 
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<! 
-!==============================================================================! 
+!==============================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!==============================================================================!
 
 !> Read input for directed docking
 subroutine read_directed_input(env)
-  use iso_fortran_env,wp => real64
+  use crest_parameters
   use crest_data
   implicit none
 
@@ -459,9 +452,9 @@ subroutine read_directed_input(env)
 
 end subroutine read_directed_input
 
-!==============================================================================! 
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<! 
-!==============================================================================! 
+!==============================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!==============================================================================!
 
 subroutine qcg_grow(env,solu,solv,clus,tim)
   use crest_parameters
@@ -485,7 +478,6 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   real(wp),allocatable       :: e_each_cycle(:)
   real(wp)                   :: dens,dum,efix
   real(wp)                   :: e_diff = 0.0_wp
-  real(wp),parameter         :: eh = 627.509541d0
   real(wp),allocatable       :: E_inter(:)
   real(wp)                   :: shr = 0.0_wp
   real(wp)                   :: shr_av = 0.0_wp
@@ -501,7 +493,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 
   interface
     subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
-      use iso_fortran_env,only:wp => real64
+      use crest_parameters
       use strucrd,only:i2e
       implicit none
 
@@ -741,7 +733,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     efix = clus%energy/sqrt(float(clus%nat))
     dum = solu%energy
     if (iter .gt. 1) dum = e_each_cycle(iter-1)
-    e_diff = e_diff+eh*(e_each_cycle(iter)-solv%energy-dum)
+    e_diff = e_diff+autokcal*(e_each_cycle(iter)-solv%energy-dum)
     call ellipsout('cluster_cavity.coord',clus%nat,clus%at,clus%xyz,clus%ell_abc)
     call both_ellipsout('twopot_cavity.coord',clus%nat,clus%at,clus%xyz,&
            & clus%ell_abc,solu%ell_abc)
@@ -752,7 +744,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 
 !--- Movie file
     write (ich15,*) clus%nat
-    write (ich15,'('' SCF done '',2F16.8)') eh*(e_each_cycle(iter)-solv%energy-dum)
+    write (ich15,'('' SCF done '',2F16.8)') autokcal*(e_each_cycle(iter)-solv%energy-dum)
     do j = 1,clus%nat
       write (ich15,'(a,1x,3F24.10)') i2e(clus%at(j)),clus%xyz(1:3,j)*bohr
     end do
@@ -762,7 +754,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     call analyze_cluster(iter,clus%nat,solu%nat,solv%nat,clus%xyz,clus%at,shr_av,shr)
 
     write (*,'(x,i4,F13.6,1x,f7.2,3x,f8.2,6x,f6.3,3x,f8.3,3x,2f6.1,2x,f8.1,3x,a,x)') &
-          & iter,e_each_cycle(iter),eh*(e_each_cycle(iter)-solv%energy-dum),&
+          & iter,e_each_cycle(iter),autokcal*(e_each_cycle(iter)-solv%energy-dum),&
           & e_diff,dens,efix,shr_av,shr,clus%vtot,trim(optlevflag(env%optlev))
     write (ich99,'(i4,F20.10,3x,f8.1)') iter,e_each_cycle(iter),clus%vtot
 
@@ -773,7 +765,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     end do
     mean = mean/iter
     mean_diff = mean-mean_old
-    write (ich88,'(i5,1x,3F13.8)') iter,E_inter(iter)*eh,mean,mean_diff
+    write (ich88,'(i5,1x,3F13.8)') iter,E_inter(iter)*autokcal,mean,mean_diff
 
 !--- Check if converged when no nsolv was given
     if (env%nsolv .eq. 0) then
@@ -858,9 +850,9 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 
 end subroutine qcg_grow
 
-!==============================================================================! 
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<! 
-!==============================================================================! 
+!==============================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!==============================================================================!
 !
 subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   use crest_parameters
@@ -894,7 +886,6 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   logical                    :: ex,mdfail,e_there
   logical                    :: checkiso_tmp,cbonds_tmp
   real(wp),allocatable      :: e_fix(:),e_clus(:)
-  real(wp),parameter         :: eh = 627.509541d0
   real(wp)                   :: S,H,G,dens,shr,shr_av
   real(wp)                   :: sasa
   real(wp)                   :: newtemp,newmdtime,newmdstep,newhmass
@@ -909,7 +900,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
   interface
     subroutine aver(pr,env,runs,e_tot,S,H,G,sasa,a_present,a_tot)
-      use iso_fortran_env,only:wp => real64
+      use crest_parameters
       use crest_data
 
       implicit none
@@ -1390,7 +1381,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     write (ich98,'(i4,F20.10,3x,f8.1)') env%nsolv,ens%er(i),clus%atot
     write (*,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
           & i,ens%er(i),dens,e_fix(i),shr_av,shr,clus%atot,trim(optlevflag(env%optlev))
-    e_fix(i) = e_fix(i)*eh/sqrt(float(clus%nat))
+    e_fix(i) = e_fix(i)*autokcal/sqrt(float(clus%nat))
   end do
   close (ich98)
   call copysub('cluster_energy.dat',resultspath)
@@ -1399,9 +1390,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   write (*,*)
   call remove('full_ensemble.xyz')
   call sort_ensemble(ens,ens%er,'full_ensemble.xyz')
-  e_clus = ens%er*eh
+  e_clus = ens%er*autokcal
   call sort_min(ens%nall,1,1,e_clus)
-  ens%er = e_clus/eh !Overwrite ensemble energy with sorted one
+  ens%er = e_clus/autokcal !Overwrite ensemble energy with sorted one
   allocate (de(ens%nall),source=0.0d0)
   allocate (p(ens%nall),source=0.0d0)
   e0 = e_clus(1)
@@ -1444,9 +1435,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     write (ich48,'(2x, ''cluster'',2x,''E_norm [Eh]'',2x, ''De [kcal]'', 4x, ''p'')')
     do j = 1,ens%nall
       if (j .lt. 10) then
-        write (ich48,'(5x,i0,3x,f11.6,5x,f6.4,3x,f6.4)') j,e_clus(j)/eh,de(j),p(j)
+        write (ich48,'(5x,i0,3x,f11.6,5x,f6.4,3x,f6.4)') j,e_clus(j)/autokcal,de(j),p(j)
       else
-        write (ich48,'(5x,i0,2x,f11.6,5x,f6.4,3x,f6.4)') j,e_clus(j)/eh,de(j),p(j)
+        write (ich48,'(5x,i0,2x,f11.6,5x,f6.4,3x,f6.4)') j,e_clus(j)/autokcal,de(j),p(j)
       end if
     end do
     close (ich48)
@@ -1459,7 +1450,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
   call ens%deallocate()
   call ens%open('final_ensemble.xyz')
-  ens%er = e_clus(1:k)/eh
+  ens%er = e_clus(1:k)/autokcal
 
 !--- Getting G,S,H
   write (*,*)
@@ -1467,7 +1458,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   write (*,'(2x,''------------------------------------------------------------------------'')')
   write (*,'(2x,''Boltz. averaged energy of final cluster:'')')
   call aver(.true.,env,ens%nall,e_clus(1:ens%nall),S,H,G,sasa,.false.)
-  write (*,'(7x,''G /Eh     :'',F14.8)') G/eh
+  write (*,'(7x,''G /Eh     :'',F14.8)') G/autokcal
   write (*,'(7x,''T*S /kcal :'',f8.3)') S
 
   ens%g = G
@@ -1518,9 +1509,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
 end subroutine qcg_ensemble
 
-!==============================================================================! 
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<! 
-!==============================================================================! 
+!==============================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!==============================================================================!
 
 subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   use crest_parameters
@@ -1554,7 +1545,6 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   real(wp),allocatable      :: outer_ell_abc(:,:)
   real(wp),allocatable      :: e_cur(:,:)
   real(wp)                   :: e_cluster(env%nqcgclust)
-  real(wp),parameter        :: eh = 627.509541d0
   real(wp)                   :: S,H,G
   real(wp)                   :: sasa,tmp_optlev
   real(wp)                   :: etmp(500)
@@ -1574,7 +1564,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
   interface
     subroutine aver(pr,env,runs,e_tot,S,H,G,sasa,a_present,a_tot)
-      use iso_fortran_env,only:wp => real64
+      use crest_parameters
       use crest_data
 
       implicit none
@@ -1806,7 +1796,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
           end if
           dum_e = e_empty(i)
           if (iter-nsolv .gt. 1) dum_e = e_cur(iter-1,i)
-          de = eh*(e_cur(iter,i)-solv%energy-dum_e)
+          de = autokcal*(e_cur(iter,i)-solv%energy-dum_e)
           de_tot(i) = de_tot(i)+de
           !---- Check if solvent added is repulsive
           if (de .gt. 0) then
@@ -1894,7 +1884,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 !--- Getting energy and calculating properties
     call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,e_cluster(i))
     call grepval('xtb_sp.out','         :: add. restraining',e_there,e_fix(i))
-    e_fix(i) = e_fix(i)*eh/sqrt(float(clus%nat))
+    e_fix(i) = e_fix(i)*autokcal/sqrt(float(clus%nat))
     call get_sphere(.false.,clus,.false.)
     if (clus%nat .gt. n_ini) then
       solv_added = (clus%nat-(n_ini))/solv%nat
@@ -1949,13 +1939,13 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   write (*,'(2x,''------------------------------------------------------------------------'')')
   write (*,'(2x,''------------------------------------------------------------------------'')')
   write (*,'(2x,''Boltz. averaged energy of final cluster:'')')
-  e_cluster = solv_ens%er*eh
-  e_norm = e_norm*eh
+  e_cluster = solv_ens%er*autokcal
+  e_norm = e_norm*autokcal
   call sort_min(env%nqcgclust,1,1,e_norm)
   call aver(.true.,env,solv_ens%nall,e_norm(1:env%nqcgclust),S,H,G,sasa,.false.)
-  write (*,'(7x,''G /Eh     :'',F14.8)') G/eh
+  write (*,'(7x,''G /Eh     :'',F14.8)') G/autokcal
   write (*,'(7x,''T*S /kcal :'',f8.3)') S
-  solv_ens%er = e_norm/eh !normalized energy needed for final evaluation
+  solv_ens%er = e_norm/autokcal !normalized energy needed for final evaluation
 
   solv_ens%g = G
   solv_ens%s = S
@@ -2254,7 +2244,7 @@ end subroutine qcg_freq
 !==============================================================================!
 
 subroutine qcg_eval(env,solu,solu_ens,solv_ens)
-  use iso_fortran_env,wp => real64
+  use crest_parameters
   use crest_data
   use qcg_printouts
   use iomod
@@ -2291,11 +2281,10 @@ subroutine qcg_eval(env,solu,solu_ens,solv_ens)
   real(wp)                   :: e_solvent(solv_ens%nall)
   real(wp)                   :: scal(20)
   integer                    :: ich23
-  real(wp),parameter         :: eh = 627.509541d0
 
   interface
     subroutine aver(pr,env,runs,e_tot,S,H,G,sasa,a_present,a_tot)
-      use iso_fortran_env,only:wp => real64
+      use crest_parameters
       use crest_data
 
       implicit none
@@ -2326,14 +2315,14 @@ subroutine qcg_eval(env,solu,solu_ens,solv_ens)
 !--- Solute Cluster
   !H_solv
   do i = 1,solu_ens%nall
-    e_solute(i) = solu_ens%er(i)*eh+solu_ens%ht(i)
+    e_solute(i) = solu_ens%er(i)*autokcal+solu_ens%ht(i)
   end do
   call aver(.false.,env,solu_ens%nall,e_solute,dum1,H_solute,dum2,sasa,.false.)
   !G_solv
   do i = 1,srange
     do j = 1,solu_ens%nall
       g1(j) = solu_ens%ht(j)-(env%tboltz*(solu_ens%svib(j)+scal(i)*(solu_ens%srot(j)+solu_ens%stra(j)))/1000)
-      e_solute(j) = solu_ens%er(j)*eh+g1(j)
+      e_solute(j) = solu_ens%er(j)*autokcal+g1(j)
     end do
     call aver(.false.,env,solu_ens%nall,e_solute,S(i),dum,G_solute(i),sasa,.false.)
   end do
@@ -2341,7 +2330,7 @@ subroutine qcg_eval(env,solu,solu_ens,solv_ens)
 !--- Solvent Cluster
   !H_solv
   do i = 1,solv_ens%nall
-    e_solvent(i) = solv_ens%er(i)*eh+solv_ens%ht(i)
+    e_solvent(i) = solv_ens%er(i)*autokcal+solv_ens%ht(i)
   end do
   call aver(.false.,env,solv_ens%nall,e_solvent,dum1,H_solvent,dum2,sasa,.false.)
 
@@ -2350,16 +2339,16 @@ subroutine qcg_eval(env,solu,solu_ens,solv_ens)
     do j = 1,solv_ens%nall
       g2(j) = solv_ens%ht(j)- &
               & (env%tboltz*(solv_ens%svib(j)+scal(i)*(solv_ens%srot(j)+solv_ens%stra(j)))/1000)
-      e_solvent(j) = solv_ens%er(j)*eh+g2(j)
+      e_solvent(j) = solv_ens%er(j)*autokcal+g2(j)
     end do
     call aver(.false.,env,solv_ens%nall,e_solvent,S(i),dum,G_solvent(i),sasa,.false.)
   end do
 
 !--- Solute gas phase
-  H_mono = solu%energy*eh+solu%ht
+  H_mono = solu%energy*autokcal+solu%ht
   do i = 1,srange
     g3 = solu%ht-(env%tboltz*(solu%svib+scal(i)*(solu%srot+solu%stra))/1000)
-    G_mono(i) = solu%energy*eh+g3
+    G_mono(i) = solu%energy*autokcal+g3
   end do
 
   Gsolv(1:20) = G_solute(1:20)-G_solvent(1:20)-G_mono(1:20)
@@ -2400,7 +2389,6 @@ subroutine get_sphere(pr,zmol,r_logical)
   integer :: i
   real(wp) :: rad(zmol%nat),xyz_tmp(3,zmol%nat)
 
-
   do i = 1,zmol%nat
     rad(i) = bohr*rcov_qcg(zmol%at(i))*1.40 ! scale factor adjusted to rough
     xyz_tmp(1:3,i) = bohr*zmol%xyz(1:3,i)
@@ -2431,7 +2419,7 @@ end subroutine get_sphere
 !==============================================================================!
 
 subroutine cma_shifting(solu,solv)
-  use iso_fortran_env,wp => real64
+  use crest_parameters
   use crest_data
   use iomod
   use zdata
@@ -2455,10 +2443,10 @@ subroutine cma_shifting(solu,solv)
 
 end subroutine cma_shifting
 
-!==============================================================================! 
+!==============================================================================!
 !
 subroutine get_ellipsoid(env,solu,solv,clus,pr1)
-  use iso_fortran_env,wp => real64
+  use crest_parameters
   use crest_data
   use iomod
   use zdata
@@ -2476,8 +2464,7 @@ subroutine get_ellipsoid(env,solu,solv,clus,pr1)
   character(len=10) :: fname
   logical            :: ex,pr,pr1
 
-  real(wp),parameter :: pi43 = 3.1415926540d0*4.0d0/3.0d0
-  real(wp),parameter :: pi = 3.1415926540d0
+  real(wp),parameter :: pi43 = pi*4.0d0/3.0d0
   real(wp),parameter :: third = 1.0d0/3.0d0
 
   pr = .false. !Outprint deactivated
@@ -2555,11 +2542,11 @@ subroutine get_ellipsoid(env,solu,solv,clus,pr1)
 
 end subroutine get_ellipsoid
 
-!==============================================================================! 
+!==============================================================================!
 
 subroutine getmaxrad(n,at,xyz,r)
   use crest_parameters,only:wp
-  use miscdata, only: rcov_qcg
+  use miscdata,only:rcov_qcg
   implicit none
   real(wp) :: xyz(3,n),r
   integer :: n,at(n)
@@ -2578,10 +2565,10 @@ subroutine getmaxrad(n,at,xyz,r)
   end do
 end subroutine getmaxrad
 
-!==============================================================================! 
+!==============================================================================!
 
 subroutine ellipsout(fname,n,at,xyz,r1)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use strucrd,only:i2e
   implicit none
 
@@ -2618,10 +2605,10 @@ subroutine ellipsout(fname,n,at,xyz,r1)
 
 end subroutine ellipsout
 
-!==============================================================================! 
+!==============================================================================!
 
 subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use strucrd,only:i2e
   implicit none
 
@@ -2677,10 +2664,10 @@ subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
 
 end subroutine both_ellipsout
 
-!==============================================================================! 
+!==============================================================================!
 
 subroutine analyze_cluster(nsolv,n,nS,nM,xyz,at,av,last)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use axis_module,only:cma
   implicit none
   real(wp) xyz(3,n)
@@ -2715,10 +2702,10 @@ subroutine analyze_cluster(nsolv,n,nS,nM,xyz,at,av,last)
   av = av/float(nsolv-1)
 end subroutine analyze_cluster
 
-!==============================================================================! 
+!==============================================================================!
 
 subroutine aver(pr,env,runs,e_tot,S,H,G,sasa,a_present,a_tot)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
 
   implicit none
@@ -2744,7 +2731,6 @@ subroutine aver(pr,env,runs,e_tot,S,H,G,sasa,a_present,a_tot)
   real(wp)                      :: beta
   real(wp)                      :: temp
   integer                       :: ich48
-  real(wp),parameter            :: eh = 627.509541d0
   dimension e_tot(runs)
   dimension a_tot(runs)
 
@@ -2779,13 +2765,13 @@ subroutine aver(pr,env,runs,e_tot,S,H,G,sasa,a_present,a_tot)
     write (ich48,'(2x, ''cluster'',2x,''E_norm [Eh]'',2x, ''De [kcal]'', 4x, ''p'')')
     do j = 1,runs
       if (j .lt. 10) then
-        write (ich48,'(5x,i0,3x,f11.6,5x,f6.4,3x,f6.4)') j,e_tot(j)/eh,de(j),p(j)
+        write (ich48,'(5x,i0,3x,f11.6,5x,f6.4,3x,f6.4)') j,e_tot(j)/autokcal,de(j),p(j)
       else
-        write (ich48,'(5x,i0,2x,f11.6,5x,f6.4,3x,f6.4)') j,e_tot(j)/eh,de(j),p(j)
+        write (ich48,'(5x,i0,2x,f11.6,5x,f6.4,3x,f6.4)') j,e_tot(j)/autokcal,de(j),p(j)
       end if
     end do
     write (ich48,*)
-    write (ich48,'(''Ensemble free energy [Eh]:'', f20.10)') G/eh
+    write (ich48,'(''Ensemble free energy [Eh]:'', f20.10)') G/autokcal
     close (ich48)
   end if
 
@@ -2796,7 +2782,7 @@ end subroutine aver
 !==============================================================================!
 !
 subroutine qcg_boltz(env,n,e,p)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   implicit none
   type(systemdata),intent(in)    :: env
@@ -2822,7 +2808,7 @@ end subroutine qcg_boltz
 !==============================================================================!
 
 subroutine fill_take(env,n2,n12,rabc,ipos)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   use strucrd
   use axis_module,only:cma
@@ -2880,7 +2866,7 @@ end subroutine fill_take
 !==============================================================================!
 
 subroutine calc_dist(xyz,rabc,dist,eabc)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   implicit none
 
   real(wp),intent(in)    :: xyz(3)
@@ -2898,7 +2884,7 @@ end subroutine calc_dist
 !==============================================================================!
 
 subroutine sort_min(i,j,col,A)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   implicit none
   integer,intent(in)   :: i,j,col
   real*8,intent(inout) :: A(i,j)
@@ -2918,7 +2904,7 @@ end subroutine sort_min
 !==============================================================================!
 
 subroutine sort_ensemble(ens,e_ens,fname)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   use strucrd
   implicit none
@@ -2944,7 +2930,7 @@ end subroutine sort_ensemble
 !==============================================================================!
 
 subroutine rdtherm(fname,ht,svib,srot,stra,gt)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   use iomod
 
@@ -2964,7 +2950,6 @@ subroutine rdtherm(fname,ht,svib,srot,stra,gt)
   logical                :: ende
   character(len=*)       :: fname
   character(len=128)     :: a
-  real(wp),parameter     :: eh = 627.509541d0
   integer                :: ich
 
   ende = .false.
@@ -2999,19 +2984,18 @@ subroutine rdtherm(fname,ht,svib,srot,stra,gt)
     end if
     if (counter .eq. hg_line+2) then
       call readl(a,xx,nn)
-      ht = xx(3)*eh
-      gt = xx(5)*eh
+      ht = xx(3)*autokcal
+      gt = xx(5)*autokcal
     end if
     counter = counter+1
   end do
   close (ich)
 end subroutine rdtherm
 
-
 !==============================================================================!
 
 subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup)
-  use iso_fortran_env,wp => real64
+  use crest_parameters
   use crest_data
   use iomod
   use zdata
@@ -3032,7 +3016,6 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
   logical                    :: grow,solu_ensemble,solv_ensemble
   logical                    :: solv_cff,solv_present,freq,tmp,ex
   real(wp),allocatable       :: xyz(:,:)
-  real(wp),parameter         :: eh = 627.509541d0
 
   grow = .false.
   solu_ensemble = .false.
@@ -3130,7 +3113,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
     write (*,'("  Ensemble of solute-cluster found.")')
     write (*,'("  Taking all ", i0, " structures")') env%nqcgclust
     call grepval('population.dat','Ensemble free energy [Eh]:',ex,solu_ens%G)
-    solu_ens%G = solu_ens%G*eh
+    solu_ens%G = solu_ens%G*autokcal
     write (*,*) 'Solute Ensmeble Free E [kcal/mol]',solu_ens%G
     call chdir(thispath)
     progress = 2
@@ -3165,7 +3148,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
       call rdensemble('final_ensemble.xyz',solv_ens%nat,solv_ens%nall,solv_ens%at,solv_ens%xyz,solv_ens%er)
     end if
     call grepval('population.dat','Ensemble free energy [Eh]:',ex,solv_ens%G)
-    solv_ens%G = solv_ens%G*eh
+    solv_ens%G = solv_ens%G*autokcal
     write (*,*) 'solvent ensmeble free E [kcal/mol]',solv_ens%G
     call chdir(thispath)
     progress = 3
@@ -3181,7 +3164,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
 
 end subroutine qcg_restart
 
-!==============================================================================! 
+!==============================================================================!
 !
 subroutine qcg_cleanup(env)
   use crest_data
@@ -3202,7 +3185,7 @@ subroutine qcg_cleanup(env)
 
 end subroutine qcg_cleanup
 
-!==============================================================================! 
+!==============================================================================!
 
 subroutine write_reference(env,solu,clus)
   use iso_fortran_env,wp => real64
@@ -3230,7 +3213,7 @@ end subroutine write_reference
 !> Write "solute" and "solvent" coordinate files
 !========================================================================================!
 subroutine inputcoords_qcg(env,solute,solvent)
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use crest_data
   use strucrd
   use zdata
@@ -3301,4 +3284,4 @@ subroutine inputcoords_qcg(env,solute,solvent)
   return
 end subroutine inputcoords_qcg
 
-!==============================================================================! 
+!==============================================================================!
