@@ -21,6 +21,7 @@ list(APPEND srcs
   "${dir}/solvtool_misc.f90"
   "${dir}/solvtool.f90"
   "${dir}/qcg_printouts.f90"
+  #  "${dir}/qcg_utils.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)
