@@ -74,7 +74,6 @@ contains
     solute%nat = mol%nat
     solute%at = mol%at
     solute%xyz = mol%xyz
-    call mol%deallocate()
 
     !--- if the input was a SDF file, special handling
     env%sdfformat = .false.
@@ -82,7 +81,9 @@ contains
     if (i == 31.or.i == 32) then
       !Add sdf stuff here, if somebody needs it
     end if
-
+    !--- Add as ref structure in env
+    call env%ref%load(mol)
+    call mol%deallocate() 
 !---------------Handling solvent---------------------!
 
     call mol%open(env%solv_file)

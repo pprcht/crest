@@ -28,7 +28,7 @@ module crest_data
   use bh_module,only:bh_class
   use strucrd,only:coord
   use crest_type_timer,only:timer
-  use lwoniom_module, only: lwoniom_input
+  use lwoniom_module,only:lwoniom_input
   implicit none
 
   public :: systemdata
@@ -119,7 +119,7 @@ module crest_data
   integer,parameter,public :: status_normal = 0    !> success
   integer,parameter,public :: status_error  = 1    !> general error
   integer,parameter,public :: status_ioerr  = 2    !> general I/O error
-  integer,parameter,public :: status_args   = 4    !> invalid subroutine arguments 
+  integer,parameter,public :: status_args   = 4    !> invalid subroutine arguments
   integer,parameter,public :: status_input  = 10   !> Input file read error
   integer,parameter,public :: status_config = 20   !> invalid configuration
   integer,parameter,public :: status_failed = 155  !> general calculation failure
@@ -183,7 +183,7 @@ module crest_data
 !************************************************************
 !* separate settings for protonation and related procedures
 !************************************************************
-    integer :: nfrag  = 0 
+    integer :: nfrag = 0
     integer :: newchrg = 0
     integer :: iter = 1
     real(wp) :: ewin = 30.0_wp       !> separate EWIN threshold
@@ -289,7 +289,7 @@ module crest_data
     integer  :: pcap = 50000       !> limit number of structures
     logical :: avbhess = .false.   !> use bhess in the msRRHO average calc. for all structures (expensive!)
     logical :: constrhess = .false. !> apply constraints in rrhoav?
-    logical :: printpop   = .false. !> print a file with populations at different T
+    logical :: printpop = .false. !> print a file with populations at different T
   contains
     procedure :: get_temps => thermo_get_temps
     procedure :: read_temps => thermo_read_temps
@@ -313,6 +313,7 @@ module crest_data
     real(wp),allocatable :: wbo(:,:)
     real(wp),allocatable :: efield(:)
   contains
+    procedure :: init => ref_init
     procedure :: rdcharges => read_charges
     procedure :: to => ref_to_mol
     procedure :: load => ref_load_mol
@@ -384,7 +385,7 @@ module crest_data
     logical :: omp_allow_nested = .true.  !> allow nested OpenMP threadding
 
     !>--- various names and flags
-    character(len=128) :: ensemblename  = '' !> ensemble input name for SCREEN,MDOPT and CREGEN
+    character(len=128) :: ensemblename = '' !> ensemble input name for SCREEN,MDOPT and CREGEN
     character(len=128) :: ensemblename2 = '' !> another ensemble input name
     character(len=128) :: fixfile = ''
     character(len=512) :: constraints = ''   !> name of the constraint file
@@ -441,7 +442,7 @@ module crest_data
 
     !>--- NCI mode data
     real(wp) :: potscal = 1.0_wp
-    real(wp) :: potpad  = 0.0_wp
+    real(wp) :: potpad = 0.0_wp
     character(len=:),allocatable :: potatlist
 
     !>--- Nanoreactor data
@@ -465,9 +466,9 @@ module crest_data
     integer :: nqcgclust = 0        !> Number of cluster to be taken
     integer :: max_solv = 0         !> Maximal number of solvents added, if none is given
     integer :: ensemble_method = -1 !> Default -1 for qcgmtd, 0= crest, 1= standard MD, 2= MTD
-    character(len=:), allocatable :: directed_file !name of the directed list
-    character(len=64), allocatable :: directed_list(:,:) !How many solvents at which atom to add
-    integer, allocatable :: directed_number(:) !Numbers of solvents added per defined atom
+    character(len=:),allocatable :: directed_file !name of the directed list
+    character(len=64),allocatable :: directed_list(:,:) !How many solvents at which atom to add
+    integer,allocatable :: directed_number(:) !Numbers of solvents added per defined atom
     character(len=20) :: ensemble_opt = ''     !> Method for ensemble optimization in qcg mode
     character(len=20) :: freqver = ''          !> Method for frequency computation in qcg mode
     real(wp)          :: freq_scal            !> Frequency scaling factor
@@ -518,14 +519,14 @@ module crest_data
     !================================================!
 
     !>--- msreact mode settings
-    logical :: msei =.true. ! use the ei mode as default
-    logical :: mscid =.false. ! use the cid mode
-    logical :: msnoiso =.false. ! print only dissociated structures in msreact
-    logical :: msiso =.false. ! only print non-dissociated structures in msreact
-    logical :: msmolbar =.false. ! sort out duplicates by molbar
-    logical :: msinchi =.false. ! sort out duplicates by inchi
-    logical :: mslargeprint=.false. ! dont remove temporary files
-    logical :: msattrh=.true. ! add attractive potential for H-atoms
+    logical :: msei = .true. ! use the ei mode as default
+    logical :: mscid = .false. ! use the cid mode
+    logical :: msnoiso = .false. ! print only dissociated structures in msreact
+    logical :: msiso = .false. ! only print non-dissociated structures in msreact
+    logical :: msmolbar = .false. ! sort out duplicates by molbar
+    logical :: msinchi = .false. ! sort out duplicates by inchi
+    logical :: mslargeprint = .false. ! dont remove temporary files
+    logical :: msattrh = .true. ! add attractive potential for H-atoms
     integer :: msnbonds = 3 ! distance of bonds up to nonds are stretched
     integer :: msnshifts = 0 ! number of random shifts applied to whole mol
     integer :: msnshifts2 = 0 ! number of random shifts applied to whole mol
@@ -572,7 +573,7 @@ module crest_data
     logical :: legacy = .false.       !> switch between the original system call routines of crest and newer, e.g. tblite implementations
     logical :: metadynset            !> is the number of MTDs already set (V2) ?
     logical :: methautocorr          !> try to automatically include Methyl equivalencies in CREGEN ?
-    logical :: multilevelopt =.true. !> perform the multileveloptimization
+    logical :: multilevelopt = .true. !> perform the multileveloptimization
     logical :: newcregen = .false.   !> use the CREGEN rewrite
     logical :: NCI                   !> NCI special usage
     logical :: niceprint             !> make a nice progress-bar printout
@@ -604,7 +605,7 @@ module crest_data
     logical :: riso = .false.        !> take only isomers in reactor mode
     logical :: rotamermds            !> do additional MDs after second  multilevel OPT step in V2 ?
     logical :: refine_presort = .false.  !> run CREGEN at the beginning of crest_refine?
-    logical :: refine_esort   = .false.  !> if CREGEN is run after crest_refine, only sort energy?
+    logical :: refine_esort = .false.  !> if CREGEN is run after crest_refine, only sort energy?
     logical :: sameRandomNumber = .false. !> QCG related, choose same random number for iff
     logical :: scallen               !> scale the automatically determined MD length by some factor?
     logical :: scratch               !> use scratch directory
@@ -761,14 +762,13 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine pqueue_removehybrid
 
-
   subroutine add_to_refinequeue(self,refinetype)
     implicit none
     class(systemdata) :: self
     integer :: refinetype
     integer :: idum
     integer,allocatable :: qdum(:)
-    if( refinetype <= 0 ) return
+    if (refinetype <= 0) return
     if (.not.allocated(self%refine_queue)) then
       allocate (self%refine_queue(1))
       self%refine_queue(1) = refinetype
@@ -836,6 +836,15 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine wrtCHRG
 
 !========================================================================================!
+  subroutine ref_init(self,nat)
+    class(refdata) :: self
+    integer,intent(in) :: nat
+    if (allocated(self%at)) deallocate (self%at)
+    if (allocated(self%xyz)) deallocate (self%xyz)
+    allocate (self%at(nat),source=0)
+    allocate (self%xyz(3,nat),source=0.0_wp)
+  end subroutine ref_init
+
 !> read atomic charges from a file (one line per atom)
   subroutine read_charges(self,chargesfilename,totchrg)
     implicit none
@@ -869,8 +878,8 @@ contains  !> MODULE PROCEDURES START HERE
     class(refdata) :: self
     type(coord) :: mol
     mol%nat = self%nat
-    if(allocated(self%at)) mol%at = self%at
-    if(allocated(self%xyz)) mol%xyz = self%xyz
+    if (allocated(self%at)) mol%at = self%at
+    if (allocated(self%xyz)) mol%xyz = self%xyz
     mol%chrg = self%ichrg
     mol%uhf = self%uhf
     return
@@ -880,11 +889,12 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     class(refdata) :: self
     type(coord) :: mol
-    self%nat    = mol%nat 
-    self%at     = mol%at  
-    self%xyz    = mol%xyz 
-    self%ichrg  = mol%chrg
-    self%uhf    = mol%uhf 
+    call self%init(mol%nat)
+    self%nat = mol%nat
+    self%at = mol%at
+    self%xyz = mol%xyz
+    self%ichrg = mol%chrg
+    self%uhf = mol%uhf
     return
   end subroutine ref_load_mol
 
@@ -920,7 +930,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (index(flag,'tight') .ne. 0) optlev = 1.0d0
     if (index(flag,'verytight') .ne. 0) optlev = 2.0d0
     if (index(flag,'vtight') .ne. 0) optlev = 2.0d0
-    if (index(flag,'extreme') .ne. 0) optlev = 3.0d0 
+    if (index(flag,'extreme') .ne. 0) optlev = 3.0d0
     if (index(flag,'3') .ne. 0) optlev = 3.0d0
     if (index(flag,'2') .ne. 0) optlev = 2.0d0
     if (index(flag,'1') .ne. 0) optlev = 1.0d0
@@ -948,23 +958,23 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(in) :: optlev
     logical,intent(out) :: multilev(6)
     integer :: j
-    if (optlev <= 3.0d0)then !> "extreme" thresholds
+    if (optlev <= 3.0d0) then !> "extreme" thresholds
       multilev(:) = .false.
       multilev(6) = .true.
       multilev(4) = .true.
       multilev(1) = .true.
-    endif
+    end if
     j = optlevmap_alt(optlev)
-    j = max(j-1, 1)  !> j is reduced by one
-    if (optlev <= 2.0d0)then  !> "normal" to "vtight"
-     multilev(:) = .false.
-     multilev(1) = .true.
-     multilev(j) = .true.
-    endif
-    if (optlev <= -1.0d0)then !> "loose" to "crude"
-     multilev(:) = .false.
-     multilev(j) = .true.
-    endif
+    j = max(j-1,1)  !> j is reduced by one
+    if (optlev <= 2.0d0) then  !> "normal" to "vtight"
+      multilev(:) = .false.
+      multilev(1) = .true.
+      multilev(j) = .true.
+    end if
+    if (optlev <= -1.0d0) then !> "loose" to "crude"
+      multilev(:) = .false.
+      multilev(j) = .true.
+    end if
   end subroutine optlev_to_multilev
 
 !========================================================================================!

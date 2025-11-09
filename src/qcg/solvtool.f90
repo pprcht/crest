@@ -172,7 +172,7 @@ subroutine qcg_setup(env,solu,solv)
   integer :: io,f,r
   integer :: num_O,num_H,i
   character(len=*),parameter :: outfmt = '(1x,1x,a,1x,f14.7,a,1x)'
-  logical :: e_there,tmp,used_tmp
+  logical :: e_there,tmp,used_tmp,gbsa_tmp
   character(len=512) :: thispath,tmp_grow
   character(len=40)  :: solv_tmp
   character(len=80)  :: atmp
@@ -208,7 +208,9 @@ subroutine qcg_setup(env,solu,solv)
   end if
 
   solv_tmp = env%solv
+  gbsa_tmp = env%gbsa
   env%solv = ''
+  env%gbsa = .false.
 
 !---- Properties solute
   call chdir('solute_properties')
@@ -231,16 +233,11 @@ subroutine qcg_setup(env,solu,solv)
 !---- LMO/SP-Computation solute
   if (env%use_xtbiff) then
     write (*,*) 'Generating LMOs for solute'
-    call xtb_lmo(env,'solute')
+    call xtb_lmo(env,'solute',e_there,solu%energy)
   else
-    call xtb_sp_qcg(env,'solute')
+    call xtb_sp_qcg(env,'solute',e_there,solu%energy)
   end if
-
-  if (env%final_gfn2_opt) then !If GFN2 final opt, solute also GFN2 optimized
-    env%gfnver = gfnver_tmp
-  end if
-
-  call grepval('xtb.out','| TOTAL ENERGY',e_there,solu%energy)
+ 
   if (.not.e_there) then
     write (*,*) 'Total Energy of solute not found'
   else
@@ -250,6 +247,10 @@ subroutine qcg_setup(env,solu,solv)
   if (env%use_xtbiff) then
     call rename('xtblmoinfo','solute.lmo')
   end if
+
+  if (env%final_gfn2_opt) then !If GFN2 final opt, solute also GFN2 optimized 
+    env%gfnver = gfnver_tmp                                                   
+  end if                                                                      
 
   call chdir(thispath)
 
@@ -271,12 +272,11 @@ subroutine qcg_setup(env,solu,solv)
 !---- LMO-Computation solvent
   if (env%use_xtbiff) then
     write (*,*) 'Generating LMOs for solvent'
-    call xtb_lmo(env,'solvent')!,solv%chrg)
+    call xtb_lmo(env,'solvent',e_there,solv%energy)
   else
-    call xtb_sp_qcg(env,'solvent')
+    call xtb_sp_qcg(env,'solvent',e_there,solv%energy)
   end if
 
-  call grepval('xtb.out','| TOTAL ENERGY',e_there,solv%energy)
   if (.not.e_there) then
     write (*,'(1x,a)') 'Total Energy of solvent not found'
   else
@@ -308,6 +308,7 @@ subroutine qcg_setup(env,solu,solv)
   end if
 
   env%solv = solv_tmp
+  env%gbsa = gbsa_tmp
   env%cts%used = used_tmp
 
 end subroutine qcg_setup
@@ -594,8 +595,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     if (iter .gt. 1) then
       call get_ellipsoid(env,solu,solv,clus,.false.)
       if (env%use_xtbiff) then
-        call xtb_lmo(env,'xtbopt.coord')!,clus%chrg)
-        call grepval('xtb.out','| TOTAL ENERGY',e_there,clus%energy)
+        call xtb_lmo(env,'xtbopt.coord',e_there,clus%energy)
         if (.not.e_there) then
           write (*,'(1x,a)') 'Total Energy of cluster LMO computation not found'
         end if
@@ -1613,7 +1613,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     call chdir(to)
     call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
     call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,env%nsolv,'solute_cut.coord','solvent_shell.coord')
-    call xtb_sp_qcg(env,'solvent_shell.coord')
+    call xtb_sp_qcg(env,'solvent_shell.coord',ex,e_empty(i))
     call grepval('xtb.out','| TOTAL ENERGY',ex,e_empty(i))
     call copy('solvent_shell.coord','solvent_cluster.coord')
     call copy('solvent_cluster.coord','filled_cluster.coord')

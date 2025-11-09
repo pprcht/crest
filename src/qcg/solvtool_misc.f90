@@ -17,38 +17,70 @@
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
 
-!--------------------------------------------------------------------------------------------
-! A quick single point xtb calculation without wbo
-!--------------------------------------------------------------------------------------------
-subroutine xtb_sp_qcg(env,fname)
+subroutine xtb_sp_qcg(env,fname,success,eout)
+!********************************************************
+!*  xtb_sp_qcg
+!*  A quick single point xtb calculation without wbo 
+!********************************************************
   use crest_parameters
   use iomod
   use crest_data
+  use crest_calculator
+  use strucrd
   implicit none
-  character(len=*) :: fname
   type(systemdata) :: env
+  character(len=*),intent(in) :: fname
+  logical,intent(out) :: success
+  real(wp),intent(out) :: eout
+
   character(len=512) :: jobcall
-  character(*),parameter :: pipe = ' > xtb.out 2> /dev/null'
+  character(len=*),parameter :: pipe = ' > xtb.out 2> /dev/null'
+  logical,parameter :: debug = .false.
   integer :: io,T,Tn
-  call remove('gfnff_topo')
-  call remove('energy')
-  call remove('charges')
-  call remove('xtbrestart')
+
+  success = .false.
+  eout = 0.0_wp
+
+  if (env%legacy) then
+!>----------------------------------------------
+!> The original implementation with systemcall
+    call remove('gfnff_topo')
+    call remove('energy')
+    call remove('charges')
+    call remove('xtbrestart')
 
 !---- setting threads
-  call new_ompautoset(env,'auto',1,T,Tn)
+    call new_ompautoset(env,'auto',1,T,Tn)
 
 !---- jobcall
-  write (jobcall,'(a,1x,a,1x,a,'' --sp '',a,1x,a)') &
-  &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
+    write (jobcall,'(a,1x,a,1x,a,'' --sp '',a,1x,a)') &
+    &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
 
-  call command(trim(jobcall),io)
+    if (debug) write (*,*) trim(jobcall)
+    call command(trim(jobcall),io)
+    call grepval('xtb.out','| TOTAL ENERGY',success,eout)
 !---- cleanup
-  call remove('energy')
-  call remove('charges')
-  call remove('xtbrestart')
-  call remove('xtbtopo.mol')
-  call remove('gfnff_topo')
+    call remove('energy')
+    call remove('charges')
+    call remove('xtbrestart')
+    call remove('xtbtopo.mol')
+    call remove('gfnff_topo')
+  else
+!>---------------------------------------------
+!> New implementation with calculator and api
+    block
+      type(calcdata) :: calc
+      type(coord) :: mol
+      real(wp),allocatable :: gradtmp(:,:)
+
+      call mol%open(fname)
+      allocate (gradtmp(3,mol%nat))
+      call env2calc(env,calc,mol)
+      if (debug) call calc%info(stdout)
+      call engrad(mol,calc,eout,gradtmp,io)
+      success = (io == 0)
+    end block
+  end if
 end subroutine xtb_sp_qcg
 
 !--------------------------------------------------------------------------------------------
@@ -105,19 +137,22 @@ end subroutine xtb_opt_qcg
 ! An xTB single point calculation and lmo generation on all available threads
 !___________________________________________________________________________________
 
-subroutine xtb_lmo(env,fname)!,chrg)
+subroutine xtb_lmo(env,fname,success,eout)
   use crest_parameters
   use iomod
   use crest_data
   use zdata
   implicit none
   type(systemdata) :: env
-  character(len=*),intent(in)     :: fname
-  character(len=80)               :: pipe
-  character(len=512)              :: jobcall
+  character(len=*),intent(in) :: fname
+  logical,intent(out)         :: success
+  real(wp),intent(out)        :: eout
+  character(len=*),parameter  :: pipe = ' > xtb.out 2>/dev/null'
+  character(len=512)          :: jobcall
   integer :: T,Tn,io
 
-  pipe = ' > xtb.out 2>/dev/null'
+  success = .false.
+  eout = 0.0_wp
 
 !---- setting threads
   call new_ompautoset(env,'auto',1,T,Tn)
@@ -131,7 +166,7 @@ subroutine xtb_lmo(env,fname)!,chrg)
     write (*,*) 'error in xtb_lmo'
     stop
   end if
-
+  call grepval('xtb.out','| TOTAL ENERGY',success,eout)
 !--- cleanup
   call remove('wbo')
   call remove('charges')
@@ -1062,7 +1097,6 @@ subroutine write_constraint(env,coord_name,fname)
 
 end subroutine write_constraint
 
-
 !==============================================================================!
 
 subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
@@ -1073,12 +1107,12 @@ subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
   use strucrd
   implicit none
 
-  type(systemdata)            :: env
+  type(systemdata)           :: env
   type(zmolecule),intent(in) :: solu,solv,clus
-  real(wp)                    :: e_cluster,e_solute,e_solvent
-  real(wp)                    :: E_inter(env%nsolv)           ! interaction energy
-  integer                     :: iter
-  logical                     :: e_there
+  real(wp)                   :: e_cluster,e_solute,e_solvent
+  real(wp)                   :: E_inter(env%nsolv)           ! interaction energy
+  integer                    :: iter
+  logical                    :: e_there
 
   call remove('cluster.coord')
 
@@ -1087,14 +1121,13 @@ subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
   call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,iter,'solute_cut.coord','solvent_cut.coord')
 
 !--- Perform single point calculations and recieve energies
-  call xtb_sp_qcg(env,'solute_cut.coord')
-  call grepval('xtb.out','| TOTAL ENERGY',e_there,e_solute)
+  call xtb_sp_qcg(env,'solute_cut.coord',e_there,e_solute)
   if (.not.e_there) write (*,*) 'Solute energy not found'
-  call xtb_sp_qcg(env,'solvent_cut.coord')
-  call grepval('xtb.out','| TOTAL ENERGY',e_there,e_solvent)
+
+  call xtb_sp_qcg(env,'solvent_cut.coord',e_there,e_solvent)
   if (.not.e_there) write (*,*) 'Solvent energy not found'
-  call xtb_sp_qcg(env,'cluster.coord')
-  call grepval('xtb.out','| TOTAL ENERGY',e_there,e_cluster)
+
+  call xtb_sp_qcg(env,'cluster.coord',e_there,e_cluster)
   if (.not.e_there) write (*,*) 'Cluster energy not found'
 
   E_inter(iter) = e_cluster-e_solute-e_solvent
