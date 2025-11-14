@@ -56,7 +56,7 @@ subroutine xtb_sp_qcg(env,fname,success,eout)
     write (jobcall,'(a,1x,a,1x,a,'' --sp '',a,1x,a)') &
     &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
 
-    if (debug) write (*,*) trim(jobcall)
+    if (debug) write (stdout,*) trim(jobcall)
     call command(trim(jobcall),io)
     call grepval('xtb.out','| TOTAL ENERGY',success,eout)
 !---- cleanup
@@ -101,7 +101,7 @@ subroutine xtb_opt_qcg(env,zmol,constrain)
   character(len=512) :: jobcall
   logical :: constrain
   logical :: const
-  character(*),parameter :: pipe = ' > xtb_opt.out 2> /dev/null'
+  character(stdout),parameter :: pipe = ' > xtb_opt.out 2> /dev/null'
   integer :: io,T,Tn
 
 !--- Write coordinated
@@ -163,7 +163,7 @@ subroutine xtb_lmo(env,fname,success,eout)
   call command(trim(jobcall),exitstat=io)
 
   if (io /= 0) then
-    write (*,*) 'error in xtb_lmo'
+    write (stdout,*) 'error in xtb_lmo'
     stop
   end if
   call grepval('xtb.out','| TOTAL ENERGY',success,eout)
@@ -605,8 +605,8 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   call new_ompautoset(env,'auto',NTMP,T,Tn)
 
   if (postopt) then
-    write (*,'(2x,''Starting optimizations + SP  of structures'')')
-    write (*,'(2x,i0,'' jobs to do.'')') NTMP
+    write (stdout,'(2x,''Starting optimizations + SP  of structures'')')
+    write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
   end if
 
 ! postopt eq true => post opt run, which has to be performed in every directory !!!
@@ -641,7 +641,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   &    trim(env%ProgName),trim(fname),trim(env%gfnver),nint(env%optlev),trim(pipe)
 
   if (NTMP .lt. 1) then
-    write (*,'(2x,"No structures to be optimized")')
+    write (stdout,'(2x,"No structures to be optimized")')
     return
   end if
 
@@ -684,7 +684,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   &    trim(env%ProgName),'xtbopt.coord',trim(env%gfnver),trim(env%solv),trim(pipe)
 
   if (NTMP .lt. 1) then
-    write (*,'(2x,"Nothing to do")')
+    write (stdout,'(2x,"Nothing to do")')
     return
   end if
 
@@ -724,8 +724,8 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   end do
 
   if (postopt) then
-    write (*,*) ''
-    write (*,'(2x,"done.")')
+    write (stdout,*) ''
+    write (stdout,'(2x,"done.")')
   end if
 
 end subroutine cff_opt
@@ -757,15 +757,15 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
 ! setting the threads for correct parallelization
   call new_ompautoset(env,'auto',NTMP,T,Tn)
 
-  write (*,'(2x,''Single point computation with GBSA model'')')
-  write (*,'(2x,i0,'' jobs to do.'')') NTMP
+  write (stdout,'(2x,''Single point computation with GBSA model'')')
+  write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
 
   pipe = '2>/dev/null'
 
   call getcwd(thispath)
 
   if (NTMP .lt. 1) then
-    write (*,'(2x,"No structures to be optimized")')
+    write (stdout,'(2x,"No structures to be optimized")')
     return
   end if
 
@@ -807,8 +807,8 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
     call remove('xtbrestart')
     call chdir(trim(thispath))
   end do
-  write (*,*) ''
-  write (*,'(2x,"done.")')
+  write (stdout,*) ''
+  write (stdout,'(2x,"done.")')
 
 end subroutine ens_sp
 
@@ -840,15 +840,15 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
 ! setting the threads for correct parallelization
   call new_ompautoset(env,'auto',NTMP,T,Tn)
 
-  write (*,'(2x,''Starting reoptimizations + Frequency computation of ensemble'')')
-  write (*,'(2x,i0,'' jobs to do.'')') NTMP
+  write (stdout,'(2x,''Starting reoptimizations + Frequency computation of ensemble'')')
+  write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
 
   pipe = '2>/dev/null'
 
   call getcwd(thispath)
 
   if (NTMP .lt. 1) then
-    write (*,'(2x,"No structures to be optimized")')
+    write (stdout,'(2x,"No structures to be optimized")')
     return
   end if
 
@@ -893,8 +893,8 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
     call remove('xtbrestart')
     call chdir(trim(thispath))
   end do
-  write (*,*) ''
-  write (*,'(2x,"done.")')
+  write (stdout,*) ''
+  write (stdout,'(2x,"done.")')
 
 end subroutine ens_freq
 
@@ -903,14 +903,14 @@ end subroutine ens_freq
 !============================================================!
 
 subroutine rdxtbiffE(fname,m,n,e)
-
+  use crest_parameters
   implicit none
   integer :: m,n
   character(len=*),intent(in) :: fname
-  real*8 :: e(*)
+  real(wp) :: e(:)
 
   character(len=128) :: line
-  real*8 :: xx(10)
+  real(wp) :: xx(10)
   integer :: ich,i,j,nn
 
   open (newunit=ich,file=fname)
@@ -1122,13 +1122,13 @@ subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
 
 !--- Perform single point calculations and recieve energies
   call xtb_sp_qcg(env,'solute_cut.coord',e_there,e_solute)
-  if (.not.e_there) write (*,*) 'Solute energy not found'
+  if (.not.e_there) write (stdout,*) 'Solute energy not found'
 
   call xtb_sp_qcg(env,'solvent_cut.coord',e_there,e_solvent)
-  if (.not.e_there) write (*,*) 'Solvent energy not found'
+  if (.not.e_there) write (stdout,*) 'Solvent energy not found'
 
   call xtb_sp_qcg(env,'cluster.coord',e_there,e_cluster)
-  if (.not.e_there) write (*,*) 'Cluster energy not found'
+  if (.not.e_there) write (stdout,*) 'Cluster energy not found'
 
   E_inter(iter) = e_cluster-e_solute-e_solvent
 

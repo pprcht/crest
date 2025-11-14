@@ -236,10 +236,10 @@ contains
 
     if (pr) then
       if (r_logical) then
-        write (*,'(2x,''molecular radius (Bohr**1):'',F8.2)') zmol%rtot
+        write (stdout,'(2x,''molecular radius (Bohr**1):'',F8.2)') zmol%rtot
       end if
-      write (*,'(2x,''molecular area   (Bohr**2):'',F8.2)') zmol%atot
-      write (*,'(2x,''molecular volume (Bohr**3):'',F8.2)') zmol%vtot
+      write (stdout,'(2x,''molecular area   (Bohr**2):'',F8.2)') zmol%atot
+      write (stdout,'(2x,''molecular volume (Bohr**3):'',F8.2)') zmol%vtot
     end if
   end subroutine get_sphere
 
@@ -310,11 +310,11 @@ contains
       call wrc0('solvent',solv%nat,solv%at,solv%xyz)
 
 !--- Getting axis
-      write (*,*) 'Solute:'
+      write (stdout,*) 'Solute:'
       call axis(pr1,solu%nat,solu%at,solu%xyz,solu%eax)
-      write (*,*) 'Solvent:'
+      write (stdout,*) 'Solvent:'
       call axis(pr1,solv%nat,solv%at,solv%xyz,solv%eax)
-      write (*,*)
+      write (stdout,*)
     end if
 
 !--- Computing anisotropy factor of solute and solvent
@@ -353,18 +353,18 @@ contains
     clus%ell_abc = rabc_solv*env%potscal
 
     if (pr1) then
-      write (*,'(2x,''solvent anisotropy            :'',4f10.3)') aniso
-      write (*,'(2x,''solute anisotropy             :'',4f10.3)') sola
-      write (*,'(2x,''roff inner wall               :'',4f10.3)') roff
-      write (*,'(2x,''solute max dist               :'',4f10.3)') rmax_solu
-      write (*,'(2x,''solvent max dist              :'',4f10.3)') rmax_solv
-      write (*,'(2x,''inner unit axis               :'',3f10.3)') dummy_solu%ell_abc(1:3)
-      write (*,'(2x,''inner ellipsoid/Bohr          :'',3f10.3)') rabc_solu(1:3)
-      write (*,'(2x,''scaling factor outer ellipsoid:'',3f10.3)') env%potscal
-      write (*,'(2x,''outer ellipsoid/Bohr          :'',3f10.3)') clus%ell_abc(1:3)
+      write (stdout,'(2x,''solvent anisotropy            :'',4f10.3)') aniso
+      write (stdout,'(2x,''solute anisotropy             :'',4f10.3)') sola
+      write (stdout,'(2x,''roff inner wall               :'',4f10.3)') roff
+      write (stdout,'(2x,''solute max dist               :'',4f10.3)') rmax_solu
+      write (stdout,'(2x,''solvent max dist              :'',4f10.3)') rmax_solv
+      write (stdout,'(2x,''inner unit axis               :'',3f10.3)') dummy_solu%ell_abc(1:3)
+      write (stdout,'(2x,''inner ellipsoid/Bohr          :'',3f10.3)') rabc_solu(1:3)
+      write (stdout,'(2x,''scaling factor outer ellipsoid:'',3f10.3)') env%potscal
+      write (stdout,'(2x,''outer ellipsoid/Bohr          :'',3f10.3)') clus%ell_abc(1:3)
       if (env%potscal .gt. 1.0_wp) write &
-           &(*,'(2x,''!!!WARNING: A SCALING FACTOR LARGER 1.0 IS ONLY FOR MICROSOLVATION RECOMMENDED'')')
-      write (*,*)
+           &(stdout,'(2x,''!!!WARNING: A SCALING FACTOR LARGER 1.0 IS ONLY FOR MICROSOLVATION RECOMMENDED'')')
+      write (stdout,*)
     end if
 
   end subroutine get_ellipsoid
@@ -537,8 +537,8 @@ contains
     implicit none
     type(systemdata),intent(in)    :: env
     integer,intent(in)              :: n
-    real(wp),intent(in)             :: e(*)
-    real(wp),intent(out)            :: p(*)
+    real(wp),intent(in)             :: e(:)
+    real(wp),intent(out)            :: p(:)
     integer                         :: i
     real(wp)                        :: temp
     real(wp)                        :: f,hsum,esum

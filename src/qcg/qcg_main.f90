@@ -61,11 +61,11 @@ subroutine crest_solvtool(env,tim)
     call checkprog_silent(env%ProgIFF,.true.,iostat=io)
     if (io /= 0) error stop 'No xtbiff found'
   else
-    write (*,*)
-    write (*,*) '  The use of the aISS algorithm is requested (recommend).'
-    write (*,*) '  This requires xtb version 6.6.0 or newer.'
-    write (*,*) '  xTB-IFF can still be used with the --xtbiff flag.'
-    write (*,*)
+    write (stdout,*)
+    write (stdout,*) '  The use of the aISS algorithm is requested (recommend).'
+    write (stdout,*) '  This requires xtb version 6.6.0 or newer.'
+    write (stdout,*) '  xTB-IFF can still be used with the --xtbiff flag.'
+    write (stdout,*)
   end if
 
 !------------------------------------------------------------------------------
@@ -123,9 +123,9 @@ subroutine crest_solvtool(env,tim)
              & tim,'solvent_ensemble')
     end if
     call pr_qcg_esolv()
-    write (*,'(2x,"|",9x,F8.2," kcal/mol ",12x,"|")') &
+    write (stdout,'(2x,"|",9x,F8.2," kcal/mol ",12x,"|")') &
            &   full_ensemble%g-solvent_ensemble%g-(solute%energy*autokcal)
-    write (*,'(2x,''========================================='')')
+    write (stdout,'(2x,''========================================='')')
     call chdir(thispath)
     progress = progress+1
   end if
@@ -200,10 +200,10 @@ subroutine qcg_setup(env,solu,solv)
   r = makedir('solvent_properties')
 
   if (.not.env%nopreopt) then
-    write (*,*)
-    write (*,'(2x,''========================================='')')
-    write (*,'(2x,''|            Preoptimization            |'')')
-    write (*,'(2x,''========================================='')')
+    write (stdout,*)
+    write (stdout,'(2x,''========================================='')')
+    write (stdout,'(2x,''|            Preoptimization            |'')')
+    write (stdout,'(2x,''========================================='')')
   end if
 
   solv_tmp = env%solv
@@ -231,16 +231,16 @@ subroutine qcg_setup(env,solu,solv)
 
 !---- LMO/SP-Computation solute
   if (env%use_xtbiff) then
-    write (*,*) 'Generating LMOs for solute'
+    write (stdout,*) 'Generating LMOs for solute'
     call xtb_lmo(env,'solute',e_there,solu%energy)
   else
     call xtb_sp_qcg(env,'solute',e_there,solu%energy)
   end if
 
   if (.not.e_there) then
-    write (*,*) 'Total Energy of solute not found'
+    write (stdout,*) 'Total Energy of solute not found'
   else
-    write (*,outfmt) 'Total Energy of solute: ',solu%energy,' Eh'
+    write (stdout,outfmt) 'Total Energy of solute: ',solu%energy,' Eh'
   end if
 
   if (env%use_xtbiff) then
@@ -270,16 +270,16 @@ subroutine qcg_setup(env,solu,solv)
 
 !---- LMO-Computation solvent
   if (env%use_xtbiff) then
-    write (*,*) 'Generating LMOs for solvent'
+    write (stdout,*) 'Generating LMOs for solvent'
     call xtb_lmo(env,'solvent',e_there,solv%energy)
   else
     call xtb_sp_qcg(env,'solvent',e_there,solv%energy)
   end if
 
   if (.not.e_there) then
-    write (*,'(1x,a)') 'Total Energy of solvent not found'
+    write (stdout,'(1x,a)') 'Total Energy of solvent not found'
   else
-    write (*,outfmt) 'Total energy of solvent:',solv%energy,' Eh'
+    write (stdout,outfmt) 'Total energy of solvent:',solv%energy,' Eh'
   end if
 
   if (env%use_xtbiff) then
@@ -346,17 +346,17 @@ subroutine read_qcg_input(env,solu,solv)
   solu%uhf = env%uhf
 
 !--- Getting r, V, A
-  write (*,*)
-  write (*,*) 'Solute geometry'
+  write (stdout,*)
+  write (stdout,*) 'Solute geometry'
   call get_sphere(.true.,solu,.true.) !r,V,A of solute
-  write (*,*) 'Solvent geometry'
+  write (stdout,*) 'Solvent geometry'
   call get_sphere(.true.,solv,.true.) !r,V,A of solvent
 
   r_solu = solu%vtot**third
   r_solv = solv%vtot**third
-  write (*,*)
-  write (*,'(2x,''radius of solute    : '',f8.2)') r_solu
-  write (*,'(2x,''radius of solvent   : '',f8.2)') r_solv
+  write (stdout,*)
+  write (stdout,'(2x,''radius of solute    : '',f8.2)') r_solu
+  write (stdout,'(2x,''radius of solvent   : '',f8.2)') r_solv
 
 !--- Determine masses (for later density computation)
   do i = 1,solu%nat
@@ -422,7 +422,7 @@ subroutine read_directed_input(env)
       index = SCAN(trim(dum),delim_tab)
     end if
     if (index == 0) then  !Second value is missing
-      write (*,'(a,1x,i0)') "No second value found in directed list on line",i
+      write (stdout,'(a,1x,i0)') "No second value found in directed list on line",i
       error stop
     end if
     env%directed_list(i,1) = dum(1:index-1)
@@ -433,21 +433,21 @@ subroutine read_directed_input(env)
     index = SCAN(trim(env%directed_list(i,2)),delim_space)
     if (index == 0) index = SCAN(trim(dum),delim_tab)
     if (index /= 0) then
-      write (*,'(a,1x,i0)') "Too many values at line",i
+      write (stdout,'(a,1x,i0)') "Too many values at line",i
       error stop
     end if
     !> Make array with which solvent molecule at which atom to add
     read (env%directed_list(i,2),*,iostat=io) env%directed_number(i)
     env%directed_number(i) = sum(env%directed_number)
     if (io /= 0) then
-      write (*,'(a,1x,i0)') "Second value is no number in line",i
+      write (stdout,'(a,1x,i0)') "Second value is no number in line",i
       error stop
     end if
   end do
   close (ich)
-  write (*,*) 'Performing directed docking'
+  write (stdout,*) 'Performing directed docking'
   do i = 1,nlines
-    write (*,'(a,1x,a,1x,a,1x,a)') 'Docking',trim(env%directed_list(i,2)),&
+    write (stdout,'(a,1x,a,1x,a,1x,a)') 'Docking',trim(env%directed_list(i,2)),&
            & 'solvent molecules at',trim(env%directed_list(i,1))
   end do
 
@@ -493,24 +493,6 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   character(len=LEN(env%solv)) :: solv_tmp
   logical                    :: gbsa_tmp
 
-!  interface
-!    subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
-!      use crest_parameters
-!      use strucrd,only:i2e
-!      implicit none
-!
-!      integer            :: i,j
-!      integer            :: n,at(n)
-!      real(wp)           :: dum(3)
-!      real(wp)           :: rx,ry,rz
-!      real(wp)           :: xyz(3,n),r1(3)
-!      real(wp),optional :: r2(3)
-!      real               :: x,y,z,f,rr
-!      character(len=*)   :: fname
-!      integer            :: ich11
-!    end subroutine both_ellipsout
-!  end interface
-
   if (env%nsolv .gt. 0) then
     allocate (e_each_cycle(env%nsolv))
     allocate (E_inter(env%nsolv))
@@ -544,14 +526,14 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
       else
         env%potscal = 0.8_wp
       end if
-      write (*,*)
-      write (*,'(2x,''Water as solvent recognized,&
+      write (stdout,*)
+      write (stdout,'(2x,''Water as solvent recognized,&
               & adjusting scaling factor for outer wall pot to '',F4.2)')&
              & env%potscal
-      write (*,*)
+      write (stdout,*)
     end if
   end if
-  if (env%constrain_solu) write (*,'(2x,''Constraining solute during Growth '')')
+  if (env%constrain_solu) write (stdout,'(2x,''Constraining solute during Growth '')')
 
   call get_ellipsoid(env,solu,solv,clus,.true.)
   call pr_grow_energy()
@@ -596,7 +578,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
       if (env%use_xtbiff) then
         call xtb_lmo(env,'xtbopt.coord',e_there,clus%energy)
         if (.not.e_there) then
-          write (*,'(1x,a)') 'Total Energy of cluster LMO computation not found'
+          write (stdout,'(1x,a)') 'Total Energy of cluster LMO computation not found'
         end if
         call rename('xtblmoinfo','cluster.lmo')
       end if
@@ -621,11 +603,11 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
           success = .true.
         else
           if (env%potscal .lt. 1.0_wp) then
-            write (*,*) '  Wall Potential too small, increasing size by 5 %'
+            write (stdout,*) '  Wall Potential too small, increasing size by 5 %'
             solv%ell_abc = solv%ell_abc*1.05_wp
             env%potscal = env%potscal*1.05_wp
             if (env%potscal .gt. 1.0_wp) env%potscal = 1.0_wp
-            write (*,'(''   New scaling factor '',F4.2)') env%potscal
+            write (stdout,'(''   New scaling factor '',F4.2)') env%potscal
           else
             success = .true.
           end if
@@ -643,11 +625,11 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
           success = .true.
         else
           if (env%potscal .lt. 1.0_wp) then
-            write (*,*) '  Wall Potential too small, increasing size by 5 %'
+            write (stdout,*) '  Wall Potential too small, increasing size by 5 %'
             clus%ell_abc = clus%ell_abc*1.05_wp
             env%potscal = env%potscal*1.05_wp
             if (env%potscal .gt. 1.0_wp) env%potscal = 1.0_wp
-            write (*,'(''   New scaling factor '',F4.2)') env%potscal
+            write (stdout,'(''   New scaling factor '',F4.2)') env%potscal
           else
             success = .true.
           end if
@@ -706,11 +688,11 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
         success = .true.
       else
         if (env%potscal .lt. 1.0_wp) then
-          write (*,*) '  Interaction Energy positiv, increasing outer wall pot by 5 %'
+          write (stdout,*) '  Interaction Energy positiv, increasing outer wall pot by 5 %'
           clus%ell_abc = clus%ell_abc*1.05_wp
           env%potscal = env%potscal*1.05_wp
           if (env%potscal .gt. 1.0_wp) env%potscal = 1.0_wp
-          write (*,'('' New scaling factor '',F4.2)') env%potscal
+          write (stdout,'('' New scaling factor '',F4.2)') env%potscal
         else
           success = .true.
         end if
@@ -723,7 +705,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
       call grepval('xtb.out','| TOTAL ENERGY',e_there,clus%energy)
       call wrc0('optimized_cluster.coord',clus%nat,clus%at,clus%xyz)
       if (.not.e_there) then
-        write (*,'(1x,a)') 'Total Energy of cluster not found.'
+        write (stdout,'(1x,a)') 'Total Energy of cluster not found.'
       end if
     else
       !Energy already read from xyz file
@@ -754,7 +736,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     ! dist of new mol from solute for output
     call analyze_cluster(iter,clus%nat,solu%nat,solv%nat,clus%xyz,clus%at,shr_av,shr)
 
-    write (*,'(x,i4,F13.6,1x,f7.2,3x,f8.2,6x,f6.3,3x,f8.3,3x,2f6.1,2x,f8.1,3x,a,x)') &
+    write (stdout,'(x,i4,F13.6,1x,f7.2,3x,f8.2,6x,f6.3,3x,f8.3,3x,2f6.1,2x,f8.1,3x,a,x)') &
           & iter,e_each_cycle(iter),autokcal*(e_each_cycle(iter)-solv%energy-dum),&
           & e_diff,dens,efix,shr_av,shr,clus%vtot,trim(optlevflag(env%optlev))
     write (ich99,'(i4,F20.10,3x,f8.1)') iter,e_each_cycle(iter),clus%vtot
@@ -775,9 +757,9 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
         exit
       end if
       if (iter .eq. env%max_solv) then
-        write (*,'(1x,''No convergence could be reached upon adding'',1x,i4,1x,&
+        write (stdout,'(1x,''No convergence could be reached upon adding'',1x,i4,1x,&
                 & ''solvent molecules.'')') env%max_solv
-        write (*,*) ' Proceeding.'
+        write (stdout,*) ' Proceeding.'
         env%nsolv = env%max_solv
         exit
       end if
@@ -792,15 +774,15 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   if (env%gfnver .ne. '--gfn2'.and.env%final_gfn2_opt) then
     gfnver_tmp = env%gfnver
     env%gfnver = '--gfn2'
-    write (*,'(2x,''Final gfn2 optimization'')')
+    write (stdout,'(2x,''Final gfn2 optimization'')')
     call opt_cluster(env,solu,clus,'cluster.coord',.false.)
     call rdcoord('xtbopt.coord',clus%nat,clus%at,clus%xyz)
     call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
     call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,clus%energy)
     if (.not.e_there) then
-      write (*,'(1x,a)') 'Total Energy of cluster not found.'
+      write (stdout,'(1x,a)') 'Total Energy of cluster not found.'
     else
-      write (*,'(2x,''Total gfn2-energy of cluster/Eh:'',f20.6)') clus%energy
+      write (stdout,'(2x,''Total gfn2-energy of cluster/Eh:'',f20.6)') clus%energy
     end if
     env%gfnver = gfnver_tmp
   end if
@@ -816,15 +798,15 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   call copysub('cluster_optimized.xyz',resultspath)
 
 !--- output and files
-  write (*,*)
-  write (*,'(2x,''Growth finished after '',i0,'' solvents added'')') env%nsolv
-  write (*,'(2x,''Results can be found in grow directory'')')
-  write (*,'(2x,''Energy list in file <qcg_energy.dat>'')')
-  write (*,'(2x,''Interaction energy in file <qcg_conv.dat>'')')
-  write (*,'(2x,''Growing process in <qcg_grow.xyz>'')')
-  write (*,'(2x,''Final geometry after grow in <cluster.coord> and <cluster.xyz>'')')
-  write (*,'(2x,''Final geometry optimized without wall potential in <cluster_optimized.xyz>'')')
-  write (*,'(2x,''Potentials and geometry written in <cluster_cavity.coord> and <twopot_cavity.coord>'')')
+  write (stdout,*)
+  write (stdout,'(2x,''Growth finished after '',i0,'' solvents added'')') env%nsolv
+  write (stdout,'(2x,''Results can be found in grow directory'')')
+  write (stdout,'(2x,''Energy list in file <qcg_energy.dat>'')')
+  write (stdout,'(2x,''Interaction energy in file <qcg_conv.dat>'')')
+  write (stdout,'(2x,''Growing process in <qcg_grow.xyz>'')')
+  write (stdout,'(2x,''Final geometry after grow in <cluster.coord> and <cluster.xyz>'')')
+  write (stdout,'(2x,''Final geometry optimized without wall potential in <cluster_optimized.xyz>'')')
+  write (stdout,'(2x,''Potentials and geometry written in <cluster_cavity.coord> and <twopot_cavity.coord>'')')
 
   close (ich99)
   close (ich88)
@@ -981,8 +963,8 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   end if
 
   gfnver_tmp = env%gfnver
-  write (*,*) '  Method for ensemble search:',env%ensemble_opt
-!  if (env%ens_const) write(*,*) '  Solute fixed during ensemble generation'
+  write (stdout,*) '  Method for ensemble search:',env%ensemble_opt
+!  if (env%ens_const) write(stdout,*) '  Solute fixed during ensemble generation'
   env%gfnver = env%ensemble_opt  !Setting method for ensemble search
 
   !----------------------------------------------------------------
@@ -1021,7 +1003,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     end if
 
     env%iterativeV2 = .true.  !Safeguards more precise ensemble search
-    write (*,*) 'Starting ensemble cluster generation by CREST routine'
+    write (stdout,*) 'Starting ensemble cluster generation by CREST routine'
     call confscript2i(env,tim_dum) !Calling ensemble search
     call copy('crest_rotamers.xyz','crest_rotamers_0.xyz')
 
@@ -1129,10 +1111,10 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 !--- MD
     if (env%ensemble_method .EQ. 1) then
       call normalMD(fname,env,1,newtemp,newmdtime)
-      write (*,*) 'Starting MD with the settings:'
-      write (*,'(''     MD time /ps        :'',f8.1)') newmdtime
-      write (*,'(''     MD Temperature /K  :'',f8.1)') newtemp
-      write (*,'(''     dt /fs             :'',f8.1)') newmdstep
+      write (stdout,*) 'Starting MD with the settings:'
+      write (stdout,'(''     MD time /ps        :'',f8.1)') newmdtime
+      write (stdout,'(''     MD Temperature /K  :'',f8.1)') newtemp
+      write (stdout,'(''     dt /fs             :'',f8.1)') newmdstep
       write (tmppath,'(a,i0)') 'NORMMD1'
 
       r = makedir(tmppath)
@@ -1145,9 +1127,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
       inquire (file=trim(tmppath)//'/'//'xtb.trj',exist=ex)
       if (.not.ex.or.io .ne. 0) then
-        write (*,'(a,i0,a)') '*Warning: MD seemingly failed (no xtb.trj)*'
+        write (stdout,'(a,i0,a)') '*Warning: MD seemingly failed (no xtb.trj)*'
       else
-        write (*,*) '*MD finished*'
+        write (stdout,*) '*MD finished*'
       end if
 
       if (env%trackorigin) then
@@ -1161,13 +1143,13 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     if (env%ensemble_method .EQ. 2) then
       call MetaMD(env,1,newmdtime,env%metadfac(1),env%metadexp(1), &
          &               env%metadlist(1))
-      write (*,'(a,i4,a)') 'Starting Meta-MD with the settings:'
-      write (*,'(''     MTD time /ps       :'',f8.1)') newmdtime
-      write (*,'(''     dt /fs             :'',f8.1)') newmdstep
-      write (*,'(''     MTD Temperature /K  :'',f8.1)') newtemp
-      write (*,'(''     dumpstep(trj) /fs  :'',i8)') env%mddumpxyz
-      write (*,'(''     Vbias factor k /Eh :'',f8.4)') newmetadfac
-      write (*,'(''     Vbias exp α /bohr⁻²:'',f8.2)') newmetadexp
+      write (stdout,'(a,i4,a)') 'Starting Meta-MD with the settings:'
+      write (stdout,'(''     MTD time /ps       :'',f8.1)') newmdtime
+      write (stdout,'(''     dt /fs             :'',f8.1)') newmdstep
+      write (stdout,'(''     MTD Temperature /K  :'',f8.1)') newtemp
+      write (stdout,'(''     dumpstep(trj) /fs  :'',i8)') env%mddumpxyz
+      write (stdout,'(''     Vbias factor k /Eh :'',f8.4)') newmetadfac
+      write (stdout,'(''     Vbias exp α /bohr⁻²:'',f8.2)') newmetadexp
 
       write (tmppath,'(a,i0)') 'METADYN1'
       r = makedir(tmppath)
@@ -1181,9 +1163,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
       inquire (file=trim(tmppath)//'/'//'xtb.trj',exist=ex)
       if (.not.ex.or.io .ne. 0) then
-        write (*,'(a,i0,a)') '*Warning: Meta-MTD seemingly failed (no xtb.trj)*'
+        write (stdout,'(a,i0,a)') '*Warning: Meta-MTD seemingly failed (no xtb.trj)*'
       else
-        write (*,*) '*MTD finished*'
+        write (stdout,*) '*MTD finished*'
       end if
 
       if (env%trackorigin) then
@@ -1202,20 +1184,20 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     call minigrep('xtb.out','M(T)D is unstable, emergency exit',mdfail)
     if (dum%nall .eq. 1) then
       call copysub('xtb.out',resultspath)
-      write (*,*) 'ERROR : M(T)D results only in one structure'
+      write (stdout,*) 'ERROR : M(T)D results only in one structure'
       if (mdfail) then
-        write (*,*) '        It was unstable'
+        write (stdout,*) '        It was unstable'
       else
-        write (*,*) '        The M(T)D time step might be too large or the M(T)D time too short.'
+        write (stdout,*) '        The M(T)D time step might be too large or the M(T)D time too short.'
       end if
       call copysub('xtb.out',resultspath)
       error stop '         Please check the xtb.out file in the ensemble folder'
     end if
     if (mdfail) then
-      write (*,*)
-      write (*,*) '   WARNING: The M(T)D was unstable.'
-      write (*,*) '            Please check the xtb.out file in the ensemble folder.'
-      write (*,*)
+      write (stdout,*)
+      write (stdout,*) '   WARNING: The M(T)D was unstable.'
+      write (stdout,*) '            Please check the xtb.out file in the ensemble folder.'
+      write (stdout,*)
       call copysub('xtb.out',resultspath)
     end if
     call dum%deallocate
@@ -1236,7 +1218,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   if (env%final_gfn2_opt) then
     gfnver_tmp = env%gfnver
 !      if (env%gfnver .ne. '--gfn2') then
-    write (*,'(2x,a)') 'GFN2-xTB optimization'
+    write (stdout,'(2x,a)') 'GFN2-xTB optimization'
     env%gfnver = '--gfn2'
     call rmrf('OPTIM')
     call multilevel_opt(env,99)
@@ -1252,7 +1234,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
   !Clustering to exclude similar structures if requested with -cluster
   if (env%properties == 70) then
-    write (*,'(3x,''Clustering the remaining structures'')')
+    write (stdout,'(3x,''Clustering the remaining structures'')')
     call checkname_xyz(crefile,inpnam,outnam)
     call ccegen(env,.false.,inpnam)
     call move(trim(clusterfile),trim(outnam))
@@ -1286,7 +1268,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     call chdir(tmppath2)
   end do
   !--- SP
-  write (*,*)
+  write (stdout,*)
   call ens_sp(env,'cluster.xyz',ens%nall,'TMPSP')
   !--- Getting energy
   do i = 1,ens%nall
@@ -1298,19 +1280,19 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   end do
 
   if (.not.e_there) then
-    write (*,*)
-    write (*,*) 'Energy not found. Error in xTB computations occured'
+    write (stdout,*)
+    write (stdout,*) 'Energy not found. Error in xTB computations occured'
     call chdir(to)
     call minigrep('xtb_sp.out','solv_model_loadInternalParam',not_param)
     call chdir(tmppath2)
     if (not_param) then
-      write (*,*) '  !!!WARNIG: CHOSEN SOLVENT NOT PARAMETERIZED &
+      write (stdout,*) '  !!!WARNIG: CHOSEN SOLVENT NOT PARAMETERIZED &
       & FOR IMPLICIT SOLVATION MODEL!!!'
-      write (*,'(''  CHECK IF '',A,'' IS AVAILABLE IN xTB'')') env%solv
-      write (*,*) '  PLEASE RESTART THE ENSEMBLE GENERATION WITH AVAILABLE&
+      write (stdout,'(''  CHECK IF '',A,'' IS AVAILABLE IN xTB'')') env%solv
+      write (stdout,*) '  PLEASE RESTART THE ENSEMBLE GENERATION WITH AVAILABLE&
              &  PARAMETERIZATION IF YOU NEED ENERGIES'
       call copysub('crest_conformers.xyz',resultspath)
-      write (*,*) '  The enesemble can be found in the <ensemble> directory&
+      write (stdout,*) '  The enesemble can be found in the <ensemble> directory&
              & as <crest_conformers.xyz>'
       error stop
     end if
@@ -1361,7 +1343,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
       call analyze_cluster(env%nsolv,clus%nat,solu%nat,solv%nat,clus%xyz,clus%at,shr_av,shr)
     end if
     write (ich98,'(i4,F20.10,3x,f8.1)') env%nsolv,ens%er(i),clus%atot
-    write (*,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
+    write (stdout,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
           & i,ens%er(i),dens,e_fix(i),shr_av,shr,clus%atot,trim(optlevflag(env%optlev))
     e_fix(i) = e_fix(i)*autokcal/sqrt(float(clus%nat))
   end do
@@ -1369,7 +1351,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   call copysub('cluster_energy.dat',resultspath)
 
 !--- Checking Boltzmann weighting
-  write (*,*)
+  write (stdout,*)
   call remove('full_ensemble.xyz')
   call sort_ensemble(ens,ens%er,'full_ensemble.xyz')
   e_clus = ens%er*autokcal
@@ -1397,16 +1379,16 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     else
       error stop 'No structure left. Something went wrong.'
     end if
-    write (*,'(2x,a,1x,i0)') 'Conformers taken:',k
+    write (stdout,'(2x,a,1x,i0)') 'Conformers taken:',k
     env%nqcgclust = k
   else
     if (env%nqcgclust .gt. ens%nall) then
       k = ens%nall !Input larger than remaining structures
-      write (*,'(''Less than '',1x,i0,1x,''structures remain'')') env%nqcgclust
-      write (*,'(''Only '',1x,i0,1x,''structures are taken'')') ens%nall
+      write (stdout,'(''Less than '',1x,i0,1x,''structures remain'')') env%nqcgclust
+      write (stdout,'(''Only '',1x,i0,1x,''structures are taken'')') ens%nall
       if (env%cff) env%nqcgclust = ens%nall !Only for CFF, else a second qcg_ensemble run starts for solvent
     else
-      write (*,'(''Taking '',1x,i0,1x,''structures'')') env%nqcgclust
+      write (stdout,'(''Taking '',1x,i0,1x,''structures'')') env%nqcgclust
       k = env%nqcgclust !user input
     end if
   end if
@@ -1435,13 +1417,13 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   ens%er = e_clus(1:k)/autokcal
 
 !--- Getting G,S,H
-  write (*,*)
-  write (*,'(2x,''------------------------------------------------------------------------'')')
-  write (*,'(2x,''------------------------------------------------------------------------'')')
-  write (*,'(2x,''Boltz. averaged energy of final cluster:'')')
+  write (stdout,*)
+  write (stdout,'(2x,''------------------------------------------------------------------------'')')
+  write (stdout,'(2x,''------------------------------------------------------------------------'')')
+  write (stdout,'(2x,''Boltz. averaged energy of final cluster:'')')
   call aver(.true.,env,ens%nall,e_clus(1:ens%nall),S,H,G,sasa,.false.)
-  write (*,'(7x,''G /Eh     :'',F14.8)') G/autokcal
-  write (*,'(7x,''T*S /kcal :'',f8.3)') S
+  write (stdout,'(7x,''G /Eh     :'',F14.8)') G/autokcal
+  write (stdout,'(7x,''T*S /kcal :'',f8.3)') S
 
   ens%g = G
   ens%s = S
@@ -1464,15 +1446,15 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   call chdir(env%scratchdir)
   if (.not.env%keepModef) call rmrf(tmppath2)
 !----Outprint
-  write (*,*)
-  write (*,'(2x,''Ensemble generation finished.'')')
-  write (*,'(2x,''Results can be found in ensemble directory'')')
-  write (*,'(2x,''Lowest energy conformer in file <crest_best.xyz>'')')
-  write (*,'(2x,''List of full ensemble in file <full_ensemble.xyz>'')')
-  write (*,'(2x,''List of used ensemble in file <final_ensemble.xyz>'')')
-  write (*,'(2x,''Thermodynamical data in file <thermo_data>'')')
-  write (*,'(2x,''Population of full ensemble in file <full_population.dat>'')')
-  write (*,'(2x,''Population in file <population.dat>'')')
+  write (stdout,*)
+  write (stdout,'(2x,''Ensemble generation finished.'')')
+  write (stdout,'(2x,''Results can be found in ensemble directory'')')
+  write (stdout,'(2x,''Lowest energy conformer in file <crest_best.xyz>'')')
+  write (stdout,'(2x,''List of full ensemble in file <full_ensemble.xyz>'')')
+  write (stdout,'(2x,''List of used ensemble in file <final_ensemble.xyz>'')')
+  write (stdout,'(2x,''Thermodynamical data in file <thermo_data>'')')
+  write (stdout,'(2x,''Population of full ensemble in file <full_population.dat>'')')
+  write (stdout,'(2x,''Population in file <population.dat>'')')
 
   env%gfnver = gfnver_tmp
   env%optlev = optlev_tmp
@@ -1622,7 +1604,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     call chdir(tmppath2)
   end do
 
-  if (skip) write (*,'(2x,''solute smaller than solvent, cff skipped'')')
+  if (skip) write (stdout,'(2x,''solute smaller than solvent, cff skipped'')')
 
   clus%nat = clus%nat-solu%nat
   n_ini = clus%nat
@@ -1630,9 +1612,9 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 !--- If solvent molecules are added
   if (.not.skip) then
     call pr_qcg_fill()
-    write (*,'(2x,''now adding solvents to fill cluster...'')')
+    write (stdout,'(2x,''now adding solvents to fill cluster...'')')
     call pr_fill_energy()
-    write (*,'(2x,''------------------------------------------------------------------------'')')
+    write (stdout,'(2x,''------------------------------------------------------------------------'')')
     nat_frag1 = env%nsolv*solv%nat
 
     iter = 0
@@ -1717,8 +1699,8 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
           call fill_take(env,solv%nat,clus%nat,inner_ell_abc(i,1:3),ipos)
           if (ipos .eq. 0) then
             converged(i) = .true.
-            write (*,'(2x,''no more solvents can be placed inside cavity of cluster: '',i0)') i
-            write (*,'(2x,''previous cluster taken...'')')
+            write (stdout,'(2x,''no more solvents can be placed inside cavity of cluster: '',i0)') i
+            write (stdout,'(2x,''previous cluster taken...'')')
             if (iter .eq. 1) nothing_added(i) = .true.
           end if
           call chdir(tmppath2)
@@ -1763,12 +1745,12 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
           !---- Check if solvent added is repulsive
           if (de .gt. 0) then
             converged(i) = .true.
-            write (*,'(2x,''adding solvent is repulsive for cluster: '',i0)') i
-            write (*,'(2x,''previous cluster taken...'')')
+            write (stdout,'(2x,''adding solvent is repulsive for cluster: '',i0)') i
+            write (stdout,'(2x,''previous cluster taken...'')')
             if (iter .eq. 1) nothing_added(i) = .true.
           else !Only if the addition was not repulsive
             call copy('solvent_cluster.coord','filled_cluster.coord')
-            write (*,'(i4,5x,i3,1x,F13.6,3x,f7.2,5x,f7.2,4x,a)') &
+            write (stdout,'(i4,5x,i3,1x,F13.6,3x,f7.2,5x,f7.2,4x,a)') &
                & iter+env%nsolv,i,e_cur(iter,i),de,de_tot(i),&
                & trim(optlevflag(env%optlev))
           end if
@@ -1790,10 +1772,10 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
         nat_tot = nat_tot+solv%nat
       end if
 
-      write (*,'(2x,''------------------------------------------------------------------------'')')
+      write (stdout,'(2x,''------------------------------------------------------------------------'')')
       !--- Or if maximum solvent is added
       if (iter-nsolv .eq. v_ratio) then
-        write (*,'(2x,''volume filled'')')
+        write (stdout,'(2x,''volume filled'')')
         all_converged = .true.
         call copy('solvent_cluster.coord','filled_cluster.coord')
       end if
@@ -1868,7 +1850,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     write (ich98,'(''No'',i4,F20.10,3x,f8.1)') i,e_norm(i),atotS
 
 !--- Print to screen
-    write (*,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
+    write (stdout,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
             & i,e_norm(i),dens,e_fix(i),shr_av,shr,atotS,trim(optlevflag(env%optlev))
 
     call chdir(tmppath2)
@@ -1897,16 +1879,16 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   call wrxyz('crest_best.xyz',clus%nat,clus%at,clus%xyz,comment)
 
 !--- Boltz. average-------------------------------------------------------------------------
-  write (*,*)
-  write (*,'(2x,''70("-")'')')
-  write (*,'(2x,''70("-")'')')
-  write (*,'(2x,''Boltz. averaged energy of final cluster:'')')
+  write (stdout,*)
+  write (stdout,'(2x,''70("-")'')')
+  write (stdout,'(2x,''70("-")'')')
+  write (stdout,'(2x,''Boltz. averaged energy of final cluster:'')')
   e_cluster = solv_ens%er*autokcal
   e_norm = e_norm*autokcal
   call sort_min(env%nqcgclust,1,1,e_norm)
   call aver(.true.,env,solv_ens%nall,e_norm(1:env%nqcgclust),S,H,G,sasa,.false.)
-  write (*,'(7x,''G /Eh     :'',F14.8)') G/autokcal
-  write (*,'(7x,''T*S /kcal :'',f8.3)') S
+  write (stdout,'(7x,''G /Eh     :'',F14.8)') G/autokcal
+  write (stdout,'(7x,''T*S /kcal :'',f8.3)') S
   solv_ens%er = e_norm/autokcal !normalized energy needed for final evaluation
 
   solv_ens%g = G
@@ -1922,12 +1904,12 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   call chdir(thispath)
 
 !--- Printouts
-  write (*,*)
-  write (*,'(2x,''Solvent cluster generation finished.'')')
-  write (*,'(2x,''Results can be found in solvent_cluster directory'')')
-  write (*,'(2x,''Structures in file <crest_ensemble.xyz>'')')
-  write (*,'(2x,''Energies in file <cluster_energy.dat>'')')
-  write (*,'(2x,''Population in file <population.dat>'')')
+  write (stdout,*)
+  write (stdout,'(2x,''Solvent cluster generation finished.'')')
+  write (stdout,'(2x,''Results can be found in solvent_cluster directory'')')
+  write (stdout,'(2x,''Structures in file <crest_ensemble.xyz>'')')
+  write (stdout,'(2x,''Energies in file <cluster_energy.dat>'')')
+  write (stdout,'(2x,''Population in file <population.dat>'')')
 
   env%gfnver = gfnver_tmp
   env%optlev = optlev_tmp
@@ -2006,7 +1988,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   call copysub('.UHF','tmp_gas1')
 
 !--- Frequencies solute molecule
-  write (*,*) '  SOLUTE MOLECULE'
+  write (stdout,*) '  SOLUTE MOLECULE'
   call chdir('tmp_gas1')
   call wrc0('solute.coord',solu%nat,solu%at,solu%xyz)
   call chdir(tmppath2)
@@ -2065,14 +2047,14 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 
   end do
 
-  write (*,*) '  SOLUTE CLUSTER'
+  write (stdout,*) '  SOLUTE CLUSTER'
 
 !> Frequency calculation
   opt = .true.
   call ens_freq(env,'cluster.xyz',solu_ens%nall,'TMPFREQ',opt)
   call chdir(tmppath2)
 
-  write (*,*) '  SOLVENT CLUSTER'
+  write (stdout,*) '  SOLVENT CLUSTER'
   if (env%cff) then
     call chdir('tmp_solv')
     call ens_freq(env,'solvent_cut.coord',solu_ens%nall,'TMPFREQ',opt)
@@ -2108,18 +2090,18 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 !----------------------------------------------------------------------------
 
 !--- Solute in gas phase
-  write (*,*)
-  write (*,*) '  Solute Gas properties'
+  write (stdout,*)
+  write (stdout,*) '  Solute Gas properties'
   call pr_freq_energy()
   open (newunit=ich56,file='solute.dat')
   call pr_freq_file(ich56)
-  write (*,'(2x,5f10.2)') ht(3),svib(3),srot(3),stra(3),gt(3)
+  write (stdout,'(2x,5f10.2)') ht(3),svib(3),srot(3),stra(3),gt(3)
   write (ich56,'(2x,5f10.2)') ht(3),svib(3),srot(3),stra(3),gt(3)
   close (ich56)
 
 !--- Solute cluster
-  write (*,*)
-  write (*,*) '  Solute cluster properties'
+  write (stdout,*)
+  write (stdout,*) '  Solute cluster properties'
   open (newunit=ich33,file='solute_cluster.dat')
 
   call chdir('tmp_solu')
@@ -2137,7 +2119,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     write (to,'("TMPFREQ",i0)') i
     call chdir(to)
     call rdtherm('xtb_freq.out',ht(1),svib(1),srot(1),stra(1),gt(1))
-    write (*,'(2x,i0,2x,5f10.2)') i,ht(1),svib(1),srot(1),stra(1),gt(1)
+    write (stdout,'(2x,i0,2x,5f10.2)') i,ht(1),svib(1),srot(1),stra(1),gt(1)
     write (ich33,'(2x,i0,2x,5f10.2)') i,ht(1),svib(1),srot(1),stra(1),gt(1)
     solu_ens%gt(i) = gt(1)
     solu_ens%ht(i) = ht(1)
@@ -2151,8 +2133,8 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   close (ich33)
 
 !--- Solvent cluster
-  write (*,*)
-  write (*,*) '  Solvent cluster properties'
+  write (stdout,*)
+  write (stdout,*) '  Solvent cluster properties'
   call chdir(tmppath2)
   open (newunit=ich81,file='solvent_cluster.dat')
 
@@ -2171,7 +2153,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     write (to,'("TMPFREQ",i0)') i
     call chdir(to)
     call rdtherm('xtb_freq.out',ht(2),svib(2),srot(2),stra(2),gt(2))
-    write (*,'(2x,i0,2x,5f10.2)') i,ht(2),svib(2),srot(2),stra(2),gt(2)
+    write (stdout,'(2x,i0,2x,5f10.2)') i,ht(2),svib(2),srot(2),stra(2),gt(2)
     write (ich81,'(2x,i0,2x,5f10.2)') i,ht(2),svib(2),srot(2),stra(2),gt(2)
     solv_ens%gt(i) = gt(2)
     solv_ens%ht(i) = ht(2)
@@ -2408,9 +2390,9 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
     if (clus%nmol-1 .ge. env%nsolv) then
       progress = 1
       env%nsolv = clus%nmol-1
-      write (*,*)
-      write (*,*)
-      write (*,'(''Found cluster with '',i0,'' solvents'')') env%nsolv
+      write (stdout,*)
+      write (stdout,*)
+      write (stdout,'(''Found cluster with '',i0,'' solvents'')') env%nsolv
       call chdir(thispath)
     else
       error stop 'The found cluster is smaller than nsolv. Please restart the whole computaion by removing the grow directory'
@@ -2432,11 +2414,11 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
     call solu_ens%open('final_ensemble.xyz')
     call rdensemble('final_ensemble.xyz',solu_ens%nat,solu_ens%nall,solu_ens%at,solu_ens%xyz,solu_ens%er)
     env%nqcgclust = solu_ens%nall
-    write (*,'("  Ensemble of solute-cluster found.")')
-    write (*,'("  Taking all ", i0, " structures")') env%nqcgclust
+    write (stdout,'("  Ensemble of solute-cluster found.")')
+    write (stdout,'("  Taking all ", i0, " structures")') env%nqcgclust
     call grepval('population.dat','Ensemble free energy [Eh]:',ex,solu_ens%G)
     solu_ens%G = solu_ens%G*autokcal
-    write (*,*) 'Solute Ensmeble Free E [kcal/mol]',solu_ens%G
+    write (stdout,*) 'Solute Ensmeble Free E [kcal/mol]',solu_ens%G
     call chdir(thispath)
     progress = 2
   end if
@@ -2444,7 +2426,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
 !--- Solvent Ensemble
   if (solv_present) then
     call chdir('solvent_ensemble')
-    write (*,'("  Ensemble of solvent-cluster found.")')
+    write (stdout,'("  Ensemble of solvent-cluster found.")')
 
     !--- Case CFF
     if (solv_cff) then
@@ -2460,7 +2442,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
           write (counter3,'(''No   '',i3)') i
           call grepval('cluster_energy.dat',counter3,ex,solv_ens%er(i))
         end if
-        write (*,*) 'Energy of cluster',i,solv_ens%er(i)
+        write (stdout,*) 'Energy of cluster',i,solv_ens%er(i)
       end do
     end if
 
@@ -2471,16 +2453,16 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
     end if
     call grepval('population.dat','Ensemble free energy [Eh]:',ex,solv_ens%G)
     solv_ens%G = solv_ens%G*autokcal
-    write (*,*) 'solvent ensmeble free E [kcal/mol]',solv_ens%G
+    write (stdout,*) 'solvent ensmeble free E [kcal/mol]',solv_ens%G
     call chdir(thispath)
     progress = 3
   end if
 
 !--- Frequencies
   if (freq) then
-    write (*,*)
-    write (*,*)
-    write (*,*) '  Nothing to do'
+    write (stdout,*)
+    write (stdout,*)
+    write (stdout,*) '  Nothing to do'
     progress = 4
   end if
 
