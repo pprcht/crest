@@ -20,7 +20,7 @@
 subroutine xtb_sp_qcg(env,fname,success,eout)
 !********************************************************
 !*  xtb_sp_qcg
-!*  A quick single point xtb calculation without wbo 
+!*  A quick single point xtb calculation without wbo
 !********************************************************
   use crest_parameters
   use iomod
@@ -99,37 +99,72 @@ subroutine xtb_opt_qcg(env,mol,constrain)
 
   character(:),allocatable :: fname
   character(len=512) :: jobcall
-  logical :: constrain
-  logical :: const
-  character(stdout),parameter :: pipe = ' > xtb_opt.out 2> /dev/null'
+  logical :: constrain, const
+  real(wp) :: energy
   integer :: io,T,Tn
+  character(stdout),parameter :: pipe = ' > xtb_opt.out 2> /dev/null' 
+  logical,parameter :: debug = .false.
 
-!--- Write coordinated
-  fname = 'coord'
-  call wrc0(fname,mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
 
-!---- setting threads
-  call new_ompautoset(env,'auto',1,T,Tn)
+  if (env%legacy) then
+    !> LEGACY version with syscall
 
-!---- jobcall & Handling constraints
-  if (constrain.AND.env%cts%used) then
-    call write_constraint(env,fname,'xcontrol')
-    call wrc0('coord.ref',mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
-    write (jobcall,'(a,1x,a,1x,a,'' --opt --input xcontrol '',a,1x,a)') &
-    &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
+    !--- Write coordinated
+    fname = 'coord'
+    call wrc0(fname,mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
+
+    !---- setting threads
+    call new_ompautoset(env,'auto',1,T,Tn)
+
+    !---- jobcall & Handling constraints
+    if (constrain.AND.env%cts%used) then
+      call write_constraint(env,fname,'xcontrol')
+      call wrc0('coord.ref',mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
+      write (jobcall,'(a,1x,a,1x,a,'' --opt --input xcontrol '',a,1x,a)') &
+      &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
+    else
+      write (jobcall,'(a,1x,a,1x,a,'' --opt '',a,1x,a)') &
+      &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
+    end if
+
+    call command(trim(jobcall),io)
+    !---- cleanup
+    call rdcoord('xtbopt.coord',mol%nat,mol%at,mol%xyz)
+    call remove('energy')
+    call remove('charges')
+    call remove('xtbrestart')
+    call remove('xtbtopo.mol')
+    call remove('gfnff_topo')
+
   else
-    write (jobcall,'(a,1x,a,1x,a,'' --opt '',a,1x,a)') &
-    &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
-  end if
 
-  call command(trim(jobcall),io)
-!---- cleanup
-  call rdcoord('xtbopt.coord',mol%nat,mol%at,mol%xyz)
-  call remove('energy')
-  call remove('charges')
-  call remove('xtbrestart')
-  call remove('xtbtopo.mol')
-  call remove('gfnff_topo')
+    !> NEW version with calculator
+    call new_ompautoset(env,'max',1,T,Tn)
+    block
+      use crest_calculator
+      use optimize_module
+      type(calcdata) :: calc
+      type(coord) :: molin,molout
+      real(wp),allocatable :: gradtmp(:,:)
+
+      allocate (gradtmp(3,mol%nat))
+      molin = mol%as_coord()
+      call env2calc(env,calc,molin)
+      if (debug) call calc%info(stdout)
+
+      call optimize_geometry(molin,molout,calc,energy,gradtmp,debug,.false.,io)
+
+      deallocate(gradtmp)
+      if(io == 0)then
+         call mol%from_coord(molout)
+      else
+         write(stdout,*) 'FAILURE in QCG optimization!'
+         write(stdout,*) 'Stopping run to avoid unecessary compuations'
+         call creststop(status_safety)
+      endif
+    end block
+
+  end if
 end subroutine xtb_opt_qcg
 
 !___________________________________________________________________________________

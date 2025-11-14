@@ -41,6 +41,7 @@ module qcg_coord_type
     real(wp)  :: eax(3)        !> molecular axis
   contains
     procedure :: as_coord
+    procedure :: from_coord
   end type coord_qcg
 
 !==============================================================================!
@@ -66,6 +67,25 @@ contains  !> MODULE PROCEDURES START HERE
     mol%pdb = this%pdb
 
   end function as_coord
+
+  subroutine from_coord(this,mol)
+    class(coord_qcg),intent(inout) :: this
+    type(coord),intent(in) :: mol
+
+    this%nat = mol%nat
+    if (allocated(mol%at)) this%at = mol%at
+    if (allocated(mol%xyz)) this%xyz = mol%xyz
+
+    this%energy = mol%energy
+    if (allocated(mol%comment)) this%comment = mol%comment
+    this%chrg = mol%chrg
+    this%uhf = mol%uhf
+    this%nbd = mol%nbd
+    if (allocated(mol%bond)) this%bond = mol%bond
+    if (allocated(mol%lat)) this%lat = mol%lat
+    if (allocated(mol%qat)) this%qat = mol%qat
+    this%pdb = mol%pdb
+  end subroutine from_coord
 
 end module qcg_coord_type
 

@@ -475,6 +475,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   integer                    :: iter = 1
   integer                    :: i,j,io,v
   integer                    :: max_cycle
+  integer                    :: nat_backup
   logical                    :: e_there,high_e,success,neg_E
   real(wp)                   :: etmp(500)
   real(wp),allocatable       :: e_each_cycle(:)
@@ -501,7 +502,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     allocate (E_inter(env%max_solv))
   end if
 
-  call tim%start(5,'Grow')
+  call tim%start(5,'QCG Grow')
 
   call pr_eval_solute()
   call print_qcg_grow()
@@ -567,7 +568,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 !--------------------------------------------------------
 ! Start Loop
 !--------------------------------------------------------
-  do iter = 1,max_cycle
+  GROW_LOOP: do iter = 1,max_cycle
     e_there = .false.
     success = .false.
     high_e = .false.
@@ -587,7 +588,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     call both_ellipsout('twopot_1.coord',clus%nat,clus%at,clus%xyz,&
            & clus%ell_abc,solu%ell_abc)
 
-    do while (.not.success) !For restart with larger wall pot
+    CHECKWALL: do while (.not.success) !For restart with larger wall pot
       if (iter .eq. 1) then
         if (env%use_xtbiff) then
           call xtb_iff(env,'solute.lmo','solvent.lmo',solu,solv)
@@ -635,11 +636,12 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
           end if
         end if
       end if
-    end do
+    end do CHECKWALL
 
 !--- Increase cluster size
+    nat_backup = clus%nat
     call clus%deallocate
-    clus%nat = clus%nat+solv%nat
+    clus%nat = nat_backup+solv%nat
     allocate (clus%at(clus%nat))
     allocate (clus%xyz(3,clus%nat))
     clus%nmol = clus%nmol+1
@@ -736,7 +738,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     ! dist of new mol from solute for output
     call analyze_cluster(iter,clus%nat,solu%nat,solv%nat,clus%xyz,clus%at,shr_av,shr)
 
-    write (stdout,'(x,i4,F13.6,1x,f7.2,3x,f8.2,6x,f6.3,3x,f8.3,3x,2f6.1,2x,f8.1,3x,a,x)') &
+    write (stdout,'(x,i4,F13.6,1x,f7.2,3x,es9.2,5x,f6.3,3x,f8.3,3x,2f6.1,2x,f8.1,3x,a,x)') &
           & iter,e_each_cycle(iter),autokcal*(e_each_cycle(iter)-solv%energy-dum),&
           & e_diff,dens,efix,shr_av,shr,clus%vtot,trim(optlevflag(env%optlev))
     write (ich99,'(i4,F20.10,3x,f8.1)') iter,e_each_cycle(iter),clus%vtot
@@ -767,7 +769,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 !-----------------------------------------------
 ! End loop
 !-----------------------------------------------
-  end do
+  end do GROW_LOOP
 
   if (env%nsolv .eq. 0) env%nsolv = iter !if no env%solv was given
 
@@ -883,9 +885,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   type(timer)                :: tim_dum !Dummy timer to avoid double counting
 
   if (.not.env%solv_md) then
-    call tim%start(6,'Solute-Ensemble')
+    call tim%start(6,'QCG Solute-Ensemble')
   else
-    call tim%start(7,'Solvent-Ensemble')
+    call tim%start(7,'QCG Solvent-Ensemble')
   end if
 
   call tim_dum%init(20)
@@ -1526,7 +1528,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   real(wp)                   :: optlev_tmp
   integer                    :: ich98,ich31
 
-  call tim%start(8,'CFF')
+  call tim%start(8,'QCG CFF')
 
   allocate (e_empty(env%nqcgclust))
   allocate (converged(env%nqcgclust))
@@ -1956,7 +1958,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   integer                    :: ich65,ich56,ich33,ich81
   logical                    :: opt
 
-  call tim%start(9,'Frequencies')
+  call tim%start(9,'QCG Frequencies')
 
   call pr_qcg_freq()
 

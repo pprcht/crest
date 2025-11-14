@@ -362,7 +362,7 @@ contains
       write (stdout,'(2x,''scaling factor outer ellipsoid:'',3f10.3)') env%potscal
       write (stdout,'(2x,''outer ellipsoid/Bohr          :'',3f10.3)') clus%ell_abc(1:3)
       if (env%potscal .gt. 1.0_wp) write &
-           &(stdout,'(2x,''!!!WARNING: A SCALING FACTOR LARGER 1.0 IS ONLY FOR MICROSOLVATION RECOMMENDED'')')
+           &(stdout,'(2x,''!!!WARNING: A SCALING FACTOR LARGER 1.0 IS ONLY RECOMMENDED FOR MICROSOLVATION'')')
       write (stdout,*)
     end if
 
