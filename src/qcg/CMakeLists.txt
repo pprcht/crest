@@ -18,8 +18,8 @@ set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
   "${dir}/volume.f90"
-  "${dir}/solvtool_misc.f90"
-  "${dir}/solvtool.f90"
+  "${dir}/qcg_misc.f90"
+  "${dir}/qcg_main.f90"
   "${dir}/qcg_printouts.f90"
   "${dir}/qcg_utils.f90"
 )

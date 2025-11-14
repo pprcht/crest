@@ -139,7 +139,6 @@ subroutine crest_solvtool(env,tim)
     progress = progress+1
   end if
 
-
 !------------------------------------------------------------------------------
 !   Cleanup and deallocation
 !------------------------------------------------------------------------------
@@ -237,7 +236,7 @@ subroutine qcg_setup(env,solu,solv)
   else
     call xtb_sp_qcg(env,'solute',e_there,solu%energy)
   end if
- 
+
   if (.not.e_there) then
     write (*,*) 'Total Energy of solute not found'
   else
@@ -248,9 +247,9 @@ subroutine qcg_setup(env,solu,solv)
     call rename('xtblmoinfo','solute.lmo')
   end if
 
-  if (env%final_gfn2_opt) then !If GFN2 final opt, solute also GFN2 optimized 
-    env%gfnver = gfnver_tmp                                                   
-  end if                                                                      
+  if (env%final_gfn2_opt) then !If GFN2 final opt, solute also GFN2 optimized
+    env%gfnver = gfnver_tmp
+  end if
 
   call chdir(thispath)
 
@@ -494,23 +493,23 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   character(len=LEN(env%solv)) :: solv_tmp
   logical                    :: gbsa_tmp
 
-  interface
-    subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
-      use crest_parameters
-      use strucrd,only:i2e
-      implicit none
-
-      integer            :: i,j
-      integer            :: n,at(n)
-      real(wp)           :: dum(3)
-      real(wp)           :: rx,ry,rz
-      real(wp)           :: xyz(3,n),r1(3)
-      real(wp),optional :: r2(3)
-      real               :: x,y,z,f,rr
-      character(len=*)   :: fname
-      integer            :: ich11
-    end subroutine both_ellipsout
-  end interface
+!  interface
+!    subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
+!      use crest_parameters
+!      use strucrd,only:i2e
+!      implicit none
+!
+!      integer            :: i,j
+!      integer            :: n,at(n)
+!      real(wp)           :: dum(3)
+!      real(wp)           :: rx,ry,rz
+!      real(wp)           :: xyz(3,n),r1(3)
+!      real(wp),optional :: r2(3)
+!      real               :: x,y,z,f,rr
+!      character(len=*)   :: fname
+!      integer            :: ich11
+!    end subroutine both_ellipsout
+!  end interface
 
   if (env%nsolv .gt. 0) then
     allocate (e_each_cycle(env%nsolv))
@@ -1899,8 +1898,8 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
 !--- Boltz. average-------------------------------------------------------------------------
   write (*,*)
-  write (*,'(2x,''------------------------------------------------------------------------'')')
-  write (*,'(2x,''------------------------------------------------------------------------'')')
+  write (*,'(2x,''70("-")'')')
+  write (*,'(2x,''70("-")'')')
   write (*,'(2x,''Boltz. averaged energy of final cluster:'')')
   e_cluster = solv_ens%er*autokcal
   e_norm = e_norm*autokcal
@@ -1953,7 +1952,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   use iomod
   use zdata
   use strucrd
-
+  use qcg_utils
   implicit none
 
   type(systemdata)           :: env
@@ -2317,555 +2316,13 @@ end subroutine qcg_eval
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !==============================================================================!
 
-subroutine get_sphere(pr,zmol,r_logical)
-  use crest_parameters
-  use zdata
-  use miscdata
-  implicit none
-  type(zmolecule),intent(inout) :: zmol
-  type(zmolecule) :: dum
-  logical        :: pr
-  logical        :: r_logical !Determines wether r is overwritten or not
-  real(wp),parameter :: pi43 = pi*4.0d0/3.0d0
-  real(wp),parameter :: third = 1.0d0/3.0d0
-
-  integer :: i
-  real(wp) :: rad(zmol%nat),xyz_tmp(3,zmol%nat)
-
-  do i = 1,zmol%nat
-    rad(i) = bohr*rcov_qcg(zmol%at(i))*1.40 ! scale factor adjusted to rough
-    xyz_tmp(1:3,i) = bohr*zmol%xyz(1:3,i)
-  end do
-
-  dum = zmol
-  dum%xyz = xyz_tmp
-
-  call get_volume(dum,rad)
-
-  zmol%atot = dum%atot/bohr**2
-  zmol%vtot = dum%vtot/bohr**3
-
-  if (r_logical) then
-    zmol%rtot = zmol%vtot*3.0/4.d0/pi
-    zmol%rtot = zmol%rtot**(1.d0/3.d0)
-  end if
-
-  if (pr) then
-    if (r_logical) then
-      write (*,'(2x,''molecular radius (Bohr**1):'',F8.2)') zmol%rtot
-    end if
-    write (*,'(2x,''molecular area   (Bohr**2):'',F8.2)') zmol%atot
-    write (*,'(2x,''molecular volume (Bohr**3):'',F8.2)') zmol%vtot
-  end if
-end subroutine get_sphere
-
-!==============================================================================!
-
-subroutine cma_shifting(solu,solv)
-  use crest_parameters
-  use crest_data
-  use iomod
-  use zdata
-  use strucrd
-  use axis_module,only:cma
-  implicit none
-
-  type(zmolecule)    :: solu,solv
-
-  integer            :: i
-
-  call cma(solu%nat,solu%at,solu%xyz,solu%cma)
-  call cma(solv%nat,solv%at,solv%xyz,solv%cma)
-
-  do i = 1,solu%nat
-    solu%xyz(1:3,i) = solu%xyz(1:3,i)-solu%cma(1:3)
-  end do
-  do i = 1,solv%nat
-    solv%xyz(1:3,i) = solv%xyz(1:3,i)-solv%cma(1:3)
-  end do
-
-end subroutine cma_shifting
-
-!==============================================================================!
-!
-subroutine get_ellipsoid(env,solu,solv,clus,pr1)
-  use crest_parameters
-  use crest_data
-  use iomod
-  use zdata
-  use strucrd
-  use axis_module
-  implicit none
-
-  type(systemdata)   :: env
-  type(zmolecule)    :: solu,solv,clus
-  type(zmolecule)    :: dummy_solu,dummy_solv
-  real(wp)           :: rabc_solu(3),rabc_solv(3)
-  real(wp)           :: aniso,sola
-  real(wp)           :: rmax_solu,rmax_solv
-  real(wp)           :: boxr,roff,r
-  character(len=10) :: fname
-  logical            :: ex,pr,pr1
-
-  real(wp),parameter :: pi43 = pi*4.0d0/3.0d0
-  real(wp),parameter :: third = 1.0d0/3.0d0
-
-  pr = .false. !Outprint deactivated
-
-  fname = 'eaxis.qcg'
-  inquire (file=fname,exist=ex)
-
-  if (pr1) then !First time called
-!--- Moving all coords to the origin (transformation)
-    call axistrf(solu%nat,solu%nat,solu%at,solu%xyz)
-!  call axistrf(solv%nat,solv%nat,solv%at,solv%xyz)  !Not done in original QCG code
-    call axistrf(clus%nat,solu%nat,clus%at,clus%xyz)
-
-!--- Overwrite solute and solvent coord in original file with transformed and optimized ones
-    call wrc0('solute',solu%nat,solu%at,solu%xyz)
-    call wrc0('solvent',solv%nat,solv%at,solv%xyz)
-
-!--- Getting axis
-    write (*,*) 'Solute:'
-    call axis(pr1,solu%nat,solu%at,solu%xyz,solu%eax)
-    write (*,*) 'Solvent:'
-    call axis(pr1,solv%nat,solv%at,solv%xyz,solv%eax)
-    write (*,*)
-  end if
-
-!--- Computing anisotropy factor of solute and solvent
-  sola = sqrt(1.+(solu%eax(1)-solu%eax(3))/((solu%eax(1)+solu%eax(2)+solu%eax(3))/3.))
-  aniso = sqrt(1.+(solv%eax(1)-solv%eax(3))/((solv%eax(1)+solv%eax(2)+solv%eax(3))/3.)) ! =1 for a spherical system
-
-!--- Get maximum intramoleclar distance of solute and solvent
-  call getmaxrad(solu%nat,solu%at,solu%xyz,rmax_solu)
-  call getmaxrad(solv%nat,solv%at,solv%xyz,rmax_solv)
-
-!--- Getting V and A of dummies
-  dummy_solu = solu
-  dummy_solv = solv !Why is dummy_solv%vtot different to solv%vtot
-  call get_sphere(.false.,dummy_solu,.false.)
-  call get_sphere(.false.,dummy_solv,.false.)
-
-!--- Computation of outer Wall
-  roff = sola*dummy_solu%vtot/1000
-  boxr = ((0.5*aniso*clus%nmol*dummy_solv%vtot+dummy_solu%vtot)/pi43)**third+roff+rmax_solv*0.5 !0.5 both
-  r = (boxr**3/(solu%eax(1)*solu%eax(2)*solu%eax(3)))**third       ! volume of ellipsoid = volume of sphere
-  rabc_solv = solu%eax*r                              ! outer solvent wall
-
-!--- Computation of inner wall
-  roff = sola*dummy_solu%vtot/1000
-  boxr = ((sola*dummy_solu%vtot)/pi43)**third+roff+rmax_solu*0.1 !0.1 before
-  r = (boxr**3/(solu%eax(1)*solu%eax(2)*solu%eax(3)))**third       ! volume of ellipsoid = volume of sphere
-  rabc_solu = solu%eax*r
-  dummy_solu%ell_abc(1) = solu%eax(1)**2/sum((solu%eax(1:3))**2)
-  dummy_solu%ell_abc(2) = solu%eax(2)**2/sum((solu%eax(1:3))**2)
-  dummy_solu%ell_abc(3) = solu%eax(3)**2/sum((solu%eax(1:3))**2)
-  rabc_solu = dummy_solu%ell_abc*r
-
-  solu%aniso = sola
-  solv%aniso = aniso
-  solu%ell_abc = rabc_solu
-  clus%ell_abc = rabc_solv*env%potscal
-
-  if (pr1) then
-    write (*,'(2x,''solvent anisotropy            :'',4f10.3)') aniso
-    write (*,'(2x,''solute anisotropy             :'',4f10.3)') sola
-    write (*,'(2x,''roff inner wall               :'',4f10.3)') roff
-    write (*,'(2x,''solute max dist               :'',4f10.3)') rmax_solu
-    write (*,'(2x,''solvent max dist              :'',4f10.3)') rmax_solv
-    write (*,'(2x,''inner unit axis               :'',3f10.3)') dummy_solu%ell_abc(1:3)
-    write (*,'(2x,''inner ellipsoid/Bohr          :'',3f10.3)') rabc_solu(1:3)
-    write (*,'(2x,''scaling factor outer ellipsoid:'',3f10.3)') env%potscal
-    write (*,'(2x,''outer ellipsoid/Bohr          :'',3f10.3)') clus%ell_abc(1:3)
-    if (env%potscal .gt. 1.0_wp) write &
-         &(*,'(2x,''!!!WARNING: A SCALING FACTOR LARGER 1.0 IS ONLY FOR MICROSOLVATION RECOMMENDED'')')
-    write (*,*)
-  end if
-
-end subroutine get_ellipsoid
-
-!==============================================================================!
-
-subroutine getmaxrad(n,at,xyz,r)
-  use crest_parameters,only:wp
-  use miscdata,only:rcov_qcg
-  implicit none
-  real(wp) :: xyz(3,n),r
-  integer :: n,at(n)
-  real(wp) :: rx,ry,rz,rr
-  integer :: i,j
-
-  r = 0
-  do i = 1,n-1
-    do j = i+1,n
-      rx = xyz(1,i)-xyz(1,j)
-      ry = xyz(2,i)-xyz(2,j)
-      rz = xyz(3,i)-xyz(3,j)
-      rr = sqrt(rx**2+ry**2+rz**2)+rcov_qcg(at(i))+rcov_qcg(at(j))
-      if (rr .gt. r) r = rr
-    end do
-  end do
-end subroutine getmaxrad
-
-!==============================================================================!
-
-subroutine ellipsout(fname,n,at,xyz,r1)
-  use crest_parameters
-  use strucrd,only:i2e
-  implicit none
-
-  integer            :: i
-  integer            :: n,at(n)
-  real(wp)           :: xyz(3,n),r1(3)
-  real(wp)           :: x,y,z,f,rr
-  character(len=*)   :: fname
-  integer            :: ich11
-
-  open (newunit=ich11,file=fname)
-  write (ich11,'(a)') '$coord'
-  do i = 1,n
-    write (ich11,'(3F24.14,6x,a)') xyz(1,i),xyz(2,i),xyz(3,i),i2e(at(i))
-  end do
-  do i = 1,500
-    call random_number(x)
-    call random_number(f)
-    if (f .gt. 0.5) x = -x
-    call random_number(y)
-    call random_number(f)
-    if (f .gt. 0.5) y = -y
-    call random_number(z)
-    call random_number(f)
-    if (f .gt. 0.5) z = -z
-    rr = sqrt(x*x+y*y+z*z)
-    x = x*r1(1)/rr
-    y = y*r1(2)/rr
-    z = z*r1(3)/rr
-    write (ich11,'(3F24.14,6x,a2)') x,y,z,'he'
-  end do
-  write (ich11,'(a)') '$end'
-  close (ich11)
-
-end subroutine ellipsout
-
-!==============================================================================!
-
-subroutine both_ellipsout(fname,n,at,xyz,r1,r2)
-  use crest_parameters
-  use strucrd,only:i2e
-  implicit none
-
-  integer            :: i
-  integer            :: n,at(n)
-  real(wp)           :: xyz(3,n),r1(3)
-  real(wp),optional :: r2(3)
-  real(wp)           :: x,y,z,f,rr
-  character(len=*)   :: fname
-  integer            :: ich11
-
-  open (newunit=ich11,file=fname)
-  write (ich11,'(a)') '$coord'
-  do i = 1,n
-    write (ich11,'(3F24.14,6x,a)') xyz(1,i),xyz(2,i),xyz(3,i),i2e(at(i))
-  end do
-  do i = 1,500
-    call random_number(x)
-    call random_number(f)
-    if (f .gt. 0.5) x = -x
-    call random_number(y)
-    call random_number(f)
-    if (f .gt. 0.5) y = -y
-    call random_number(z)
-    call random_number(f)
-    if (f .gt. 0.5) z = -z
-    rr = sqrt(x*x+y*y+z*z)
-    x = x*r1(1)/rr
-    y = y*r1(2)/rr
-    z = z*r1(3)/rr
-    write (ich11,'(3F24.14,6x,a2)') x,y,z,'he'
-  end do
-  if (present(r2)) then
-    do i = 1,100
-      call random_number(x)
-      call random_number(f)
-      if (f .gt. 0.5) x = -x
-      call random_number(y)
-      call random_number(f)
-      if (f .gt. 0.5) y = -y
-      call random_number(z)
-      call random_number(f)
-      if (f .gt. 0.5) z = -z
-      rr = sqrt(x*x+y*y+z*z)
-      x = x*r2(1)/rr
-      y = y*r2(2)/rr
-      z = z*r2(3)/rr
-      write (ich11,'(3F24.14,6x,a2)') x,y,z,'b'
-    end do
-  end if
-  write (ich11,'(a)') '$end'
-  close (ich11)
-
-end subroutine both_ellipsout
-
-!==============================================================================!
-
-subroutine analyze_cluster(nsolv,n,nS,nM,xyz,at,av,last)
-  use crest_parameters
-  use axis_module,only:cma
-  implicit none
-  real(wp) xyz(3,n)
-  real(wp) av,last
-  integer n,nS,nM,nsolv,at(n)
-  real(wp) xyzM(3,nM)
-  integer atm(nM)
-  real(wp) xyzS(3,nS)
-  integer atS(nS)
-  real(wp) x1(3),x2(3),r
-  integer i,is,ie
-
-  if (nsolv .eq. 1) return
-  xyzS(1:3,1:nS) = xyz(1:3,1:nS)
-  atS(1:nS) = at(1:nS)
-  call cma(nS,atS,xyzS,x1)
-
-  av = 0
-  do i = 1,nsolv
-    is = nS+(i-1)*nM+1
-    ie = is+nM-1
-    xyzM(1:3,1:nM) = xyz(1:3,is:ie)
-    atM(1:nM) = at(is:ie)
-    call cma(nM,atM,xyzM,x2)
-    r = sqrt((x1(1)-x2(1))**2+(x1(2)-x2(2))**2+(x1(3)-x2(3))**2)
-    if (i .lt. nsolv) then
-      av = av+r
-    else
-      last = r
-    end if
-  end do
-  av = av/float(nsolv-1)
-end subroutine analyze_cluster
-
-!==============================================================================!
-!
-subroutine qcg_boltz(env,n,e,p)
-  use crest_parameters
-  use crest_data
-  implicit none
-  type(systemdata),intent(in)    :: env
-  integer,intent(in)              :: n
-  real(wp),intent(in)             :: e(*)
-  real(wp),intent(out)            :: p(*)
-  integer                         :: i
-  real(wp)                        :: temp
-  real(wp)                        :: f,hsum,esum
-
-  temp = env%tboltz
-  f = 8.314*temp/4.184d+3
-  esum = 0
-  do i = 1,n
-    esum = esum+exp(-e(i)/f)
-  end do
-  hsum = 0
-  do i = 1,n
-    p(i) = exp(-e(i)/f)/esum
-  end do
-end subroutine qcg_boltz
-
-!==============================================================================!
-
-subroutine fill_take(env,n2,n12,rabc,ipos)
-  use crest_parameters
-  use crest_data
-  use strucrd
-  use axis_module,only:cma
-  implicit none
-
-  type(systemdata)      :: env
-  integer,intent(in)   :: n2,n12
-  real(wp),intent(in)   :: rabc(3)
-  integer,intent(out)  :: ipos
-  integer               :: i,m,n21
-  integer               :: at2(n2),at12(n12)
-  integer               :: counter
-  real(wp)              :: xyz2(3,n2),xyz12(3,n12)
-  real(wp)              :: etmp(100)
-  real(wp)              :: eabc
-  real(wp)              :: cma2(3)
-  real(wp),allocatable  :: dist(:)
-
-  eabc = 0
-  counter = 0
-  n21 = n12-n2+1
-  if (env%use_xtbiff) then
-    call rdxtbiffE('xtbscreen.xyz',m,n12,etmp)
-  else
-    call rdxtbiffE('best.xyz',m,n12,etmp)
-  end if
-
-  allocate (dist(m),source=0.0d0)
-  dist = 0.0d0
-
-  do i = 1,m
-    if (env%use_xtbiff) then
-      call rdxmolselec('xtbscreen.xyz',i,n12,at12,xyz12)
-    else
-      call rdxmolselec('final_structures.xyz',i,n12,at12,xyz12)
-    end if
-
-    at2(1:n2) = at12(n21:n12)
-    xyz2(1:3,1:n2) = xyz12(1:3,n21:n12)
-    call cma(n2,at2,xyz2,cma2)
-    call calc_dist(cma2,rabc,dist(i),eabc)
-    if (eabc .gt. 1.0d0) then
-      dist(i) = 1.0d42
-      counter = counter+1
-    end if
-  end do
-
-  ipos = minloc(dist(1:m),dim=1)
-
-  if (counter .eq. m) ipos = 0
-
-  deallocate (dist)
-end subroutine fill_take
-
-!==============================================================================!
-
-subroutine calc_dist(xyz,rabc,dist,eabc)
-  use crest_parameters
-  implicit none
-
-  real(wp),intent(in)    :: xyz(3)
-  real(wp),intent(in)    :: rabc(3)
-  real(wp),intent(out)   :: dist
-  real(wp),intent(out)   :: eabc
-  real(wp)                :: center(3),rc(3)
-
-  center = 0.d0
-  rc = (xyz(1:3)-center)
-  dist = norm2(rc)
-  eabc = sum((xyz(1:3)**2)/(rabc(1:3)**2))
-end subroutine calc_dist
-
-!==============================================================================!
-
-subroutine sort_min(i,j,col,A)
-  use crest_parameters
-  implicit none
-  integer,intent(in)   :: i,j,col
-  real*8,intent(inout) :: A(i,j)
-  real*8                :: buf(j)
-  integer               :: nsize,irow,krow
-  nsize = i
-
-  do irow = 1,nsize
-    krow = minloc(A(irow:nsize,col),dim=1)+irow-1
-    buf(:) = A(irow,:)
-    A(irow,:) = A(krow,:)
-    A(krow,:) = buf(:)
-  end do
-end subroutine sort_min
-
-!==============================================================================!
-
-subroutine sort_ensemble(ens,e_ens,fname)
-  use crest_parameters
-  use crest_data
-  use strucrd
-  implicit none
-  type(ensemble)       :: ens
-  real(wp)             :: e_ens(ens%nall),dum(ens%nall)
-  character(len=*)     :: fname
-  integer              :: ich
-  integer              :: i,e_min
-
-  dum = e_ens
-
-  open (newunit=ich,file=fname)
-
-  do i = 1,ens%nall
-    e_min = minloc(dum,dim=1)
-    call wrxyz(ich,ens%nat,ens%at,ens%xyz(:,:,e_min),e_ens(e_min))
-    dum(e_min) = 0.0d0
-  end do
-  close (ich)
-
-end subroutine sort_ensemble
-
-!==============================================================================!
-
-subroutine rdtherm(fname,ht,svib,srot,stra,gt)
-  use crest_parameters
-  use crest_data
-  use iomod
-
-  implicit none
-! Dummy
-  real(wp),intent(out)  :: ht
-  real(wp),intent(out)  :: gt
-  real(wp),intent(out)  :: svib
-  real(wp),intent(out)  :: srot
-  real(wp),intent(out)  :: stra
-! Stack
-  integer                :: nn
-  integer                :: io
-  integer                :: counter
-  integer                :: hg_line
-  real(wp)               :: xx(20)
-  logical                :: ende
-  character(len=*)       :: fname
-  character(len=128)     :: a
-  integer                :: ich
-
-  ende = .false.
-  counter = 0
-  hg_line = 0
-
-  open (newunit=ich,file=fname)
-  do while (.not.ende)
-    read (ich,'(a)',iostat=io) a
-    if (io .lt. 0) then
-      ende = .true.
-      cycle
-    end if
-    if (index(a,'G(T)/Eh ') .ne. 0) then
-      hg_line = counter
-    end if
-    if (index(a,'  VIB  ') .ne. 0) then
-      call readl(a,xx,nn)
-      svib = xx(5)
-      if (svib .eq. 0.0d0) then
-        call readl(a,xx,nn)
-        svib = xx(4)
-      end if
-    end if
-    if (index(a,'  ROT  ') .ne. 0) then
-      call readl(a,xx,nn)
-      srot = xx(4)
-    end if
-    if (index(a,'  TR   ') .ne. 0) then
-      call readl(a,xx,nn)
-      stra = xx(4)
-    end if
-    if (counter .eq. hg_line+2) then
-      call readl(a,xx,nn)
-      ht = xx(3)*autokcal
-      gt = xx(5)*autokcal
-    end if
-    counter = counter+1
-  end do
-  close (ich)
-end subroutine rdtherm
-
-!==============================================================================!
-
 subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup)
   use crest_parameters
   use crest_data
   use iomod
   use zdata
   use strucrd
-
+  use qcg_utils
   implicit none
 
   type(systemdata)           :: env
