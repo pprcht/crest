@@ -34,16 +34,15 @@ contains
     use crest_parameters
     use crest_data
     use strucrd
-    use zdata
+    use qcg_coord_type
     use iomod
     implicit none
 
     type(systemdata),intent(inout) :: env
-    type(zmolecule),intent(out) :: solute,solvent
+    type(coord_qcg),intent(out) :: solute,solvent
 
     logical :: ex11,ex21,solu,solv
-    type(coord) :: mol
-    type(zmolecule) :: zmol,zmol1
+    type(coord_qcg) :: mol
     integer :: i
 
 !--------------------Checking for input-------------!
@@ -107,13 +106,13 @@ contains
 
   subroutine write_reference(env,solu,clus)
     use crest_data
-    use zdata,only:zmolecule
+    use qcg_coord_type
     use iomod
     use strucrd
     implicit none
     type(systemdata):: env    ! MAIN STORAGE OS SYSTEM DATA
-    type(zmolecule)            :: solu,clus
-    type(zmolecule)            :: ref_mol,ref_clus
+    type(coord_qcg)            :: solu,clus
+    type(coord_qcg)            :: ref_mol,ref_clus
     ref_mol = solu
     call rdcoord(env%solu_file,ref_mol%nat,ref_mol%at,ref_mol%xyz) !original solute coordinates
     call remove(env%fixfile)
@@ -201,45 +200,45 @@ contains
 
   !==============================================================================!
 
-  subroutine get_sphere(pr,zmol,r_logical)
+  subroutine get_sphere(pr,mol,r_logical)
     use crest_parameters
-    use zdata
+    use qcg_coord_type
     use miscdata
     implicit none
-    type(zmolecule),intent(inout) :: zmol
-    type(zmolecule) :: dum
+    type(coord_qcg),intent(inout) :: mol
+    type(coord_qcg) :: dum
     logical        :: pr
     logical        :: r_logical !Determines wether r is overwritten or not
     real(wp),parameter :: pi43 = pi*4.0d0/3.0d0
     real(wp),parameter :: third = 1.0d0/3.0d0
     integer :: i
-    real(wp) :: rad(zmol%nat),xyz_tmp(3,zmol%nat)
+    real(wp) :: rad(mol%nat),xyz_tmp(3,mol%nat)
     external get_volume
 
-    do i = 1,zmol%nat
-      rad(i) = bohr*rcov_qcg(zmol%at(i))*1.40 ! scale factor adjusted to rough
-      xyz_tmp(1:3,i) = bohr*zmol%xyz(1:3,i)
+    do i = 1,mol%nat
+      rad(i) = bohr*rcov_qcg(mol%at(i))*1.40 ! scale factor adjusted to rough
+      xyz_tmp(1:3,i) = bohr*mol%xyz(1:3,i)
     end do
 
-    dum = zmol
+    dum = mol
     dum%xyz = xyz_tmp
 
     call get_volume(dum,rad)
 
-    zmol%atot = dum%atot/bohr**2
-    zmol%vtot = dum%vtot/bohr**3
+    mol%atot = dum%atot/bohr**2
+    mol%vtot = dum%vtot/bohr**3
 
     if (r_logical) then
-      zmol%rtot = zmol%vtot*3.0/4.d0/pi
-      zmol%rtot = zmol%rtot**(1.d0/3.d0)
+      mol%rtot = mol%vtot*3.0/4.d0/pi
+      mol%rtot = mol%rtot**(1.d0/3.d0)
     end if
 
     if (pr) then
       if (r_logical) then
-        write (stdout,'(2x,''molecular radius (Bohr**1):'',F8.2)') zmol%rtot
+        write (stdout,'(2x,''molecular radius (Bohr**1):'',F8.2)') mol%rtot
       end if
-      write (stdout,'(2x,''molecular area   (Bohr**2):'',F8.2)') zmol%atot
-      write (stdout,'(2x,''molecular volume (Bohr**3):'',F8.2)') zmol%vtot
+      write (stdout,'(2x,''molecular area   (Bohr**2):'',F8.2)') mol%atot
+      write (stdout,'(2x,''molecular volume (Bohr**3):'',F8.2)') mol%vtot
     end if
   end subroutine get_sphere
 
@@ -249,12 +248,12 @@ contains
     use crest_parameters
     use crest_data
     use iomod
-    use zdata
+    use qcg_coord_type
     use strucrd
     use axis_module,only:cma
     implicit none
 
-    type(zmolecule)    :: solu,solv
+    type(coord_qcg)    :: solu,solv
 
     integer            :: i
 
@@ -276,14 +275,14 @@ contains
     use crest_parameters
     use crest_data
     use iomod
-    use zdata
+    use qcg_coord_type
     use strucrd
     use axis_module
     implicit none
 
     type(systemdata)   :: env
-    type(zmolecule)    :: solu,solv,clus
-    type(zmolecule)    :: dummy_solu,dummy_solv
+    type(coord_qcg)    :: solu,solv,clus
+    type(coord_qcg)    :: dummy_solu,dummy_solv
     real(wp)           :: rabc_solu(3),rabc_solv(3)
     real(wp)           :: aniso,sola
     real(wp)           :: rmax_solu,rmax_solv

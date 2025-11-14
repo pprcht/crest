@@ -84,18 +84,18 @@ subroutine xtb_sp_qcg(env,fname,success,eout)
 end subroutine xtb_sp_qcg
 
 !--------------------------------------------------------------------------------------------
-! A quick single xtb optimization gets zmol and overwrites it with optimized stuff
+! A quick single xtb optimization gets mol and overwrites it with optimized stuff
 !--------------------------------------------------------------------------------------------
-subroutine xtb_opt_qcg(env,zmol,constrain)
+subroutine xtb_opt_qcg(env,mol,constrain)
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
   use strucrd
 
   implicit none
   type(systemdata),intent(in) :: env
-  type(zmolecule),intent(inout) :: zmol
+  type(coord_qcg),intent(inout) :: mol
 
   character(:),allocatable :: fname
   character(len=512) :: jobcall
@@ -106,7 +106,7 @@ subroutine xtb_opt_qcg(env,zmol,constrain)
 
 !--- Write coordinated
   fname = 'coord'
-  call wrc0(fname,zmol%nat,zmol%at,zmol%xyz) !write coord for xtbopt routine
+  call wrc0(fname,mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
 
 !---- setting threads
   call new_ompautoset(env,'auto',1,T,Tn)
@@ -114,7 +114,7 @@ subroutine xtb_opt_qcg(env,zmol,constrain)
 !---- jobcall & Handling constraints
   if (constrain.AND.env%cts%used) then
     call write_constraint(env,fname,'xcontrol')
-    call wrc0('coord.ref',zmol%nat,zmol%at,zmol%xyz) !write coord for xtbopt routine
+    call wrc0('coord.ref',mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
     write (jobcall,'(a,1x,a,1x,a,'' --opt --input xcontrol '',a,1x,a)') &
     &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
   else
@@ -124,7 +124,7 @@ subroutine xtb_opt_qcg(env,zmol,constrain)
 
   call command(trim(jobcall),io)
 !---- cleanup
-  call rdcoord('xtbopt.coord',zmol%nat,zmol%at,zmol%xyz)
+  call rdcoord('xtbopt.coord',mol%nat,mol%at,mol%xyz)
   call remove('energy')
   call remove('charges')
   call remove('xtbrestart')
@@ -141,7 +141,7 @@ subroutine xtb_lmo(env,fname,success,eout)
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
   implicit none
   type(systemdata) :: env
   character(len=*),intent(in) :: fname
@@ -185,12 +185,12 @@ subroutine xtb_iff(env,file_lmo1,file_lmo2,solu,clus)
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
 
   implicit none
 
   type(systemdata)                :: env
-  type(zmolecule),intent(in)     :: solu,clus
+  type(coord_qcg),intent(in)     :: solu,clus
   character(len=80)               :: pipe
   character(len=512)              :: jobcall
   character(len=*)                :: file_lmo1,file_lmo2
@@ -229,12 +229,12 @@ subroutine xtb_dock(env,fnameA,fnameB,solu,clus)
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
 
   implicit none
 
   type(systemdata)                :: env
-  type(zmolecule),intent(in)     :: solu,clus
+  type(coord_qcg),intent(in)     :: solu,clus
   character(len=*),intent(in)    :: fnameA,fnameB
   character(len=80)               :: pipe
   character(len=512)              :: jobcall
@@ -289,12 +289,12 @@ subroutine opt_cluster(env,solu,clus,fname,without_pot)
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
 
   implicit none
 
   type(systemdata)                :: env
-  type(zmolecule),intent(in)     :: solu,clus
+  type(coord_qcg),intent(in)     :: solu,clus
   character(len=*),intent(in)     :: fname
   logical,optional,intent(in)   :: without_pot
   character(len=80)               :: pipe
@@ -354,11 +354,11 @@ subroutine ensemble_lmo(env,fname,self,NTMP,TMPdir,conv)
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
 
   implicit none
   type(systemdata)                :: env
-  type(zmolecule),intent(in)     :: self
+  type(coord_qcg),intent(in)     :: self
   character(len=*),intent(in)    :: fname      !file base name
   character(len=*),intent(in)    :: TMPdir     !directory name
   integer,intent(in)             :: NTMP       !number of structures to be optimized
@@ -421,7 +421,7 @@ subroutine ensemble_iff(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,NTMP,TMPd
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
 
   implicit none
   type(systemdata)                :: env
@@ -490,7 +490,7 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
   use crest_parameters
   use iomod
   use crest_data
-  use zdata
+  use qcg_coord_type
 
   implicit none
   type(systemdata)                :: env
@@ -1103,12 +1103,12 @@ subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
   use iso_fortran_env,wp => real64
   use crest_data
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   implicit none
 
   type(systemdata)           :: env
-  type(zmolecule),intent(in) :: solu,solv,clus
+  type(coord_qcg),intent(in) :: solu,solv,clus
   real(wp)                   :: e_cluster,e_solute,e_solvent
   real(wp)                   :: E_inter(env%nsolv)           ! interaction energy
   integer                    :: iter

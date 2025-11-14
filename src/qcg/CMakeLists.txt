@@ -18,6 +18,7 @@ set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
   "${dir}/volume.f90"
+  "${dir}/qcg_coord_type.f90"
   "${dir}/qcg_misc.f90"
   "${dir}/qcg_main.f90"
   "${dir}/qcg_printouts.f90"

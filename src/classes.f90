@@ -876,7 +876,7 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine ref_to_mol(self,mol)
     implicit none
     class(refdata) :: self
-    type(coord) :: mol
+    class(coord) :: mol
     mol%nat = self%nat
     if (allocated(self%at)) mol%at = self%at
     if (allocated(self%xyz)) mol%xyz = self%xyz
@@ -888,7 +888,7 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine ref_load_mol(self,mol)
     implicit none
     class(refdata) :: self
-    type(coord) :: mol
+    class(coord) :: mol
     call self%init(mol%nat)
     self%nat = mol%nat
     self%at = mol%at

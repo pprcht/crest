@@ -22,12 +22,12 @@
 ! Jaroslav Skrivánek, Ming-Chya Wu
 ! Comput. Phys. Commun. 165(2005)59
 
-subroutine get_volume(zmol,rad)
+subroutine get_volume(mol,rad)
   use crest_parameters
-  use zdata
+  use qcg_coord_type
   implicit none
-  type(Zmolecule),intent(inout) :: zmol
-  real(wp),intent(in)  :: rad(zmol%nat)
+  type(coord_qcg),intent(inout) :: mol
+  real(wp),intent(in)  :: rad(mol%nat)
   real(wp),allocatable :: xyz_rad(:,:)
   integer,allocatable  :: neigh_list(:)
   integer,allocatable  :: neigh_index(:)
@@ -35,28 +35,28 @@ subroutine get_volume(zmol,rad)
   real(wp)              :: va_part(2)
   integer               :: i
 
-  allocate (xyz_rad(zmol%nat,4),neigh_list(zmol%nat),neigh_index(zmol%nat))
-  allocate (neigh_type(zmol%nat**2))
+  allocate (xyz_rad(mol%nat,4),neigh_list(mol%nat),neigh_index(mol%nat))
+  allocate (neigh_type(mol%nat**2))
 
-  zmol%vtot = 0d0
-  zmol%atot = 0d0
+  mol%vtot = 0d0
+  mol%atot = 0d0
 
 !--- Copying Input
-  do i = 1,zmol%nat
-    xyz_rad(i,1:3) = zmol%xyz(1:3,i)
+  do i = 1,mol%nat
+    xyz_rad(i,1:3) = mol%xyz(1:3,i)
     xyz_rad(i,4) = rad(i)
   end do
 
 !--- Checking neighbors (different to usual CREST neighbors to account for more atoms)
-  call create_neigh(zmol%nat,xyz_rad,neigh_list, &
+  call create_neigh(mol%nat,xyz_rad,neigh_list, &
   &                               neigh_index,neigh_type)
 
 !--- Compute V and A
-  do i = 1,zmol%nat
+  do i = 1,mol%nat
     call calcVA(i,xyz_rad,neigh_list,neigh_index, &
-    &                        neigh_type,zmol%nat,va_part)
-    zmol%vtot = zmol%vtot+va_part(1)
-    zmol%atot = zmol%atot+va_part(2)
+    &                        neigh_type,mol%nat,va_part)
+    mol%vtot = mol%vtot+va_part(1)
+    mol%atot = mol%atot+va_part(2)
   end do
 
   deallocate (xyz_rad,neigh_type,neigh_index)

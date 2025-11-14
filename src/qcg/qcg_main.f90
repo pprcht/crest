@@ -27,14 +27,14 @@ subroutine crest_solvtool(env,tim)
   use qcg_printouts
   use crest_data
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   implicit none
 
   type(systemdata):: env    ! MAIN STORAGE OS SYSTEM DATA
   type(timer):: tim
   !> Information about solvent, solute and cluster
-  type(zmolecule) :: solute,solvent,cluster,cluster_backup
+  type(coord_qcg) :: solute,solvent,cluster,cluster_backup
   type(ensemble) :: full_ensemble,solvent_ensemble
 
   integer :: progress,io
@@ -160,13 +160,13 @@ subroutine qcg_setup(env,solu,solv)
   use iso_fortran_env,wp => real64
   use crest_data
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use axis_module
   implicit none
 
   type(systemdata):: env
-  type(zmolecule) :: solv,solu
+  type(coord_qcg) :: solv,solu
 
   integer :: io,f,r
   integer :: num_O,num_H,i
@@ -320,14 +320,14 @@ subroutine read_qcg_input(env,solu,solv)
   use crest_parameters
   use crest_data
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use atmasses
   use qcg_utils
   implicit none
 
   type(systemdata)               :: env
-  type(zmolecule),intent(inout) :: solu,solv
+  type(coord_qcg),intent(inout) :: solu,solv
   logical                        :: pr
   real(wp),parameter            :: third = 1.0d0/3.0d0
   integer                        :: i
@@ -462,13 +462,13 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   use crest_data
   use qcg_printouts
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use qcg_utils
   implicit none
 
   type(systemdata)           :: env
-  type(zmolecule)            :: solu,solv,clus
+  type(coord_qcg)            :: solu,solv,clus
   type(timer)                :: tim
 
   integer                    :: minE_pos,m
@@ -842,7 +842,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   use crest_data
   use qcg_printouts
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use utilities
   use cregen_interface
@@ -850,7 +850,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   implicit none
 
   type(systemdata)           :: env
-  type(zmolecule)            :: solu,solv,clus
+  type(coord_qcg)            :: solu,solv,clus
   type(ensemble)             :: ens,dum
   type(timer)                :: tim
 
@@ -1482,14 +1482,14 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   use crest_data
   use qcg_printouts
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use qcg_utils
   implicit none
 
   type(systemdata)           :: env
   type(timer)                :: tim
-  type(zmolecule)            :: solu,solv,clus
+  type(coord_qcg)            :: solu,solv,clus
   type(ensemble)             :: solv_ens
   type(ensemble),intent(in)  :: ens
 
@@ -1932,14 +1932,14 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   use crest_data
   use qcg_printouts
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use qcg_utils
   implicit none
 
   type(systemdata)           :: env
   type(timer)                :: tim
-  type(zmolecule)            :: solu,solv,clus
+  type(coord_qcg)            :: solu,solv,clus
   type(ensemble)             :: solu_ens,solv_ens
 
   integer                    :: r,io,f,g,h
@@ -2192,13 +2192,13 @@ subroutine qcg_eval(env,solu,solu_ens,solv_ens)
   use crest_data
   use qcg_printouts
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use qcg_utils
   implicit none
 
   type(systemdata)           :: env
-  type(zmolecule)            :: solu
+  type(coord_qcg)            :: solu
   type(ensemble)             :: solu_ens,solv_ens
 
   character(len=512)         :: thispath
@@ -2302,13 +2302,13 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
   use crest_parameters
   use crest_data
   use iomod
-  use zdata
+  use qcg_coord_type
   use strucrd
   use qcg_utils
   implicit none
 
   type(systemdata)           :: env
-  type(zmolecule)            :: solu,solv,clus,clus_backup
+  type(coord_qcg)            :: solu,solv,clus,clus_backup
   type(ensemble)             :: solu_ens,solv_ens
   integer                    :: progress
 
