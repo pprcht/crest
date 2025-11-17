@@ -99,12 +99,11 @@ subroutine xtb_opt_qcg(env,mol,constrain)
 
   character(:),allocatable :: fname
   character(len=512) :: jobcall
-  logical :: constrain, const
+  logical :: constrain,const
   real(wp) :: energy
   integer :: io,T,Tn
-  character(stdout),parameter :: pipe = ' > xtb_opt.out 2> /dev/null' 
+  character(stdout),parameter :: pipe = ' > xtb_opt.out 2> /dev/null'
   logical,parameter :: debug = .false.
-
 
   if (env%legacy) then
     !> LEGACY version with syscall
@@ -154,14 +153,14 @@ subroutine xtb_opt_qcg(env,mol,constrain)
 
       call optimize_geometry(molin,molout,calc,energy,gradtmp,debug,.false.,io)
 
-      deallocate(gradtmp)
-      if(io == 0)then
-         call mol%from_coord(molout)
+      deallocate (gradtmp)
+      if (io == 0) then
+        call mol%from_coord(molout)
       else
-         write(stdout,*) 'FAILURE in QCG optimization!'
-         write(stdout,*) 'Stopping run to avoid unecessary compuations'
-         call creststop(status_safety)
-      endif
+        write (stdout,*) 'FAILURE in QCG optimization!'
+        write (stdout,*) 'Stopping run to avoid unecessary compuations'
+        call creststop(status_safety)
+      end if
     end block
 
   end if
@@ -345,7 +344,7 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
   do i = 1,NTMP
     vz = i
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
-    call chdir(trim(tmppath))
+    call chdirdbug(trim(tmppath))
     open (newunit=ich31,file='xcontrol')
     write (ich31,'(a,"fix")') trim(flag)
     write (ich31,'(3x,"atoms: 1-",i0)') n_shell !Initial number of atoms (starting solvent shell)
@@ -354,7 +353,7 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
     write (ich31,'(3x,"ellipsoid:",1x,3(g0,",",1x),i0,"-",i0)') outer_ell_abc(conv(vz),:), &
             & n_shell+1,n_shell+n_solvent !Initial number of atoms (starting solvent shell)
     close (ich31)
-    call chdir(trim(thispath))
+    call chdirdbug(trim(thispath))
   end do
 
   k = 0 !counting the finished jobs
@@ -381,7 +380,7 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
 !$omp end parallel
 
 !___________________________________________________________________________________
-  call chdir(trim(thispath))
+  call chdirdbug(trim(thispath))
 
 end subroutine ensemble_dock
 
@@ -436,7 +435,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   call getcwd(thispath)
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
-    call chdir(trim(tmppath))
+    call chdirdbug(trim(tmppath))
     open (newunit=ich31,file='xcontrol')
     if (n12 .ne. 0) then
       flag = '$'
@@ -445,7 +444,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
     end if
     close (ich31)
     if (postopt.and.nothing_added(i)) call remove('xcontrol')
-    call chdir(trim(thispath))
+    call chdirdbug(trim(thispath))
   end do
 
 !--- Jobcall
@@ -486,9 +485,9 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
 
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
-    call chdir(trim(tmppath))
+    call chdirdbug(trim(tmppath))
     call remove('xtbrestart')
-    call chdir(trim(thispath))
+    call chdirdbug(trim(thispath))
   end do
 
   !create the system call for sp (needed for gbsa model)
@@ -529,10 +528,10 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
 
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
-    call chdir(trim(tmppath))
+    call chdirdbug(trim(tmppath))
     call remove('xtbrestart')
     !call remove('xcontrol')
-    call chdir(trim(thispath))
+    call chdirdbug(trim(thispath))
   end do
 
   if (postopt) then
@@ -615,9 +614,9 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
 
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),i
-    call chdir(trim(tmppath))
+    call chdirdbug(trim(tmppath))
     call remove('xtbrestart')
-    call chdir(trim(thispath))
+    call chdirdbug(trim(thispath))
   end do
   write (stdout,*) ''
   write (stdout,'(2x,"done.")')
@@ -701,9 +700,9 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
 
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),i
-    call chdir(trim(tmppath))
+    call chdirdbug(trim(tmppath))
     call remove('xtbrestart')
-    call chdir(trim(thispath))
+    call chdirdbug(trim(thispath))
   end do
   write (stdout,*) ''
   write (stdout,'(2x,"done.")')
@@ -881,3 +880,17 @@ subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
   E_inter(iter) = e_cluster-e_solute-e_solvent
 
 end subroutine get_interaction_E
+
+!===============================================================================!
+subroutine chdirdbug(path)
+  implicit none
+  character(len=*),intent(in) :: path
+  logical,parameter :: debug = .true.
+  character(len=500) :: debugpath
+  call chdir(path)
+  if (debug) then
+    call getcwd(debugpath)
+    write (*,'(a,a)') '>>>>>>> NOW IN ',trim(debugpath)
+  end if
+end subroutine chdirdbug
+

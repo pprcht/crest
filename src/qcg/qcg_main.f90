@@ -88,7 +88,7 @@ subroutine crest_solvtool(env,tim)
       cluster_backup = cluster
     end if
     progress = progress+1
-    call chdir(thispath)
+    call chdirdbug(thispath)
   end if
 
 !------------------------------------------------------------------------------
@@ -98,7 +98,7 @@ subroutine crest_solvtool(env,tim)
     call print_qcg_ensemble()
     call qcg_ensemble(env,solute,solvent,cluster,full_ensemble,tim,'ensemble')
     progress = progress+1
-    call chdir(thispath)
+    call chdirdbug(thispath)
   end if
 
 !------------------------------------------------------------------------------
@@ -125,7 +125,7 @@ subroutine crest_solvtool(env,tim)
     write (stdout,'(2x,"|",9x,F8.2," kcal/mol ",12x,"|")') &
            &   full_ensemble%g-solvent_ensemble%g-(solute%energy*autokcal)
     write (stdout,'(2x,''========================================='')')
-    call chdir(thispath)
+    call chdirdbug(thispath)
     progress = progress+1
   end if
 
@@ -190,7 +190,7 @@ subroutine qcg_setup(env,solu,solv)
   if (env%fixfile /= 'none selected') then
     call copysub(env%fixfile,env%scratchdir)
   end if
-  call chdir(env%scratchdir)
+  call chdirdbug(env%scratchdir)
 
   f = makedir('solute_properties')
   if (env%fixfile /= 'none selected') then
@@ -211,7 +211,7 @@ subroutine qcg_setup(env,solu,solv)
   env%gbsa = .false.
 
 !---- Properties solute
-  call chdir('solute_properties')
+  call chdirdbug('solute_properties')
   call env%wrtCHRG('') !Write three lines in QCG mode, but xtb anyway only reads first one
 
 !---- Geometry preoptimization solute
@@ -241,15 +241,15 @@ subroutine qcg_setup(env,solu,solv)
     env%gfnver = gfnver_tmp
   end if
 
-  call chdir(thispath)
+  call chdirdbug(thispath)
 
 ! No constraints for solvent possible
   used_tmp = env%cts%used
   env%cts%used = .false.
 
 !---- Properties solvent
-  call chdir(env%scratchdir)
-  call chdir('solvent_properties')
+  call chdirdbug(env%scratchdir)
+  call chdirdbug('solvent_properties')
   !No charges for solvent written. This is currently not possible
 
 !---- Geometry preoptimization solvent
@@ -267,7 +267,7 @@ subroutine qcg_setup(env,solu,solv)
     write (stdout,outfmt) 'Total energy of solvent:',solv%energy,' Eh'
   end if
 
-  call chdir(thispath)
+  call chdirdbug(thispath)
 
 !---- Overwriting solute and solvent in original folder
   call wrc0('solute',solu%nat,solu%at,solu%xyz)
@@ -487,7 +487,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   call print_qcg_grow()
   call getcwd(thispath)
   io = makedir('grow')
-  call chdir('grow') !Results directory
+  call chdirdbug('grow') !Results directory
 
 !--- Output Files
   open (newunit=ich99,file='qcg_energy.dat')
@@ -497,7 +497,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   write (ich88,'(''   #   Energy       Run. Aver.   Diff / au.'')')
 
   call getcwd(resultspath)
-  call chdir(thispath)
+  call chdirdbug(thispath)
 
   if (env%water) then
     if (.not.env%user_wscal) then
@@ -518,12 +518,12 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   call get_ellipsoid(env,solu,solv,clus,.true.)
   call pr_grow_energy()
 
-  call chdir(env%scratchdir)
+  call chdirdbug(env%scratchdir)
   v = makedir('tmp_grow')
   if (env%fixfile /= 'none selected') then
     call copysub(env%fixfile,'tmp_grow')
   end if
-  call chdir('tmp_grow')
+  call chdirdbug('tmp_grow')
   call wrc0('solute',solu%nat,solu%at,solu%xyz)
   call wrc0('solvent',solv%nat,solv%at,solv%xyz)
   call env%wrtCHRG('') !Write .CHRG file for docking
@@ -762,8 +762,8 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   call write_wall(env,solu%nat,solu%ell_abc,clus%ell_abc,'wall_potential')
   call copysub('wall_potential',resultspath)
 
-  call chdir(thispath)
-  call chdir(env%scratchdir)
+  call chdirdbug(thispath)
+  call chdirdbug(env%scratchdir)
   if (.not.env%keepModef) call rmrf('tmp_grow')
 
   deallocate (e_each_cycle,E_inter)
@@ -832,9 +832,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 !--- Setting up directories
   call getcwd(thispath)
   f = makedir(fname_results)
-  call chdir(fname_results)
+  call chdirdbug(fname_results)
   call getcwd(resultspath)
-  call chdir(thispath)
+  call chdirdbug(thispath)
 
 !--- Setting defaults
   env%cts%NCI = .true.  !Activating to have wall pot. written in coord file for xtb
@@ -859,17 +859,17 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     call copysub(env%fixfile,env%scratchdir)
   end if
 
-  call chdir(env%scratchdir)
+  call chdirdbug(env%scratchdir)
   scratchdir_tmp = env%scratchdir
   if (.not.env%solv_md) then
     io = makedir('tmp_MTD')
     call copysub('.CHRG','tmp_MTD')
     call copysub('.UHF','tmp_MTD')
     if (env%cts%used) call copysub(env%fixfile,'tmp_MTD')
-    call chdir('tmp_MTD')
+    call chdirdbug('tmp_MTD')
   else
     io = makedir('tmp_solv_MTD')
-    call chdir('tmp_solv_MTD')
+    call chdirdbug('tmp_solv_MTD')
   end if
   call getcwd(tmppath2)
   call wrc0('crest_input',clus%nat,clus%at,clus%xyz)
@@ -1058,9 +1058,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
       r = makedir(tmppath)
       call copysub('xcontrol',tmppath)
-      call chdir(tmppath)
+      call chdirdbug(tmppath)
       call copy('coord','ref.coord')
-      call chdir(tmppath2)
+      call chdirdbug(tmppath2)
 
       call command('cd '//trim(tmppath)//' && '//trim(jobcall),io)
 
@@ -1074,7 +1074,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
       if (env%trackorigin) then
         call set_trj_origins('NORMMD','md')
       end if
-      call chdir('NORMMD1')
+      call chdirdbug('NORMMD1')
     end if
 
 !--- MTD
@@ -1093,10 +1093,10 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
       write (tmppath,'(a,i0)') 'METADYN1'
       r = makedir(tmppath)
       call copysub('xcontrol',tmppath)
-      call chdir(tmppath)
+      call chdirdbug(tmppath)
       call copy('coord','ref.coord')
 
-      call chdir(tmppath2)
+      call chdirdbug(tmppath2)
 
       call command('cd '//trim(tmppath)//' && '//trim(jobcall),io)
 
@@ -1111,7 +1111,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
         call set_trj_origins('METADYN','mtd')
       end if
 
-      call chdir('METADYN1')
+      call chdirdbug('METADYN1')
 
     end if
 
@@ -1140,7 +1140,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
       call copysub('xtb.out',resultspath)
     end if
     call dum%deallocate
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
     call wrc0('coord',clus%nat,clus%at,clus%xyz)
     call inputcoords(env,'coord') !Necessary
 
@@ -1202,9 +1202,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     io = makedir(trim(to))
     call copysub('.UHF',to)
     call copysub('.CHRG',to)
-    call chdir(to)
+    call chdirdbug(to)
     call wrxyz('cluster.xyz',clus%nat,clus%at,clus%xyz*bohr)
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
   end do
   !--- SP
   write (stdout,*)
@@ -1213,17 +1213,17 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   do i = 1,ens%nall
     call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
     write (to,'("TMPSP",i0)') i
-    call chdir(to)
+    call chdirdbug(to)
     call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,ens%er(i))
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
   end do
 
   if (.not.e_there) then
     write (stdout,*)
     write (stdout,*) 'Energy not found. Error in xTB computations occured'
-    call chdir(to)
+    call chdirdbug(to)
     call minigrep('xtb_sp.out','solv_model_loadInternalParam',not_param)
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
     if (not_param) then
       write (stdout,*) '  !!!WARNIG: CHOSEN SOLVENT NOT PARAMETERIZED &
       & FOR IMPLICIT SOLVATION MODEL!!!'
@@ -1243,9 +1243,9 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 !--- crest_best structure
   minpos = minloc(ens%er,dim=1)
   write (to,'("TMPSP",i0)') minpos
-  call chdir(to)
+  call chdirdbug(to)
   call rdxmol('cluster.xyz',clus%nat,clus%at,clus%xyz)
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
   write (comment,'(F20.8)') ens%er(minpos)
   inquire (file='crest_best.xyz',exist=ex)
   if (ex) then
@@ -1267,11 +1267,11 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
 !--- Fixation energy of optimization
   do i = 1,ens%nall
-    call chdir('OPTIM')
+    call chdirdbug('OPTIM')
     write (to,'("TMPCONF",i0)') i
-    call chdir(to)
+    call chdirdbug(to)
     call grepval('xtb.out','         :: add. restraining',e_there,e_fix(i))
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
 
     call rdxmolselec('full_ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
     call get_sphere(.false.,clus,.false.)
@@ -1381,8 +1381,8 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   call copysub('full_population.dat',resultspath)
 
 !---Deleting ensemble tmp
-  call chdir(thispath)
-  call chdir(env%scratchdir)
+  call chdirdbug(thispath)
+  call chdirdbug(env%scratchdir)
   if (.not.env%keepModef) call rmrf(tmppath2)
 !----Outprint
   write (stdout,*)
@@ -1501,18 +1501,18 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 !--- Folder management
   call getcwd(thispath)
   r = makedir('solvent_ensemble')
-  call chdir('solvent_ensemble')
+  call chdirdbug('solvent_ensemble')
   call getcwd(resultspath)
-  call chdir(thispath)
-  call chdir(env%scratchdir)
+  call chdirdbug(thispath)
+  call chdirdbug(env%scratchdir)
   call getcwd(tmppath)
   io = makedir('tmp_CFF')
-  call chdir('tmp_CFF')
+  call chdirdbug('tmp_CFF')
   call getcwd(tmppath2)
-  call chdir(tmppath)
-  call chdir('solvent_properties')
+  call chdirdbug(tmppath)
+  call chdirdbug('solvent_properties')
   call copysub('solvent',tmppath2)
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
 
 !--- SP of each cluster
   call ens%write('ensemble.xyz')
@@ -1522,7 +1522,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     write (to,'("TMPCFF",i0)') i
     io = makedir(trim(to))
     call copysub('solvent',to)
-    call chdir(to)
+    call chdirdbug(to)
     call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
     call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,env%nsolv,'solute_cut.coord','solvent_shell.coord')
     call xtb_sp_qcg(env,'solvent_shell.coord',ex,e_empty(i))
@@ -1532,7 +1532,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     call get_ellipsoid(env,solu,solv,clus,.false.) !solu, to have same cavity to fill solvent in
     outer_ell_abc(i,1:3) = clus%ell_abc(1:3)
     inner_ell_abc(i,1:3) = solu%ell_abc(1:3)
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
   end do
 
   if (skip) write (stdout,'(2x,''solute smaller than solvent, cff skipped'')')
@@ -1565,7 +1565,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       end do
       conv(k+1:env%nqcgclust) = 0
 
-      call chdir(tmppath2)
+      call chdirdbug(tmppath2)
 
 !--- Solvent addition to the cluster---------------------------------------------
       call ensemble_dock(env,outer_ell_abc,nat_frag1,'solvent_cluster.coord',&
@@ -1585,7 +1585,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       do i = 1,env%nqcgclust
         if (.not.converged(i)) then
           write (to,'("TMPCFF",i0)') i
-          call chdir(to)
+          call chdirdbug(to)
           call remove('xtbrestart')
           call remove('xcontrol')
 
@@ -1600,7 +1600,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
             write (stdout,'(2x,''previous cluster taken...'')')
             if (iter .eq. 1) nothing_added(i) = .true.
           end if
-          call chdir(tmppath2)
+          call chdirdbug(tmppath2)
 
         else
           cycle
@@ -1628,7 +1628,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       do i = 1,env%nqcgclust
         if (.not.converged(i)) then
           write (to,'("TMPCFF",i0)') i
-          call chdir(to)
+          call chdirdbug(to)
           dum_e = e_empty(i)
           if (iter-nsolv .gt. 1) dum_e = e_cur(iter-1,i)
           de = autokcal*(e_cur(iter,i)-solv%energy-dum_e)
@@ -1645,7 +1645,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
                & iter+env%nsolv,i,e_cur(iter,i),de,de_tot(i),&
                & trim(optlevflag(env%optlev))
           end if
-          call chdir(tmppath2)
+          call chdirdbug(tmppath2)
         end if
       end do
 
@@ -1707,7 +1707,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
   do i = 1,env%nqcgclust
     write (to,'("TMPCFF",i0)') i
-    call chdir(to)
+    call chdirdbug(to)
     call copy('xtbopt.coord','final_cluster.coord')
 
 !--- Reading structure
@@ -1744,7 +1744,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     write (stdout,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
             & i,e_norm(i),dens,e_fix(i),shr_av,shr,atotS,trim(optlevflag(env%optlev))
 
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
   end do
 
   close (ich98)
@@ -1759,13 +1759,13 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 !--- crest_best structure
   minpos = minloc(solv_ens%er,dim=1)
   write (to,'("TMPCFF",i0)') minpos
-  call chdir(to)
+  call chdirdbug(to)
   call clus%deallocate
   call rdnat('final_cluster.coord',clus%nat)
   allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
   call rdcoord('final_cluster.coord',clus%nat,clus%at,clus%xyz)
   clus%xyz = clus%xyz*bohr
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
   write (comment,'(F20.8)') solv_ens%er(minpos)
   call wrxyz('crest_best.xyz',clus%nat,clus%at,clus%xyz,comment)
 
@@ -1790,9 +1790,9 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   call copysub('cluster_energy.dat',resultspath)
   call copysub('crest_best.xyz',resultspath)
   call copysub('population.dat',resultspath)
-  call chdir(tmppath)
+  call chdirdbug(tmppath)
   if (.not.env%keepModef) call rmrf('tmp_CFF')
-  call chdir(thispath)
+  call chdirdbug(thispath)
 
 !--- Printouts
   write (stdout,*)
@@ -1860,15 +1860,15 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 !--- Folder management
   call getcwd(thispath)
   r = makedir('frequencies')
-  call chdir('frequencies')
+  call chdirdbug('frequencies')
   call getcwd(resultspath)
-  call chdir(thispath)
-  call chdir(env%scratchdir)
+  call chdirdbug(thispath)
+  call chdirdbug(env%scratchdir)
   call getcwd(tmppath)
   io = makedir('tmp_freq')
   call copysub('.CHRG','tmp_freq')
   call copysub('.UHF','tmp_freq')
-  call chdir('tmp_freq')
+  call chdirdbug('tmp_freq')
   call getcwd(tmppath2)
   f = makedir('tmp_solu')
   call copysub('.CHRG','tmp_solu')
@@ -1880,12 +1880,12 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 
 !--- Frequencies solute molecule
   write (stdout,*) '  SOLUTE MOLECULE'
-  call chdir('tmp_gas1')
+  call chdirdbug('tmp_gas1')
   call wrc0('solute.coord',solu%nat,solu%at,solu%xyz)
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
   opt = .false.
   call ens_freq(env,'solute.coord',1,'tmp_gas',opt)
-  call chdir('tmp_gas1')
+  call chdirdbug('tmp_gas1')
   call rdtherm('xtb_freq.out',ht(3),svib(3),srot(3),stra(3),gt(3))
   solu%gt = gt(3)
   solu%ht = ht(3)
@@ -1893,10 +1893,10 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   solu%srot = srot(3)
   solu%stra = stra(3)
 
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
 
 !--- Folder setup for cluster
-  call chdir('tmp_solu')
+  call chdirdbug('tmp_solu')
   call solu_ens%write('solute_ensemble.xyz')
 
 !--- All cluster are of the same size
@@ -1915,26 +1915,26 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     io = makedir(trim(to))
     call copysub('.UHF',to)
     call copysub('.CHRG',to)
-    call chdir(to)
+    call chdirdbug(to)
     open (newunit=ich65,file='cluster.xyz')
     call wrxyz(ich65,clus%nat,clus%at,clus%xyz*bohr)
     close (ich65)
 
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
 
     !--- Solvent cluster (only if cff, than the solvent shell is taken, which was fixed all the time)
     if (env%cff) then
-      call chdir('tmp_solv')
+      call chdirdbug('tmp_solv')
       write (to,'("TMPFREQ",i0)') i
       io = makedir(trim(to))
-      call chdir(to)
+      call chdirdbug(to)
       call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
       call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,env%nsolv,&
              & 'solute_cut.coord','solvent_cut.coord')
 
-      call chdir(tmppath2)
+      call chdirdbug(tmppath2)
     end if
-    call chdir('tmp_solu')
+    call chdirdbug('tmp_solu')
 
   end do
 
@@ -1943,20 +1943,20 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 !> Frequency calculation
   opt = .true.
   call ens_freq(env,'cluster.xyz',solu_ens%nall,'TMPFREQ',opt)
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
 
   write (stdout,*) '  SOLVENT CLUSTER'
   if (env%cff) then
-    call chdir('tmp_solv')
+    call chdirdbug('tmp_solv')
     call ens_freq(env,'solvent_cut.coord',solu_ens%nall,'TMPFREQ',opt)
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
   end if
 
   call clus%deallocate()
 
   !--- Frequencies solvent cluster (only, if not cff was used)
   if (.not.env%cff) then
-    call chdir('tmp_solv')
+    call chdirdbug('tmp_solv')
     call solv_ens%write('solvent_ensemble.xyz')
 
     do i = 1,solv_ens%nall
@@ -1964,16 +1964,16 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
       io = makedir(trim(to))
       call copysub('.UHF',to)
       call copysub('.CHRG',to)
-      call chdir(to)
+      call chdirdbug(to)
       open (newunit=ich65,file='solv_cluster.xyz')
       call wrxyz(ich65,solv_ens%nat,solv_ens%at,solv_ens%xyz(:,:,i))
       close (ich65)
-      call chdir(tmppath2)
-      call chdir('tmp_solv')
+      call chdirdbug(tmppath2)
+      call chdirdbug('tmp_solv')
     end do
 !> Frequency calculation
     call ens_freq(env,'solv_cluster.xyz',solv_ens%nall,'TMPFREQ',opt)
-    call chdir(tmppath2)
+    call chdirdbug(tmppath2)
   end if
 
 !----------------------------------------------------------------------------
@@ -1995,7 +1995,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   write (stdout,*) '  Solute cluster properties'
   open (newunit=ich33,file='solute_cluster.dat')
 
-  call chdir('tmp_solu')
+  call chdirdbug('tmp_solu')
 
   allocate (solu_ens%gt(solu_ens%nall))
   allocate (solu_ens%ht(solu_ens%nall))
@@ -2008,7 +2008,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 
   do i = 1,solu_ens%nall
     write (to,'("TMPFREQ",i0)') i
-    call chdir(to)
+    call chdirdbug(to)
     call rdtherm('xtb_freq.out',ht(1),svib(1),srot(1),stra(1),gt(1))
     write (stdout,'(2x,i0,2x,5f10.2)') i,ht(1),svib(1),srot(1),stra(1),gt(1)
     write (ich33,'(2x,i0,2x,5f10.2)') i,ht(1),svib(1),srot(1),stra(1),gt(1)
@@ -2018,18 +2018,18 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     solu_ens%srot(i) = srot(1)
     solu_ens%stra(i) = stra(1)
 
-    call chdir(tmppath2)
-    call chdir('tmp_solu')
+    call chdirdbug(tmppath2)
+    call chdirdbug('tmp_solu')
   end do
   close (ich33)
 
 !--- Solvent cluster
   write (stdout,*)
   write (stdout,*) '  Solvent cluster properties'
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
   open (newunit=ich81,file='solvent_cluster.dat')
 
-  call chdir('tmp_solv')
+  call chdirdbug('tmp_solv')
 
   allocate (solv_ens%gt(solv_ens%nall))
   allocate (solv_ens%ht(solv_ens%nall))
@@ -2042,7 +2042,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 
   do i = 1,solv_ens%nall
     write (to,'("TMPFREQ",i0)') i
-    call chdir(to)
+    call chdirdbug(to)
     call rdtherm('xtb_freq.out',ht(2),svib(2),srot(2),stra(2),gt(2))
     write (stdout,'(2x,i0,2x,5f10.2)') i,ht(2),svib(2),srot(2),stra(2),gt(2)
     write (ich81,'(2x,i0,2x,5f10.2)') i,ht(2),svib(2),srot(2),stra(2),gt(2)
@@ -2051,21 +2051,21 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     solv_ens%svib(i) = svib(2)
     solv_ens%srot(i) = srot(2)
     solv_ens%stra(i) = stra(2)
-    call chdir(tmppath2)
-    call chdir('tmp_solv')
+    call chdirdbug(tmppath2)
+    call chdirdbug('tmp_solv')
   end do
   close (ich81)
 
 !--- Saving results
-  call chdir(tmppath2)
+  call chdirdbug(tmppath2)
   call copysub('solute.dat',resultspath)
   call copysub('solute_cluster.dat',resultspath)
   call copysub('solvent_cluster.dat',resultspath)
 
 !--- Deleting tmp directory
-  call chdir(tmppath)
+  call chdirdbug(tmppath)
   if (.not.env%keepModef) call rmrf(tmppath2)
-  call chdir(thispath)
+  call chdirdbug(thispath)
 
   env%gfnver = gfnver_tmp
   env%optlev = optlev_tmp
@@ -2261,7 +2261,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
 !--- Grow process
   if (grow) then
     env%qcg_restart = .true.
-    call chdir('grow')
+    call chdirdbug('grow')
     call rdnat('cluster.coord',clus%nat)
     allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
     call rdcoord('cluster.coord',clus%nat,clus%at,clus%xyz)
@@ -2284,11 +2284,11 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
       write (stdout,*)
       write (stdout,*)
       write (stdout,'(''Found cluster with '',i0,'' solvents'')') env%nsolv
-      call chdir(thispath)
+      call chdirdbug(thispath)
     else
       error stop 'The found cluster is smaller than nsolv. Please restart the whole computaion by removing the grow directory'
       !Future implementation continue grow process
-      call chdir(thispath)
+      call chdirdbug(thispath)
       if (solu_ensemble) call rmrf('ensemble')
       if (solv_ensemble) call rmrf('solvent_ensemble')
       if (freq) call rmrf('frequencies')
@@ -2301,7 +2301,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
 
 !--- Solute Ensemble
   if (solu_ensemble) then
-    call chdir('ensemble')
+    call chdirdbug('ensemble')
     call solu_ens%open('final_ensemble.xyz')
     call rdensemble('final_ensemble.xyz',solu_ens%nat,solu_ens%nall,solu_ens%at,solu_ens%xyz,solu_ens%er)
     env%nqcgclust = solu_ens%nall
@@ -2310,13 +2310,13 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
     call grepval('population.dat','Ensemble free energy [Eh]:',ex,solu_ens%G)
     solu_ens%G = solu_ens%G*autokcal
     write (stdout,*) 'Solute Ensmeble Free E [kcal/mol]',solu_ens%G
-    call chdir(thispath)
+    call chdirdbug(thispath)
     progress = 2
   end if
 
 !--- Solvent Ensemble
   if (solv_present) then
-    call chdir('solvent_ensemble')
+    call chdirdbug('solvent_ensemble')
     write (stdout,'("  Ensemble of solvent-cluster found.")')
 
     !--- Case CFF
@@ -2345,7 +2345,7 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
     call grepval('population.dat','Ensemble free energy [Eh]:',ex,solv_ens%G)
     solv_ens%G = solv_ens%G*autokcal
     write (stdout,*) 'solvent ensmeble free E [kcal/mol]',solv_ens%G
-    call chdir(thispath)
+    call chdirdbug(thispath)
     progress = 3
   end if
 
@@ -2368,7 +2368,7 @@ subroutine qcg_cleanup(env)
   character(len=280)    :: thispath
   logical               :: tmp
   call getcwd(thispath)
-  call chdir(env%scratchdir)
+  call chdirdbug(env%scratchdir)
   inquire (file='./solute_properties/solute',exist=tmp)
   if (tmp) then
     call rmrf('solute_properties')
