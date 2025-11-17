@@ -305,8 +305,8 @@ contains
       call axistrf(clus%nat,solu%nat,clus%at,clus%xyz)
 
 !--- Overwrite solute and solvent coord in original file with transformed and optimized ones
-      call wrc0('solute',solu%nat,solu%at,solu%xyz)
-      call wrc0('solvent',solv%nat,solv%at,solv%xyz)
+      call solu%write('solute')
+      call solv%write('solvent')
 
 !--- Getting axis
       write (stdout,*) 'Solute:'

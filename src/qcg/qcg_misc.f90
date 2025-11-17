@@ -110,7 +110,7 @@ subroutine xtb_opt_qcg(env,mol,constrain)
 
     !--- Write coordinated
     fname = 'coord'
-    call wrc0(fname,mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
+    call mol%write(fname)
 
     !---- setting threads
     call new_ompautoset(env,'auto',1,T,Tn)
@@ -118,7 +118,7 @@ subroutine xtb_opt_qcg(env,mol,constrain)
     !---- jobcall & Handling constraints
     if (constrain.AND.env%cts%used) then
       call write_constraint(env,fname,'xcontrol')
-      call wrc0('coord.ref',mol%nat,mol%at,mol%xyz) !write coord for xtbopt routine
+      call mol%write('coord.ref')
       write (jobcall,'(a,1x,a,1x,a,'' --opt --input xcontrol '',a,1x,a)') &
       &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
     else
@@ -864,7 +864,7 @@ subroutine get_interaction_E(env,solu,solv,clus,iter,E_inter)
   call remove('cluster.coord')
 
 !--- Prepare input coordinate files
-  call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
+  call clus%write('cluster.coord')
   call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,iter,'solute_cut.coord','solvent_cut.coord')
 
 !--- Perform single point calculations and recieve energies
