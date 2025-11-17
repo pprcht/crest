@@ -902,7 +902,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   end if
 
   gfnver_tmp = env%gfnver
-  write (stdout,*) '  Method for ensemble search:',env%ensemble_opt
+  write (stdout,*) 'Method for ensemble search: ',env%ensemble_opt
 !  if (env%ens_const) write(stdout,*) '  Solute fixed during ensemble generation'
   env%gfnver = env%ensemble_opt  !Setting method for ensemble search
 
@@ -1395,6 +1395,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   write (stdout,'(2x,''Population of full ensemble in file <full_population.dat>'')')
   write (stdout,'(2x,''Population in file <population.dat>'')')
 
+  !>--- restore settings
   env%gfnver = gfnver_tmp
   env%optlev = optlev_tmp
   if (env%ensemble_opt .eq. '--gff') then

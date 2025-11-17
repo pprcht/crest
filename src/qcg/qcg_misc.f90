@@ -176,15 +176,14 @@ subroutine xtb_dock(env,fnameA,fnameB,solu,clus)
   use iomod
   use crest_data
   use qcg_coord_type
-
   implicit none
 
-  type(systemdata)                :: env
+  type(systemdata)               :: env
   type(coord_qcg),intent(in)     :: solu,clus
   character(len=*),intent(in)    :: fnameA,fnameB
-  character(len=80)               :: pipe
-  character(len=512)              :: jobcall
-  integer                         :: i,ich,T,Tn
+  character(len=80)              :: pipe
+  character(len=512)             :: jobcall
+  integer                        :: i,ich,T,Tn
 
   call remove('xtb_dock.out')
   call remove('xcontrol')
@@ -239,20 +238,15 @@ subroutine opt_cluster(env,solu,clus,fname,without_pot)
 
   implicit none
 
-  type(systemdata)                :: env
-  type(coord_qcg),intent(in)     :: solu,clus
-  character(len=*),intent(in)     :: fname
+  type(systemdata)              :: env
+  type(coord_qcg),intent(in)    :: solu,clus
+  character(len=*),intent(in)   :: fname
   logical,optional,intent(in)   :: without_pot
-  character(len=80)               :: pipe
-  character(len=:),allocatable    :: jobcall
+  character(len=*),parameter    :: pipe = ' 2>/dev/null'
+  character(len=:),allocatable  :: jobcall
   integer :: T,Tn
 
-  if (env%niceprint) then
-    call printprogbar(0.0_wp)
-  end if
-
   call remove('xtb.out')
-  pipe = ' 2>/dev/null'
 
 !---- writing wall pot in xcontrol
   if (.not.without_pot) then
@@ -281,8 +275,8 @@ subroutine opt_cluster(env,solu,clus,fname,without_pot)
     jobcall = trim(env%ProgName)//' xtbopt.coord --sp '//trim(env%gfnver)
     jobcall = trim(jobcall)//' '//trim(env%solv)
     jobcall = trim(jobcall)//' > xtb_sp.out 2>/dev/null'
+    call command(trim(jobcall)) 
   end if
-  call command(trim(jobcall))
 
 ! cleanup
   call remove('wbo')
@@ -324,7 +318,7 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
   character(len=64)               :: frag2
   real(wp)                        :: percent
   character(len=2)                :: flag
-  integer                         :: ich31
+  integer                         :: funit
 
 ! some options
   pipe = '2>/dev/null'
@@ -345,14 +339,14 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
     vz = i
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
     call chdirdbug(trim(tmppath))
-    open (newunit=ich31,file='xcontrol')
-    write (ich31,'(a,"fix")') trim(flag)
-    write (ich31,'(3x,"atoms: 1-",i0)') n_shell !Initial number of atoms (starting solvent shell)
-    write (ich31,'(a,"wall")') trim(flag)
-    write (31,'(3x,"potential=polynomial")')
-    write (ich31,'(3x,"ellipsoid:",1x,3(g0,",",1x),i0,"-",i0)') outer_ell_abc(conv(vz),:), &
+    open (newunit=funit,file='xcontrol')
+    write (funit,'(a,"fix")') trim(flag)
+    write (funit,'(3x,"atoms: 1-",i0)') n_shell !Initial number of atoms (starting solvent shell)
+    write (funit,'(a,"wall")') trim(flag)
+    write (funit,'(3x,"potential=polynomial")')
+    write (funit,'(3x,"ellipsoid:",1x,3(g0,",",1x),i0,"-",i0)') outer_ell_abc(conv(vz),:), &
             & n_shell+1,n_shell+n_solvent !Initial number of atoms (starting solvent shell)
-    close (ich31)
+    close (funit)
     call chdirdbug(trim(thispath))
   end do
 
@@ -405,7 +399,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   logical,intent(in)              :: nothing_added(env%nqcgclust)
   integer                         :: i,k,n12
   integer                         :: vz,T,Tn
-  integer                         :: ich31
+  integer                         :: funit
   character(len=20)               :: pipe
   character(len=512)              :: thispath,tmppath
   character(len=1024)             :: jobcall
@@ -436,13 +430,13 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
     call chdirdbug(trim(tmppath))
-    open (newunit=ich31,file='xcontrol')
+    open (newunit=funit,file='xcontrol')
     if (n12 .ne. 0) then
       flag = '$'
-      write (ich31,'(a,"fix")') trim(flag)
-      write (ich31,'(3x,"atoms: 1-",i0)') n12 !Initial number of atoms (starting solvent shell)
+      write (funit,'(a,"fix")') trim(flag)
+      write (funit,'(3x,"atoms: 1-",i0)') n12 !Initial number of atoms (starting solvent shell)
     end if
-    close (ich31)
+    close (funit)
     if (postopt.and.nothing_added(i)) call remove('xcontrol')
     call chdirdbug(trim(thispath))
   end do
@@ -778,24 +772,24 @@ subroutine write_wall(env,n1,rabc1,rabc12,fname)
   real(wp),intent(in)  :: rabc1(3),rabc12(3)
   character(len=8)    :: flag
   character(len=*)    :: fname
+  integer :: funit
 
-  open (unit=31,file=fname)
+  open (newunit=funit,file=fname)
   flag = '$'
-  write (31,'(a,"wall")') trim(flag)
-  write (31,'(3x,"potential=polynomial")')
-  write (31,'(3x,"ellipsoid:",1x,3(g0,",",1x),"all")') rabc12
-  write (31,'(3x,"ellipsoid:",1x,3(g0,",",1x),"1-",i0)') rabc1,n1
+  write (funit,'(a,"wall")') trim(flag)
+  write (funit,'(3x,"potential=polynomial")')
+  write (funit,'(3x,"ellipsoid:",1x,3(g0,",",1x),"all")') rabc12
+  write (funit,'(3x,"ellipsoid:",1x,3(g0,",",1x),"1-",i0)') rabc1,n1
   if (env%constrain_solu) then
-    write (31,'("$fix")')
-    write (31,'(3x,"atoms: 1-",i0)') n1
+    write (funit,'("$fix")')
+    write (funit,'(3x,"atoms: 1-",i0)') n1
   end if
-  call write_cts(31,env%cts)
-  call write_cts_biasext(31,env%cts)
+  call write_cts(funit,env%cts)
+  call write_cts_biasext(funit,env%cts)
   if (env%cts%used) then !Only, if user set constrians is an $end written
-    write (31,'(a)') '$end'
+    write (funit,'(a)') '$end'
   end if
-
-  close (31)
+  close (funit)
 
 end subroutine write_wall
 
@@ -831,16 +825,16 @@ subroutine write_constraint(env,coord_name,fname)
 
   type(systemdata)     :: env
   character(len=*),intent(in)    :: fname,coord_name
+  integer :: funit
 
   call copysub(coord_name,'coord.ref')
-  open (unit=31,file=fname)
-  call write_cts(31,env%cts)
-  call write_cts_biasext(31,env%cts)
+  open (newunit=funit,file=fname)
+  call write_cts(funit,env%cts)
+  call write_cts_biasext(funit,env%cts)
   if (env%cts%used) then !Only, if user set constrians is an $end written
-    write (31,'(a)') '$end'
+    write (funit,'(a)') '$end'
   end if
-
-  close (31)
+  close (funit)
 
 end subroutine write_constraint
 
