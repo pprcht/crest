@@ -742,5 +742,38 @@ contains
     close (ich)
   end subroutine rdtherm
 
+!============================================================!
+! Read the Energies from a xtbiff output
+!============================================================!
+
+  subroutine rdxtbiffE(fname,m,n,e)
+    use crest_parameters
+    implicit none
+    integer :: m,n
+    character(len=*),intent(in) :: fname
+    real(wp) :: e(:)
+
+    character(len=128) :: line
+    real(wp) :: xx(10)
+    integer :: ich,i,j,nn
+
+    open (newunit=ich,file=fname)
+
+    j = 1
+10  continue
+    read (ich,'(a)',end=999) line
+    read (ich,'(a)') line
+    call readl(line,xx,nn)
+    e(j) = xx(1)
+    do i = 1,n
+      read (ich,'(a)') line
+    end do
+    j = j+1
+    goto 10
+
+999 close (ich)
+    m = j-1
+  end subroutine rdxtbiffE
+
 !==============================================================================!
 end module qcg_utils

@@ -101,7 +101,6 @@ contains
     write (stdout,'(2x,''System temperature [K] : '',F5.1)') env%tboltz
     write (stdout,'(2x,''RRHO scaling factor    : '',F4.2)') env%freq_scal
     write (stdout,*)
-    if (env%use_xtbiff) write (stdout,'(2x,''Use of xTB-IFF standalone requested'')')
 
   end subroutine write_qcg_setup
 
@@ -279,6 +278,19 @@ contains
     write (ich,'(2x,"     [kcal/mol]    [      cal/mol/K        ]    [kcal/mol]")')
     write (ich,'(2x,"--------------------------------------------------------")')
   end subroutine pr_freq_file
+
+!========================================================================================!
+
+  subroutine xtbiff_print_deprecated()
+    external creststop
+    write (stdout,*)
+    write (stdout,*) 'WARNING WARNING WARNING'
+    write (stdout,*) ' The use of xtbiff in QCG is deprecated and is disabled'
+    write (stdout,*) ' following CREST 3.0.3, in favor of the aISS algorithm.'
+    write (stdout,*) ' This requires a current version of the xtb program.'
+    write (stdout,*)
+    call creststop(status_safety)
+  end subroutine xtbiff_print_deprecated
 
 !========================================================================================!
 !========================================================================================!

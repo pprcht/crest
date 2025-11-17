@@ -58,13 +58,12 @@ subroutine crest_solvtool(env,tim)
 
 !> Check, if xtbiff is present (if it is required)
   if (env%use_xtbiff) then
-    call checkprog_silent(env%ProgIFF,.true.,iostat=io)
-    if (io /= 0) error stop 'No xtbiff found'
+    call xtbiff_print_deprecated()
   else
     write (stdout,*)
-    write (stdout,*) '  The use of the aISS algorithm is requested (recommend).'
+    write (stdout,*) '  The use of the aISS algorithm is the current standard implementation.'
     write (stdout,*) '  This requires xtb version 6.6.0 or newer.'
-    write (stdout,*) '  xTB-IFF can still be used with the --xtbiff flag.'
+    !write (stdout,*) '  xTB-IFF can still be used with the --xtbiff flag.'
     write (stdout,*)
   end if
 
@@ -229,22 +228,13 @@ subroutine qcg_setup(env,solu,solv)
   call axistrf(solu%nat,solu%nat,solu%at,solu%xyz)
   call wrc0('solute',solu%nat,solu%at,solu%xyz)
 
-!---- LMO/SP-Computation solute
-  if (env%use_xtbiff) then
-    write (stdout,*) 'Generating LMOs for solute'
-    call xtb_lmo(env,'solute',e_there,solu%energy)
-  else
-    call xtb_sp_qcg(env,'solute',e_there,solu%energy)
-  end if
+!---- SP-Computation solute
+  call xtb_sp_qcg(env,'solute',e_there,solu%energy)
 
   if (.not.e_there) then
     write (stdout,*) 'Total Energy of solute not found'
   else
     write (stdout,outfmt) 'Total Energy of solute: ',solu%energy,' Eh'
-  end if
-
-  if (env%use_xtbiff) then
-    call rename('xtblmoinfo','solute.lmo')
   end if
 
   if (env%final_gfn2_opt) then !If GFN2 final opt, solute also GFN2 optimized
@@ -268,22 +258,13 @@ subroutine qcg_setup(env,solu,solv)
   end if
   call wrc0('solvent',solv%nat,solv%at,solv%xyz)
 
-!---- LMO-Computation solvent
-  if (env%use_xtbiff) then
-    write (stdout,*) 'Generating LMOs for solvent'
-    call xtb_lmo(env,'solvent',e_there,solv%energy)
-  else
-    call xtb_sp_qcg(env,'solvent',e_there,solv%energy)
-  end if
+!---- SP-Computation solvent
+  call xtb_sp_qcg(env,'solvent',e_there,solv%energy)
 
   if (.not.e_there) then
     write (stdout,'(1x,a)') 'Total Energy of solvent not found'
   else
     write (stdout,outfmt) 'Total energy of solvent:',solv%energy,' Eh'
-  end if
-
-  if (env%use_xtbiff) then
-    call rename('xtblmoinfo','solvent.lmo')
   end if
 
   call chdir(thispath)
@@ -370,8 +351,6 @@ subroutine read_qcg_input(env,solu,solv)
 
 !--- If directed docking is requested, it is read in here:
   if (allocated(env%directed_file)) then
-    if (env%use_xtbiff) error stop 'xTB-IFF does not support directed docking. &
-            &Please use the aISS algorithm of xtb.'
     call read_directed_input(env)
   end if
 
@@ -544,10 +523,6 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   if (env%fixfile /= 'none selected') then
     call copysub(env%fixfile,'tmp_grow')
   end if
-  if (env%use_xtbiff) then
-    call copy('solute_properties/solute.lmo','tmp_grow/solute.lmo')
-    call copy('solvent_properties/solvent.lmo','tmp_grow/solvent.lmo')
-  end if
   call chdir('tmp_grow')
   call wrc0('solute',solu%nat,solu%at,solu%xyz)
   call wrc0('solvent',solv%nat,solv%at,solv%xyz)
@@ -573,16 +548,9 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     success = .false.
     high_e = .false.
     neg_E = .false.
-!---- LMO-Computation
+!---- Computation
     if (iter .gt. 1) then
       call get_ellipsoid(env,solu,solv,clus,.false.)
-      if (env%use_xtbiff) then
-        call xtb_lmo(env,'xtbopt.coord',e_there,clus%energy)
-        if (.not.e_there) then
-          write (stdout,'(1x,a)') 'Total Energy of cluster LMO computation not found'
-        end if
-        call rename('xtblmoinfo','cluster.lmo')
-      end if
     end if
 
     call both_ellipsout('twopot_1.coord',clus%nat,clus%at,clus%xyz,&
@@ -590,14 +558,8 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 
     CHECKWALL: do while (.not.success) !For restart with larger wall pot
       if (iter .eq. 1) then
-        if (env%use_xtbiff) then
-          call xtb_iff(env,'solute.lmo','solvent.lmo',solu,solv)
-          !solu for nat of core pot. solv for outer ellips
-          call check_iff(neg_E)
-        else
-          call xtb_dock(env,'solute','solvent',solu,solv)
-          call check_dock(neg_E)
-        end if
+        call xtb_dock(env,'solute','solvent',solu,solv)
+        call check_dock(neg_E)
 
 !-- If Interaction Energy is not negativ and existent, wall pot. too small and increase
         if (neg_E) then
@@ -614,13 +576,8 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
           end if
         end if
       else
-        if (env%use_xtbiff) then
-          call xtb_iff(env,'cluster.lmo','solvent.lmo',solu,clus)
-          call check_iff(neg_E)
-        else
-          call xtb_dock(env,'cluster.coord','solvent',solu,clus)
-          call check_dock(neg_E)
-        end if
+        call xtb_dock(env,'cluster.coord','solvent',solu,clus)
+        call check_dock(neg_E)
 
         if (neg_E) then
           success = .true.
@@ -647,14 +604,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     clus%nmol = clus%nmol+1
 
 !--- Select xtb-IFF stucture to proceed
-    if (env%use_xtbiff) then
-      call rdxtbiffE('xtbscreen.xyz',m,clus%nat,etmp) !Get energy of screening
-      minE_pos = minloc(etmp(1:m),dim=1) !Get minimum of those
-      !Read the struc into clus%xyz
-      call rdxmolselec('xtbscreen.xyz',minE_pos,clus%nat,clus%at,clus%xyz)
-    else
-      call rdcoord('best.xyz',clus%nat,clus%at,clus%xyz,clus%energy)
-    end if
+    call rdcoord('best.xyz',clus%nat,clus%at,clus%xyz,clus%energy)
 
     call remove('cluster.coord')
     call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
@@ -669,11 +619,6 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 !--- Cluster optimization
       if (env%cts%used) then
         call write_reference(env,solu,clus) !new fixed file
-      end if
-
-      if (env%use_xtbiff) then
-        call opt_cluster(env,solu,clus,'cluster.coord',.false.)
-        call rdcoord('xtbopt.coord',clus%nat,clus%at,clus%xyz)
       end if
 
 !--- Interaction energy
@@ -703,15 +648,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     env%gfnver = gfnver_tmp
 
 !--- For output
-    if (env%use_xtbiff) then
-      call grepval('xtb.out','| TOTAL ENERGY',e_there,clus%energy)
-      call wrc0('optimized_cluster.coord',clus%nat,clus%at,clus%xyz)
-      if (.not.e_there) then
-        write (stdout,'(1x,a)') 'Total Energy of cluster not found.'
-      end if
-    else
-      !Energy already read from xyz file
-    end if
+    !Energy already read from xyz file
     e_each_cycle(iter) = clus%energy
 
 !--- Calclulate fix energy + diff. energy
@@ -1505,7 +1442,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   integer                    :: conv(env%nqcgclust+1)
   integer                    :: solv_added,minpos
   character(len=512)         :: thispath,resultspath,tmppath,tmppath2
-  character(len=64)          :: fname_lmo1,fname_lmo2,comment
+  character(len=64)          :: comment
   character(len=20)          :: to
   real(wp),allocatable      :: e_empty(:),inner_ell_abc(:,:)
   real(wp),allocatable      :: outer_ell_abc(:,:)
@@ -1574,11 +1511,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   call getcwd(tmppath2)
   call chdir(tmppath)
   call chdir('solvent_properties')
-  if (env%use_xtbiff) then
-    call copysub('solvent.lmo',tmppath2)
-  else
-    call copysub('solvent',tmppath2)
-  end if
+  call copysub('solvent',tmppath2)
   call chdir(tmppath2)
 
 !--- SP of each cluster
@@ -1588,11 +1521,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     clus%nmol = clus%nat/solv%nat
     write (to,'("TMPCFF",i0)') i
     io = makedir(trim(to))
-    if (env%use_xtbiff) then
-      call copysub('solvent.lmo',to)
-    else
-      call copysub('solvent',to)
-    end if
+    call copysub('solvent',to)
     call chdir(to)
     call wrc0('cluster.coord',clus%nat,clus%at,clus%xyz)
     call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,env%nsolv,'solute_cut.coord','solvent_shell.coord')
@@ -1636,37 +1565,11 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       end do
       conv(k+1:env%nqcgclust) = 0
 
-      if (env%use_xtbiff) then
-!----------- LMO computation for solvent cluster---------------------------------------------------
-        call ensemble_lmo(env,'solvent_cluster.coord',solv,conv(env%nqcgclust+1),&
-               & 'TMPCFF',conv)
-!--------------------------------------------------------------------------------------------------
-
-        do i = 1,env%nqcgclust
-          if (.not.converged(i)) then
-            write (to,'("TMPCFF",i0)') i
-            call chdir(to)
-            call rename('xtblmoinfo','solvent_cluster.lmo')
-            call chdir(tmppath2)
-          else
-            cycle
-          end if
-        end do
-      end if
-
       call chdir(tmppath2)
 
-      fname_lmo1 = 'solvent_cluster.lmo'
-      fname_lmo2 = 'solvent.lmo'
-
 !--- Solvent addition to the cluster---------------------------------------------
-      if (env%use_xtbiff) then
-        call ensemble_iff(env,outer_ell_abc,nat_frag1,fname_lmo1,fname_lmo2,&
-                &conv(env%nqcgclust+1),'TMPCFF',conv)
-      else
-        call ensemble_dock(env,outer_ell_abc,nat_frag1,'solvent_cluster.coord',&
-                &'solvent',clus%nat,solv%nat,conv(env%nqcgclust+1),'TMPCFF',conv)
-      end if
+      call ensemble_dock(env,outer_ell_abc,nat_frag1,'solvent_cluster.coord',&
+              &'solvent',clus%nat,solv%nat,conv(env%nqcgclust+1),'TMPCFF',conv)
 !--------------------------------------------------------------------------------
 
       nat_frag1 = nat_frag1+solv%nat
@@ -1686,16 +1589,8 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
           call remove('xtbrestart')
           call remove('xcontrol')
 
-          if (env%use_xtbiff) then
-            !--- Select xtb-IFF stucture to proceed
-            call rdxtbiffE('xtbscreen.xyz',m,clus%nat,etmp) !Get energy of screening
-            minE_pos = minloc(etmp(1:m),dim=1)            !Get minimum of those
-            call rdxmolselec('xtbscreen.xyz',minE_pos,clus%nat,clus%at,clus%xyz) !Read the struc into clus%xyz
-            call wrc0('solvent_cluster.coord',clus%nat,clus%at,clus%xyz)
-          else
-            call rdcoord('best.xyz',clus%nat,clus%at,clus%xyz,e_cur(iter,i))
-            call wrc0('solvent_cluster.coord',clus%nat,clus%at,clus%xyz)
-          end if
+          call rdcoord('best.xyz',clus%nat,clus%at,clus%xyz,e_cur(iter,i))
+          call wrc0('solvent_cluster.coord',clus%nat,clus%at,clus%xyz)
 
           !--- Check if converged
           call fill_take(env,solv%nat,clus%nat,inner_ell_abc(i,1:3),ipos)
@@ -1725,21 +1620,15 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       end do
       conv(k+1:env%nqcgclust) = 0
 
-!      if(env%use_xtbiff) then
 !--- Parallel optimization-------------------------------------------------------------------
       call cff_opt(.false.,env,'solvent_cluster.coord',n_ini,conv(env%nqcgclust+1)&
               &,'TMPCFF',conv,nothing_added)
 !----------------------------------------------------------------------------------------------
-!      end if
 
       do i = 1,env%nqcgclust
         if (.not.converged(i)) then
           write (to,'("TMPCFF",i0)') i
           call chdir(to)
-          if (env%use_xtbiff) then
-            call copy('xtbopt.coord','solvent_cluster.coord')
-            call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,e_cur(iter,i))
-          end if
           dum_e = e_empty(i)
           if (iter-nsolv .gt. 1) dum_e = e_cur(iter-1,i)
           de = autokcal*(e_cur(iter,i)-solv%energy-dum_e)
