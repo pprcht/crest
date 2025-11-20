@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2023 Philipp Pracht
+! Copyright (C) 2023-2025 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -27,6 +27,7 @@
 module parse_xtbinput
   use crest_parameters
   use crest_data
+  use crest_calculator, only: calcdata
   use parse_datastruct
   use parse_keyvalue
   use parse_block
@@ -59,21 +60,25 @@ contains  !> MODULE PROCEDURES START HERE
 !* and storing information in env
 !*********************************************
     implicit none
-    type(systemdata) :: env
-    character(len=*) :: fname
+    type(systemdata),intent(inout) :: env
+    character(len=*),intent(in)    :: fname
 
     type(root_object),allocatable,target :: dict
     type(datablock),pointer :: blk
     logical :: ex
     character(len=:),allocatable :: hdr
     integer :: i,j,k,l
+    type(coord) :: mol
 
     inquire (file=fname,exist=ex)
     if (.not.ex) return
 
-    allocate(dict)
+    allocate (dict)
     call parse_xtb_input_fallback(fname,dict)
     !call dict%print()
+
+    !> get the ref structure
+    call env%ref%to(mol)
 
     write (stdout,'(a,a,a)') 'Parsing xtb-type input file ',trim(fname), &
     & ' to set up calculators ...'
@@ -83,13 +88,14 @@ contains  !> MODULE PROCEDURES START HERE
       hdr = trim(blk%header)
       select case (hdr)
       case ('constrain')
-        call get_xtb_constraint_block(env,blk)
+        call get_xtb_constraint_block(env%calc,mol,blk)
       case ('wall')
-        call get_xtb_wall_block(env,blk)
+        call get_xtb_wall_block(env%calc,mol,env%potscal,blk)
       case ('fix')
-        call get_xtb_fix_block(env,blk)
+        call get_xtb_fix_block(env%calc,mol,blk)
       case ('metadyn')
-        call get_xtb_metadyn_block(env,blk)
+        call get_xtb_metadyn_block(env%calc,mol,env%mtd_kscal, &
+        & env%includeRMSD,env%rednat,blk)
       case default
         write (stdout,'(a,a,a)') 'xtb-style input block: "$',trim(hdr),'" not defined for CREST'
       end select
@@ -100,19 +106,20 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine get_xtb_constraint_block(env,blk)
+  subroutine get_xtb_constraint_block(calc,mol,blk)
 !********************************************************************
 !* This is the fallback reader for xtb input files to set up a dict
 !********************************************************************
     implicit none
-    type(systemdata),intent(inout) :: env
-    type(filetype) :: file
+    !> IN/OUTPUT
+    type(calcdata),intent(inout) :: calc
+    type(coord),intent(in) :: mol
+    type(datablock),intent(in),target :: blk
+    !> LOCAL
     integer :: i,j,k,io
     type(keyvalue),pointer :: kv
-    type(datablock),intent(in),target :: blk
     real(wp) :: force_constant,dist,angl
     real(wp) :: rdum
-    type(coord) :: mol
     type(coord) :: molref
     logical :: useref
     logical,allocatable :: pairwise(:)
@@ -138,7 +145,6 @@ contains  !> MODULE PROCEDURES START HERE
 
       case ('reference')
         !> a reference geometry (must be the same molecule as the input)
-        call env%ref%to(mol)
         call molref%open(kv%rawvalue)
         if (any(mol%at(:) .ne. molref%at(:))) then
           write (stdout,'(a,/,a)') '**ERROR** while reading xtb-style input:',&
@@ -151,9 +157,6 @@ contains  !> MODULE PROCEDURES START HERE
       end select
     end do
 
-!>--- get reference input geometry
-    call env%ref%to(mol)
-
 !>--- then the common constraints: distance, angle, dihedral
     do i = 1,blk%nkv
       kv => blk%kv_list(i)
@@ -163,7 +166,7 @@ contains  !> MODULE PROCEDURES START HERE
         !> already read above
 
       case ('distance','bond')
-        if (kv%na .eq. 3 .or. kv%na .eq. 4) then
+        if (kv%na .eq. 3.or.kv%na .eq. 4) then
           read (kv%value_rawa(1),*,iostat=io) i1
           if (io == 0) read (kv%value_rawa(2),*,iostat=io) i2
           if (io == 0) then
@@ -180,12 +183,12 @@ contains  !> MODULE PROCEDURES START HERE
             !if(io == 0 .and. kv%na == 4)then
             !  read (kv%value_rawa(3),*,iostat=io) rdum
             !endif
-            if(io == 0)then
+            if (io == 0) then
               call cons%deallocate()
               call cons%bondconstraint(i1,i2,dist,force_constant)
               if (debug) call cons%print(stdout)
-              call env%calc%add(cons)
-            endif
+              call calc%add(cons)
+            end if
           end if
         end if
 
@@ -207,7 +210,7 @@ contains  !> MODULE PROCEDURES START HERE
             call cons%deallocate()
             call cons%angleconstraint(i1,i2,i3,angl,force_constant)
             if (debug) call cons%print(stdout)
-            call env%calc%add(cons)
+            call calc%add(cons)
           end if
         end if
 
@@ -230,7 +233,7 @@ contains  !> MODULE PROCEDURES START HERE
             call cons%deallocate()
             call cons%dihedralconstraint(i1,i2,i3,i4,angl,force_constant)
             if (debug) call cons%print(stdout)
-            call env%calc%add(cons)
+            call calc%add(cons)
           end if
         end if
 
@@ -238,29 +241,29 @@ contains  !> MODULE PROCEDURES START HERE
         read (kv%value_rawa(1),*,iostat=io) atm1
         if (io == 0) read (kv%value_rawa(2),*,iostat=io) atm2
         if (io == 0) read (kv%value_rawa(3),*,iostat=io) dum1
-        if(io==0)then
-        dum1 = dum1*aatoau
-        dum1 = max(0.0_wp,dum1) !> can't be negative
-        select case (kv%na)
-        case (3)
-          dum2 = huge(dum2)/3.0_wp !> some huge value
-          call cons%bondrangeconstraint(atm1,atm2,dum1,dum2)
-        case (4)
-          if (io == 0) read (kv%value_rawa(4),*,iostat=io) dum2
-          dum2 = dum2*aatoau
-          call cons%bondrangeconstraint(atm1,atm2,dum1,dum2)
-        case (5)
-          if (io == 0) read (kv%value_rawa(5),*,iostat=io) dum3
-          call cons%bondrangeconstraint(atm1,atm2,dum1,dum2,beta=dum3)
-        case (6)
-          if (io == 0) read (kv%value_rawa(6),*,iostat=io) dum4 
-          call cons%bondrangeconstraint(atm1,atm2,dum1,dum2,beta=dum3,T=dum4)
-        case default
-          error stop '**ERROR** wrong number of arguments in bondrange constraint'
-        end select
-        call env%calc%add(cons) 
-        if (debug) call cons%print(stdout)
-        endif
+        if (io == 0) then
+          dum1 = dum1*aatoau
+          dum1 = max(0.0_wp,dum1) !> can't be negative
+          select case (kv%na)
+          case (3)
+            dum2 = huge(dum2)/3.0_wp !> some huge value
+            call cons%bondrangeconstraint(atm1,atm2,dum1,dum2)
+          case (4)
+            if (io == 0) read (kv%value_rawa(4),*,iostat=io) dum2
+            dum2 = dum2*aatoau
+            call cons%bondrangeconstraint(atm1,atm2,dum1,dum2)
+          case (5)
+            if (io == 0) read (kv%value_rawa(5),*,iostat=io) dum3
+            call cons%bondrangeconstraint(atm1,atm2,dum1,dum2,beta=dum3)
+          case (6)
+            if (io == 0) read (kv%value_rawa(6),*,iostat=io) dum4
+            call cons%bondrangeconstraint(atm1,atm2,dum1,dum2,beta=dum3,T=dum4)
+          case default
+            error stop '**ERROR** wrong number of arguments in bondrange constraint'
+          end select
+          call calc%add(cons)
+          if (debug) call cons%print(stdout)
+        end if
       case ('atoms')
         if (.not.allocated(pairwise)) allocate (pairwise(mol%nat),source=.false.)
         call get_atlist(mol%nat,atlist,kv%rawvalue,mol%at)
@@ -296,10 +299,10 @@ contains  !> MODULE PROCEDURES START HERE
       k = 0
       do i = 1,mol%nat
         do j = 1,i-1
-          if (pairwise(i).and.pairwise(j)) k = k +1
-        enddo
-      enddo
-      allocate(conslist(k))
+          if (pairwise(i).and.pairwise(j)) k = k+1
+        end do
+      end do
+      allocate (conslist(k))
       k = 0
       do i = 1,mol%nat
         do j = 1,i-1
@@ -309,42 +312,41 @@ contains  !> MODULE PROCEDURES START HERE
             else
               dist = mol%dist(j,i)
             end if
-            k = k + 1
+            k = k+1
             !call cons%deallocate()
             call conslist(k)%bondconstraint(j,i,dist,force_constant)
             if (debug) call conslist(k)%print(stdout)
-            !call env%calc%add(cons)
           end if
         end do
       end do
-      call env%calc%add(k,conslist)
-      deallocate (conslist) 
+      call calc%add(k,conslist)
+      deallocate (conslist)
       deallocate (pairwise)
     end if
-
   end subroutine get_xtb_constraint_block
 
-  subroutine get_xtb_wall_block(env,blk)
+  subroutine get_xtb_wall_block(calc,mol,potscal,blk)
 !**************************************
 !* This is a reader for the $wall block
 !***************************************
     implicit none
-    type(systemdata),intent(inout) :: env
-    type(filetype) :: file
+    !> IN/OUTPUT
+    type(calcdata),intent(inout) :: calc
+    type(coord),intent(in) :: mol
+    real(wp),intent(inout) :: potscal
+    type(datablock),intent(in),target :: blk
+    !> LOCAL
     integer :: i,j,k,io
     type(keyvalue),pointer :: kv
-    type(datablock),intent(in),target :: blk
     real(wp) :: force_constant,dist,angl
     real(wp) :: T,alpha,beta
     real(wp) :: rdum,rabc(3),r1,r2,r3
-    type(coord) :: mol
-    logical,allocatable :: pairwise(:)
     logical,allocatable :: atlist(:)
     integer :: i1,i2,i3,i4
     integer :: pot
     type(constraint) :: cons
 
-    if(debug) write(*,*) 'parsing $wall block'
+    if (debug) write (*,*) 'parsing $wall block'
 
 !>--- asome defaults
     force_constant = 1.0_wp
@@ -352,9 +354,6 @@ contains  !> MODULE PROCEDURES START HERE
     beta = 6.0_wp
     T = 300.0_wp
     pot = 1 !> 1= polynomial, 2= logfermi
-
-!>--- get reference input geometry
-    call env%ref%to(mol)
 
 !>--- get the parameters first
     do i = 1,blk%nkv
@@ -401,7 +400,7 @@ contains  !> MODULE PROCEDURES START HERE
         if (kv%na > 0) then
           if (trim(kv%value_rawa(1)) .eq. 'auto') then
             !> determine sphere
-            call wallpot_core(mol,rabc,potscal=env%potscal)
+            call wallpot_core(mol,rabc,potscal=potscal)
             rdum = maxval(rabc(:))
             rabc(:) = rdum
           else
@@ -417,15 +416,15 @@ contains  !> MODULE PROCEDURES START HERE
             call cons%ellipsoid(mol%nat,atlist,rabc,T,beta,.true.)
           end select
           if (debug) call cons%print(stdout)
-          call env%calc%add(cons)
+          call calc%add(cons)
         end if
 
       case ('ellipsoid')
-        if(debug) write(*,*) 'parsing ellipsoid',kv%na
+        if (debug) write (*,*) 'parsing ellipsoid',kv%na
         if (kv%na > 0) then
           if (trim(kv%value_rawa(1)) .eq. 'auto') then
             !> determine ellipsoid
-            call wallpot_core(mol,rabc,potscal=env%potscal)
+            call wallpot_core(mol,rabc,potscal=potscal)
           else
             read (kv%value_rawa(1),*,iostat=io) r1
             if (io == 0) read (kv%value_rawa(2),*,iostat=io) r2
@@ -445,7 +444,7 @@ contains  !> MODULE PROCEDURES START HERE
             call cons%ellipsoid(mol%nat,atlist,rabc,T,beta,.true.)
           end select
           if (debug) call cons%print(stdout)
-          call env%calc%add(cons)
+          call calc%add(cons)
         end if
 
       case default
@@ -453,30 +452,27 @@ contains  !> MODULE PROCEDURES START HERE
 
       end select
     end do
-
   end subroutine get_xtb_wall_block
 
-  subroutine get_xtb_fix_block(env,blk)
+  subroutine get_xtb_fix_block(calc,mol,blk)
 !**************************************
 !* This is a reader for the $fix block
 !***************************************
     implicit none
-    type(systemdata),intent(inout) :: env
-    type(filetype) :: file
+    !> IN/OUTPUT
+    type(calcdata),intent(inout) :: calc
+    type(coord),intent(in) :: mol
+    type(datablock),intent(in),target :: blk
+    !> LOCAL
     integer :: i,j,k,io
     type(keyvalue),pointer :: kv
-    type(datablock),intent(in),target :: blk
     real(wp) :: force_constant,dist,angl
     real(wp) :: T,alpha,beta
     real(wp) :: rdum,rabc(3),r1,r2,r3
-    type(coord) :: mol
     logical,allocatable :: pairwise(:)
     logical,allocatable :: atlist(:)
     integer :: i1,i2,i3,i4
     integer :: pot
-
-!>--- get reference input geometry
-    call env%ref%to(mol)
 
 !>--- get the parameters first
     do i = 1,blk%nkv
@@ -517,7 +513,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     if (allocated(pairwise)) then
       i1 = count(pairwise)
-      env%calc%nfreeze = i1
+      calc%nfreeze = i1
       if (debug) then
         write (stdout,'("> ",a)') 'Frozen atoms:'
         do i = 1,mol%nat
@@ -525,34 +521,32 @@ contains  !> MODULE PROCEDURES START HERE
         end do
         write (stdout,*)
       end if
-      call move_alloc(pairwise,env%calc%freezelist)
+      call move_alloc(pairwise,calc%freezelist)
     end if
-
   end subroutine get_xtb_fix_block
 
-
-
-  subroutine get_xtb_metadyn_block(env,blk)
+  subroutine get_xtb_metadyn_block(calc,mol,mtd_kscal,includeRMSD,rednat,blk)
 !**************************************
 !* This is a reader for the $metadyn block
 !***************************************
     implicit none
-    type(systemdata),intent(inout) :: env
-    type(filetype) :: file
+    !> IN/OUTPUT
+    type(calcdata),intent(inout) :: calc
+    type(coord),intent(in) :: mol
+    real(wp),intent(inout) :: mtd_kscal
+    integer,allocatable,intent(inout) :: includeRMSD(:)
+    integer,intent(inout) :: rednat
+    type(datablock),intent(in),target :: blk
+    !> LOCAL
     integer :: i,j,k,io
     type(keyvalue),pointer :: kv
-    type(datablock),intent(in),target :: blk
     real(wp) :: force_constant,dist,angl
     real(wp) :: T,alpha,beta
     real(wp) :: rdum,rabc(3),r1,r2,r3
-    type(coord) :: mol
     logical,allocatable :: pairwise(:)
     logical,allocatable :: atlist(:)
     integer :: i1,i2,i3,i4
     integer :: pot
-
-!>--- get reference input geometry
-    call env%ref%to(mol)
 
 !>--- get the parameters first
     do i = 1,blk%nkv
@@ -584,12 +578,11 @@ contains  !> MODULE PROCEDURES START HERE
             if (i1 == mol%at(j)) pairwise(j) = .true.
           end do
         end if
-  
+
       case ('kscal')
         !> define a global metadynamics k-push scaling factor
-        read(kv%rawvalue,*) r1
-        env%mtd_kscal = r1
-
+        read (kv%rawvalue,*) r1
+        mtd_kscal = r1
 
       case default
         write (stdout,'(a,a,a)') 'xtb-style input key: "',kv%key,'" not defined for CREST'
@@ -606,16 +599,15 @@ contains  !> MODULE PROCEDURES START HERE
         end do
         write (stdout,*)
       end if
-      if(.not.allocated(env%includeRMSD)) allocate(env%includeRMSD(mol%nat), source=0)
-      do i=1,mol%nat
-         if(pairwise(i)) env%includeRMSD(i) = 1
-      enddo
-      env%rednat = i1
+      if (.not.allocated(includeRMSD)) allocate (includeRMSD(mol%nat),source=0)
+      do i = 1,mol%nat
+        if (pairwise(i)) includeRMSD(i) = 1
+      end do
+      rednat = i1
     end if
 
     call mol%deallocate()
   end subroutine get_xtb_metadyn_block
-
 
 !========================================================================================!
 
@@ -737,7 +729,7 @@ contains  !> MODULE PROCEDURES START HERE
     call kv%deallocate()
     io = 0
     tmpstr = adjustl(lowercase(str))
-    tmpstr_rc=adjustl(trim(str))
+    tmpstr_rc = adjustl(trim(str))
 
     !> key-value conditions
     l(1) = index(tmpstr,'=')
@@ -792,7 +784,6 @@ contains  !> MODULE PROCEDURES START HERE
     end if
   end subroutine get_xtb_keyvalue
 
-
   subroutine get_xtb_rawa(kv,str,io)
     implicit none
     class(keyvalue),intent(inout) :: kv
@@ -803,7 +794,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,na,plast
     integer :: l(3)
 
-    if(allocated(kv%value_rawa)) deallocate(kv%value_rawa)
+    if (allocated(kv%value_rawa)) deallocate (kv%value_rawa)
 
     vtmp = trim(adjustl(str))
 
