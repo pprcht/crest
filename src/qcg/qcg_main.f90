@@ -779,13 +779,15 @@ end subroutine qcg_grow
 subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   use crest_parameters
   use crest_data
-  use qcg_printouts
+  use cregen_interface
+  use crest_calculator
   use iomod
+  use parse_xtbinput
   use qcg_coord_type
+  use qcg_printouts
+  use qcg_utils
   use strucrd
   use utilities
-  use cregen_interface
-  use qcg_utils
   implicit none
 
   type(systemdata)           :: env
@@ -808,19 +810,19 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   logical                    :: gbsa_tmp
   logical                    :: ex,mdfail,e_there
   logical                    :: checkiso_tmp,cbonds_tmp
-  real(wp),allocatable      :: e_fix(:),e_clus(:)
+  real(wp),allocatable       :: e_fix(:),e_clus(:)
   real(wp)                   :: S,H,G,dens,shr,shr_av
   real(wp)                   :: sasa
   real(wp)                   :: newtemp,newmdtime,newmdstep,newhmass
   real(wp)                   :: newmetadlist,newmetadexp,newmetadfac
   real(wp)                   :: optlev_tmp
   real(wp)                   :: e0
-  real(wp),allocatable      :: de(:)
-  real(wp),allocatable      :: p(:)
+  real(wp),allocatable       :: de(:)
+  real(wp),allocatable       :: p(:)
   integer                    :: ich98,ich65,ich48
   logical                    :: not_param = .false.
   type(timer)                :: tim_dum !Dummy timer to avoid double counting
-
+  type(calcdata) :: calc_tmp
   logical,parameter :: debug = .true.
 
   if (.not.env%solv_md) then
@@ -911,49 +913,57 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   !----------------------------------------------------------------
   ! Case selection of normal Crest, MD or MTD
   !----------------------------------------------------------------
-  if(debug)then
-     write(*,*) 'Entering sampling part next. We have these constraints:'
-     call env%cts%info()
-   endif
+  if (debug) then
+    write (*,*) 'Entering sampling part next. We have these constraints:'
+    call env%cts%info()
+    write (*,*) ' for structure:'
+    call clus%append(stdout)
+  end if
 
-  ENSEMBLEGEN : select case (env%ensemble_method)
+  if (.not.env%legacy) then
+    calc_tmp = env%calc
+    call parse_constraints_from_cts(env%calc,clus,env%cts)
+    call env%calc%info(stdout)
+  end if
+
+  ENSEMBLEGEN:select case(env%ensemble_method)
   case (-1:0) !qcgmtd/Crest runtype
 
-    !Defaults
-    !General settings:
-    if (.not.env%user_mdstep) then
-      if (env%ensemble_opt .EQ. '--gff') then
-        env%mdstep = 1.5d0
-      else
-        env%mdstep = 5.0d0
-      end if
+  !> Some custom Defaults for running the standard search
+  !General settings:
+  if (.not.env%user_mdstep) then
+    if (env%ensemble_opt .EQ. '--gff') then
+      env%mdstep = 1.5d0
+    else
+      env%mdstep = 5.0d0
     end if
-    !Runtype specific settings:
-    if (env%ensemble_method == 0) then
-      if (.not.env%user_dumxyz) then
-        env%mddumpxyz = 200
-      end if
-      if (.not.env%user_mdtime) then
-        env%mdtime = 10.0
-      end if
-    else if (env%ensemble_method == -1) then
-      if (.not.env%user_dumxyz) then
-        env%mddumpxyz = 50
-      end if
-      if (.not.env%user_mdtime) then
-        env%mdtime = 5.0
-      end if
-      env%nmdtemp = 100
-      env%MaxRestart = 6
+  end if
+  !Runtype specific settings:
+  if (env%ensemble_method == 0) then
+    if (.not.env%user_dumxyz) then
+      env%mddumpxyz = 200
     end if
+    if (.not.env%user_mdtime) then
+      env%mdtime = 10.0
+    end if
+  else if (env%ensemble_method == -1) then
+    if (.not.env%user_dumxyz) then
+      env%mddumpxyz = 50
+    end if
+    if (.not.env%user_mdtime) then
+      env%mdtime = 5.0
+    end if
+    env%nmdtemp = 100
+    env%MaxRestart = 6
+  end if
 
-    env%iterativeV2 = .true.  !Safeguards more precise ensemble search
-    write (stdout,*) 'Starting ensemble cluster generation by CREST routine'
-    call confscript2i(env,tim_dum) !Calling ensemble search
-    call copy('crest_rotamers.xyz','crest_rotamers_0.xyz')
+  env%iterativeV2 = .true.  !Safeguards more precise ensemble search
+  write (stdout,*) 'Starting ensemble cluster generation by CREST routine'
+  call confscript2i(env,tim_dum) !Calling ensemble search
+  call copy('crest_rotamers.xyz','crest_rotamers_0.xyz')
 
   case (1:2) ! Single MD or MTD
-    call xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
+  call xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
 
   end select ENSEMBLEGEN
 
@@ -977,7 +987,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   deallocate (env%cts%pots)
   call multilevel_opt(env,99)
 
-  stop
+  stop  !TODO TODO TODO TODO
 
   !Clustering to exclude similar structures if requested with -cluster
   if (env%properties == 70) then

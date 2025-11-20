@@ -27,7 +27,7 @@
 module parse_xtbinput
   use crest_parameters
   use crest_data
-  use crest_calculator, only: calcdata
+  use crest_calculator,only:calcdata
   use parse_datastruct
   use parse_keyvalue
   use parse_block
@@ -47,6 +47,8 @@ module parse_xtbinput
     module procedure :: parse_xtb_inputfile
     module procedure :: parse_xtb_input_fallback
   end interface parse_xtbinputfile
+
+  public :: parse_constraints_from_cts
 
 !========================================================================================!
 !========================================================================================!
@@ -900,6 +902,152 @@ contains  !> MODULE PROCEDURES START HERE
     hdr = trim(atmp)
     return
   end subroutine clearxtbheader
+
+!============================================================================!
+
+  subroutine parse_constraints_from_cts(calc,mol,cts)
+!*********************************************
+!* Routine for parsing cts objects into calcdata
+!*********************************************
+    implicit none
+    !> IN/OUTPUT
+    type(calcdata),intent(inout) :: calc
+    class(coord),intent(inout) :: mol   !> polymorphic class(!) to use in qcg
+    type(legacy_constraints),intent(in) :: cts
+    !> LOCAL
+    type(root_object),allocatable,target :: dict
+    type(datablock),pointer :: blk
+    logical :: ex
+    character(len=:),allocatable :: hdr
+    integer :: i,j,k,l
+    !> some defaults/fallbacks
+    real(wp) :: potscal = 1.0_wp
+    integer :: rednat
+    integer,allocatable :: includeRMSD(:)
+    real(wp) :: mtd_kscal
+
+    allocate (dict)
+    !call parse_xtb_input_fallback(fname,dict)
+    call parse_cts_internal(cts,dict)
+    !call dict%print()
+
+    write (stdout,'(a,a,a)') 'Parsing xtb-type constraints from internal backup to set up calculators ...'
+    !> iterate through the blocks and save the necessary information
+    do i = 1,dict%nblk
+      blk => dict%blk_list(i)
+      hdr = trim(blk%header)
+      select case (hdr)
+      case ('constrain')
+        call get_xtb_constraint_block(calc,mol,blk)
+      case ('wall')
+        call get_xtb_wall_block(calc,mol,potscal,blk)
+      case ('fix')
+        call get_xtb_fix_block(calc,mol,blk)
+      case ('metadyn')
+        call get_xtb_metadyn_block(calc,mol,mtd_kscal, &
+        & includeRMSD,rednat,blk)
+      case default
+        write (stdout,'(a,a,a)') 'xtb-style input block: "$',trim(hdr),'" not defined for CREST'
+      end select
+    end do
+
+    if (debug) stop
+  end subroutine parse_constraints_from_cts
+
+  subroutine parse_cts_internal(cts,dict)
+!********************************************************************
+!* This is the fallback reader for xtb constraints from cts to set up a dict
+!********************************************************************
+    implicit none
+    !> IN/OUTPUT
+    type(legacy_constraints),intent(in) :: cts
+    type(root_object),intent(out) :: dict
+    !> LOCAL
+    type(filetype) :: file
+    integer :: i,j,k,io,b
+    logical :: get_root_kv
+    type(keyvalue) :: kvdum
+    type(datablock) :: blkdum
+    character(len=:),allocatable :: dummy
+
+    call dict%new()
+!>--- parse cts into a "file" --> internal storage
+    k = 0
+    if (cts%used) then
+      do i = 1,cts%ndim
+        if (trim(cts%sett(i)) .ne. '') k = k+1
+      end do
+    end if
+    if (cts%NCI.and.allocated(cts%pots)) then
+      do i = 1,10
+        if (trim(cts%pots(i)) .ne. '') k = k+1
+      end do
+    end if
+    if (allocated(cts%cbonds)) then
+      do i = 1,cts%n_cbonds
+        if (trim(cts%cbonds(i)) .ne. '') k = k+1
+      end do
+    end if
+    b = 128
+    file%lwidth = b
+    dummy = repeat(' ',b+5)
+    file%nlines = k
+    file%current_line = 1
+    allocate (file%f(k),source=dummy)
+    k=0
+    if (cts%used) then
+      do i = 1,cts%ndim
+        if (trim(cts%sett(i)) .ne. '')then
+          k = k+1
+          file%f(k) = trim(cts%sett(i))
+        endif
+      end do
+    end if
+    if (cts%NCI.and.allocated(cts%pots)) then
+      do i = 1,10
+        if (trim(cts%pots(i)) .ne. '')then
+          k = k+1
+          file%f(k) = trim(cts%pots(i))
+        endif
+      end do
+    end if
+    if (allocated(cts%cbonds)) then
+      do i = 1,cts%n_cbonds
+        if (trim(cts%cbonds(i)) .ne. '')then
+          k = k+1
+          file%f(k) = trim(cts%cbonds(i))
+        endif
+      end do
+    end if
+
+    dict%filename = "internal cts"
+    call remove_comments(file)
+
+!>--- all valid key-values must be in $-blocks, no root-level ones
+    get_root_kv = .false.
+!>--- the loop where the input file is read
+    do i = 1,file%nlines
+      if (file%current_line > i) cycle
+      !> key-value pairs of the root dict (ignored for xtb)
+      if (get_root_kv) then
+        call get_keyvalue(kvdum,file%line(i),io)
+        if (io == 0) then
+          call dict%addkv(kvdum) !> add to dict
+        end if
+      end if
+
+      !> the $-blocks
+      if (isxtbheader(file%line(i))) then
+        get_root_kv = .false.
+        call read_xtbdatablock(file,i,blkdum)
+        call dict%addblk(blkdum) !> add to dict
+      end if
+    end do
+
+    call file%close()
+
+    return
+  end subroutine parse_cts_internal
 
 !========================================================================================!
 end module parse_xtbinput
