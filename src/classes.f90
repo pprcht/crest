@@ -34,7 +34,7 @@ module crest_data
   public :: systemdata
   public :: timer   !> RE-EXPORT from crest_type_timer
   public :: protobj
-  public :: constra
+  public :: legacy_constraints
   public :: optlevflag,optlevnum,optlevmap_alt
   public :: optlev_to_multilev
 
@@ -143,7 +143,7 @@ module crest_data
 !========================================================================================!
 !========================================================================================!
 
-  type :: constra
+  type :: legacy_constraints
 !****************************************************
 !* separate settings for LEGACY constraint handling
 !****************************************************
@@ -173,9 +173,10 @@ module crest_data
     logical :: usermsdpot = .false.
     logical :: gesc_heavy = .false.
   contains
-    procedure :: allocate => allocate_constraints
-    procedure :: deallocate => deallocate_constraints
-  end type constra
+    procedure :: allocate => allocate_legacy_constraints
+    procedure :: deallocate => deallocate_legacy_constraints
+    procedure :: info => legacy_constraints_info
+  end type legacy_constraints
 
 !========================================================================================!
 
@@ -438,7 +439,7 @@ module crest_data
     type(protobj) :: protb
 
     !>--- saved constraints
-    type(constra) :: cts
+    type(legacy_constraints) :: cts
 
     !>--- NCI mode data
     real(wp) :: potscal = 1.0_wp
@@ -663,7 +664,6 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     return
   end subroutine allocate_metadyn
-!========================================================================================!
   subroutine deallocate_metadyn(self)
     implicit none
     class(systemdata) :: self
@@ -672,23 +672,56 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%metadlist)) deallocate (self%metadlist)
   end subroutine deallocate_metadyn
 !========================================================================================!
-  subroutine allocate_constraints(self,n)
+  subroutine allocate_legacy_constraints(self,n)
     implicit none
-    class(constra) :: self
+    class(legacy_constraints) :: self
     integer,intent(in)  :: n
     self%ndim = n
     allocate (self%sett(n))
     allocate (self%buff(n))
     self%sett = ''
     self%buff = ''
-  end subroutine allocate_constraints
-!========================================================================================!
-  subroutine deallocate_constraints(self)
+  end subroutine allocate_legacy_constraints
+
+  subroutine deallocate_legacy_constraints(self)
     implicit none
-    class(constra) :: self
+    class(legacy_constraints) :: self
     if (allocated(self%sett)) deallocate (self%sett)
     if (allocated(self%buff)) deallocate (self%buff)
-  end subroutine deallocate_constraints
+  end subroutine deallocate_legacy_constraints
+
+  subroutine legacy_constraints_info(self)
+    implicit none
+    class(legacy_constraints) :: self
+    integer :: i
+    write (*,*) "legacy constraints set?",self%used
+    if (self%used) then
+      do i = 1,self%ndim
+        if (trim(self%sett(i)) .ne. '') then
+          write (*,'(a)') trim(self%sett(i))
+        end if
+      end do
+    end if
+
+    write (*,*) 'legacy constraints NCI?',self%NCI
+    if (self%NCI.and.allocated(self%pots)) then
+      do i = 1,10
+        if (trim(self%pots(i)) .ne. '') then
+          write (*,'(a)') trim(self%pots(i))
+        end if
+      end do
+    end if
+
+    write (*,*) 'legacy constraints CBONDS?',allocated(self%cbonds)
+    if (allocated(self%cbonds)) then
+      do i = 1,min(10,self%n_cbonds)
+        if (trim(self%cbonds(i)) .ne. '') then
+          write (*,'(a)') trim(self%cbonds(i))
+        end if
+      end do
+      if(self%n_cbonds>10) write(*,*) '... and some more'
+    end if
+  end subroutine legacy_constraints_info
 
 !========================================================================================!
 !========================================================================================!

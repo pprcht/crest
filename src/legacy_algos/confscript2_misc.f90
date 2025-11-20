@@ -685,7 +685,7 @@ subroutine setMDrun2(fname,hmass,mdtime,mdtemp,mdstep,shake,mddumpxyz, &
   use crest_data
   use utilities
   implicit none
-  type(constra) :: cts
+  type(legacy_constraints) :: cts
   character(len=*) :: fname
   real(wp) :: hmass
   real(wp) :: mdtime
