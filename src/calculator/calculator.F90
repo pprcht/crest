@@ -297,6 +297,10 @@ contains  !> MODULE PROCEDURES START HERE
 !**********************************************
     call calc%freezegrad(gradient)
 
+    if (calc%do_HU) then
+      call calc%chess%update(gradient, energy, mol%xyz)
+    end if
+
     return
   end subroutine engrad_mol
 

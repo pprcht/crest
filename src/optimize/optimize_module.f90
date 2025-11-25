@@ -72,6 +72,12 @@ contains  !> MODULE PROCEDURES START HERE
       !$omp end critical
     endif
 
+    !> Check if Hessian Reconstruct is called
+    if (calc%do_HU) then
+      allocate(calc%chess)
+      call calc%chess%alloc(mol%nat,calc%hu_steps)
+    endif
+
     !> initial singlepoint
     call engrad(molnew,calc,etot,grd,iostatus)
 
@@ -92,7 +98,18 @@ contains  !> MODULE PROCEDURES START HERE
       write(stdout,'(a)') 'Unknown optimization engine!'
       stop
     end select
-    molnew%energy = etot   
+    molnew%energy = etot
+
+    print*, "Energies", calc%chess%energy
+    print*, "Gradients", calc%chess%gradient
+    print*, "Coords", calc%chess%coords
+    print*, "Order", calc%chess%order
+
+    if (calc%do_HU) then
+      call calc%chess%dealloc()
+    endif
+ 
+
     return
   end subroutine optimize_geometry
 

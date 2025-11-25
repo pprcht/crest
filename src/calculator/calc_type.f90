@@ -29,6 +29,7 @@ module calc_type
 !>--- other types
   use orca_type
   use lwoniom_module
+  use hessian_reconstruct
   implicit none
 
   character(len=*),public,parameter :: sep = '/'
@@ -265,6 +266,11 @@ module calc_type
     type(coord),allocatable :: ONIOMmols(:)
     integer,allocatable :: ONIOMmap(:) !> map ONIOM fragments to calculation_settings
     integer,allocatable :: ONIOMrevmap(:) !> map calculation settings to ONIOM frags (or zero)
+
+!>--- Hessian Reconstructor
+    type(cashed_hessian), allocatable :: chess
+    logical :: do_HU = .true.
+    integer :: hu_steps = 10
 
 !>--- Type procedures
   contains
