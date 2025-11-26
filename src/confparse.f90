@@ -2168,7 +2168,7 @@ subroutine parseflags(env,arg,nra)
   end if
 
 !>--- automatic wall potential for the LEGACY version
-  if (env%NCI.or.env%wallsetup.and.env%legacy) then
+  if ((env%NCI.or.env%wallsetup).and.env%legacy) then
     call wallpot(env)
     if (env%wallsetup) then
       write (*,'(2x,a)') 'Automatically generated ellipsoide potential:'
