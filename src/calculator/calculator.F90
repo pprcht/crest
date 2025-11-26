@@ -298,7 +298,7 @@ contains  !> MODULE PROCEDURES START HERE
     call calc%freezegrad(gradient)
 
     if (calc%do_HU) then
-      call calc%chess%update(gradient, energy, mol%xyz)
+      call calc%chess%update(gradient,energy,mol%xyz)
     end if
 
     return
@@ -402,7 +402,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     integer :: i,j,k,l,ich,och,io,pnat
     type(coord),allocatable :: moltmp
-    real(wp) :: energy,el,er, step,step2
+    real(wp) :: energy,el,er,step,step2
     real(wp),allocatable :: ngrd(:,:)
     !real(wp),parameter :: step = 0.0005_wp
     !real(wp),parameter :: step2 = 0.5_wp/step
@@ -414,13 +414,13 @@ contains  !> MODULE PROCEDURES START HERE
     step = calc%calcs(id)%gradstep
     step2 = 0.5_wp/step
 
-    !> back up energy 
+    !> back up energy
     energy = calc%etmp(id)
 
     !> allocate temprorary gradient space
     !$omp critical
-    allocate(ngrd(3,pnat), source=0.0_wp)
-    allocate(moltmp, source=molptr)
+    allocate (ngrd(3,pnat),source=0.0_wp)
+    allocate (moltmp,source=molptr)
     !$omp end critical
 
     do i = 1,molptr%nat
@@ -441,8 +441,8 @@ contains  !> MODULE PROCEDURES START HERE
     !> transfer tmp gradient to the calc object
     calc%grdtmp(:,1:pnat,id) = ngrd(:,1:pnat)
     !$omp critical
-    deallocate(moltmp)
-    deallocate(ngrd)
+    deallocate (moltmp)
+    deallocate (ngrd)
     !$omp end critical
 
     !> restore the energy

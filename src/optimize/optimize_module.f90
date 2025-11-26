@@ -107,8 +107,9 @@ contains  !> MODULE PROCEDURES START HERE
 
     if (calc%do_HU) then
       call calc%chess%dealloc()
+      deallocate(calc%chess)
     endif
- 
+
 
     return
   end subroutine optimize_geometry
