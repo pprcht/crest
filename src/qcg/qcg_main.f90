@@ -790,38 +790,34 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   use utilities
   implicit none
 
-  type(systemdata)           :: env
-  type(coord_qcg)            :: solu,solv,clus
-  type(ensemble)             :: ens,dum
-  type(timer)                :: tim
+  type(systemdata) :: env
+  type(coord_qcg)  :: solu,solv,clus
+  type(ensemble)   :: ens,dum
+  type(timer)      :: tim
 
-  integer                    :: i,j,k
-  integer                    :: io,f,r,ich,T,Tn
-  integer                    :: minpos
-  character(len=512)         :: thispath,resultspath,tmppath,tmppath2
-  character(len=512)         :: scratchdir_tmp
-  character(len=512)         :: jobcall
-  character(len=256)         :: inpnam,outnam
-  character(len=80)          :: fname,pipe,to
-  character(len=*)           :: fname_results
-  character(len=64)          :: comment
-  character(len=20)          :: gfnver_tmp
-  character(len=LEN(env%solv)) :: solv_tmp
-  logical                    :: gbsa_tmp
-  logical                    :: ex,mdfail,e_there
-  logical                    :: checkiso_tmp,cbonds_tmp
-  real(wp),allocatable       :: e_fix(:),e_clus(:)
-  real(wp)                   :: S,H,G,dens,shr,shr_av
-  real(wp)                   :: sasa
-  real(wp)                   :: newtemp,newmdtime,newmdstep,newhmass
-  real(wp)                   :: newmetadlist,newmetadexp,newmetadfac
-  real(wp)                   :: optlev_tmp
-  real(wp)                   :: e0
-  real(wp),allocatable       :: de(:)
-  real(wp),allocatable       :: p(:)
-  integer                    :: ich98,ich65,ich48
-  logical                    :: not_param = .false.
-  type(timer)                :: tim_dum !Dummy timer to avoid double counting
+  integer :: i,j,k,io,f,r,ich,T,Tn,minpos
+  character(len=512) :: thispath,resultspath,tmppath,tmppath2
+  character(len=512) :: scratchdir_tmp
+  character(len=512) :: jobcall
+  character(len=256) :: inpnam,outnam
+  character(len=80)  :: fname,pipe,to
+  character(len=*)   :: fname_results
+  character(len=64)  :: comment
+  character(len=:),allocatable :: gfnver_tmp
+  character(len=:),allocatable :: solv_tmp
+  logical              :: gbsa_tmp,ex,mdfail,e_there,checkiso_tmp,cbonds_tmp
+  real(wp),allocatable :: e_fix(:),e_clus(:)
+  real(wp)             :: S,H,G,dens,shr,shr_av
+  real(wp)             :: sasa
+  real(wp)             :: newtemp,newmdtime,newmdstep,newhmass
+  real(wp)             :: newmetadlist,newmetadexp,newmetadfac
+  real(wp)             :: optlev_tmp
+  real(wp)             :: e0
+  real(wp),allocatable :: de(:)
+  real(wp),allocatable :: p(:)
+  integer              :: ich98,ich65,ich48
+  logical              :: not_param = .false.
+  type(timer)          :: tim_dum !Dummy timer to avoid double counting
   type(calcdata) :: calc_tmp
   logical,parameter :: debug = .true.
 
@@ -840,7 +836,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   call getcwd(resultspath)
   call chdirdbug(thispath)
 
-!--- Setting defaults
+!--- Setting defaults and backups
   env%cts%NCI = .true.  !Activating to have wall pot. written in coord file for xtb
   optlev_tmp = env%optlev
   env%optlev = 0.0d0
@@ -913,17 +909,12 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   !----------------------------------------------------------------
   ! Case selection of normal Crest, MD or MTD
   !----------------------------------------------------------------
-  if (debug) then
-    write (*,*) 'Entering sampling part next. We have these constraints:'
-    call env%cts%info()
-    write (*,*) ' for structure:'
-    call clus%append(stdout)
-  end if
 
+  !> Parse contraints (wall potentials etc.) into new calculator
+  !> if we are using it.
   if (.not.env%legacy) then
     calc_tmp = env%calc
-    call parse_constraints_from_cts(env%calc,clus,env%cts)
-    call env%calc%info(stdout)
+    call qcg_envcalc_reinit(env,clus,.true.,.true.)
   end if
 
   ENSEMBLEGEN:select case(env%ensemble_method)
@@ -970,26 +961,40 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   env%QCG = .true.
 
 !--- Optimization with gfn2 if necessary
-  if (env%final_gfn2_opt) then
+  if (env%final_gfn2_opt.and.env%gfnver .ne. '--gfn2') then
     gfnver_tmp = env%gfnver
-!      if (env%gfnver .ne. '--gfn2') then
     write (stdout,'(2x,a)') 'GFN2-xTB optimization'
     env%gfnver = '--gfn2'
-    call rmrf('OPTIM')
-    call multilevel_opt(env,99)
+
+    if (.not.env%legacy) then
+      !> reinit calculator with GFN2
+      call qcg_envcalc_reinit(env,clus,.true.,.true.)
+      call checkname_xyz(crefile,inpnam,outnam)
+      call crest_multilevel_wrap(env,trim(inpnam),0)
+    else
+      call rmrf('OPTIM')
+      call multilevel_opt(env,99)
+    end if
+    write (stdout,*)
   end if
 
-!--- Final optimization without potentials
-  call rmrf('OPTIM')
+!--- Final optimization without wall potentials
   env%optlev = 1.0d0    !Higher precision for less scattering
   env%cts%NCI = .false.  !Dactivating the wall pot.
   env%cts%pots = ''
   deallocate (env%cts%pots)
-  call multilevel_opt(env,99)
 
-  stop  !TODO TODO TODO TODO
+  if (.not.env%legacy) then
+    !> wall potential was turned off, add any other constraint back in
+    call qcg_envcalc_reinit(env,clus,.true.,.true.)
+    call checkname_xyz(crefile,inpnam,outnam)
+    call crest_multilevel_wrap(env,trim(inpnam),0)
+  else
+    call rmrf('OPTIM')
+    call multilevel_opt(env,99)
+  end if
 
-  !Clustering to exclude similar structures if requested with -cluster
+!--- Clustering to exclude similar structures if requested with -cluster
   if (env%properties == 70) then
     write (stdout,'(3x,''Clustering the remaining structures'')')
     call checkname_xyz(crefile,inpnam,outnam)
@@ -1009,72 +1014,19 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   allocate (clus%at(clus%nat))
   allocate (clus%xyz(3,clus%nat))
 
+
+
 !-------------------------------------------------------------
-!      SP with GBSA model and without wall potentials
+!      SP with Implicit solvation model and without wall potentials
 !-------------------------------------------------------------
 
-  !--- Write folder with xyz-coordinates
-  do i = 1,ens%nall
-    call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
-    write (to,'("TMPSP",i0)') i
-    io = makedir(trim(to))
-    call copysub('.UHF',to)
-    call copysub('.CHRG',to)
-    call chdirdbug(to)
-    call wrxyz('cluster.xyz',clus%nat,clus%at,clus%xyz*bohr)
-    call chdirdbug(tmppath2)
-  end do
-  !--- SP
-  write (stdout,*)
-  call ens_sp(env,'cluster.xyz',ens%nall,'TMPSP')
-  !--- Getting energy
-  do i = 1,ens%nall
-    call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
-    write (to,'("TMPSP",i0)') i
-    call chdirdbug(to)
-    call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,ens%er(i))
-    call chdirdbug(tmppath2)
-  end do
+  call ens_sp_with_io(env,ens,clus,resultspath)
 
-  if (.not.e_there) then
-    write (stdout,*)
-    write (stdout,*) 'Energy not found. Error in xTB computations occured'
-    call chdirdbug(to)
-    call minigrep('xtb_sp.out','solv_model_loadInternalParam',not_param)
-    call chdirdbug(tmppath2)
-    if (not_param) then
-      write (stdout,*) '  !!!WARNIG: CHOSEN SOLVENT NOT PARAMETERIZED &
-      & FOR IMPLICIT SOLVATION MODEL!!!'
-      write (stdout,'(''  CHECK IF '',A,'' IS AVAILABLE IN xTB'')') env%solv
-      write (stdout,*) '  PLEASE RESTART THE ENSEMBLE GENERATION WITH AVAILABLE&
-             &  PARAMETERIZATION IF YOU NEED ENERGIES'
-      call copysub('crest_conformers.xyz',resultspath)
-      write (stdout,*) '  The enesemble can be found in the <ensemble> directory&
-             & as <crest_conformers.xyz>'
-      error stop
-    end if
-  end if
-
-  env%gfnver = gfnver_tmp
-  call ens%write('full_ensemble.xyz')
-
-!--- crest_best structure
-  minpos = minloc(ens%er,dim=1)
-  write (to,'("TMPSP",i0)') minpos
-  call chdirdbug(to)
-  call rdxmol('cluster.xyz',clus%nat,clus%at,clus%xyz)
-  call chdirdbug(tmppath2)
-  write (comment,'(F20.8)') ens%er(minpos)
-  inquire (file='crest_best.xyz',exist=ex)
-  if (ex) then
-    call rmrf('crest_best.xyz') !remove crest_best from
-  end if
-  call wrxyz('crest_best.xyz',clus%nat,clus%at,clus%xyz,comment)
-
+  stop  !TODO TODO TODO TODO 
 !-------------------------------------------------------------
 !      Processing results
 !-------------------------------------------------------------
-
+  env%gfnver = gfnver_tmp  
   allocate (e_fix(ens%nall))
   allocate (e_clus(ens%nall))
 
@@ -1175,8 +1127,8 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
 !--- Getting G,S,H
   write (stdout,*)
-  write (stdout,'(2x,''------------------------------------------------------------------------'')')
-  write (stdout,'(2x,''------------------------------------------------------------------------'')')
+  write (stdout,'(2x,70("-"))')
+  write (stdout,'(2x,70("-"))')
   write (stdout,'(2x,''Boltz. averaged energy of final cluster:'')')
   call aver(.true.,env,ens%nall,e_clus(1:ens%nall),S,H,G,sasa,.false.)
   write (stdout,'(7x,''G /Eh     :'',F14.8)') G/autokcal
@@ -1364,7 +1316,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     call pr_qcg_fill()
     write (stdout,'(2x,''now adding solvents to fill cluster...'')')
     call pr_fill_energy()
-    write (stdout,'(2x,''------------------------------------------------------------------------'')')
+    write (stdout,'(2x,70("-"))')
     nat_frag1 = env%nsolv*solv%nat
 
     iter = 0
@@ -1482,7 +1434,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
         nat_tot = nat_tot+solv%nat
       end if
 
-      write (stdout,'(2x,''------------------------------------------------------------------------'')')
+      write (stdout,'(2x,70("-"))')
       !--- Or if maximum solvent is added
       if (iter-nsolv .eq. v_ratio) then
         write (stdout,'(2x,''volume filled'')')
@@ -1907,34 +1859,34 @@ subroutine qcg_eval(env,solu,solu_ens,solv_ens)
   use qcg_utils
   implicit none
 
-  type(systemdata)           :: env
-  type(coord_qcg)            :: solu
-  type(ensemble)             :: solu_ens,solv_ens
+  type(systemdata)   :: env
+  type(coord_qcg)    :: solu
+  type(ensemble)     :: solu_ens,solv_ens
 
-  character(len=512)         :: thispath
+  character(len=512) :: thispath
 
-  integer                    :: i,j
-  integer                    :: srange
-  integer                    :: freqscal
-  real(wp)                   :: g1(solu_ens%nall)
-  real(wp)                   :: g2(solv_ens%nall)
-  real(wp)                   :: g3
-  real(wp)                   :: Gsolv(20)
-  real(wp)                   :: Hsolv
-  real(wp)                   :: G_solute(20)
-  real(wp)                   :: H_solute
-  real(wp)                   :: G_solvent(20)
-  real(wp)                   :: H_solvent
-  real(wp)                   :: G_mono(20)
-  real(wp)                   :: H_mono
-  real(wp)                   :: S(20)
-  real(wp)                   :: volw
-  real(wp)                   :: sasa
-  real(wp)                   :: dum,dum1,dum2
-  real(wp)                   :: e_solute(solu_ens%nall)
-  real(wp)                   :: e_solvent(solv_ens%nall)
-  real(wp)                   :: scal(20)
-  integer                    :: ich23
+  integer            :: i,j
+  integer            :: srange
+  integer            :: freqscal
+  real(wp)           :: g1(solu_ens%nall)
+  real(wp)           :: g2(solv_ens%nall)
+  real(wp)           :: g3
+  real(wp)           :: Gsolv(20)
+  real(wp)           :: Hsolv
+  real(wp)           :: G_solute(20)
+  real(wp)           :: H_solute
+  real(wp)           :: G_solvent(20)
+  real(wp)           :: H_solvent
+  real(wp)           :: G_mono(20)
+  real(wp)           :: H_mono
+  real(wp)           :: S(20)
+  real(wp)           :: volw
+  real(wp)           :: sasa
+  real(wp)           :: dum,dum1,dum2
+  real(wp)           :: e_solute(solu_ens%nall)
+  real(wp)           :: e_solvent(solv_ens%nall)
+  real(wp)           :: scal(20)
+  integer            :: ich23
 
   call pr_eval_eval()
 

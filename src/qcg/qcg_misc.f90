@@ -765,6 +765,80 @@ end subroutine cff_opt
 !
 ! xTB SP performed in parallel
 !___________________________________________________________________________________
+subroutine ens_sp_with_io(env,ens,clus,resultspath)
+  use crest_parameters
+  use crest_data
+  use qcg_coord_type
+  use strucrd
+  use iomod
+  implicit none
+  type(systemdata),intent(inout) :: env
+  type(ensemble),intent(inout)   :: ens
+  type(coord_qcg),intent(inout)  :: clus
+  character(len=512),intent(in)  :: resultspath
+  character(len=512) :: tmppath2,to,comment
+  integer :: i,io,minpos
+  logical :: e_there,not_param,ex
+
+  call getcwd(tmppath2)
+
+  !--- Write folder with xyz-coordinates
+  do i = 1,ens%nall
+    call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
+    write (to,'("TMPSP",i0)') i
+    io = makedir(trim(to))
+    call copysub('.UHF',to)
+    call copysub('.CHRG',to)
+    call chdirdbug(to)
+    call wrxyz('cluster.xyz',clus%nat,clus%at,clus%xyz*bohr)
+    call chdirdbug(tmppath2)
+  end do
+  !--- SP
+  write (stdout,*)
+  call ens_sp(env,'cluster.xyz',ens%nall,'TMPSP')
+  !--- Getting energy
+  do i = 1,ens%nall
+    call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
+    write (to,'("TMPSP",i0)') i
+    call chdirdbug(to)
+    call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,ens%er(i))
+    call chdirdbug(tmppath2)
+  end do
+
+  if (.not.e_there) then
+    write (stdout,*)
+    write (stdout,*) 'Energy not found. Error in xTB computations occured'
+    call chdirdbug(to)
+    call minigrep('xtb_sp.out','solv_model_loadInternalParam',not_param)
+    call chdirdbug(tmppath2)
+    if (not_param) then
+      write (stdout,*) '  !!!WARNIG: CHOSEN SOLVENT NOT PARAMETERIZED &
+      & FOR IMPLICIT SOLVATION MODEL!!!'
+      write (stdout,'(''  CHECK IF '',A,'' IS AVAILABLE IN xTB'')') env%solv
+      write (stdout,*) '  PLEASE RESTART THE ENSEMBLE GENERATION WITH AVAILABLE&
+             &  PARAMETERIZATION IF YOU NEED ENERGIES'
+      call copysub('crest_conformers.xyz',resultspath)
+      write (stdout,*) '  The enesemble can be found in the <ensemble> directory&
+             & as <crest_conformers.xyz>'
+      error stop
+    end if
+  end if
+  call ens%write('full_ensemble.xyz')
+
+!--- crest_best structure
+  minpos = minloc(ens%er,dim=1)
+  write (to,'("TMPSP",i0)') minpos
+  call chdirdbug(to)
+  call rdxmol('cluster.xyz',clus%nat,clus%at,clus%xyz)
+  call chdirdbug(tmppath2)
+  write (comment,'(F20.8)') ens%er(minpos)
+  inquire (file='crest_best.xyz',exist=ex)
+  if (ex) then
+    call rmrf('crest_best.xyz') !remove crest_best from
+  end if
+  call wrxyz('crest_best.xyz',clus%nat,clus%at,clus%xyz,trim(comment))
+
+end subroutine ens_sp_with_io
 
 subroutine ens_sp(env,fname,NTMP,TMPdir)
   use crest_parameters
@@ -788,7 +862,9 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
 ! setting the threads for correct parallelization
   call new_ompautoset(env,'auto',NTMP,T,Tn)
 
-  write (stdout,'(2x,''Single point computation with GBSA model'')')
+  write (stdout,'(2x,''---------------------------------------------'')')
+  write (stdout,'(2x,''Single point computation with GBSA/ALPB model'')')
+  write (stdout,'(2x,''---------------------------------------------'')') 
   write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
 
   pipe = '2>/dev/null'
@@ -1105,7 +1181,7 @@ end subroutine get_interaction_E
 subroutine chdirdbug(path)
   implicit none
   character(len=*),intent(in) :: path
-  logical,parameter :: debug = .true.
+  logical,parameter :: debug = .false.
   character(len=500) :: debugpath
   call chdir(path)
   if (debug) then
@@ -1113,4 +1189,38 @@ subroutine chdirdbug(path)
     write (*,'(a,a)') '>>>>>>> NOW IN ',trim(debugpath)
   end if
 end subroutine chdirdbug
+
+!===============================================================================!
+subroutine qcg_envcalc_reinit(env,mol,addconstraints,printinfo)
+  use crest_parameters
+  use crest_data
+  use qcg_coord_type
+  use strucrd
+  use parse_xtbinput
+  implicit none
+  type(systemdata),intent(inout) :: env
+  type(coord),intent(inout) :: mol
+  logical,intent(in) :: addconstraints
+  logical,intent(in) :: printinfo
+
+  !> clear old data
+  if (allocated(env%calc%calcs)) deallocate (env%calc%calcs)
+  env%calc%ncalculations = 0
+
+  !> and re-initialize
+  call env2calc(env,env%calc,mol)
+
+  !> add constraints from 'cts' if we want this
+  if (addconstraints) then
+    if (allocated(env%calc%cons)) deallocate (env%calc%cons)
+    env%calc%nconstraints = 0
+    call parse_constraints_from_cts(env%calc,mol,env%cts)
+  end if
+
+  !> do a printout to stdout, if selected
+  if (printinfo) then
+    call env%calc%info(stdout)
+  end if
+
+end subroutine qcg_envcalc_reinit
 

@@ -332,9 +332,9 @@ subroutine parseflags(env,arg,nra)
   env%preopt = .true.
 !>--- check for (TOML) input file
   call find_input_file(arg,nra,idum)
-  if(idum.ne.0)then
+  if (idum .ne. 0) then
     call parseinputfile(env,trim(arg(idum)))
-  endif
+  end if
 
 !>--- first arg loop
   do i = 1,nra
@@ -847,14 +847,7 @@ subroutine parseflags(env,arg,nra)
   else
     call inputcoords(env,trim(arg(1)))
   end if
-!========================================================================================!
-!> after this point there should always be a "coord" file present
-!========================================================================================!
- if(.not.allocated(env%includeRMSD))then
-    allocate (env%includeRMSD(env%nat))
-    env%includeRMSD = 1
- endif
- 
+
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
 !> parse the input flags
@@ -1266,21 +1259,21 @@ subroutine parseflags(env,arg,nra)
         end if
 
       case ('-efield')  !> electric field in V/Ang, only compatibe with tblite
-        if(.not.allocated(env%ref%efield)) allocate(env%ref%efield(3), source=0.0_wp)
+        if (.not.allocated(env%ref%efield)) allocate (env%ref%efield(3),source=0.0_wp)
         if (nra >= i+3) then
           ctmp = trim(arg(i+1))
-          read(ctmp,*,iostat=io) env%ref%efield(1)
-          ctmp = trim(arg(i+2))                    
-          read(ctmp,*,iostat=io) env%ref%efield(2) 
-          ctmp = trim(arg(i+3))                     
-          read(ctmp,*,iostat=io) env%ref%efield(3)  
-          write(stdout,'("  --efield: ",3(1x,es10.3)," V/Å")') env%ref%efield(1:3)
+          read (ctmp,*,iostat=io) env%ref%efield(1)
+          ctmp = trim(arg(i+2))
+          read (ctmp,*,iostat=io) env%ref%efield(2)
+          ctmp = trim(arg(i+3))
+          read (ctmp,*,iostat=io) env%ref%efield(3)
+          write (stdout,'("  --efield: ",3(1x,es10.3)," V/Å")') env%ref%efield(1:3)
         else
-          write(stdout,'(a)') 
-        endif
+          write (stdout,'(a)')
+        end if
 
-      case ('-ceh_guess') 
-        env%ceh_guess=.true.
+      case ('-ceh_guess')
+        env%ceh_guess = .true.
 
       case ('-dscal','-dispscal','-dscal_global','-dispscal_global')
         env%cts%dispscal_md = .true.
@@ -2314,14 +2307,14 @@ subroutine parseflags(env,arg,nra)
 !>--- pass on other settings (from cli) to new calculator
   if (.not.env%legacy) then
     call env2calc_modify(env)
-  endif
+  end if
 
 !>--- important printouts
   if (.not.env%legacy) then
 
-    if (env%crestver .ne. crest_sorting) then 
-      call env%calc%info(stdout)              
-    end if                                    
+    if (env%crestver .ne. crest_sorting) then
+      call env%calc%info(stdout)
+    end if
 
     call print_frozen(env)
   end if
@@ -2517,7 +2510,8 @@ subroutine inputcoords(env,arg)
   character(len=:),allocatable :: arg2
   type(coord) :: mol
   type(zmolecule) :: zmol
-  integer :: i
+  integer :: i,idiff
+  integer,allocatable :: tmpinclude(:)
 
 !>--- Redirect for QCG input reading
   if (env%QCG) then
@@ -2601,6 +2595,24 @@ subroutine inputcoords(env,arg)
   call simpletopo_file('coord',zmol,.false.,.false.,'')
   env%protb%nfrag = zmol%nfrag
   call zmol%deallocate()
+
+!>--- Repair logic of includeRMSD array (especially for something like QCG)
+  if (.not.allocated(env%includeRMSD)) then
+    allocate (env%includeRMSD(env%ref%nat))
+    env%includeRMSD(:) = 1
+  else
+    !> assuming if the current includeRMSD is smaller than the
+    !> current system we have *appended* some atoms
+    idiff = size(env%includeRMSD,1)
+    if (idiff < env%ref%nat) then
+      allocate (tmpinclude(env%ref%nat),source=1)
+      do i = 1,idiff
+        tmpinclude(i) = env%includeRMSD(i)
+      end do
+      !deallocate(env%includeRMSD)
+      call move_alloc(tmpinclude,env%includeRMSD)
+    end if
+  end if
 
   return
 end subroutine inputcoords
