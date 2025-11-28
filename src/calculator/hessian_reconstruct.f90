@@ -55,6 +55,12 @@ contains
     if (allocated(self%coords)) deallocate (self%coords)
     if (allocated(self%energy)) deallocate (self%energy)
     if (allocated(self%order)) deallocate (self%order)
+    if (allocated(self%s)) deallocate (self%s)
+    if (allocated(self%y)) deallocate (self%y)
+    if (allocated(self%p)) deallocate (self%p)
+    if (allocated(self%rho)) deallocate (self%rho)
+    if (allocated(self%V)) deallocate (self%V)
+    if (allocated(self%I)) deallocate (self%I)
 
   end subroutine cashed_hessian_deallocate
 
@@ -84,7 +90,7 @@ contains
       self%B = self%I
     else
       call self%construct_hessian_lbfgs(n-1)
-      temp = matmul(matmul(TRANSPOSE(self%V(n,:,:)),self%B),self%V(n,:,:))-self%p(n)*(matmul(reshape(self%s(n,:), [3*self%natm,1]),reshape(self%s(n,:), [1,3*self%natm])))
+      temp = matmul(matmul(TRANSPOSE(self%V(n,:,:)),self%B),self%V(n,:,:))+self%p(n)*(matmul(reshape(self%s(n,:), [3*self%natm,1]),reshape(self%s(n,:), [1,3*self%natm])))
       self%B = temp
     end if
 
@@ -93,17 +99,11 @@ contains
   subroutine compute_intermediates(self)
     class(cashed_hessian),intent(inout) :: self
     integer :: i,j,k
-    real(wp), allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:)
+    real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:)
 
     allocate (tmp_coords(self%steps,3*self%natm))
     allocate (tmp_grads(self%steps,3*self%natm))
     allocate (tmp(self%steps))
-    allocate (self%s(self%steps-1,3*self%natm))
-    allocate (self%y(self%steps-1,3*self%natm))
-    allocate (self%p(self%steps-1))
-    allocate (self%rho(self%steps-1))
-    allocate (self%V(self%steps-1,3*self%natm,3*self%natm))
-    allocate (self%I(3*self%natm,3*self%natm))
 
     tmp = self%order
     self%I = 0.0_wp
@@ -112,8 +112,8 @@ contains
       self%I(k,k) = 1.0_wp
     end do
 
-    tmp_coords = reshape(self%coords,[self%steps,3*self%natm])
-    tmp_grads = reshape(self%gradient,[self%steps,3*self%natm])
+    tmp_coords = reshape(self%coords, [self%steps,3*self%natm])
+    tmp_grads = reshape(self%gradient, [self%steps,3*self%natm])
 
     if (minval(tmp) == 0) then
       print*,"ERROR: Number of recursive steps for hessian reconstruction larger than number of geoemtry optimization steps!"
