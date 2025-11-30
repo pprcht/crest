@@ -50,6 +50,7 @@ module strucrd
 
 !>--- some constants and name mappings
   real(wp),parameter :: bohr = 0.52917726_wp
+  real(wp),parameter :: aatoau = 1.0_wp/bohr
   real(wp),parameter :: autokcal = 627.509541_wp
 !>-- filetypes as integers
   integer,parameter :: tmcoord = 1
@@ -242,13 +243,13 @@ module strucrd
     procedure :: deallocate => deallocate_ensembletype !clear memory space
     procedure :: open => openensemble !read an ensemble file
     procedure :: write => write_ensemble !write to file
-
+    procedure :: get_mol => ensemble_get_mol !extract the i-th mol from ensemble type
   end type ensemble
 
 !==========================================================================================!
   type :: mollist
-     integer :: nall = 0 
-     type(coord),allocatable :: structure(:)
+    integer :: nall = 0
+    type(coord),allocatable :: structure(:)
   end type mollist
 
 !=========================================================================================!
@@ -774,6 +775,29 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine openensemble
 
+  subroutine ensemble_get_mol(self,i,mol)
+    class(ensemble) :: self
+    integer,intent(in) :: i
+    class(coord),intent(inout) :: mol
+    integer :: n
+    logical :: reinitialize
+    if (i > self%nall) error stop 'can´t get molecule from ensemble. i>nall'
+    if (i < 1) error stop 'can´t get molecule from ensemble. i<1'
+    n = self%nat
+    reinitialize = (mol%nat == n)
+    if (reinitialize) then
+      mol%nat = n
+      if (allocated(mol%at)) deallocate (mol%at)
+      allocate (mol%at(n),source=0)
+      if (allocated(mol%xyz)) deallocate (mol%xyz)
+      allocate (mol%xyz(3,n),source=0.0_wp)
+    end if
+    mol%energy = self%er(i)
+    mol%at(:) = self%at(:) 
+    !> Important, ens is in Angström, mol is in Bohrs
+    mol%xyz(1:3,1:n) = self%xyz(1:3,1:n,i)*aatoau
+  end subroutine ensemble_get_mol
+
 !=========================================================================================!
 !=========================================================================================!
 !  2. ROUTINES FOR READING SINGLE STRUCTURES (COORDS)
@@ -1229,7 +1253,7 @@ contains  !> MODULE PROCEDURES START HERE
 !           nat    - number of atoms
 !
 ! On Output: at   - atom number as integer
-!            xyz  - coordinates (in Angström)
+!            xyz  - coordinates (in Bohr)
 !============================================================!
 
   subroutine rdxmolselec(fname,m,nat,at,xyz,comment)
@@ -1729,7 +1753,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,ich,io
     logical :: ex
     write (ch,'(2x,i0)') nat
-    write (ch,'(2x,f18.8)') er
+    write (ch,'(2x,a,f18.8)') "energy=",er
     do j = 1,nat
       write (ch,'(1x,a2,1x,3f20.10)') i2e(at(j),'nc'),xyz(1:3,j)
     end do
@@ -1972,7 +1996,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%comment)) then
       call wrxyz(io,self%nat,self%at,self%xyz,trim(self%comment))
     else if (self%energy .ne. 0.0_wp) then
-      write (atmp,'(a,f22.10)') ' Etot= ',self%energy
+      write (atmp,'(a,f22.10)') ' energy= ',self%energy
       call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
     else
       call wrxyz(io,self%nat,self%at,self%xyz)
@@ -1990,9 +2014,9 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=64) :: atmp
     self%xyz = self%xyz*bohr !to Angström
     if (present(gnorm).and.present(energy)) then
-      write (atmp,'(a,f22.10,a,f16.8)') ' Etot= ',energy,' grad.norm.= ',gnorm
+      write (atmp,'(a,f22.10,a,f16.8)') ' energy= ',energy,' grad.norm.= ',gnorm
     else if (present(energy)) then
-      write (atmp,'(a,f22.10)') ' Etot= ',energy
+      write (atmp,'(a,f22.10)') ' energy= ',energy
     else
       atmp = ''
     end if
@@ -2383,20 +2407,20 @@ contains  !> MODULE PROCEDURES START HERE
 !=========================================================================================!
 
   subroutine atswp(self,ati,atj)
-  !********************************
-  !* swap atom ati with atj in mol
-  !********************************
-     implicit none
-     class(coord),intent(inout) :: self
-     integer,intent(in) :: ati,atj
-     real(wp) :: xyztmp(3)
-     integer :: attmp
-     xyztmp(1:3) = self%xyz(1:3,ati)
-     attmp = self%at(ati)
-     self%xyz(1:3,ati) = self%xyz(1:3,atj)
-     self%at(ati) = self%at(atj)
-     self%xyz(1:3,atj) = xyztmp(1:3)
-     self%at(atj) = attmp
+    !********************************
+    !* swap atom ati with atj in mol
+    !********************************
+    implicit none
+    class(coord),intent(inout) :: self
+    integer,intent(in) :: ati,atj
+    real(wp) :: xyztmp(3)
+    integer :: attmp
+    xyztmp(1:3) = self%xyz(1:3,ati)
+    attmp = self%at(ati)
+    self%xyz(1:3,ati) = self%xyz(1:3,atj)
+    self%at(ati) = self%at(atj)
+    self%xyz(1:3,atj) = xyztmp(1:3)
+    self%at(atj) = attmp
   end subroutine atswp
 
 !=========================================================================================!

@@ -80,6 +80,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
 !* subroutine crest_sploop
 !* This subroutine performs concurrent singlepoint evaluations
 !* for the given ensemble. Input eread is overwritten
+!* xyz must be in Bohrs
 !***************************************************************
   use crest_parameters,only:wp,stdout,sep
   use crest_calculator

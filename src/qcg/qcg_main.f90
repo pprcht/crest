@@ -1013,22 +1013,32 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   clus%nat = ens%nat
   allocate (clus%at(clus%nat))
   allocate (clus%xyz(3,clus%nat))
-
-
+  write (stdout,'(1x,i0,a)') ens%nall,' structures remaining.'
+  write (stdout,*)
 
 !-------------------------------------------------------------
 !      SP with Implicit solvation model and without wall potentials
 !-------------------------------------------------------------
+  if (env%legacy) then
+    !> old, I/O-heavy version
+    call ens_sp_with_io(env,ens,clus,resultspath)
+  else
+    !> use internal parallel loop, but remember to convert to Bohrs for that
+    clus%at(:) = ens%at(:)
+    clus%xyz(1:3,1:clus%nat) = ens%xyz(1:3,1:ens%nat,1)*aatoau
+    call qcg_envcalc_reinit(env,clus,.true.,.true.)
 
-  call ens_sp_with_io(env,ens,clus,resultspath)
+    ens%xyz = ens%xyz*aatoau
+    call crest_sploop(env,ens%nat,ens%nall,ens%at,ens%xyz,ens%er)
+    ens%xyz = ens%xyz*autoaa
+  end if
 
-  stop  !TODO TODO TODO TODO 
 !-------------------------------------------------------------
 !      Processing results
 !-------------------------------------------------------------
-  env%gfnver = gfnver_tmp  
-  allocate (e_fix(ens%nall))
-  allocate (e_clus(ens%nall))
+  env%gfnver = gfnver_tmp
+  allocate (e_fix(ens%nall),source=0.0_wp)
+  allocate (e_clus(ens%nall),source=0.0_wp)
 
   call pr_ensemble_energy()
 
@@ -1037,13 +1047,19 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 
 !--- Fixation energy of optimization
   do i = 1,ens%nall
-    call chdirdbug('OPTIM')
-    write (to,'("TMPCONF",i0)') i
-    call chdirdbug(to)
-    call grepval('xtb.out','         :: add. restraining',e_there,e_fix(i))
-    call chdirdbug(tmppath2)
+    if (env%legacy) then
+      !> old I/O-heady version
+      call chdirdbug('OPTIM')
+      write (to,'("TMPCONF",i0)') i
+      call chdirdbug(to)
+      call grepval('xtb.out','         :: add. restraining',e_there,e_fix(i))
+      call chdirdbug(tmppath2)
+      call rdxmolselec('full_ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
+    else
+      !> quicker version, simply load from 'ens'
+      call ens%get_mol(i,clus)
+    end if
 
-    call rdxmolselec('full_ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
     call get_sphere(.false.,clus,.false.)
     dens = 0.001*(solu%mass+env%nsolv*solv%mass)/(1.0d-30*clus%vtot*bohr**3)
     if (env%solv_md) then
@@ -1054,7 +1070,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     write (ich98,'(i4,F20.10,3x,f8.1)') env%nsolv,ens%er(i),clus%atot
     write (stdout,'(x,i4,4x,F13.6,2x,f6.3,1x,f8.3,2x,2f6.1,3x,f8.1,3x,a)') &
           & i,ens%er(i),dens,e_fix(i),shr_av,shr,clus%atot,trim(optlevflag(env%optlev))
-    e_fix(i) = e_fix(i)*autokcal/sqrt(float(clus%nat))
+    e_fix(i) = e_fix(i)*autokcal/sqrt(real(clus%nat,wp))
   end do
   close (ich98)
   call copysub('cluster_energy.dat',resultspath)
@@ -1062,7 +1078,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
 !--- Checking Boltzmann weighting
   write (stdout,*)
   call remove('full_ensemble.xyz')
-  call sort_ensemble(ens,ens%er,'full_ensemble.xyz')
+  call qcg_dump_sorted_ensemble(ens,ens%er,'full_ensemble.xyz')
   e_clus = ens%er*autokcal
   call sort_min(ens%nall,1,1,e_clus)
   ens%er = e_clus/autokcal !Overwrite ensemble energy with sorted one
@@ -1131,8 +1147,8 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   write (stdout,'(2x,70("-"))')
   write (stdout,'(2x,''Boltz. averaged energy of final cluster:'')')
   call aver(.true.,env,ens%nall,e_clus(1:ens%nall),S,H,G,sasa,.false.)
-  write (stdout,'(7x,''G /Eh     :'',F14.8)') G/autokcal
-  write (stdout,'(7x,''T*S /kcal :'',f8.3)') S
+  write (stdout,'(7x,''G /Eh     :'',f15.8)') G/autokcal
+  write (stdout,'(7x,''T*S /kcal :'',f15.8)') S
 
   ens%g = G
   ens%s = S
@@ -1156,14 +1172,16 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   if (.not.env%keepModef) call rmrf(tmppath2)
 !----Outprint
   write (stdout,*)
-  write (stdout,'(2x,''Ensemble generation finished.'')')
-  write (stdout,'(2x,''Results can be found in ensemble directory'')')
-  write (stdout,'(2x,''Lowest energy conformer in file <crest_best.xyz>'')')
-  write (stdout,'(2x,''List of full ensemble in file <full_ensemble.xyz>'')')
-  write (stdout,'(2x,''List of used ensemble in file <final_ensemble.xyz>'')')
-  write (stdout,'(2x,''Thermodynamical data in file <thermo_data>'')')
-  write (stdout,'(2x,''Population of full ensemble in file <full_population.dat>'')')
-  write (stdout,'(2x,''Population in file <population.dat>'')')
+  write (stdout,'(2x,"Ensemble generation finished.")')
+  write (stdout,'(2x,"Results can be found in the [ensemble] directory:")')
+  write (stdout,'(2x,"--> What?                      --> Where?")')
+  write (stdout,'(2x,"Lowest energy conformer        crest_best.xyz")')
+  write (stdout,'(2x,"List of full ensemble          full_ensemble.xyz")')
+  write (stdout,'(2x,"List of used ensemble          final_ensemble.xyz")')
+  write (stdout,'(2x,"Ensemble thermodyn data        thermo_data")')
+  write (stdout,'(2x,"Population of selected         population.dat")') 
+  write (stdout,'(2x,"Population of full ensemble    full_population.dat")')
+
 
   !>--- restore settings
   env%gfnver = gfnver_tmp

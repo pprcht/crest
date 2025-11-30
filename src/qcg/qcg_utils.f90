@@ -653,29 +653,27 @@ contains
 
 !==============================================================================!
 
-  subroutine sort_ensemble(ens,e_ens,fname)
+  subroutine qcg_dump_sorted_ensemble(ens,e_ens,fname)
     use crest_parameters
     use crest_data
     use strucrd
     implicit none
-    type(ensemble)       :: ens
-    real(wp)             :: e_ens(ens%nall),dum(ens%nall)
-    character(len=*)     :: fname
-    integer              :: ich
-    integer              :: i,e_min
-
-    dum = e_ens
-
+    type(ensemble),intent(in) :: ens
+    real(wp),intent(in)       :: e_ens(ens%nall)
+    real(wp),allocatable :: dum(:)
+    character(len=*) :: fname
+    integer          :: ich,i,e_min
+    allocate(dum(ens%nall))
+    dum(:) = e_ens(:)
     open (newunit=ich,file=fname)
-
     do i = 1,ens%nall
       e_min = minloc(dum,dim=1)
       call wrxyz(ich,ens%nat,ens%at,ens%xyz(:,:,e_min),e_ens(e_min))
-      dum(e_min) = 0.0d0
+      dum(e_min) = huge(1.0_wp)
     end do
     close (ich)
-
-  end subroutine sort_ensemble
+    deallocate(dum)
+  end subroutine qcg_dump_sorted_ensemble
 
 !==============================================================================!
 
@@ -692,15 +690,11 @@ contains
     real(wp),intent(out)  :: srot
     real(wp),intent(out)  :: stra
 ! Stack
-    integer                :: nn
-    integer                :: io
-    integer                :: counter
-    integer                :: hg_line
-    real(wp)               :: xx(20)
-    logical                :: ende
-    character(len=*)       :: fname
-    character(len=128)     :: a
-    integer                :: ich
+    integer :: nn,io,counter,hg_line,ich
+    real(wp) :: xx(20)
+    logical :: ende
+    character(len=*) :: fname
+    character(len=128) :: a
 
     ende = .false.
     counter = 0
@@ -776,19 +770,5 @@ contains
   end subroutine rdxtbiffE
 
 !==============================================================================!
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 !==============================================================================!
 end module qcg_utils

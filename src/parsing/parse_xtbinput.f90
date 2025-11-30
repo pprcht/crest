@@ -266,6 +266,7 @@ contains  !> MODULE PROCEDURES START HERE
           call calc%add(cons)
           if (debug) call cons%print(stdout)
         end if
+
       case ('atoms')
         if (.not.allocated(pairwise)) allocate (pairwise(mol%nat),source=.false.)
         call get_atlist(mol%nat,atlist,kv%rawvalue,mol%at)
