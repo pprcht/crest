@@ -100,10 +100,12 @@ contains  !> MODULE PROCEDURES START HERE
     end select
     molnew%energy = etot
 
+    if (calc%do_HU) then
     print*, "Energies", calc%chess%energy
     print*, "Gradients", calc%chess%gradient
     print*, "Coords", calc%chess%coords
     print*, "Order", calc%chess%order
+    endif
 
     if (calc%do_HU) then
       call calc%chess%dealloc()

@@ -477,6 +477,7 @@ subroutine ensemble_analsym(fname,pr)
 !*****************************************************************
   use crest_parameters
   use strucrd
+  use getsymmetry
   implicit none
   character(len=*) :: fname
   logical :: pr

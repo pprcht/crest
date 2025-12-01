@@ -146,7 +146,7 @@ subroutine crest_numhess(env,tim)
         call prj_mw_hess(mol%nat,mol%at,nat3,mol%xyz,heff)
 
         !>-- Comp. of Frequencies
-        call frequencies(mol%nat,mol%at,mol%xyz,nat3,calc,heff,freq(:,n_freqs),io)
+        call frequencies(mol%nat,mol%at,mol%xyz,nat3,heff,freq(:,n_freqs),io)
 
         !>-- Printout of vibspectrum
         call print_vib_spectrum(mol%nat,mol%at,nat3,mol%xyz,freq(:,n_freqs),'','vibspectrum')
@@ -190,7 +190,7 @@ subroutine crest_numhess(env,tim)
         call prj_mw_hess(mol%nat,mol%at,nat3,mol%xyz,hess(:,:,i))
 
         !>-- Computes the Frequencies
-        call frequencies(mol%nat,mol%at,mol%xyz,nat3,calc,hess(:,:,i),freq(:,i),io)
+        call frequencies(mol%nat,mol%at,mol%xyz,nat3,hess(:,:,i),freq(:,i),io)
 
         if (io .ne. 0) then
           write (stdout,*) 'FAILED!'
@@ -233,7 +233,7 @@ subroutine crest_numhess(env,tim)
     call prj_mw_hess(mol%nat,mol%at,nat3,mol%xyz,ohess(:,:))
 
     !>-- Computes the Frequencies (in cm^-1)
-    call frequencies(mol%nat,mol%at,mol%xyz,nat3,calc,ohess(:,:),ofreq(:),io)
+    call frequencies(mol%nat,mol%at,mol%xyz,nat3,ohess(:,:),ofreq(:),io)
 
     !>-- Prints vibspectrum (cm^-1) with artifical intensities
     call print_vib_spectrum(mol%nat,mol%at,nat3,mol%xyz,ofreq(:), &
@@ -276,13 +276,14 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   use crest_parameters
   use crest_data
   use strucrd
+  use thermochem_module
   implicit none
   !> INPUT
   type(systemdata) :: env
-  type(coord) :: mol
+  type(coord), intent(inout) :: mol
   integer,intent(in) :: nat3
   real(wp),intent(in) :: hess(nat3,nat3)
-  real(wp),intent(in) :: freq(nat3)
+  real(wp),intent(inout) :: freq(nat3)
   real(wp),intent(in) :: etot
   !> LOCAL
   real(wp) :: ithr,fscal,sthr
@@ -310,8 +311,8 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   !write(*,*) nrt
   temps = env%thermo%temps 
 
-  !> calcthermo wants input in Angstroem
-  call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
+  !> calcthermo wants input in Bohr
+  call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
   & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
 
   !> printout
@@ -342,6 +343,7 @@ subroutine thermo_standalone(env)
   use crest_parameters
   use crest_data
   use strucrd
+  use thermochem_module
   implicit none
   !> INPUT
   type(systemdata) :: env
@@ -415,8 +417,8 @@ subroutine thermo_standalone(env)
   !write(*,*) nrt
   temps = env%thermo%temps 
 
-  !> calcthermo wants input in Angstroem
-  call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
+  !> calcthermo wants input in Bohr
+  call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
   & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
 
   !> printout

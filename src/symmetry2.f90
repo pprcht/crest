@@ -15,6 +15,12 @@
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with xtb.  If not, see <https://www.gnu.org/licenses/>.
 
+Module getsymmetry
+
+private
+public getsymmetry2
+contains
+
 Subroutine get_schoenflies(n,iat,xyz,sfsym,paramar)
   Use iso_c_binding
   Implicit None
@@ -134,3 +140,4 @@ subroutine getsymmetry2(pr,iunit,n,iat,xyz,symthr,maxatdesy,sfsym)
 
 End subroutine getsymmetry2
 
+end module getsymmetry

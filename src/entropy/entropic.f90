@@ -1254,6 +1254,7 @@ subroutine analsym(zmol,fac,pr)
 !*******************************************************
   use crest_parameters,only:wp,idp => dp
   use zdata
+  use getsymmetry
   implicit none
   type(zmolecule) :: zmol
   real(wp),intent(out) :: fac
@@ -1287,6 +1288,7 @@ end subroutine analsym
 subroutine analsym_geo(grp,nat,xyz,at,fac,pr,sfsm)
   use crest_parameters,only:wp,idp => dp
   use zdata
+  use getsymmetry
   implicit none
   type(zequal) :: grp
   real(wp),intent(out) :: fac

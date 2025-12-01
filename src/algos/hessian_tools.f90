@@ -32,7 +32,7 @@ module hessian_tools
   use crest_data
   use crest_calculator
   use strucrd
-  use optimize_module
+  !use optimize_module
   use optimize_maths
   use iomod
 
@@ -45,7 +45,7 @@ contains  !> MODULE PROCEDURES START HERE
 !=========================================================================================!
 
 
-  subroutine frequencies(nat,at,xyz,nat3,calc,prj_mw_hess,freq,io)
+  subroutine frequencies(nat,at,xyz,nat3,prj_mw_hess,freq,io)
 !*************************************************
 !* Returns the Frequencies from a Hessian in cm-1
 !*************************************************
@@ -54,7 +54,6 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: nat
     integer,intent(in) :: at(nat)
     real(wp),intent(in) :: xyz(3,nat)
-    type(calcdata) :: calc
     real(wp) :: prj_mw_hess(nat3,nat3)
 
     integer :: io,nat3
@@ -569,7 +568,7 @@ contains  !> MODULE PROCEDURES START HERE
       call prj_mw_hess(nat,at,nat3,xyz, hessian(:,:))
 
       !>-- Computes the Frequencies
-      call frequencies(nat,at,xyz,nat3, calc, hessian(:,:), freq(:),io)
+      call frequencies(nat,at,xyz,nat3, hessian(:,:), freq(:),io)
      end do
 
      deallocate( hessian )

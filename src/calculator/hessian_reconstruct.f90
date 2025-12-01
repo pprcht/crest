@@ -1,5 +1,6 @@
 module hessian_reconstruct
   use iso_fortran_env,only:wp => real64
+  !use hessian_tools, only:frequencies 
   implicit none
   private
 
@@ -32,17 +33,18 @@ contains
     class(cashed_hessian),intent(inout) :: self
 
     self%steps = steps
+    self%natm = N
     allocate (self%gradient(steps,3,N))
     allocate (self%coords(steps,3,N))
     allocate (self%energy(steps))
     allocate (self%order(steps))
-    allocate (self%s(self%steps-1,3*self%natm))
-    allocate (self%y(self%steps-1,3*self%natm))
+    allocate (self%s(self%steps-1,3*N))
+    allocate (self%y(self%steps-1,3*N))
     allocate (self%p(self%steps-1))
     allocate (self%rho(self%steps-1))
-    allocate (self%V(self%steps-1,3*self%natm,3*self%natm))
-    allocate (self%I(3*self%natm,3*self%natm))
-    self%natm = N
+    allocate (self%V(self%steps-1,3*N,3*N))
+    allocate (self%I(3*N,3*N))
+    
 
     self%order(:) = 0
 
