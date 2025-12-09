@@ -609,7 +609,7 @@ end subroutine ensemble_dock
 ! xTB CFF optimization performed in parallel
 !___________________________________________________________________________________
 
-subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
+subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   use crest_parameters
   use iomod
   use crest_data
@@ -621,7 +621,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   character(len=*),intent(in)     :: TMPdir     !directory name
   integer,intent(inout)           :: NTMP       !number of structures to be optimized
   integer,intent(inout)           :: conv(env%nqcgclust+1)
-  logical,intent(in)              :: postopt
+  logical,intent(in)              :: pr
   logical,intent(in)              :: nothing_added(env%nqcgclust)
   integer                         :: i,k,n12
   integer                         :: vz,T,Tn
@@ -635,13 +635,13 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
 ! setting the threads for correct parallelization
   call new_ompautoset(env,'auto',NTMP,T,Tn)
 
-  if (postopt) then
+  if (pr) then
     write (stdout,'(2x,''Starting optimizations + SP  of structures'')')
     write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
   end if
 
-! postopt eq true => post opt run, which has to be performed in every directory !!!
-  if (postopt) then
+! pr eq true => post opt run, which has to be performed in every directory !!!
+  if (pr) then
     k = 0
     NTMP = env%nqcgclust
     do i = 1,env%nqcgclust
@@ -663,7 +663,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
       write (funit,'(3x,"atoms: 1-",i0)') n12 !Initial number of atoms (starting solvent shell)
     end if
     close (funit)
-    if (postopt.and.nothing_added(i)) call remove('xcontrol')
+    if (pr.and.nothing_added(i)) call remove('xcontrol')
     call chdirdbug(trim(thispath))
   end do
 
@@ -677,7 +677,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   end if
 
   k = 0 !counting the finished jobs
-  if (postopt) call printprogbar(0.0_wp)
+  if (pr) call printprogbar(0.0_wp)
 !___________________________________________________________________________________
 
 !$omp parallel &
@@ -691,7 +691,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
     !$omp critical
     k = k+1
     percent = float(k)/float(NTMP)*100
-    if (postopt) then
+    if (pr) then
       call printprogbar(percent)
     end if
     !$omp end critical
@@ -720,7 +720,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   end if
 
   k = 0 !counting the finished jobs
-  if (postopt) call printprogbar(0.0_wp)
+  if (pr) call printprogbar(0.0_wp)
 !___________________________________________________________________________________
 
 !$omp parallel &
@@ -734,7 +734,7 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
     !$omp critical
     k = k+1
     percent = float(k)/float(NTMP)*100
-    if (postopt) then
+    if (pr) then
       call printprogbar(percent)
     end if
     !$omp end critical
@@ -754,12 +754,161 @@ subroutine cff_opt(postopt,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
     call chdirdbug(trim(thispath))
   end do
 
-  if (postopt) then
+  if (pr) then
     write (stdout,*) ''
     write (stdout,'(2x,"done.")')
   end if
 
 end subroutine cff_opt
+
+subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
+  use crest_parameters
+  use iomod
+  use crest_data
+  use strucrd
+  implicit none
+
+  type(systemdata)                :: env
+  character(len=*),intent(in)     :: fname      !file base name
+  character(len=*),intent(in)     :: TMPdir     !directory name
+  integer,intent(inout)           :: NTMP       !number of structures to be optimized
+  integer,intent(inout)           :: conv(env%nqcgclust+1)
+  logical,intent(in)              :: pr
+  logical,intent(in)              :: nothing_added(env%nqcgclust)
+  integer                         :: i,k,n12
+  integer                         :: vz,T,Tn
+  integer                         :: funit
+  character(len=20)               :: pipe
+  character(len=512)              :: thispath,tmppath
+  character(len=1024)             :: jobcall
+  character(len=2)                :: flag
+  real(wp)                        :: percent
+
+  if (pr) then
+    write (stdout,'(2x,"Starting optimizations + SP  of structures")')
+    write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
+  end if
+
+! pr eq true => post opt run, which has to be performed in every directory !!!
+  if (pr) then
+    k = 0
+    NTMP = env%nqcgclust
+    do i = 1,env%nqcgclust
+      k = k+1
+      conv(k) = i
+      conv(env%nqcgclust+1) = k
+    end do
+  end if
+  pipe = '2>/dev/null'
+
+  call getcwd(thispath)
+  do i = 1,NTMP
+    write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
+    call chdirdbug(trim(tmppath))
+    open (newunit=funit,file='xcontrol')
+    if (n12 .ne. 0) then
+      flag = '$'
+      write (funit,'(a,"fix")') trim(flag)
+      write (funit,'(3x,"atoms: 1-",i0)') n12 !Initial number of atoms (starting solvent shell)
+    end if
+    close (funit)
+    if (pr.and.nothing_added(i)) call remove('xcontrol')
+    call chdirdbug(trim(thispath))
+  end do
+
+!--- Jobcall WITHOUT GBSA
+  write (jobcall,'(a,1x,a,1x,a,'' --input xcontrol --opt '',i0,1x,a,'' >xtb.out'')') &
+  &    trim(env%ProgName),trim(fname),trim(env%gfnver),nint(env%optlev),trim(pipe)
+
+  if (NTMP .lt. 1) then
+    write (stdout,'(2x,"No structures to be optimized")')
+    return
+  end if
+
+  k = 0 !counting the finished jobs
+  if (pr) call printprogbar(0.0_wp)
+!___________________________________________________________________________________
+
+!$omp parallel &
+!$omp shared( vz,jobcall,NTMP,percent,k,TMPdir,conv )
+!$omp single
+  do i = 1,NTMP
+    vz = i
+    !$omp task firstprivate( vz ) private( tmppath )
+    write (tmppath,'(a,i0)') trim(TMPdir),conv(vz)
+    call command('cd '//trim(tmppath)//' && '//trim(jobcall))
+    !$omp critical
+    k = k+1
+    percent = float(k)/float(NTMP)*100
+    if (pr) then
+      call printprogbar(percent)
+    end if
+    !$omp end critical
+    !$omp end task
+  end do
+!$omp taskwait
+!$omp end single
+!$omp end parallel
+
+!__________________________________________________________________________________
+
+  do i = 1,NTMP
+    write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
+    call chdirdbug(trim(tmppath))
+    call remove('xtbrestart')
+    call chdirdbug(trim(thispath))
+  end do
+
+  !create the system call for sp (needed for gbsa model)
+  write (jobcall,'(a,1x,a,1x,a,'' --sp '',a,1x,a,'' >xtb_sp.out'')') &
+  &    trim(env%ProgName),'xtbopt.coord',trim(env%gfnver),trim(env%solv),trim(pipe)
+
+  if (NTMP .lt. 1) then
+    write (stdout,'(2x,"Nothing to do")')
+    return
+  end if
+
+  k = 0 !counting the finished jobs
+  if (pr) call printprogbar(0.0_wp)
+!___________________________________________________________________________________
+
+!$omp parallel &
+!$omp shared( vz,jobcall,NTMP,percent,k,TMPdir,conv )
+!$omp single
+  do i = 1,NTMP
+    vz = i
+    !$omp task firstprivate( vz ) private( tmppath )
+    write (tmppath,'(a,i0)') trim(TMPdir),conv(vz)
+    call command('cd '//trim(tmppath)//' && '//trim(jobcall))
+    !$omp critical
+    k = k+1
+    percent = float(k)/float(NTMP)*100
+    if (pr) then
+      call printprogbar(percent)
+    end if
+    !$omp end critical
+    !$omp end task
+  end do
+!$omp taskwait
+!$omp end single
+!$omp end parallel
+
+!___________________________________________________________________________________
+
+  do i = 1,NTMP
+    write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
+    call chdirdbug(trim(tmppath))
+    call remove('xtbrestart')
+    !call remove('xcontrol')
+    call chdirdbug(trim(thispath))
+  end do
+
+  if (pr) then
+    write (stdout,*) ''
+    write (stdout,'(2x,"done.")')
+  end if
+
+end subroutine cff_opt_calculator
 
 !___________________________________________________________________________________
 !
@@ -864,7 +1013,7 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
 
   write (stdout,'(2x,''---------------------------------------------'')')
   write (stdout,'(2x,''Single point computation with GBSA/ALPB model'')')
-  write (stdout,'(2x,''---------------------------------------------'')') 
+  write (stdout,'(2x,''---------------------------------------------'')')
   write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
 
   pipe = '2>/dev/null'
@@ -1021,7 +1170,6 @@ end subroutine ens_freq
 subroutine wr_cluster_cut(fname_cluster,n1,n2,iter,fname_solu_cut,fname_solv_cut)
   use crest_parameters
   use strucrd
-
   implicit none
   integer,intent(in)         :: n1,n2,iter
   real(wp)                    :: xyz1(3,n1)
@@ -1032,8 +1180,8 @@ subroutine wr_cluster_cut(fname_cluster,n1,n2,iter,fname_solu_cut,fname_solv_cut
   character(len=2)           :: a2
   integer                     :: ich,i,k,stat,io,io2
 
-  ich = 142
-  open (unit=ich,file=fname_cluster,iostat=stat)
+  !ich = 142
+  open (newunit=ich,file=fname_cluster,iostat=stat)
   read (ich,'(a)') atmp
   k = 1
   do i = 1,n1

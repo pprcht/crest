@@ -76,22 +76,21 @@ subroutine crest_numhess(env,tim)
 !========================================================================================!
 
   !>--- start with an initial single point
-  write(stdout,'(a)') repeat(":",80)
+  write (stdout,'(a)') repeat(":",80)
   write (stdout,'(1x,a)') 'Initial singlepoint calculation ...'
-  allocate(grad0(3,mol%nat),source=0.0_wp)
-  allocate(energies0( calc%ncalculations ), source=0.0_wp)
+  allocate (grad0(3,mol%nat),source=0.0_wp)
+  allocate (energies0(calc%ncalculations),source=0.0_wp)
 
-  call engrad(mol,calc,energy,grad0,io)   
-  energies0 = calc%etmp  
-  
-  write(atmp,'("Energy = ",f25.15," Eh")') energy
-  call smallhead(trim(atmp)) 
-  write(stdout,'(a)') repeat(":",80)
-  write(stdout,*)
-  
+  call engrad(mol,calc,energy,grad0,io)
+  energies0 = calc%etmp
 
-  deallocate(grad0)
- 
+  write (atmp,'("Energy = ",f25.15," Eh")') energy
+  call smallhead(trim(atmp))
+  write (stdout,'(a)') repeat(":",80)
+  write (stdout,*)
+
+  deallocate (grad0)
+
 !========================================================================================!
 
   nat3 = mol%nat*3
@@ -178,7 +177,7 @@ subroutine crest_numhess(env,tim)
 
       else
 
-        write(atmp,*) i
+        write (atmp,*) i
 
         !>-- Prints Hessian
         call print_hessian(hess(:,:,i),nat3,'','numhess'//trim(adjustl(atmp)))
@@ -204,7 +203,7 @@ subroutine crest_numhess(env,tim)
           call print_g98_fake(mol%nat,mol%at,nat3,mol%xyz,freq(:,i),hess(:,:,i), &
           &    calc%calcs(i)%calcspace,'g98.out')
 
-          write(atmp,*) i
+          write (atmp,*) i
           call smallhead("Thermo contributions for [[calculation.level]] "//trim(adjustl(atmp)))
           call numhess_thermostat(env,mol,nat3,hess(:,:,i),freq(:,i),energies0(i))
 
@@ -249,9 +248,6 @@ subroutine crest_numhess(env,tim)
 !========================================================================================!
   end if
 !========================================================================================!
-
-
-
 
 !========================================================================================!
   if (allocated(hess)) deallocate (hess)
@@ -308,25 +304,25 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   !write(*,*) temps
   nrt = minloc(temps(:),1)
   !write(*,*) nrt
-  temps = env%thermo%temps 
+  temps = env%thermo%temps
 
   !> calcthermo wants input in Angstroem
   call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
   & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
 
-  !> printout
+  !> printoutgeometr
   zpve = et(nrt)-ht(nrt)
-  write(stdout,*) 
-  write(stdout,'(10x,a)') repeat(':',50)
-  write(stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
-  write(stdout,'(10x,a)') repeat(':',50)
-  write(stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'  
-  write(stdout,'(10x,a)') '::'//repeat('-',46)//'::'
-  write(stdout,outfmt) 'total energy     ',etot,'Eh'
-  write(stdout,outfmt) 'ZPVE             ',zpve,'Eh'
-  write(stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
-  write(stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
-  write(stdout,'(10x,a)') repeat(':',50)
+  write (stdout,*)
+  write (stdout,'(10x,a)') repeat(':',50)
+  write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
+  write (stdout,'(10x,a)') repeat(':',50)
+  write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
+  write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
+  write (stdout,outfmt) 'total energy     ',etot,'Eh'
+  write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
+  write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
+  write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
+  write (stdout,'(10x,a)') repeat(':',50)
 
   deallocate (stot,gt,ht,et,temps)
 end subroutine numhess_thermostat
@@ -360,41 +356,41 @@ subroutine thermo_standalone(env)
   &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
 
   !> header
-  write(stdout,*) " _   _                               "
-  write(stdout,*) "| |_| |__   ___ _ __ _ __ ___   ___  "
-  write(stdout,*) "| __| '_ \ / _ \ '__| '_ ` _ \ / _ \ "
-  write(stdout,*) "| |_| | | |  __/ |  | | | | | | (_) |"
-  write(stdout,*) " \__|_| |_|\___|_|  |_| |_| |_|\___/ "
-  write(stdout,*) "                                     "
-  write(stdout,*) "Molecular thermodynamics from the modified and scaled"
-  write(stdout,*) "rigid-rotor harmonic-oscillator approximation (msRRHO)"
-  write(stdout,*) "See:"
-  write(stdout,*) " • S.Grimme, Chem. Eur. J. 2012, 18, 9955–9964."
-  write(stdout,*) " • P.Pracht, S.Grimme, Chem. Sci., 2021, 12, 6551-6568."
-  write(stdout,*)
- 
+  write (stdout,*) " _   _                               "
+  write (stdout,*) "| |_| |__   ___ _ __ _ __ ___   ___  "
+  write (stdout,*) "| __| '_ \ / _ \ '__| '_ ` _ \ / _ \ "
+  write (stdout,*) "| |_| | | |  __/ |  | | | | | | (_) |"
+  write (stdout,*) " \__|_| |_|\___|_|  |_| |_| |_|\___/ "
+  write (stdout,*) "                                     "
+  write (stdout,*) "Molecular thermodynamics from the modified and scaled"
+  write (stdout,*) "rigid-rotor harmonic-oscillator approximation (msRRHO)"
+  write (stdout,*) "See:"
+  write (stdout,*) " • S.Grimme, Chem. Eur. J. 2012, 18, 9955–9964."
+  write (stdout,*) " • P.Pracht, S.Grimme, Chem. Sci., 2021, 12, 6551-6568."
+  write (stdout,*)
+
   !> input coords
-  write(stdout,'(1x,a)',advance='no') 'Reading input coords: '
-  if(allocated(env%thermo%coords))then 
+  write (stdout,'(1x,a)',advance='no') 'Reading input coords: '
+  if (allocated(env%thermo%coords)) then
     call mol%open(env%thermo%coords)
-    write(stdout,'(1x,a)') trim(env%thermo%coords)
+    write (stdout,'(1x,a)') trim(env%thermo%coords)
   else
     call mol%open(env%inputcoords)
-    write(stdout,'(1x,a)') trim(env%inputcoords)
-  endif
-  nat3 = mol%nat * 3
-  allocate(hess(nat3,nat3),freq(nat3), source=0.0_wp)
+    write (stdout,'(1x,a)') trim(env%inputcoords)
+  end if
+  nat3 = mol%nat*3
+  allocate (hess(nat3,nat3),freq(nat3),source=0.0_wp)
 
   !> input frequencies or hessian
-  if(allocated(env%thermo%vibfile))then
-    write(stdout,'(1x,a,a)') 'Reading frequencies from:  ',trim(env%thermo%vibfile)
+  if (allocated(env%thermo%vibfile)) then
+    write (stdout,'(1x,a,a)') 'Reading frequencies from:  ',trim(env%thermo%vibfile)
     call rdfreq(env%thermo%vibfile,nat3,freq)
   else
-    write(stdout,'(1x,a)') 'No Hessian or vibspectrum file allocated for thermo routine!'
+    write (stdout,'(1x,a)') 'No Hessian or vibspectrum file allocated for thermo routine!'
     call creststop(status_input)
-  endif
-  write(stdout,*) 
-  
+  end if
+  write (stdout,*)
+
   !> energy (maybe read from comment line of xyz)
   etot = mol%energy
   !> inversion threshold
@@ -413,7 +409,7 @@ subroutine thermo_standalone(env)
   !write(*,*) temps
   nrt = minloc(temps(:),1)
   !write(*,*) nrt
-  temps = env%thermo%temps 
+  temps = env%thermo%temps
 
   !> calcthermo wants input in Angstroem
   call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
@@ -421,30 +417,27 @@ subroutine thermo_standalone(env)
 
   !> printout
   zpve = et(nrt)-ht(nrt)
-  write(stdout,*) 
-  write(stdout,'(10x,a)') repeat(':',50)
-  write(stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
-  write(stdout,'(10x,a)') repeat(':',50)
-  write(stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'  
-  write(stdout,'(10x,a)') '::'//repeat('-',46)//'::'
-  write(stdout,outfmt) 'total energy     ',etot,'Eh'
-  write(stdout,outfmt) 'ZPVE             ',zpve,'Eh'
-  write(stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
-  write(stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
-  write(stdout,'(10x,a)') repeat(':',50)
+  write (stdout,*)
+  write (stdout,'(10x,a)') repeat(':',50)
+  write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
+  write (stdout,'(10x,a)') repeat(':',50)
+  write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
+  write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
+  write (stdout,outfmt) 'total energy     ',etot,'Eh'
+  write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
+  write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
+  write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
+  write (stdout,'(10x,a)') repeat(':',50)
 
   !> for plotting temperature dependencies etc.
-  write(stdout,*)
-  write(stdout,*) 'Some output will be written to thermo.dump' 
-  open(newunit=ich, file='thermo.dump')
-  do i=1,nt
-   write(ich,'(f12.4,4F20.10)') temps(i),gt(i)+etot,gt(i),ht(i),stot(i)
-  enddo
-  close(ich)
+  write (stdout,*)
+  write (stdout,*) 'Some output will be written to thermo.dump'
+  open (newunit=ich,file='thermo.dump')
+  do i = 1,nt
+    write (ich,'(f12.4,4F20.10)') temps(i),gt(i)+etot,gt(i),ht(i),stot(i)
+  end do
+  close (ich)
 
   deallocate (stot,gt,ht,et,temps)
 end subroutine thermo_standalone
-
-
-
 

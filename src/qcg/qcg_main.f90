@@ -129,6 +129,8 @@ subroutine crest_solvtool(env,tim)
     progress = progress+1
   end if
 
+  STOP !TODO TODO TODO TODO
+
 !------------------------------------------------------------------------------
 !   Frequency computation and evaluation
 !------------------------------------------------------------------------------
@@ -1179,9 +1181,8 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   write (stdout,'(2x,"List of full ensemble          full_ensemble.xyz")')
   write (stdout,'(2x,"List of used ensemble          final_ensemble.xyz")')
   write (stdout,'(2x,"Ensemble thermodyn data        thermo_data")')
-  write (stdout,'(2x,"Population of selected         population.dat")') 
+  write (stdout,'(2x,"Population of selected         population.dat")')
   write (stdout,'(2x,"Population of full ensemble    full_population.dat")')
-
 
   !>--- restore settings
   env%gfnver = gfnver_tmp
@@ -1304,6 +1305,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   call chdirdbug(tmppath2)
 
 !--- SP of each cluster
+!    (works with legacy and calculator version since xtb_sp_qcg switches automatically)
   call ens%write('ensemble.xyz')
   do i = 1,env%nqcgclust
     call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
@@ -1410,8 +1412,11 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       conv(k+1:env%nqcgclust) = 0
 
 !--- Parallel optimization-------------------------------------------------------------------
-      call cff_opt(.false.,env,'solvent_cluster.coord',n_ini,conv(env%nqcgclust+1)&
-              &,'TMPCFF',conv,nothing_added)
+      if (env%legacy) then
+        ! from my understanding this doesn't actually return any useful at this point???
+        call cff_opt(.false.,env,'solvent_cluster.coord',n_ini,conv(env%nqcgclust+1)&
+                &,'TMPCFF',conv,nothing_added)
+      end if
 !----------------------------------------------------------------------------------------------
 
       do i = 1,env%nqcgclust
@@ -1560,15 +1565,15 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
 !--- Boltz. average-------------------------------------------------------------------------
   write (stdout,*)
-  write (stdout,'(2x,''70("-")'')')
-  write (stdout,'(2x,''70("-")'')')
+  write (stdout,'(2x,70("-"))')
+  write (stdout,'(2x,70("-"))')
   write (stdout,'(2x,''Boltz. averaged energy of final cluster:'')')
   e_cluster = solv_ens%er*autokcal
   e_norm = e_norm*autokcal
   call sort_min(env%nqcgclust,1,1,e_norm)
   call aver(.true.,env,solv_ens%nall,e_norm(1:env%nqcgclust),S,H,G,sasa,.false.)
-  write (stdout,'(7x,''G /Eh     :'',F14.8)') G/autokcal
-  write (stdout,'(7x,''T*S /kcal :'',f8.3)') S
+  write (stdout,'(7x,''G /Eh     :'',f15.8)') G/autokcal
+  write (stdout,'(7x,''T*S /kcal :'',f15.8)') S
   solv_ens%er = e_norm/autokcal !normalized energy needed for final evaluation
 
   solv_ens%g = G
@@ -1585,11 +1590,12 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
 !--- Printouts
   write (stdout,*)
-  write (stdout,'(2x,''Solvent cluster generation finished.'')')
-  write (stdout,'(2x,''Results can be found in solvent_cluster directory'')')
-  write (stdout,'(2x,''Structures in file <crest_ensemble.xyz>'')')
-  write (stdout,'(2x,''Energies in file <cluster_energy.dat>'')')
-  write (stdout,'(2x,''Population in file <population.dat>'')')
+  write (stdout,'(2x,"Solvent cluster generation finished.")')
+  write (stdout,'(2x,"Results can be found in [solvent_cluster] directory")')
+  write (stdout,'(2x,"--> What?       --> Where?")')
+  write (stdout,'(2x,"Structures      crest_ensemble.xyz")')
+  write (stdout,'(2x,"Energies        cluster_energy.dat")')
+  write (stdout,'(2x,"Population      population.dat")')
 
   env%gfnver = gfnver_tmp
   env%optlev = optlev_tmp
