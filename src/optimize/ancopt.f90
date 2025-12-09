@@ -23,7 +23,7 @@
 !> This module implements the ANCOPT algorithm
 
 module ancopt_module
-  use iso_fortran_env, only: wp=>real64, sp=>real32
+  use iso_fortran_env,only:wp => real64,sp => real32
   !use crest_parameters
   use crest_calculator
   use axis_module
@@ -35,6 +35,7 @@ module ancopt_module
   use modelhessian_module
   use hessupdate_module
   use optimize_utils
+  use hessian_reconstruct
   implicit none
   private
 
@@ -88,7 +89,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: step,amu2au,au2cm,dumi,dumj,damp,hlow,edum,s6,thr
     real(wp) :: maxdispl,gthr,ethr,hmax,energy,rij(3),t1,t0,w1,w0
     real(wp) :: rot(3),gnorm
-    integer :: n3,i,j,k,l,jjj,ic,jc,ia,ja,ii,jj,info,nat3
+    integer :: n3,i,j,k,l,jjj,ic,jc,ia,ja,ii,jj,info,nat3,info2
     integer :: nvar,iter,nread,maxcycle,maxmicro,itry,maxopt,iupdat,iii
     integer :: id,ihess,error
     integer :: ilog
@@ -119,7 +120,7 @@ contains  !> MODULE PROCEDURES START HERE
     iupdat = calc%iupdat
     hlow = calc%hlow_opt !> 0.01 in ancopt, 0.002 too small
     hmax = calc%hmax_opt
-    maxdispl = calc%maxdispl_opt 
+    maxdispl = calc%maxdispl_opt
     s6 = mhset%s6 !> slightly better than 30 for various proteins
 
 !> initial number of steps in relax() routine before
@@ -153,7 +154,6 @@ contains  !> MODULE PROCEDURES START HERE
       call print_optsummary(calc,tight,nvar,maxcycle,maxmicro, &
       &                       ethr,gthr,linear,wr)
     end if
-
 
 !>--- initialize OPT object
     !$omp critical
@@ -221,7 +221,7 @@ contains  !> MODULE PROCEDURES START HERE
       esave = etot !> save energy before relaxation
 !>--- call the actual relaxation routine
 !>    this routine will perform [maxmicro] relaxation steps
-      if(iter+maxmicro >= maxcycle) maxmicro = maxcycle - iter
+      if (iter+maxmicro >= maxcycle) maxmicro = maxcycle-iter
 !>    [maxmicro] need to be adapted to not overshoot maxcycle
       call relax(molopt,calc,OPT,iter,maxmicro,etot,grd,  &
             &      ethr,gthr,converged,                  &
@@ -354,6 +354,8 @@ contains  !> MODULE PROCEDURES START HERE
     !> LAPACK & BLAS
     external :: dgemv
     real(sp),external :: sdot
+    integer :: q,r,s,nat3 !> ONLY for testing!
+    nat3 = 3*mol%nat
 
     iostatus = 0
 
@@ -375,7 +377,7 @@ contains  !> MODULE PROCEDURES START HERE
     nvar1 = OPT%nvar+1             !> dimension of RF calculation
     npvar = OPT%nvar*(nvar1)/2   !> packed size of Hessian (note the abuse of nvar1!)
     npvar1 = nvar1*(nvar1+1)/2 !> packed size of augmented Hessian
-    allocate (Uaug(nvar1,1),eaug(nvar1),Aaug(npvar1), source=0.0_sp)
+    allocate (Uaug(nvar1,1),eaug(nvar1),Aaug(npvar1),source=0.0_sp)
     !$omp end critical
 
 !! ========================================================================
@@ -457,13 +459,13 @@ contains  !> MODULE PROCEDURES START HERE
         end if
       end if
 
-      alp = 1.0d0 
+      alp = 1.0d0
       if (gnorm .lt. 0.002) then ! 0.002
         alp = 1.5d0 ! 1.5
-      endif
+      end if
       if (gnorm .lt. 0.0006) then
         alp = 2.0d0 ! 2
-      endif
+      end if
       if (gnorm .lt. 0.0003) then
         alp = 3.0d0 ! 3
       end if
@@ -489,6 +491,28 @@ contains  !> MODULE PROCEDURES START HERE
           stop
         end select
       end if
+
+      if (calc%do_HU) then
+        q = 1
+        do r = 1,nat3
+          do s = 1,r
+            calc%chess%Hinv(s,r) = OPT%hess(q)
+            calc%chess%Hinv(r,s) = OPT%hess(q)
+            q = q+1
+          end do
+        end do
+      end if
+
+      !calc%chess%H(:,:) = invert_matrix(calc%chess%Hinv)
+
+      !print*, "HESSIAN FROM RFO:"
+      !print*
+      !print*, OPT%hess(:)
+
+      !print*
+      !print*,"Symmetrized RFO Hessian Matrix"
+      !print*
+      !print*,calc%chess%Hinv(:,:)
 
 !>------------------------------------------------------------------------
 !>  rational function (RF) method

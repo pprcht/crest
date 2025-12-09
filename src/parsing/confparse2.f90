@@ -78,7 +78,7 @@ subroutine parseinputfile(env,fname)
   call dict%print2()
 
 !>--- sanity check for input files
-  readstatus = 0  !> has to remain 0, or something went wrong 
+  readstatus = 0  !> has to remain 0, or something went wrong
 
 !>--- parse all root-level key-value pairs
   do i = 1,dict%nkv
@@ -113,10 +113,10 @@ subroutine parseinputfile(env,fname)
   end if
 
 !>--- terminate if there were any unrecognized keywords
-  if(readstatus /= 0)then
-    write(stdout, '(i0,a)') readstatus,' error(s) while reading input file'
+  if (readstatus /= 0) then
+    write (stdout,'(i0,a)') readstatus,' error(s) while reading input file'
     call creststop(status_config)
-  endif  
+  end if
 
 !>--- check for lwONIOM setup (will be read at end of confparse)
   do i = 1,dict%nblk
@@ -193,8 +193,7 @@ subroutine env_calcdat_specialcases(env)
   integer :: refine_lvl
 
   !> if this return is triggered, the program will fall back to GFN2 at some point
-  if(env%calc%ncalculations .lt. 1) return
-   
+  if (env%calc%ncalculations .lt. 1) return
 
   !> special case for GFN-FF calculations
   if (any(env%calc%calcs(:)%id == jobtype%gfnff)) then
@@ -209,11 +208,24 @@ subroutine env_calcdat_specialcases(env)
     do i = 1,env%calc%ncalculations
       refine_lvl = env%calc%calcs(i)%refine_lvl
       if (refine_lvl <= 0) cycle
-      if(allocated(env%refine_queue))then
+      if (allocated(env%refine_queue)) then
         if (any(env%refine_queue(:) == refine_lvl)) cycle
-      endif
+      end if
       call env%addrefine(refine_lvl)
     end do
+  end if
+
+  if (.not.allocated(env%calc%temperatures)) then
+    if (.not.allocated(env%thermo%temps)) then
+      call env%thermo%get_temps()
+    end if
+    env%calc%nt = env%thermo%ntemps
+    allocate (env%calc%temperatures(env%calc%nt),source=0.0_wp)
+
+    env%calc%temperatures = env%thermo%temps
+    env%calc%ithr = env%thermo%ithr
+    env%calc%sthr = env%thermo%sthr
+    env%calc%fscal = env%thermo%fscal
   end if
 
 end subroutine env_calcdat_specialcases
@@ -235,15 +247,15 @@ subroutine env_mddat_specialcases(env)
   integer :: nac,ii,iac
 
 !>--- Check for MD-active only levels
-  if(allocated(env%mddat%active_potentials))then
+  if (allocated(env%mddat%active_potentials)) then
     nac = size(env%mddat%active_potentials)
-    do ii=1,nac
-    !>--- deactivate by default (the MD routine will set them to active automatically)  
-     iac = env%mddat%active_potentials(ii)
-     if(iac <= env%calc%ncalculations)then
-       env%calc%calcs(iac)%active = .false.
-     endif
-    enddo
-  endif
+    do ii = 1,nac
+      !>--- deactivate by default (the MD routine will set them to active automatically)
+      iac = env%mddat%active_potentials(ii)
+      if (iac <= env%calc%ncalculations) then
+        env%calc%calcs(iac)%active = .false.
+      end if
+    end do
+  end if
 
 end subroutine env_mddat_specialcases

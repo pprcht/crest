@@ -241,11 +241,11 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%gfnff
       case ('pvol','libpvol','pv')
         job%id = jobtype%libpvol
-      case ('gxtb_dev')  
-        job%id = jobtype%turbomole 
-        job%rdgrad = .true.       
-        job%binary = 'gxtb' 
-        job%other ='-grad'
+      case ('gxtb_dev')
+        job%id = jobtype%turbomole
+        job%rdgrad = .true.
+        job%binary = 'gxtb'
+        job%other = '-grad'
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
@@ -514,6 +514,9 @@ contains !> MODULE PROCEDURES START HERE
     case ('maxcycle')
       calc%maxcycle = kv%value_i  !> optimization max cycles
 
+    case ('chess_steps')
+      calc%hu_steps = kv%value_i
+
 !>--- strings
     case ('id','type')
       !> (OLD setting) calculation type
@@ -578,6 +581,9 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('exact_rf')
       calc%exact_rf = kv%value_b
+
+    case ('chess')
+      calc%do_HU = kv%value_b
 
     case default
       rd = .false.

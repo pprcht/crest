@@ -269,8 +269,12 @@ module calc_type
 
 !>--- Hessian Reconstructor
     type(cashed_hessian),allocatable :: chess
-    logical :: do_HU = .true.
+    logical :: do_HU = .false.
     integer :: hu_steps = 10
+    integer :: nt
+    real(wp),allocatable :: temperatures(:)
+    real(wp),allocatable :: et(:),ht(:),gt(:),stot(:)
+    real(wp) :: ithr,fscal,sthr
 
 !>--- Type procedures
   contains

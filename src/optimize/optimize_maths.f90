@@ -35,6 +35,8 @@ module optimize_maths
   public :: solver_sdavidson
   public :: solver_sspevx
   public :: solver_ssyevx
+  public :: dsqtoh
+  public :: dhtosq
 
 !========================================================================================!
 !========================================================================================!
@@ -880,6 +882,26 @@ contains !> MODULE PROCEDURES START HERE
     if (info .ne. 0) fail = .true.
     deallocate (iwork,work,ifail)
   end subroutine solver_sspevx
+
+  subroutine dsqtoh(n,a,b)
+!****************************************************
+!* converts upper triangle of a matrix into a vector
+!****************************************************
+    implicit none
+    integer,intent(in)  :: n
+    real(wp),intent(in) :: a(n,n)
+    real(wp),intent(out)  :: b(n*(n+1)/2)
+    integer :: i,j,k
+
+    k = 0
+    do i = 1,n
+      do j = 1,i
+        k = k+1
+        b(k) = a(i,j)
+      end do
+    end do
+
+  end subroutine dsqtoh
 
 !========================================================================================!
 !========================================================================================!

@@ -20,7 +20,7 @@
 ! under the Open-source software LGPL-3.0 Licencse.
 !================================================================================!
 
-!> This module wrapps the different optimization algorithms, 
+!> This module wrapps the different optimization algorithms,
 !> i.e., this is what can be called for geometry opt.
 
 module optimize_module
@@ -32,6 +32,8 @@ module optimize_module
   use gradientdescent_module
   use rfo_module
   use optimize_utils
+  use thermochem_module
+  use hessian_reconstruct
   implicit none
   private
 
@@ -56,6 +58,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out)       :: iostatus
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
+    real(wp),allocatable :: H_inv(:,:)
 
     iostatus = -1
     !> do NOT overwrite original geometry
@@ -66,52 +69,75 @@ contains  !> MODULE PROCEDURES START HERE
     !$omp end critical
 
     !> Check for optimization-individual calculation setup
-    if(calc%optnewinit)then
+    if (calc%optnewinit) then
       !$omp critical
       call calc%dealloc_params()
       !$omp end critical
-    endif
+    end if
 
     !> Check if Hessian Reconstruct is called
     if (calc%do_HU) then
-      allocate(calc%chess)
-      call calc%chess%alloc(mol%nat,calc%hu_steps)
-    endif
+      allocate (calc%chess)
+      call calc%chess%alloc(mol%nat,calc%hu_steps,calc%hguess)
+    end if
 
     !> initial singlepoint
     call engrad(molnew,calc,etot,grd,iostatus)
 
     !> optimization
     select case (calc%opt_engine)
-    case ( 0)
-       call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
-    case ( 1)
-       !> l-bfgs goes here
-      write(stdout,'(a)') 'L-BFGS currently not implemented'
+    case (0)
+      call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case (1)
+      !> l-bfgs goes here
+      write (stdout,'(a)') 'L-BFGS currently not implemented'
       stop
-    case ( 2)
-       !> rfo goes here
-       call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case (2)
+      !> rfo goes here
+      call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
     case (-1)
       call gradientdescent(molnew,calc,etot,grd,pr,wr,iostatus)
     case default
-      write(stdout,'(a)') 'Unknown optimization engine!'
+      write (stdout,'(a)') 'Unknown optimization engine!'
       stop
     end select
     molnew%energy = etot
 
-    if (calc%do_HU) then
-    print*, "Energies", calc%chess%energy
-    print*, "Gradients", calc%chess%gradient
-    print*, "Coords", calc%chess%coords
-    print*, "Order", calc%chess%order
-    endif
+    if (calc%do_HU) then !> Hessian construction and post-processing happen here
+      !print*, "Energies", calc%chess%energy
+      !print*, "Gradients", calc%chess%gradient
+      !print*, "Coords", calc%chess%coords
+      !print*, "Order", calc%chess%order
 
-    if (calc%do_HU) then
+      call calc%chess%construct_hessian_bfgs()
+
+      !allocate(H_inv(size(calc%chess%B,1),size(calc%chess%B,2)))
+      !H_inv(:,:) = invert_matrix(calc%chess%B)
+
+      print*
+      print*,"THERMO FROM MY OWN SHITTY HESSIAN"
+      print*
+
+      call calc_thermo_from_hess(molnew,calc%chess%B,pr, &
+      & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+      & calc%ht,calc%gt,calc%stot)
+
+      print*
+      print*,"THERMO FROM BFGS"
+      print*
+
+      call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
+      & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+      & calc%ht,calc%gt,calc%stot)
+
+      !write(stdout,*) "et:", calc%et
+      !write(stdout,*) "ht:", calc%ht
+      !write(stdout,*) "gt:", calc%gt
+      !write(stdout,*) "stot:", calc%stot
+
       call calc%chess%dealloc()
-      deallocate(calc%chess)
-    endif
-
+      deallocate (calc%chess)
+    end if
 
     return
   end subroutine optimize_geometry
@@ -127,16 +153,16 @@ contains  !> MODULE PROCEDURES START HERE
 
     write (ich,'(1x,a)',advance='no') 'Optimization engine: '
     select case (calc%opt_engine)
-    case ( 0)
+    case (0)
       write (ich,'(a)') 'ANCOPT'
-    case ( 1)
+    case (1)
       write (ich,'(a)') 'L-BFGS'
-    case ( 2)
+    case (2)
       write (ich,'(a)') 'RFO'
     case (-1)
       write (ich,'(a)') 'Gradient Descent'
     case default
-      write(ich,'(a)') 'Unknown'
+      write (ich,'(a)') 'Unknown'
     end select
     if (calc%opt_engine >= 0) then
       write (ich,'(1x,a)',advance='no') 'Hessian update type: '
@@ -160,7 +186,7 @@ contains  !> MODULE PROCEDURES START HERE
     & ethr,' Eh,',gthr,' Eh/a0'
 
     write (ich,'(1x,a,i0)') 'maximum optimization steps: ',calc%maxcycle
-     
+
   end subroutine print_opt_data
 
 !========================================================================================!

@@ -28,7 +28,7 @@
 !========================================================================================!
 
 module hessian_tools
-  use crest_parameters, only:wp,stdout
+  use crest_parameters,only:wp,stdout
   use crest_data
   use crest_calculator
   use strucrd
@@ -43,7 +43,6 @@ module hessian_tools
 contains  !> MODULE PROCEDURES START HERE
 !=========================================================================================!
 !=========================================================================================!
-
 
   subroutine frequencies(nat,at,xyz,nat3,prj_mw_hess,freq,io)
 !*************************************************
@@ -95,7 +94,6 @@ contains  !> MODULE PROCEDURES START HERE
 
   end subroutine frequencies
 
-
   subroutine mass_weight_hess(nat,at,nat3,hess)
     use atmasses
     implicit none
@@ -130,53 +128,11 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine mass_weight_hess
 
-  subroutine dsqtoh(n,a,b)
-!****************************************************
-!* converts upper triangle of a matrix into a vector
-!****************************************************
-    implicit none
-    integer,intent(in)  :: n
-    real(wp),intent(in) :: a(n,n)
-    real(wp),intent(out)  :: b(n*(n+1)/2)
-    integer :: i,j,k
-
-    k = 0
-    do i = 1,n
-      do j = 1,i
-        k = k+1
-        b(k) = a(i,j)
-      end do
-    end do
-
-  end subroutine dsqtoh
-
-  subroutine dhtosq(n,a,b)
-!*********************************************************
-!* converts upper triangle vector into a symmetric matrix
-!*********************************************************
-    implicit none
-    integer,intent(in)  :: n
-    real(wp),intent(out) :: a(n,n)
-    real(wp),intent(in)  :: b(n*(n+1)/2)
-    integer :: i,j,k
-
-    k = 0
-    do i = 1,n
-      do j = 1,i
-        k = k+1
-        a(j,i) = b(k)
-        a(i,j) = b(k)
-      end do
-    end do
-
-    return
-  end subroutine dhtosq
-
 !=========================================================================================!
 
   subroutine prj_mw_hess(nat,at,nat3,xyz,hess)
 !***************************************************************
-!* Projection of the translational and rotational DOF out of 
+!* Projection of the translational and rotational DOF out of
 !* the numerical Hessian plus the mass-weighting of the Hessian
 !***************************************************************
     implicit none
@@ -187,9 +143,14 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) ::  xyz(3,nat)
     !real(wp) ::  hess_ut(nat3*(nat3+1)/2),pmode(nat3,1)
     real(wp),allocatable ::  hess_ut(:),pmode(:,:)
+    integer :: i
 
-    allocate(hess_ut(nat3*(nat3+1)/2), source=0.0_wp)
-    allocate(pmode(nat3,1), source=0.0_wp)
+    allocate (hess_ut(nat3*(nat3+1)/2),source=0.0_wp)
+    allocate (pmode(nat3,1),source=0.0_wp)
+
+    do i = 1,size(hess,dim=1)
+      print*,hess(1,i)
+    end do
 
     !> Transforms matrix of the upper triangle vector
     call dsqtoh(nat3,hess,hess_ut)
@@ -203,14 +164,14 @@ contains  !> MODULE PROCEDURES START HERE
     !> Mass weighting
     call mass_weight_hess(nat,at,nat3,hess)
 
-    deallocate(pmode,hess_ut)
+    deallocate (pmode,hess_ut)
   end subroutine prj_mw_hess
 
 !=========================================================================================!
 
   subroutine print_vib_spectrum(nat,at,nat3,xyz,freq,dir,fname)
 !*********************************************************************
-!* Prints the frequencies in Turbomoles "vibspectrum" format 
+!* Prints the frequencies in Turbomoles "vibspectrum" format
 !* The intensity is only artficially set to 1000 for every vibration!!
 !**********************************************************************
     integer,intent(in) :: nat,nat3
@@ -224,13 +185,12 @@ contains  !> MODULE PROCEDURES START HERE
     if (len_trim(dir) .eq. 0) then
       open (newunit=ich,file=fname)
     else
-      if(directory_exist(dir))then
-      open (newunit=ich,file=dir//'/'//fname)
+      if (directory_exist(dir)) then
+        open (newunit=ich,file=dir//'/'//fname)
       else
-      open (newunit=ich,file=fname)
-      endif
+        open (newunit=ich,file=fname)
+      end if
     end if
-
 
     write (ich,'("$vibrational spectrum")')
     write (ich,'("#  mode    symmetry    wave number    IR intensity    selection rules")')
@@ -291,11 +251,11 @@ contains  !> MODULE PROCEDURES START HERE
     if (len_trim(dir) .eq. 0) then
       open (newunit=gu,file=fname)
     else
-      if(directory_exist(dir))then
-      open (newunit=gu,file=dir//'/'//fname)
+      if (directory_exist(dir)) then
+        open (newunit=gu,file=dir//'/'//fname)
       else
-      open (newunit=gu,file=fname) 
-      endif
+        open (newunit=gu,file=fname)
+      end if
     end if
 
     write (gu,'('' Entering Gaussian System'')')
@@ -371,7 +331,6 @@ contains  !> MODULE PROCEDURES START HERE
 
 !=========================================================================================!
 
-
   subroutine print_hessian(hess,nat3,dir,fname)
 !*******************************
 !* Prints the numerical hessian
@@ -385,15 +344,15 @@ contains  !> MODULE PROCEDURES START HERE
       open (newunit=ich,file=fname)
       write (stdout,'(1x,a)',advance='no') 'Will be written to file "'//fname//'" ...'
     else
-      if(directory_exist(dir))then
-      open (newunit=ich,file=dir//'/'//fname)
-      write (stdout,'(1x,a)',advance='no') 'Will be written to file "'//dir//'/'//fname//'" ...'
+      if (directory_exist(dir)) then
+        open (newunit=ich,file=dir//'/'//fname)
+        write (stdout,'(1x,a)',advance='no') 'Will be written to file "'//dir//'/'//fname//'" ...'
       else
-      open (newunit=ich,file=fname)
-      write (stdout,'(1x,a)',advance='no') 'Will be written to file "'//fname//'" ...'
-      endif
+        open (newunit=ich,file=fname)
+        write (stdout,'(1x,a)',advance='no') 'Will be written to file "'//fname//'" ...'
+      end if
     end if
-    flush(stdout)
+    flush (stdout)
 
     write (ich,'(1x,a)') '$hessian'
     do i = 1,nat3
@@ -423,7 +382,7 @@ contains  !> MODULE PROCEDURES START HERE
 
   subroutine effective_hessian(nat,nat3,grad1_i,grad2_i,hess1,hess2,heff)
 !******************************************************************
-!* Effective Hessian at an MECP is computed via Eq. 27 and Eq. 28 
+!* Effective Hessian at an MECP is computed via Eq. 27 and Eq. 28
 !* in https://doi.org/10.1002/qua.25124
 !******************************************************************
     implicit none
@@ -513,67 +472,67 @@ contains  !> MODULE PROCEDURES START HERE
 
 !=========================================================================================!
 
- subroutine calculate_frequencies(calc,nat,at,xyz,freq,io,constraints)
+  subroutine calculate_frequencies(calc,nat,at,xyz,freq,io,constraints)
 !*******************************************************
 !* Bundels several routines from this module to
 !* calculate the vib. frequencies for a given structure
-!* The output frequencies are in cm-1 
+!* The output frequencies are in cm-1
 !*******************************************************
-     implicit none
-     !> INPUT
-     type(calcdata),intent(inout) :: calc
-     integer,intent(in)  :: nat
-     integer,intent(in)  :: at(nat)
-     real(wp),intent(in) :: xyz(3,nat)
-     logical,intent(in),optional :: constraints
-     !> OUTPUT
-     integer,intent(out)  :: io
-     real(wp),intent(out) :: freq(3*nat)
-     !> LOCAL
-     real(wp),allocatable :: hessian(:,:)
-     real(wp),allocatable :: chess(:,:)
-     type(calcdata) :: dummycalc
-     integer :: nat3,ncalc,i
+    implicit none
+    !> INPUT
+    type(calcdata),intent(inout) :: calc
+    integer,intent(in)  :: nat
+    integer,intent(in)  :: at(nat)
+    real(wp),intent(in) :: xyz(3,nat)
+    logical,intent(in),optional :: constraints
+    !> OUTPUT
+    integer,intent(out)  :: io
+    real(wp),intent(out) :: freq(3*nat)
+    !> LOCAL
+    real(wp),allocatable :: hessian(:,:)
+    real(wp),allocatable :: chess(:,:)
+    type(calcdata) :: dummycalc
+    integer :: nat3,ncalc,i
 
-     io = 0
-     freq = 0.0_wp
-     nat3 = nat*3
-     ncalc = calc%ncalculations
+    io = 0
+    freq = 0.0_wp
+    nat3 = nat*3
+    ncalc = calc%ncalculations
 
-     allocate(hessian(nat3,nat3), source = 0.0_wp)
+    allocate (hessian(nat3,nat3),source=0.0_wp)
 
-     !>--- Hessian from combined energy and gradient
-     call numhess1(nat,at,xyz, calc,hessian,io) 
-     if( io /= 0 ) return
+    !>--- Hessian from combined energy and gradient
+    call numhess1(nat,at,xyz,calc,hessian,io)
+    if (io /= 0) return
 
-     !>--- do we consider contributions from the constraints?
-     !>    (yes, by default, they are in the hessian from numhess1,
-     !>    if we DO NOT want them, we need to take them out again)
-     if(present(constraints))then
-       if(.not.constraints)then
-         dummycalc = calc !> new dummy calculation
-         dummycalc%id = 0  !> set to zero so that ONLY constraints are considered
-         dummycalc%ncalculations = 0
-         dummycalc%pr_energies = .false.
-         allocate (chess(nat3,nat3),source=0.0_wp)
-         call numhess1(nat,at,xyz,dummycalc,chess,io)
-         hessian(:,:) = hessian(:,:) - chess(:,:)  
-         deallocate( chess )
-       endif
-     endif
-     
-     do i = 1,calc%ncalculations
+    !>--- do we consider contributions from the constraints?
+    !>    (yes, by default, they are in the hessian from numhess1,
+    !>    if we DO NOT want them, we need to take them out again)
+    if (present(constraints)) then
+      if (.not.constraints) then
+        dummycalc = calc !> new dummy calculation
+        dummycalc%id = 0  !> set to zero so that ONLY constraints are considered
+        dummycalc%ncalculations = 0
+        dummycalc%pr_energies = .false.
+        allocate (chess(nat3,nat3),source=0.0_wp)
+        call numhess1(nat,at,xyz,dummycalc,chess,io)
+        hessian(:,:) = hessian(:,:)-chess(:,:)
+        deallocate (chess)
+      end if
+    end if
+
+    do i = 1,calc%ncalculations
 
       !>-- Projects and mass-weights the Hessian
-      call prj_mw_hess(nat,at,nat3,xyz, hessian(:,:))
+      call prj_mw_hess(nat,at,nat3,xyz,hessian(:,:))
 
       !>-- Computes the Frequencies
-      call frequencies(nat,at,xyz,nat3, hessian(:,:), freq(:),io)
-     end do
+      call frequencies(nat,at,xyz,nat3,hessian(:,:),freq(:),io)
+    end do
 
-     deallocate( hessian )
-     return
- end subroutine calculate_frequencies
+    deallocate (hessian)
+    return
+  end subroutine calculate_frequencies
 
 !=========================================================================================!
 end module hessian_tools
