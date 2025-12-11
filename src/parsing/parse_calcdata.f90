@@ -509,6 +509,15 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('hguess')
       calc%hguess = kv%value_f  !> guess for the initial hessian
+    
+    case ('opt_lval')
+      calc%L = kv%value_f !> Parameters for smooth function for stepsize control within optimizer
+    
+    case('opt_k')
+      calc%k = kv%value_f
+    
+    case('opt_shift')
+      calc%shift = kv%value_f
 
 !>--- integers
     case ('maxcycle')

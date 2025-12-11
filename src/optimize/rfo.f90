@@ -92,7 +92,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: nvar,iter,nread,maxcycle,maxmicro,itry,maxopt,iupdat,iii
     integer :: id,ihess,error
     integer :: ilog,imax(3)
-    real(wp) :: depred,echng,alp,gnold,eold,gchng,dummy,dsnrm,maxd
+    real(wp) :: depred,echng,alp,alpold,gnold,eold,gchng,dummy,dsnrm,maxd
     real(wp),allocatable :: h(:,:)
     real(wp),allocatable :: b(:,:)
     real(wp),allocatable :: fc(:)
@@ -140,6 +140,7 @@ contains  !> MODULE PROCEDURES START HERE
     depred = 0.0_wp
     echng = 0.0_wp
     alp = 1.0_wp
+    alpold = 1.0_wp
     exact = calc%exact_rf
 
 !> initial number of steps in relax() routine before
@@ -206,6 +207,7 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%at = mol%at
     molopt%xyz = mol%xyz
     estart = etot
+    !energy = etot
 
 !>--- initialize .log file, if desired
     ilog = 942
@@ -301,6 +303,8 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- dynamic scaling in dependence of grad norm
 !>--- if we are close to convergence we can take larger steps
+      alpold = alp
+
       alp = 1.0d-1
       if (gnorm .lt. 0.002) then ! 0.002
         alp = 1.5d-1 ! 1.5
@@ -319,15 +323,15 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- Hessian update, but only after first iteration (iter > 1)
         select case (iupdat)
         case (0)
-          call bfgs(OPT%nvar,gnorm,grd1,gold,displ,OPT%hess)
+          call bfgs(OPT%nvar,gnorm,grd1,gold,displ*alpold,OPT%hess)
         case (1)
-          call powell(OPT%nvar,gnorm,grd1,gold,displ,OPT%hess)
+          call powell(OPT%nvar,gnorm,grd1,gold,displ*alpold,OPT%hess)
         case (2)
-          call sr1(OPT%nvar,gnorm,grd1,gold,displ,OPT%hess)
+          call sr1(OPT%nvar,gnorm,grd1,gold,displ*alpold,OPT%hess)
         case (3)
-          call bofill(OPT%nvar,gnorm,grd1,gold,displ,OPT%hess)
+          call bofill(OPT%nvar,gnorm,grd1,gold,displ*alpold,OPT%hess)
         case (4)
-          call schlegel(OPT%nvar,gnorm,grd1,gold,displ,OPT%hess)
+          call schlegel(OPT%nvar,gnorm,grd1,gold,displ*alpold,OPT%hess)
         case default
           write (*,*) 'invalid hessian update selection'
           stop
@@ -337,36 +341,7 @@ contains  !> MODULE PROCEDURES START HERE
       !allocate(calc%chess%H(nat3,nat3))
       if (calc%do_HU) then
         call dhtosq(nat3,calc%chess%H(:,:),OPT%hess(:))
-        !q = 1
-        !do r = 1, nat3
-        !  do s = 1, r
-        !    calc%chess%H(s,r) = OPT%hess(q)
-        !    calc%chess%H(r,s) = OPT%hess(q)
-        !    q = q + 1
-        !  end do
-        !end do
       end if
-
-      !calc%chess%H(:,:) = invert_matrix(calc%chess%Hinv)
-
-      !print*, "HESSIAN FROM RFO:"
-      !print*
-      !print*, OPT%hess(:)
-
-      !print*
-      !print*,"Symmetrized RFO Hessian Matrix"
-      !print*
-      !print*,calc%chess%H(:,:)
-
-      !allocate(test_hess(nat3*nat3))
-      !print*, size(test_hess)
-
-      !test_hess = OPT%hess
-      !print*, size(test_hess)
-      !print*, nat3*nat3
-      !print*, size(OPT%hess)
-
-      !calc%chess%H(:,:) = reshape(test_hess, [nat3,nat3])
 !>------------------------------------------------------------------------
 !>  rational function (RF) method
 !>------------------------------------------------------------------------
@@ -407,7 +382,7 @@ contains  !> MODULE PROCEDURES START HERE
       end if
       displ(1:OPT%nvar) = Uaug(1:OPT%nvar,1)/Uaug(nvar1,1)
 
-!>--- rescale displacementaif necessary
+!>--- rescale displacement if necessary
       maxd = alp*sqrt(ddot(OPT%nvar,displ,1,displ,1))
       if (maxd > maxdispl) then
         if (pr) write (*,'(" * rescaling step by",f14.7)') maxdispl/maxd

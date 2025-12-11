@@ -31,6 +31,11 @@ project(
   DESCRIPTION "A tool for the exploration of low-energy chemical space"
 )
 
+# Apply debug flags when building in Debug mode
+set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} \
+    -g -O0 -fcheck=all -fbacktrace -finit-real=snan -finit-integer=-999 \
+    -Wall -Wextra -Wuninitialized -Wmaybe-uninitialized")
+
 # Follow GNU conventions for installing directories
 include(GNUInstallDirs)
 

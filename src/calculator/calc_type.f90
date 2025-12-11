@@ -276,6 +276,11 @@ module calc_type
     real(wp),allocatable :: et(:),ht(:),gt(:),stot(:)
     real(wp) :: ithr,fscal,sthr
 
+!>--- Parameters for smooth function within optimizer
+    real(wp) :: L = 1.50_wp
+    real(wp) :: k = 5000.0_wp
+    real(wp) :: shift = 0.0006_wp
+
 !>--- Type procedures
   contains
     procedure :: reset => calculation_reset

@@ -79,24 +79,13 @@ contains
     class(cashed_hessian),intent(inout) :: self
     real(wp),intent(in) :: gradient(:,:),energy,coords(:,:)
     integer :: idx,i
-    !print*, coords
+    
     self%stepcount = self%stepcount+1
-    !print*, self%order
-    !print*, coords(:,:)
     idx = minloc(self%order,1)
     self%order(idx) = self%stepcount
     self%gradient(idx,:,:) = gradient
     self%energy(idx) = energy
     self%coords(idx,:,:) = coords
-    !if (idx==1) then
-    !  print*, self%coords(1,:,:)
-    !  print*, self%coords(2,:,:)
-    !  print*, self%coords(3,:,:)
-    !endif
-    !PRINT*, self%order
-    !print*, self%coords(1,:,:)
-    !print*, self%coords(2,:,:)
-    print*,size(self%coords,dim=1)
 
   end subroutine update_cashed_hessian
 

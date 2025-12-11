@@ -24,7 +24,7 @@
 
 module ancopt_module
   use iso_fortran_env,only:wp => real64,sp => real32
-  !use crest_parameters
+  !use crest_parameters, only
   use crest_calculator
   use axis_module
   use strucrd
@@ -344,7 +344,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,ii,jj,jjj,iii,k,lwork,info,m,idum,imax(3)
     real(wp) :: energy,dsnrm,maxdispl,t0,w0,t1,w1
     real(wp) :: lambda,gnorm,dnorm,ddot,eold,xdum,estart,acc,e_in
-    real(wp) :: depred,echng,dummy,maxd,alp,gchng,gnold
+    real(wp) :: depred,echng,dummy,maxd,alp,alpold,gchng,gnold
     real(wp),allocatable :: gold(:)
     real(wp),allocatable :: displ(:),gint(:)
     real(sp),allocatable :: eaug(:)
@@ -370,6 +370,7 @@ contains  !> MODULE PROCEDURES START HERE
     energy = etot
     e_in = etot
     alp = 1.0_wp
+    alpold = 1.0_wp
     converged = .false.
     exact = calc%exact_rf
     iupdat = calc%iupdat
@@ -389,8 +390,10 @@ contains  !> MODULE PROCEDURES START HERE
       gnold = gnorm
       eold = energy
 !>--- calc predicted energy change based on E = E0 + delta * G + delta^2 * H
+      alpold = alp
+
       if (ii > 1) then
-        call prdechng(OPT%nvar,gold,displ,OPT%hess,depred)
+        call prdechng(OPT%nvar,gold,displ*alpold,OPT%hess,depred)
       end if
 
 !>------------------------------------------------------------------------
@@ -466,10 +469,11 @@ contains  !> MODULE PROCEDURES START HERE
       if (gnorm .lt. 0.0006) then
         alp = 2.0d0 ! 2
       end if
-      if (gnorm .lt. 0.0003) then
+      if (gnorm .lt. 0.0003 .and. calc%optlev .le. 1) then
         alp = 3.0d0 ! 3
       end if
 
+      alp = alp_generate(gnorm, calc)
 !>------------------------------------------------------------------------
 !> Update the Hessian
 !>------------------------------------------------------------------------
@@ -477,42 +481,20 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- Hessian update, but only after first iteration (ii > 1)
         select case (iupdat)
         case (0)
-          call bfgs(OPT%nvar,gnorm,gint,gold,displ,OPT%hess)
+          call bfgs(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
         case (1)
-          call powell(OPT%nvar,gnorm,gint,gold,displ,OPT%hess)
+          call powell(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
         case (2)
-          call sr1(OPT%nvar,gnorm,gint,gold,displ,OPT%hess)
+          call sr1(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
         case (3)
-          call bofill(OPT%nvar,gnorm,gint,gold,displ,OPT%hess)
+          call bofill(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
         case (4)
-          call schlegel(OPT%nvar,gnorm,gint,gold,displ,OPT%hess)
+          call schlegel(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
         case default
           write (*,*) 'invalid hessian update selection'
           stop
         end select
       end if
-
-      if (calc%do_HU) then
-        q = 1
-        do r = 1,nat3
-          do s = 1,r
-            calc%chess%Hinv(s,r) = OPT%hess(q)
-            calc%chess%Hinv(r,s) = OPT%hess(q)
-            q = q+1
-          end do
-        end do
-      end if
-
-      !calc%chess%H(:,:) = invert_matrix(calc%chess%Hinv)
-
-      !print*, "HESSIAN FROM RFO:"
-      !print*
-      !print*, OPT%hess(:)
-
-      !print*
-      !print*,"Symmetrized RFO Hessian Matrix"
-      !print*
-      !print*,calc%chess%Hinv(:,:)
 
 !>------------------------------------------------------------------------
 !>  rational function (RF) method
@@ -650,6 +632,20 @@ contains  !> MODULE PROCEDURES START HERE
 
     return
   end subroutine trfp2xyz
+
+  function alp_generate(gnorm,calc) result(alp)
+  type(calcdata),intent(in) :: calc
+  real(wp), intent(in) :: gnorm
+  real(wp) :: alp, shift, l, k
+
+  L = calc%L
+  k = calc%k
+  shift = calc%shift
+  
+  alp = L/(1+euler**(k*(gnorm-shift)))+1
+
+  end function alp_generate
+
 
 !========================================================================================!
 !========================================================================================!
