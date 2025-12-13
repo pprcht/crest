@@ -245,6 +245,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
 !* dump       - decides on whether to dump an ensemble file
 !*              WARNING: the ensemble file will NOT be in the same order
 !*              as the input xyz array. However, the overwritten xyz will be! 
+!*
 !* customcalc - customized (optional) calculation level data
 !*
 !* IMPORTANT: xyz should be in Bohr(!) for this routine
@@ -388,7 +389,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
       c = c+1
       if (dump) then
         gnorm = norm2(grads(:,:,job))
-        write (atmp,'(1x,"Etot=",f16.10,1x,"g norm=",f12.8)') energy,gnorm
+        write (atmp,'(1x,"energy=",f16.10,1x,"g norm=",f12.8)') energy,gnorm
         molsnew(job)%comment = trim(atmp)
         call molsnew(job)%append(ich)
         call calc_eprint(calculations(job),energy,calculations(job)%etmp,gnorm,ich2)

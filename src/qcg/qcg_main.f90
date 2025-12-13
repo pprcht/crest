@@ -129,8 +129,7 @@ subroutine crest_solvtool(env,tim)
     progress = progress+1
   end if
 
-  STOP !TODO TODO TODO TODO
-
+  stop 'Failsafe'
 !------------------------------------------------------------------------------
 !   Frequency computation and evaluation
 !------------------------------------------------------------------------------
@@ -654,7 +653,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     e_each_cycle(iter) = clus%energy
 
 !--- Calclulate fix energy + diff. energy
-    efix = clus%energy/sqrt(float(clus%nat))
+    efix = clus%energy/sqrt(real(clus%nat))
     dum = solu%energy
     if (iter .gt. 1) dum = e_each_cycle(iter-1)
     e_diff = e_diff+autokcal*(e_each_cycle(iter)-solv%energy-dum)
@@ -881,11 +880,12 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
            & 'solute_cut.coord','solvent_shell.coord')
     call remove('crest_input')
     call copy('solvent_shell.coord','crest_input')
-    deallocate (clus%at)
-    deallocate (clus%xyz)
-    call rdnat('solvent_shell.coord',clus%nat)
-    allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
-    call rdcoord('solvent_shell.coord',clus%nat,clus%at,clus%xyz)
+    !deallocate (clus%at)
+    !deallocate (clus%xyz)
+    !call rdnat('solvent_shell.coord',clus%nat)
+    !allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
+    !call rdcoord('solvent_shell.coord',clus%nat,clus%at,clus%xyz)
+    call clus%open('solvent_shell.coord')
   end if
 
   !For newcregen: If env%crestver .eq. crest_solv .and. .not. env%QCG then conffile .eq. .true.
@@ -1308,16 +1308,20 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 !    (works with legacy and calculator version since xtb_sp_qcg switches automatically)
   call ens%write('ensemble.xyz')
   do i = 1,env%nqcgclust
-    call rdxmolselec('ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
+    call ens%get_mol(i,clus)
     clus%nmol = clus%nat/solv%nat
+
     write (to,'("TMPCFF",i0)') i
     io = makedir(trim(to))
     call copysub('solvent',to)
     call chdirdbug(to)
+
     call clus%write('cluster.coord')
     call wr_cluster_cut('cluster.coord',solu%nat,solv%nat,env%nsolv,'solute_cut.coord','solvent_shell.coord')
     call xtb_sp_qcg(env,'solvent_shell.coord',ex,e_empty(i))
-    call grepval('xtb.out','| TOTAL ENERGY',ex,e_empty(i))
+    if (env%legacy) then
+      call grepval('xtb.out','| TOTAL ENERGY',ex,e_empty(i))
+    end if
     call copy('solvent_shell.coord','solvent_cluster.coord')
     call copy('solvent_cluster.coord','filled_cluster.coord')
     call get_ellipsoid(env,solu,solv,clus,.false.) !solu, to have same cavity to fill solvent in
@@ -1387,8 +1391,9 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
           call fill_take(env,solv%nat,clus%nat,inner_ell_abc(i,1:3),ipos)
           if (ipos .eq. 0) then
             converged(i) = .true.
-            write (stdout,'(2x,''no more solvents can be placed inside cavity of cluster: '',i0)') i
-            write (stdout,'(2x,''previous cluster taken...'')')
+            write(stdout,'(2x,a,i0,a)') &
+              & "no more solvents can be placed inside cavity of cluster: ",i, &
+              & ", taking previous."
             if (iter .eq. 1) nothing_added(i) = .true.
           end if
           call chdirdbug(tmppath2)
@@ -1412,26 +1417,26 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
       conv(k+1:env%nqcgclust) = 0
 
 !--- Parallel optimization-------------------------------------------------------------------
-      if (env%legacy) then
-        ! from my understanding this doesn't actually return any useful at this point???
-        call cff_opt(.false.,env,'solvent_cluster.coord',n_ini,conv(env%nqcgclust+1)&
-                &,'TMPCFF',conv,nothing_added)
-      end if
+      ! for some reason pre-processing with constraint is coupled to the pr flag
+      ! also, I don't think this call does anything useful...
+      ! I implemented e_cur readout, this makes sense to me at least
+      call cff_opt(.false.,env,'solvent_cluster.coord',n_ini,conv(env%nqcgclust+1)&
+              &,'TMPCFF',conv,nothing_added,e_cur(iter,:))
 !----------------------------------------------------------------------------------------------
-
+      de_tot(:) = 0.0_wp
       do i = 1,env%nqcgclust
         if (.not.converged(i)) then
           write (to,'("TMPCFF",i0)') i
           call chdirdbug(to)
           dum_e = e_empty(i)
-          if (iter-nsolv .gt. 1) dum_e = e_cur(iter-1,i)
+          if (iter .gt. 1) dum_e = e_cur(iter-1,i)
           de = autokcal*(e_cur(iter,i)-solv%energy-dum_e)
           de_tot(i) = de_tot(i)+de
           !---- Check if solvent added is repulsive
           if (de .gt. 0) then
             converged(i) = .true.
-            write (stdout,'(2x,''adding solvent is repulsive for cluster: '',i0)') i
-            write (stdout,'(2x,''previous cluster taken...'')')
+            write (stdout,'(2x,"adding solvent is repulsive for cluster: ",i0,a)') i, &
+            & ", taking previous one instead."
             if (iter .eq. 1) nothing_added(i) = .true.
           else !Only if the addition was not repulsive
             call copy('solvent_cluster.coord','filled_cluster.coord')
@@ -1480,12 +1485,12 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
   if (.not.skip) then
     call cff_opt(.true.,env,'filled_cluster.coord',n_ini,conv(env%nqcgclust+1),&
-           & 'TMPCFF',conv,nothing_added)
+           & 'TMPCFF',conv,nothing_added,e_cluster)
   else
     n_ini = 0 !If this is 0, no constraining will be done (optimization of total system)
     nothing_added = .true.
     call cff_opt(.true.,env,'filled_cluster.coord',n_ini,env%nqcgclust,'TMPCFF',&
-           & conv,nothing_added)
+           & conv,nothing_added,e_cluster)
   end if
   env%optlev = tmp_optlev
 
@@ -1505,15 +1510,14 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
     call copy('xtbopt.coord','final_cluster.coord')
 
 !--- Reading structure
-    call clus%deallocate()
-    call rdnat('final_cluster.coord',clus%nat)
-    allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
-    call rdcoord('final_cluster.coord',clus%nat,clus%at,clus%xyz)
+    call clus%open('final_cluster.coord')
 
 !--- Getting energy and calculating properties
-    call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,e_cluster(i))
-    call grepval('xtb_sp.out','         :: add. restraining',e_there,e_fix(i))
-    e_fix(i) = e_fix(i)*autokcal/sqrt(float(clus%nat))
+    if (env%legacy) then
+      call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,e_cluster(i))
+      call grepval('xtb_sp.out','         :: add. restraining',e_there,e_fix(i))
+    end if
+    e_fix(i) = e_fix(i)*autokcal/sqrt(real(clus%nat))
     call get_sphere(.false.,clus,.false.)
     if (clus%nat .gt. n_ini) then
       solv_added = (clus%nat-(n_ini))/solv%nat
@@ -1554,10 +1558,8 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   minpos = minloc(solv_ens%er,dim=1)
   write (to,'("TMPCFF",i0)') minpos
   call chdirdbug(to)
-  call clus%deallocate
-  call rdnat('final_cluster.coord',clus%nat)
-  allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
-  call rdcoord('final_cluster.coord',clus%nat,clus%at,clus%xyz)
+  call clus%open('final_cluster.coord')
+
   clus%xyz = clus%xyz*bohr
   call chdirdbug(tmppath2)
   write (comment,'(F20.8)') solv_ens%er(minpos)
@@ -2057,9 +2059,8 @@ subroutine qcg_restart(env,progress,solu,solv,clus,solu_ens,solv_ens,clus_backup
   if (grow) then
     env%qcg_restart = .true.
     call chdirdbug('grow')
-    call rdnat('cluster.coord',clus%nat)
-    allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
-    call rdcoord('cluster.coord',clus%nat,clus%at,clus%xyz)
+    call clus%open('cluster.coord')
+
     clus%nmol = (clus%nat-solu%nat)/solv%nat+1
     allocate (xyz(3,clus%nat))
     xyz = clus%xyz

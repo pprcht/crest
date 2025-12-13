@@ -126,10 +126,10 @@ module calc_type
     real(wp),allocatable :: dipgrad(:,:)
 
     !> other properties
-    logical,allocatable :: getsasa(:) 
+    logical,allocatable :: getsasa(:)
     logical :: getlmocent = .false.
     integer :: nprot = 0
-    real(wp),allocatable :: protxyz(:,:) 
+    real(wp),allocatable :: protxyz(:,:)
     real(wp),allocatable :: efield(:)  !> in V/Å
 
 !>--- API constructs
@@ -284,6 +284,8 @@ module calc_type
     procedure :: ONIOMexpand => calculation_ONIOMexpand
     procedure :: active => calc_set_active
     procedure :: active_restore => calc_set_active_restore
+    generic,public :: set_freeze => calculation_set_freeze_range,calculation_set_freeze_bools
+    procedure,private :: calculation_set_freeze_range,calculation_set_freeze_bools
     procedure :: freezegrad => calculation_freezegrad
     procedure :: increase_charge => calculation_increase_charge
     procedure :: decrease_charge => calculation_decrease_charge
@@ -356,10 +358,10 @@ contains  !>--- Module routines start here
     integer :: i,j,k
     if (self%ncalculations > 0) then
       do i = 1,self%ncalculations
-        if(allocated(self%calcs(i)%tblite)) deallocate(self%calcs(i)%tblite)
-        if(allocated(self%calcs(i)%g0calc)) deallocate(self%calcs(i)%g0calc)
-        if(allocated(self%calcs(i)%ff_dat)) deallocate(self%calcs(i)%ff_dat)
-        if(allocated(self%calcs(i)%libpvol)) deallocate(self%calcs(i)%libpvol)
+        if (allocated(self%calcs(i)%tblite)) deallocate (self%calcs(i)%tblite)
+        if (allocated(self%calcs(i)%g0calc)) deallocate (self%calcs(i)%g0calc)
+        if (allocated(self%calcs(i)%ff_dat)) deallocate (self%calcs(i)%ff_dat)
+        if (allocated(self%calcs(i)%libpvol)) deallocate (self%calcs(i)%libpvol)
       end do
     end if
   end subroutine calculation_deallocate_params
@@ -576,6 +578,33 @@ contains  !>--- Module routines start here
   end subroutine calculation_copy
 
 !=========================================================================================!
+  subroutine calculation_set_freeze_range(self,nat,start,finish)
+    class(calcdata) :: self
+    integer,intent(in) :: nat,start,finish
+    integer :: i,k
+    if (allocated(self%freezelist)) deallocate (self%freezelist)
+    allocate (self%freezelist(nat),source=.false.)
+    k = 0
+    do i = 1,nat
+
+      if (i >= start.and.i <= finish) then
+        k = k+1
+        self%freezelist(i) = .true.
+      end if
+    end do
+    self%nfreeze = k
+  end subroutine calculation_set_freeze_range
+
+  subroutine calculation_set_freeze_bools(self,freezetmp)
+    class(calcdata) :: self
+    logical,intent(in) :: freezetmp(:)
+    integer :: nat
+    if (allocated(self%freezelist)) deallocate (self%freezelist)
+    nat = size(freezetmp,1)
+    allocate (self%freezelist(nat),source=.false.)
+    self%nfreeze = count(freezetmp)
+    self%freezelist(:) = freezetmp(:)
+  end subroutine calculation_set_freeze_bools
 
   subroutine calculation_freezegrad(self,grad)
     class(calcdata) :: self
@@ -598,21 +627,21 @@ contains  !>--- Module routines start here
 !******************************************************************
 !* increase the charge of all calculation_settings objects by one
 !* or the specified dchrg
-!****************************************************************** 
+!******************************************************************
     implicit none
     class(calcdata) :: self
     integer,intent(in),optional :: dchrg
     integer :: i,j
-    if(self%ncalculations > 0)then
-     if(present(dchrg))then
-       j = dchrg
-     else
-       j = 1
-     endif
-     do i=1,self%ncalculations
-        self%calcs(i)%chrg = self%calcs(i)%chrg + j
-     enddo
-    endif
+    if (self%ncalculations > 0) then
+      if (present(dchrg)) then
+        j = dchrg
+      else
+        j = 1
+      end if
+      do i = 1,self%ncalculations
+        self%calcs(i)%chrg = self%calcs(i)%chrg+j
+      end do
+    end if
     return
   end subroutine calculation_increase_charge
 
@@ -622,21 +651,21 @@ contains  !>--- Module routines start here
 !******************************************************************
 !* decrease the charge of all calculation_settings objects by one
 !* or the specified dchrg
-!****************************************************************** 
+!******************************************************************
     implicit none
     class(calcdata) :: self
     integer,intent(in),optional :: dchrg
     integer :: i,j
-      if(self%ncalculations > 0)then
-     if(present(dchrg))then
-       j = dchrg
-     else
-       j = 1
-     endif
-     do i=1,self%ncalculations
-        self%calcs(i)%chrg = self%calcs(i)%chrg - j
-     enddo
-    endif
+    if (self%ncalculations > 0) then
+      if (present(dchrg)) then
+        j = dchrg
+      else
+        j = 1
+      end if
+      do i = 1,self%ncalculations
+        self%calcs(i)%chrg = self%calcs(i)%chrg-j
+      end do
+    end if
     return
   end subroutine calculation_decrease_charge
 
@@ -662,9 +691,9 @@ contains  !>--- Module routines start here
         self%calcs(i)%active = .false.
       else
 !>--- and all other to active
-        if(self%calcs(i)%weight == 0.0_wp)then
-           self%calcs(i)%weight = 1.0_wp
-        endif 
+        if (self%calcs(i)%weight == 0.0_wp) then
+          self%calcs(i)%weight = 1.0_wp
+        end if
         self%calcs(i)%active = .true.
       end if
     end do
@@ -891,8 +920,6 @@ contains  !>--- Module routines start here
     return
   end subroutine calculation_info
 
-
-
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !> CALCULATION_SETTINGS associated routines
@@ -1003,29 +1030,29 @@ contains  !>--- Module routines start here
       self%calcspace = 'calculation.level.'//trim(nmbr)
     end if
 
-    if (self%pr .and. self%prch.ne.stdout) then
+    if (self%pr.and.self%prch .ne. stdout) then
       self%prch = self%prch+id
     end if
   end subroutine calculation_settings_autocomplete
 
 !>--- create a short calculation info flag
-    subroutine calculation_settings_shortflag(self)
+  subroutine calculation_settings_shortflag(self)
     implicit none
     class(calculation_settings) :: self
     integer :: i,j
 
-    select case( self%id )
-    case( jobtype%xtbsys )   
+    select case (self%id)
+    case (jobtype%xtbsys)
       self%shortflag = 'xtb subprocess'
-    case( jobtype%generic ) 
-      self%shortflag = 'generic subprocess' 
-    case( jobtype%turbomole ) 
+    case (jobtype%generic)
+      self%shortflag = 'generic subprocess'
+    case (jobtype%turbomole)
       self%shortflag = 'TURBOMOLE subprocess'
-    case( jobtype%orca ) 
+    case (jobtype%orca)
       self%shortflag = 'ORCA subprocess'
-    case( jobtype%terachem ) 
+    case (jobtype%terachem)
       self%shortflag = 'TeraChem subprocess'
-    case( jobtype%tblite )
+    case (jobtype%tblite)
       select case (self%tblitelvl)
       case (xtblvl%gfn2)
         self%shortflag = 'GFN2-xTB'
@@ -1040,23 +1067,23 @@ contains  !>--- Module routines start here
       case (xtblvl%param)
         self%shortflag = 'parameter file: '//trim(self%tbliteparam)
       end select
-    case( jobtype%gfn0 )
-      self%shortflag =  'GFN0-xTB' 
-    case( jobtype%gfn0occ )
-      self%shortflag =  'GFN0-xTB*'
-    case( jobtype%gfnff )
-      self%shortflag =  'GFN-FF'
-    case( jobtype%libpvol )
-      self%shortflag =  'LIVPVOL'
-    case( jobtype%lj )
-      self%shortflag =  'LJ'
+    case (jobtype%gfn0)
+      self%shortflag = 'GFN0-xTB'
+    case (jobtype%gfn0occ)
+      self%shortflag = 'GFN0-xTB*'
+    case (jobtype%gfnff)
+      self%shortflag = 'GFN-FF'
+    case (jobtype%libpvol)
+      self%shortflag = 'LIVPVOL'
+    case (jobtype%lj)
+      self%shortflag = 'LJ'
     case default
       self%shortflag = 'undefined'
     end select
-    if(allocated(self%solvmodel).and.allocated(self%solvent))then
+    if (allocated(self%solvmodel).and.allocated(self%solvent)) then
       self%shortflag = self%shortflag//'/'//trim(self%solvmodel)
-       self%shortflag = self%shortflag//'('//trim(self%solvent)//')'
-    endif
+      self%shortflag = self%shortflag//'('//trim(self%solvent)//')'
+    end if
   end subroutine calculation_settings_shortflag
 
 !>-- generate a unique print id for the calculation
@@ -1098,7 +1125,7 @@ contains  !>--- Module routines start here
     character(len=20) :: atmp
     logical :: gxtbwarn
 
-    gxtbwarn=.false.
+    gxtbwarn = .false.
 
     if (allocated(self%description)) then
       write (iunit,'(" :",1x,a)') trim(self%description)
@@ -1119,12 +1146,12 @@ contains  !>--- Module routines start here
     end if
     if (any((/jobtype%orca,jobtype%xtbsys,jobtype%turbomole, &
     &  jobtype%generic,jobtype%terachem/) == self%id)) then
-      if(index(self%binary,'gxtb').ne.0)then
-        write(iunit,fmt4) 'g-xTB (development version)'
+      if (index(self%binary,'gxtb') .ne. 0) then
+        write (iunit,fmt4) 'g-xTB (development version)'
         gxtbwarn = .true.
-      else  
+      else
         write (iunit,'(" :",3x,a,a)') 'selected binary : ',trim(self%binary)
-      endif
+      end if
     end if
     if (self%refine_lvl > 0) then
       write (atmp,*) 'refinement stage'
@@ -1144,7 +1171,7 @@ contains  !>--- Module routines start here
       write (iunit,fmt3) atmp,trim(self%solvmodel)
     end if
     if (allocated(self%solvent)) then
-    write (atmp,*) 'Solvent'
+      write (atmp,*) 'Solvent'
       write (iunit,fmt3) atmp,trim(self%solvent)
     end if
 
@@ -1176,31 +1203,45 @@ contains  !>--- Module routines start here
       end select
       write (iunit,fmt1) trim(atmp),self%ONIOM_id
     else
-      if(self%weight .ne. 1.0_wp)then
+      if (self%weight .ne. 1.0_wp) then
         write (atmp,*) 'Weight'
         write (iunit,fmt2) atmp,self%weight
-      endif
+      end if
     end if
 
-    if(gxtbwarn)then
-       write(iunit,fmt4) 'WARNING: This currently is the development version of g-xTB.'
-       write(iunit,fmt4) 'WARNING: Gradients are NUMERICAL (i.e., expensive and noisy!)' 
-    endif
+    if (gxtbwarn) then
+      write (iunit,fmt4) 'WARNING: This currently is the development version of g-xTB.'
+      write (iunit,fmt4) 'WARNING: Gradients are NUMERICAL (i.e., expensive and noisy!)'
+    end if
 
   end subroutine calculation_settings_info
 
 !=========================================================================================!
 
-  subroutine create_calclevel_shortcut(self,levelstring)
+  subroutine create_calclevel_shortcut(self,levelstring, &
+      & chrg,uhf,solvmodel,solvent)
 !*********************************************************************
 !* subroutine create_calclevel_shortcut called with %create(...)
 !* Set up a calculation_settings object for a given level of theory
 !* More shortcuts can be added as required.
+!*
+!* Optional settings are for:
+!*  - molecular charge  (integer)
+!*  - uhf parameter (integer)
+!*  - solvent/solventmodel (either none or BOTH must be present to work)
+!*
 !* Be careful about the intent(out) setting!
+!* Also, the routine is "dumb" and does not check if the user-provided
+!* settings actually make sense for a create_calclevel_shortcutation. It very much
+!* exists as an internal code shortcut only.
 !*********************************************************************
     implicit none
     class(calculation_settings),intent(out) :: self
-    character(len=*) :: levelstring
+    character(len=*),intent(in) :: levelstring
+    integer,intent(in),optional :: chrg
+    integer,intent(in),optional :: uhf
+    character(len=*),intent(in),optional :: solvmodel
+    character(len=*),intent(in),optional :: solvent
     call self%deallocate()
     select case (trim(levelstring))
     case ('gfnff','--gff','--gfnff')
@@ -1218,14 +1259,14 @@ contains  !>--- Module routines start here
       self%rdgrad = .false.
       self%binary = 'gp3'
     case ('gxtb','gxtb_dev')
-      self%id = jobtype%turbomole 
-      self%rdgrad = .false.       
+      self%id = jobtype%turbomole
+      self%rdgrad = .false.
       self%binary = 'gxtb'
       self%rdwbo = .false.
-      if(index(levelstring,'_dev').ne.0)then
+      if (index(levelstring,'_dev') .ne. 0) then
         self%other = '-grad'
-        self%rdgrad=.true.
-      endif  
+        self%rdgrad = .true.
+      end if
     case ('orca')
       self%id = jobtype%orca
 
@@ -1233,6 +1274,29 @@ contains  !>--- Module routines start here
       self%id = jobtype%generic
 
     end select
+
+    if (present(chrg)) then
+      self%chrg = chrg
+    end if
+
+    if (present(uhf)) then
+      self%uhf = uhf
+    end if
+
+    !> both must be present to work
+    if (present(solvmodel).and.present(solvent)) then
+      !> the first two if-cases exist to convert cli args
+      !> into sensible keywords (required for legacy compatibility)
+      if (index(solvmodel,'gbsa') .ne. 0) then
+        self%solvmodel = 'gbsa'
+      else if (index(solvmodel,'alpb') .ne. 0) then
+        self%solvmodel = 'alpb'
+      else
+        self%solvmodel = trim(solvmodel)
+      end if
+      self%solvent = trim(solvent)
+    end if
+
     call self%autocomplete(self%id)
   end subroutine create_calclevel_shortcut
 

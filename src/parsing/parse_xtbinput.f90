@@ -932,7 +932,7 @@ contains  !> MODULE PROCEDURES START HERE
     call parse_cts_internal(cts,dict)
     !call dict%print()
 
-    write (stdout,'(a,a,a)') 'Parsing xtb-type constraints from internal backup to set up calculators ...'
+    !write (stdout,'(a,a,a)') 'Parsing xtb-type constraints from internal backup to set up calculators ...'
     !> iterate through the blocks and save the necessary information
     do i = 1,dict%nblk
       blk => dict%blk_list(i)

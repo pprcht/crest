@@ -590,7 +590,7 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
     call command('cd '//trim(tmppath)//' && '//trim(jobcall))
     !$omp critical
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100
     !$omp end critical
     !$omp end task
   end do
@@ -609,7 +609,7 @@ end subroutine ensemble_dock
 ! xTB CFF optimization performed in parallel
 !___________________________________________________________________________________
 
-subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
+subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
   use crest_parameters
   use iomod
   use crest_data
@@ -623,14 +623,23 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   integer,intent(inout)           :: conv(env%nqcgclust+1)
   logical,intent(in)              :: pr
   logical,intent(in)              :: nothing_added(env%nqcgclust)
-  integer                         :: i,k,n12
+  integer,intent(in)              :: n12
+  real(wp),intent(out)            :: eread(env%nqcgclust)
+  integer                         :: i,k
   integer                         :: vz,T,Tn
   integer                         :: funit
-  character(len=20)               :: pipe
   character(len=512)              :: thispath,tmppath
   character(len=1024)             :: jobcall
   character(len=2)                :: flag
   real(wp)                        :: percent
+  logical :: ex,e_there
+  character(len=*),parameter      :: pipe = '2>/dev/null'
+
+  !> redirect to calculator version in new implementation
+  if (.not.env%legacy) then
+    call cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
+    return
+  end if
 
 ! setting the threads for correct parallelization
   call new_ompautoset(env,'auto',NTMP,T,Tn)
@@ -650,7 +659,6 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
       conv(env%nqcgclust+1) = k
     end do
   end if
-  pipe = '2>/dev/null'
 
   call getcwd(thispath)
   do i = 1,NTMP
@@ -690,7 +698,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
     call command('cd '//trim(tmppath)//' && '//trim(jobcall))
     !$omp critical
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100
     if (pr) then
       call printprogbar(percent)
     end if
@@ -733,7 +741,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
     call command('cd '//trim(tmppath)//' && '//trim(jobcall))
     !$omp critical
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100
     if (pr) then
       call printprogbar(percent)
     end if
@@ -749,6 +757,9 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
     call chdirdbug(trim(tmppath))
+
+    call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,eread(i))
+
     call remove('xtbrestart')
     !call remove('xcontrol')
     call chdirdbug(trim(thispath))
@@ -761,11 +772,14 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
 
 end subroutine cff_opt
 
-subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
+subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
+    & conv,nothing_added,eread)
   use crest_parameters
   use iomod
   use crest_data
   use strucrd
+  use crest_calculator
+  use optimize_module
   implicit none
 
   type(systemdata)                :: env
@@ -775,18 +789,36 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
   integer,intent(inout)           :: conv(env%nqcgclust+1)
   logical,intent(in)              :: pr
   logical,intent(in)              :: nothing_added(env%nqcgclust)
-  integer                         :: i,k,n12
+  integer,intent(in)              :: n12
+  real(wp),intent(out)            :: eread(env%nqcgclust)
+  integer                         :: i,k
   integer                         :: vz,T,Tn
   integer                         :: funit
-  character(len=20)               :: pipe
   character(len=512)              :: thispath,tmppath
   character(len=1024)             :: jobcall
   character(len=2)                :: flag
   real(wp)                        :: percent
+  logical :: gbsa_tmp,opt_nofreeze
+  integer :: io,nconstraints_tmp
+  character(len=40)  :: solv_tmp
+  real(wp) :: etot
+  type(calcdata),allocatable :: newcalcs(:)
+  type(calculation_settings) :: clevel
+  type(coord) :: mol,molopt
+  type(coord),allocatable :: structures(:)
+  real(wp),allocatable :: grd(:,:)
+  character(len=*),parameter      :: pipe = '2>/dev/null'
+
+  !> setting the threads to accelerate individual energy calculations
+  call new_ompautoset(env,'max',NTMP,T,Tn)
 
   if (pr) then
     write (stdout,'(2x,"Starting optimizations + SP  of structures")')
     write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
+  end if
+  if (NTMP .lt. 1) then
+    write (stdout,'(2x,"No structures to be optimized")')
+    return
   end if
 
 ! pr eq true => post opt run, which has to be performed in every directory !!!
@@ -799,115 +831,126 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added)
       conv(env%nqcgclust+1) = k
     end do
   end if
-  pipe = '2>/dev/null'
+
+  !> Local storage for structures.
+  allocate (structures(NTMP))
 
   call getcwd(thispath)
   do i = 1,NTMP
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
     call chdirdbug(trim(tmppath))
-    open (newunit=funit,file='xcontrol')
-    if (n12 .ne. 0) then
-      flag = '$'
-      write (funit,'(a,"fix")') trim(flag)
-      write (funit,'(3x,"atoms: 1-",i0)') n12 !Initial number of atoms (starting solvent shell)
-    end if
-    close (funit)
-    if (pr.and.nothing_added(i)) call remove('xcontrol')
+    call structures(i)%open(fname)
     call chdirdbug(trim(thispath))
   end do
-
-!--- Jobcall WITHOUT GBSA
-  write (jobcall,'(a,1x,a,1x,a,'' --input xcontrol --opt '',i0,1x,a,'' >xtb.out'')') &
-  &    trim(env%ProgName),trim(fname),trim(env%gfnver),nint(env%optlev),trim(pipe)
 
   if (NTMP .lt. 1) then
     write (stdout,'(2x,"No structures to be optimized")')
     return
   end if
 
+!--- Jobcall WITHOUT GBSA, back up data
+  solv_tmp = env%solv
+  gbsa_tmp = env%gbsa
+  env%solv = ''
+  env%gbsa = .false.
+
+  !> keep everything nice and separate, we have different molecules after all...
+  !> also, this will be gas-phase
+  call clevel%create(env%gfnver,chrg=env%chrg,uhf=env%uhf)
+  allocate (newcalcs(NTMP))
+  do i = 1,NTMP
+    call newcalcs(i)%add(clevel)
+    !> other important settings from env
+    newcalcs(i)%optlev = int(env%optlev)
+  end do
+
+  !> -------------------------------------------------
+  !> OPTIMIZATIONS
+  !> -------------------------------------------------
+  !> The structures may have different numbers
+  !> and it should not not be many structures anyways.
+  !> therefore, just optimize them serially.
+
   k = 0 !counting the finished jobs
   if (pr) call printprogbar(0.0_wp)
 !___________________________________________________________________________________
 
-!$omp parallel &
-!$omp shared( vz,jobcall,NTMP,percent,k,TMPdir,conv )
-!$omp single
   do i = 1,NTMP
-    vz = i
-    !$omp task firstprivate( vz ) private( tmppath )
-    write (tmppath,'(a,i0)') trim(TMPdir),conv(vz)
-    call command('cd '//trim(tmppath)//' && '//trim(jobcall))
-    !$omp critical
+    mol = structures(i)
+    allocate (grd(3,mol%nat))
+    opt_nofreeze = (pr.and.nothing_added(i))
+    if (.not.opt_nofreeze.and.n12 > 0) then
+      call newcalcs(i)%set_freeze(mol%nat,1,n12)
+      if (n12 == mol%nat) cycle !> safeguard against freezing all
+    end if
+
+    call optimize_geometry(mol,molopt,newcalcs(i),etot,grd, &
+      & .false.,.false.,io)
+    structures(i) = molopt
+    structures(i)%energy = etot
+
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100.0_wp
     if (pr) then
       call printprogbar(percent)
     end if
-    !$omp end critical
-    !$omp end task
-  end do
-!$omp taskwait
-!$omp end single
-!$omp end parallel
 
+    deallocate (grd)
+  end do
+  !> clear up space
+  deallocate (newcalcs)
 !__________________________________________________________________________________
 
+!> -------------------------------------------------
+!> SINGLEPOINTS
+!> -------------------------------------------------
+!> same as for optimizations, turn on impl. solv again
+  env%solv = solv_tmp
+  env%gbsa = gbsa_tmp
+
+  !> again, keep everything nice and separate (now with impl. solv)
+  call clevel%create(env%gfnver,chrg=env%chrg,uhf=env%uhf,&
+    &  solvmodel=env%solv,solvent=env%solvent &
+  )
+  allocate (newcalcs(NTMP))
   do i = 1,NTMP
-    write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
-    call chdirdbug(trim(tmppath))
-    call remove('xtbrestart')
-    call chdirdbug(trim(thispath))
+    call newcalcs(i)%add(clevel)
   end do
-
-  !create the system call for sp (needed for gbsa model)
-  write (jobcall,'(a,1x,a,1x,a,'' --sp '',a,1x,a,'' >xtb_sp.out'')') &
-  &    trim(env%ProgName),'xtbopt.coord',trim(env%gfnver),trim(env%solv),trim(pipe)
-
-  if (NTMP .lt. 1) then
-    write (stdout,'(2x,"Nothing to do")')
-    return
-  end if
 
   k = 0 !counting the finished jobs
   if (pr) call printprogbar(0.0_wp)
 !___________________________________________________________________________________
 
-!$omp parallel &
-!$omp shared( vz,jobcall,NTMP,percent,k,TMPdir,conv )
-!$omp single
   do i = 1,NTMP
-    vz = i
-    !$omp task firstprivate( vz ) private( tmppath )
-    write (tmppath,'(a,i0)') trim(TMPdir),conv(vz)
-    call command('cd '//trim(tmppath)//' && '//trim(jobcall))
-    !$omp critical
+    mol = structures(i)
+    allocate (grd(3,mol%nat))
+
+    call engrad(mol,newcalcs(i),etot,grd,io)
+    structures(i)%energy = etot
+
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100.0_wp
     if (pr) then
       call printprogbar(percent)
     end if
-    !$omp end critical
-    !$omp end task
-  end do
-!$omp taskwait
-!$omp end single
-!$omp end parallel
 
+    deallocate (grd)
+  end do
 !___________________________________________________________________________________
 
+  !> for compatibility reasons, let's write the optimized geometries
+  !> and pass on energies
+  call getcwd(thispath)
   do i = 1,NTMP
+    eread(i) = structures(i)%energy
     write (tmppath,'(a,i0)') trim(TMPdir),conv(i)
     call chdirdbug(trim(tmppath))
-    call remove('xtbrestart')
-    !call remove('xcontrol')
+    call structures(i)%write('xtbopt.coord')
     call chdirdbug(trim(thispath))
   end do
 
-  if (pr) then
-    write (stdout,*) ''
-    write (stdout,'(2x,"done.")')
-  end if
-
+  if (allocated(newcalcs)) deallocate(newcalcs)
+  if (allocated(structures)) deallocate (structures)
 end subroutine cff_opt_calculator
 
 !___________________________________________________________________________________
@@ -1046,7 +1089,7 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
     call command('cd '//trim(tmppath)//' && '//trim(jobcall))
     !$omp critical
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100
     call printprogbar(percent)
     !$omp end critical
     !$omp end task
@@ -1132,7 +1175,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
     call command('cd '//trim(tmppath)//' && '//trim(jobcall))
     !$omp critical
     k = k+1
-    percent = float(k)/float(NTMP)*100
+    percent = real(k)/real(NTMP)*100
     call printprogbar(percent)
     !$omp end critical
     !$omp end task
@@ -1362,6 +1405,9 @@ subroutine qcg_envcalc_reinit(env,mol,addconstraints,printinfo)
   if (addconstraints) then
     if (allocated(env%calc%cons)) deallocate (env%calc%cons)
     env%calc%nconstraints = 0
+    if (printinfo) then
+      write (stdout,'(a,a,a)') 'Parsing xtb-type constraints from internal backup to set up calculators ...'
+    end if
     call parse_constraints_from_cts(env%calc,mol,env%cts)
   end if
 
