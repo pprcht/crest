@@ -61,8 +61,9 @@ subroutine crest_solvtool(env,tim)
     call xtbiff_print_deprecated()
   else
     write (stdout,*)
-    write (stdout,*) '  The use of the aISS algorithm is the current standard implementation.'
-    write (stdout,*) '  This requires xtb version 6.6.0 or newer.'
+    write (stdout,*) ' This program uses the the aISS algorithm as implemnted in xtb.'
+    write (stdout,*) '      The aISS method requires xtb version 6.6.0 or newer.'
+    write (stdout,*) '           Tested with xtb version 6.7.1 (902b313)'
     !write (stdout,*) '  xTB-IFF can still be used with the --xtbiff flag.'
     write (stdout,*)
   end if
