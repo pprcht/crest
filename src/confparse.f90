@@ -1947,7 +1947,7 @@ subroutine parseflags(env,arg,nra)
         ctmp = arg(i+1)
         env%user_enslvl = .true.
         env%qcg_flag = .true.
-        if (arg(i+1) == 'gfn') then
+        if (arg(i+1) == '-gfn') then
           dtmp = trim(arg(i+2))
           ctmp = trim(ctmp)//dtmp
         end if
@@ -1969,7 +1969,7 @@ subroutine parseflags(env,arg,nra)
       case ('-freqlvl')
         ctmp = arg(i+1)
         env%qcg_flag = .true.
-        if (arg(i+1) == 'gfn') then
+        if (arg(i+1) == '-gfn') then
           dtmp = trim(arg(i+2))
           ctmp = trim(ctmp)//dtmp
         end if
@@ -2159,6 +2159,9 @@ subroutine parseflags(env,arg,nra)
   if (env%autozsort.and.env%crestver .eq. crest_solv) then
     error stop 'Z sorting of the input is unavailable for -qcg runtyp.'
   end if
+
+!>--- avoid 0 potscal
+  if(env%potscal < 1.0d-5) env%potscal = 1.0_wp
 
 !>--- automatic wall potential for the LEGACY version
   if ((env%NCI.or.env%wallsetup).and.env%legacy) then
