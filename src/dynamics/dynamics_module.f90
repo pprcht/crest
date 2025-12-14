@@ -354,7 +354,7 @@ contains  !> MODULE PROCEDURES START HERE
         dat%dumped = dat%dumped+1
         !$omp critical
         xyz_angstrom = mol%xyz*bohr
-        write (commentline,'(a,f22.12,1x,a)') 'Epot =',epot,''
+        write (commentline,'(a,f22.12,1x,a)') 'energy =',epot,''
         call wrxyz(trj,mol%nat,mol%at,xyz_angstrom,commentline)
         !$omp end critical
       end if

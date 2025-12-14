@@ -173,6 +173,8 @@ subroutine xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
   use strucrd
   use iomod
   use qcg_printouts
+  use crest_calculator
+  use dynamics_module
   implicit none
   !> IN/OUTPUTS
   type(systemdata),intent(inout) :: env
@@ -189,7 +191,15 @@ subroutine xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
   character(len=1024) :: jobcall
   logical :: ex,mdfail
   type(ensemble) :: dum
+  type(calcdata),target :: calc
+  type(mddata) :: mddat
+  type(coord)  :: mol
+  type(mtdpot) :: mtd
+  real(wp),allocatable :: cn(:),fakewbo(:,:)
   character(len=*),parameter :: pipe = ' > xtb.out 2>/dev/null'
+
+  call getcwd(tmppath2)
+
   !---- Setting threads
   call new_ompautoset(env,'auto',1,T,Tn)
 
@@ -201,12 +211,14 @@ subroutine xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
   else
     newtemp = env%mdtemp
   end if
+  env%mdtemp = newtemp
 
   if (.not.env%user_mdtime) then
     newmdtime = 100.0 !100.0
   else
     newmdtime = env%mdtime
   end if
+  env%mdtime = newmdtime
 
   if (.not.env%user_dumxyz) then
     env%mddumpxyz = 1000
@@ -221,17 +233,19 @@ subroutine xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
   else
     newmdstep = env%mdstep
   end if
+  env%mdstep = newmdstep
 
   if (env%ensemble_opt .ne. '--gff') then
     newhmass = 4.0
   else
     newhmass = 5.0
   end if
+  env%hmass = newhmass
 
   if (.not.allocated(env%metadfac)) then
-    allocate (env%metadfac(1))
-    allocate (env%metadexp(1))
-    allocate (env%metadlist(1))
+    allocate (env%metadfac(1),source=0.02_wp)
+    allocate (env%metadexp(1),source=0.1_wp)
+    allocate (env%metadlist(1),source=10)
   end if
   newmetadfac = 0.02_wp
   newmetadexp = 0.1_wp
@@ -239,156 +253,203 @@ subroutine xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
 
   fname = 'coord'
 
-  !--- Writing constraining file xcontrol
-  !--- Providing xcontrol overwrites constraints in coord file
+!> --------------------------------------------------------------------
+!> Internal calculator version
+!> --------------------------------------------------------------------
+  if (.not.env%legacy) then
+    call mol%open(fname)
 
-  open (newunit=ich,file='xcontrol')
-  if (env%cts%NCI) then
-    do i = 1,10
-      if (trim(env%cts%pots(i)) .ne. '') then
-        write (ich,'(a)') trim(env%cts%pots(i))
+    call env_to_mddat(env)
+    mddat = env%mddat
+    calc = env%calc
+    if (.not.env%solv_md) then
+      call calc%set_freeze(mol%nat,1,solu%nat)
+    end if
+
+    if (env%shake .ne. 0) then
+      call mol%cn_to_bond(cn,fakewbo)
+      call move_alloc(fakewbo,mddat%shk%wbo)
+      if (calc%nfreeze > 0) then
+        mddat%shk%freezeptr => calc%freezelist
       end if
-    end do
-  end if
+    end if
 
-  if (.not.env%solv_md) then
-    write (ich,'(a)') '$constrain'
-    write (ich,'(2x,a,i0)') 'atoms: 1-',solu%nat
-    write (ich,'(2x,a)') 'force constant=0.5'
-    write (ich,'(2x,a,a)') 'reference=ref.coord'
-  end if
+    !> for MTD runtype add the corresponding potential
+    if (env%ensemble_method .EQ. 2) then
+      mtd%kpush = newmetadfac
+      mtd%alpha = newmetadexp
+      mtd%cvdump_fs = real(env%mddump)
+      mtd%mtdtype = cv_rmsd
+      allocate (mtd%atinclude(mol%nat),source=.true.)
+      mtd%atinclude(1:clus%nat) = .false. !> only include solvent
+      call mddat%add(mtd)
+    end if
 
-  write (ich,'(a)') '$md'
-  write (ich,'(2x,a,f10.2)') 'hmass=',newhmass
-  write (ich,'(2x,a,f10.2)') 'time=',newmdtime
-  write (ich,'(2x,a,f10.2)') 'temp=',newtemp
-  write (ich,'(2x,a,f10.2)') 'step=',newmdstep
-  write (ich,'(2x,a,i0)') 'shake=',env%shake
-  write (ich,'(2x,a,i0)') 'dump=',env%mddumpxyz
-  write (ich,'(2x,a)') 'dumpxyz=500.0'
+    !> set output file and run
+    mddat%trajectoryfile = 'xtb.trj.xyz'
+    call dynamics(mol,mddat,calc,.true.,io)
 
-  if (env%ensemble_method .EQ. 2) then
-    write (ich,'(a)') '$metadyn'
-    write (ich,'(2x,a,i0,a,i0)') 'atoms: ',solu%nat+1,'-',clus%nat
-    write (ich,'(2x,a,f10.2)') 'save=',newmetadlist
-    write (ich,'(2x,a,f10.2)') 'kpush=',newmetadfac
-    write (ich,'(2x,a,f10.2)') 'alp=',newmetadexp
-  end if
+    if (io .ne. 0) then
+      write (stdout,*) 'WARNING: MD run terminated ABNORMALLY'
+      call creststop(status_failed)
+    end if
 
-  if (env%cts%cbonds_md) call write_cts_CBONDS(ich,env%cts)
+    call rename(mddat%trajectoryfile,'crest_rotamers_0.xyz')
 
-  close (ich)
+!> --------------------------------------------------------------------
+!> xtb-syscall version
+!> --------------------------------------------------------------------
+  else
+
+    !--- Writing constraining file xcontrol
+    !--- Providing xcontrol overwrites constraints in coord file
+
+    open (newunit=ich,file='xcontrol')
+    if (env%cts%NCI) then
+      do i = 1,10
+        if (trim(env%cts%pots(i)) .ne. '') then
+          write (ich,'(a)') trim(env%cts%pots(i))
+        end if
+      end do
+    end if
+
+    if (.not.env%solv_md) then
+      write (ich,'(a)') '$constrain'
+      write (ich,'(2x,a,i0)') 'atoms: 1-',solu%nat
+      write (ich,'(2x,a)') 'force constant=0.5'
+      write (ich,'(2x,a,a)') 'reference=ref.coord'
+    end if
+
+    write (ich,'(a)') '$md'
+    write (ich,'(2x,a,f10.2)') 'hmass=',newhmass
+    write (ich,'(2x,a,f10.2)') 'time=',newmdtime
+    write (ich,'(2x,a,f10.2)') 'temp=',newtemp
+    write (ich,'(2x,a,f10.2)') 'step=',newmdstep
+    write (ich,'(2x,a,i0)') 'shake=',env%shake
+    write (ich,'(2x,a,i0)') 'dump=',env%mddumpxyz
+    write (ich,'(2x,a)') 'dumpxyz=500.0'
+
+    if (env%ensemble_method .EQ. 2) then
+      write (ich,'(a)') '$metadyn'
+      write (ich,'(2x,a,i0,a,i0)') 'atoms: ',solu%nat+1,'-',clus%nat
+      write (ich,'(2x,a,f10.2)') 'save=',newmetadlist
+      write (ich,'(2x,a,f10.2)') 'kpush=',newmetadfac
+      write (ich,'(2x,a,f10.2)') 'alp=',newmetadexp
+    end if
+
+    if (env%cts%cbonds_md) call write_cts_CBONDS(ich,env%cts)
+
+    close (ich)
 
 !--- Writing jobcall
-  write (jobcall,'(a,1x,a,1x,a,'' --md --input xcontrol '',a,1x,a,a)') &
-        &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),pipe
+    write (jobcall,'(a,1x,a,1x,a,'' --md --input xcontrol '',a,1x,a,a)') &
+          &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),pipe
 !--- slightly different jobcall for QMDFF usage
-  if (env%useqmdff) then
-    write (jobcall,'(a,1x,a,1x,a,'' --md --input xcontrol --qmdff'',a,1x,a,a)') &
-       &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),pipe
-  end if
-
+    if (env%useqmdff) then
+      write (jobcall,'(a,1x,a,1x,a,'' --md --input xcontrol --qmdff'',a,1x,a,a)') &
+         &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),pipe
+    end if
 !--- MD
-  if (env%ensemble_method .EQ. 1) then
-    call normalMD(fname,env,1,newtemp,newmdtime)
-    write (stdout,*) 'Starting MD with the settings:'
-    write (stdout,'(''     MD time /ps        :'',f8.1)') newmdtime
-    write (stdout,'(''     MD Temperature /K  :'',f8.1)') newtemp
-    write (stdout,'(''     dt /fs             :'',f8.1)') newmdstep
-    write (tmppath,'(a,i0)') 'NORMMD1'
+    if (env%ensemble_method .EQ. 1) then
+      call normalMD(fname,env,1,newtemp,newmdtime)
+      write (stdout,*) 'Starting MD with the settings:'
+      write (stdout,'(''     MD time /ps        :'',f8.1)') newmdtime
+      write (stdout,'(''     MD Temperature /K  :'',f8.1)') newtemp
+      write (stdout,'(''     dt /fs             :'',f8.1)') newmdstep
+      write (tmppath,'(a,i0)') 'NORMMD1'
 
-    r = makedir(tmppath)
-    call copysub('xcontrol',tmppath)
-    call chdirdbug(tmppath)
-    call copy('coord','ref.coord')
-    call chdirdbug(tmppath2)
+      r = makedir(tmppath)
+      call copysub('xcontrol',tmppath)
+      call chdirdbug(tmppath)
+      call copy('coord','ref.coord')
+      call chdirdbug(tmppath2)
 
-    call command('cd '//trim(tmppath)//' && '//trim(jobcall),io)
+      call command('cd '//trim(tmppath)//' && '//trim(jobcall),io)
 
-    inquire (file=trim(tmppath)//'/'//'xtb.trj',exist=ex)
-    if (.not.ex.or.io .ne. 0) then
-      write (stdout,'(a,i0,a)') '*Warning: MD seemingly failed (no xtb.trj)*'
-    else
-      write (stdout,*) '*MD finished*'
+      inquire (file=trim(tmppath)//'/'//'xtb.trj',exist=ex)
+      if (.not.ex.or.io .ne. 0) then
+        write (stdout,'(a,i0,a)') '*Warning: MD seemingly failed (no xtb.trj)*'
+      else
+        write (stdout,*) '*MD finished*'
+      end if
+
+      if (env%trackorigin) then
+        call set_trj_origins('NORMMD','md')
+      end if
+      call chdirdbug('NORMMD1')
     end if
-
-    if (env%trackorigin) then
-      call set_trj_origins('NORMMD','md')
-    end if
-    call chdirdbug('NORMMD1')
-  end if
 
 !--- MTD
 
-  if (env%ensemble_method .EQ. 2) then
-    call MetaMD(env,1,newmdtime,env%metadfac(1),env%metadexp(1), &
-       &               env%metadlist(1))
-    write (stdout,'(a,i4,a)') 'Starting Meta-MD with the settings:'
-    write (stdout,'(''     MTD time /ps       :'',f8.1)') newmdtime
-    write (stdout,'(''     dt /fs             :'',f8.1)') newmdstep
-    write (stdout,'(''     MTD Temperature /K  :'',f8.1)') newtemp
-    write (stdout,'(''     dumpstep(trj) /fs  :'',i8)') env%mddumpxyz
-    write (stdout,'(''     Vbias factor k /Eh :'',f8.4)') newmetadfac
-    write (stdout,'(''     Vbias exp α /bohr⁻²:'',f8.2)') newmetadexp
+    if (env%ensemble_method .EQ. 2) then
+      call MetaMD(env,1,newmdtime,env%metadfac(1),env%metadexp(1), &
+         &               env%metadlist(1))
+      write (stdout,'(a,i4,a)') 'Starting Meta-MD with the settings:'
+      write (stdout,'(''     MTD time /ps       :'',f8.1)') newmdtime
+      write (stdout,'(''     dt /fs             :'',f8.1)') newmdstep
+      write (stdout,'(''     MTD Temperature /K  :'',f8.1)') newtemp
+      write (stdout,'(''     dumpstep(trj) /fs  :'',i8)') env%mddumpxyz
+      write (stdout,'(''     Vbias factor k /Eh :'',f8.4)') newmetadfac
+      write (stdout,'(''     Vbias exp α /bohr⁻²:'',f8.2)') newmetadexp
 
-    write (tmppath,'(a,i0)') 'METADYN1'
-    r = makedir(tmppath)
-    call copysub('xcontrol',tmppath)
-    call chdirdbug(tmppath)
-    call copy('coord','ref.coord')
+      write (tmppath,'(a,i0)') 'METADYN1'
+      r = makedir(tmppath)
+      call copysub('xcontrol',tmppath)
+      call chdirdbug(tmppath)
+      call copy('coord','ref.coord')
 
-    call chdirdbug(tmppath2)
+      call chdirdbug(tmppath2)
 
-    call command('cd '//trim(tmppath)//' && '//trim(jobcall),io)
+      call command('cd '//trim(tmppath)//' && '//trim(jobcall),io)
 
-    inquire (file=trim(tmppath)//'/'//'xtb.trj',exist=ex)
-    if (.not.ex.or.io .ne. 0) then
-      write (stdout,'(a,i0,a)') '*Warning: Meta-MTD seemingly failed (no xtb.trj)*'
-    else
-      write (stdout,*) '*MTD finished*'
+      inquire (file=trim(tmppath)//'/'//'xtb.trj',exist=ex)
+      if (.not.ex.or.io .ne. 0) then
+        write (stdout,'(a,i0,a)') '*Warning: Meta-MTD seemingly failed (no xtb.trj)*'
+      else
+        write (stdout,*) '*MTD finished*'
+      end if
+
+      if (env%trackorigin) then
+        call set_trj_origins('METADYN','mtd')
+      end if
+
+      call chdirdbug('METADYN1')
+
     end if
 
-    if (env%trackorigin) then
-      call set_trj_origins('METADYN','mtd')
-    end if
-
-    call chdirdbug('METADYN1')
-
-  end if
-
-  call rename('xtb.trj','crest_rotamers_0.xyz')
-  call copysub('crest_rotamers_0.xyz',tmppath2)
-  call dum%open('crest_rotamers_0.xyz')
+    call rename('xtb.trj','crest_rotamers_0.xyz')
+    call copysub('crest_rotamers_0.xyz',tmppath2)
+    call dum%open('crest_rotamers_0.xyz')
 
 !--- M(T)D stability check
-  call minigrep('xtb.out','M(T)D is unstable, emergency exit',mdfail)
-  if (dum%nall .eq. 1) then
-    call copysub('xtb.out',resultspath)
-    write (stdout,*) 'ERROR : M(T)D results only in one structure'
-    if (mdfail) then
-      write (stdout,*) '        It was unstable'
-    else
-      write (stdout,*) '        The M(T)D time step might be too large or the M(T)D time too short.'
+    call minigrep('xtb.out','M(T)D is unstable, emergency exit',mdfail)
+    if (dum%nall .eq. 1) then
+      call copysub('xtb.out',resultspath)
+      write (stdout,*) 'ERROR : M(T)D results only in one structure'
+      if (mdfail) then
+        write (stdout,*) '        It was unstable'
+      else
+        write (stdout,*) '        The M(T)D time step might be too large or the M(T)D time too short.'
+      end if
+      call copysub('xtb.out',resultspath)
+      error stop '         Please check the xtb.out file in the ensemble folder'
     end if
-    call copysub('xtb.out',resultspath)
-    error stop '         Please check the xtb.out file in the ensemble folder'
-  end if
-  if (mdfail) then
-    write (stdout,*)
-    write (stdout,*) '   WARNING: The M(T)D was unstable.'
-    write (stdout,*) '            Please check the xtb.out file in the ensemble folder.'
-    write (stdout,*)
-    call copysub('xtb.out',resultspath)
-  end if
-  call dum%deallocate
-  call chdirdbug(tmppath2)
-  call clus%write('coord')
-  call inputcoords(env,'coord') !Necessary
+    if (mdfail) then
+      write (stdout,*)
+      write (stdout,*) '   WARNING: The M(T)D was unstable.'
+      write (stdout,*) '            Please check the xtb.out file in the ensemble folder.'
+      write (stdout,*)
+      call copysub('xtb.out',resultspath)
+    end if
+    call dum%deallocate
+    call chdirdbug(tmppath2)
+    call clus%write('coord')
+    call inputcoords(env,'coord') !Necessary
 
 !--- Optimization
-  call print_qcg_opt
-  !if (env%gfnver .eq. '--gfn2')
-  call multilevel_opt(env,99)
+    call print_qcg_opt
+    call multilevel_opt(env,99)
+  end if
 
 end subroutine xtb_md_ensemble_qcg
 
