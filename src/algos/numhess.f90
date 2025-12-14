@@ -308,7 +308,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
 
   !> calcthermo wants input in Angstroem
   call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,stdout)
 
   !> printoutgeometr
   zpve = et(nrt)-ht(nrt)
@@ -413,7 +413,7 @@ subroutine thermo_standalone(env)
 
   !> calcthermo wants input in Angstroem
   call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,stdout)
 
   !> printout
   zpve = et(nrt)-ht(nrt)

@@ -1385,7 +1385,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
           call fill_take(env,solv%nat,clus%nat,inner_ell_abc(i,1:3),ipos)
           if (ipos .eq. 0) then
             converged(i) = .true.
-            write(stdout,'(2x,a,i0,a)') &
+            write (stdout,'(2x,a,i0,a)') &
               & "no more solvents can be placed inside cavity of cluster: ",i, &
               & ", taking previous."
             if (iter .eq. 1) nothing_added(i) = .true.
@@ -1525,7 +1525,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
 !--- Writing outputfiles
     write (ich31,'(2x,i0)') clus%nat
-    write (ich31,'(2x,a,f18.8,2x,a)') 'energy=', e_cluster(i)
+    write (ich31,'(2x,a,f18.8,2x,a)') 'energy=',e_cluster(i)
     do j = 1,clus%nat
       write (ich31,'(1x,a2,1x,3f20.10)') i2e(clus%at(j),'nc'),clus%xyz(1:3,j)*bohr
     end do
@@ -1637,6 +1637,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   real(wp)                   :: stra(3)
   integer                    :: ich65,ich56,ich33,ich81
   logical                    :: opt
+  type(coord_qcg) :: tmpmol
 
   call tim%start(9,'QCG Frequencies')
 
@@ -1669,8 +1670,10 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   call copysub('.CHRG','tmp_gas1')
   call copysub('.UHF','tmp_gas1')
 
-!--- Frequencies solute molecule
-  write (stdout,'(1x,a)') 'processing  SOLUTE MOLECULE' 
+!----------------------------------------------------------------------------
+!   frequencies for solute molecule
+!----------------------------------------------------------------------------
+  write (stdout,'(1x,a)') 'processing  SOLUTE MOLECULE'
   call chdirdbug('tmp_gas1')
   call solu%write('solute.coord')
   call chdirdbug(tmppath2)
@@ -1685,6 +1688,11 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   solu%stra = stra(3)
 
   call chdirdbug(tmppath2)
+
+!----------------------------------------------------------------------------
+!   frequencies for solute cluster
+!----------------------------------------------------------------------------
+  write (stdout,'(/,1x,a)') 'processing  SOLUTE CLUSTER'
 
 !--- Folder setup for cluster
   call chdirdbug('tmp_solu')
@@ -1708,9 +1716,6 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     call copysub('.UHF',to)
     call copysub('.CHRG',to)
     call chdirdbug(to)
-    !open (newunit=ich65,file='cluster.xyz')
-    !call wrxyz(ich65,clus%nat,clus%at,clus%xyz*bohr)
-    !close (ich65)
     call clus%write("cluster.xyz")
 
     call chdirdbug(tmppath2)
@@ -1731,13 +1736,14 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 
   end do
 
-  write (stdout,'(/,1x,a)') 'processing  SOLUTE CLUSTER'
-
 !> Frequency calculation
   opt = .true.
   call ens_freq(env,'cluster.xyz',solu_ens%nall,'TMPFREQ',opt)
   call chdirdbug(tmppath2)
 
+!----------------------------------------------------------------------------
+!   frequencies for solvent cluster
+!----------------------------------------------------------------------------
   write (stdout,'(/,1x,a)') 'processing  SOLVENT CLUSTER'
   if (env%cff) then
     call chdirdbug('tmp_solv')
@@ -1753,14 +1759,14 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     call solv_ens%write('solvent_ensemble.xyz')
 
     do i = 1,solv_ens%nall
+      call solv_ens%get_mol(i,tmpmol)
       write (to,'("TMPFREQ",i0)') i
       io = makedir(trim(to))
       call copysub('.UHF',to)
       call copysub('.CHRG',to)
       call chdirdbug(to)
-      open (newunit=ich65,file='solv_cluster.xyz')
-      call wrxyz(ich65,solv_ens%nat,solv_ens%at,solv_ens%xyz(:,:,i))
-      close (ich65)
+      call tmpmol%write("solv_cluster.xyz")
+
       call chdirdbug(tmppath2)
       call chdirdbug('tmp_solv')
     end do

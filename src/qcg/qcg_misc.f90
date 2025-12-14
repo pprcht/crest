@@ -949,7 +949,7 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
     call chdirdbug(trim(thispath))
   end do
 
-  if (allocated(newcalcs)) deallocate(newcalcs)
+  if (allocated(newcalcs)) deallocate (newcalcs)
   if (allocated(structures)) deallocate (structures)
 end subroutine cff_opt_calculator
 
@@ -1131,19 +1131,23 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
 
   integer                         :: i,k
   integer                         :: vz,T,Tn
-  character(len=20)               :: pipe
   character(len=512)              :: thispath,tmppath
   character(len=1024)             :: jobcall
   real(wp)                        :: percent
   logical                         :: opt
+  character(len=*),parameter      :: pipe = '2>/dev/null'
+
+  !> redirect to new calculator version if available
+  if (.not.env%legacy) then
+    call ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
+    return
+  end if
 
 ! setting the threads for correct parallelization
   call new_ompautoset(env,'auto',NTMP,T,Tn)
 
   write (stdout,'(2x,''Starting reoptimizations + Frequency computation of ensemble'')')
   write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
-
-  pipe = '2>/dev/null'
 
   call getcwd(thispath)
 
@@ -1197,6 +1201,135 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
   write (stdout,'(2x,"done.")')
 
 end subroutine ens_freq
+
+subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
+  use crest_parameters
+  use iomod
+  use crest_data
+  use strucrd
+  use crest_calculator
+  use hessian_tools
+  implicit none
+
+  type(systemdata)                :: env
+  character(len=*),intent(in)     :: fname      !file base name
+  character(len=*),intent(in)     :: TMPdir     !directory name
+  integer,intent(inout)           :: NTMP       !number of structures to be optimized
+
+  integer                         :: i,k
+  integer                         :: vz,T,Tn
+  character(len=*),parameter      :: pipe = '2>/dev/null'
+  character(len=512)              :: thispath,tmppath
+  character(len=1024)             :: jobcall
+  real(wp)                        :: percent
+  logical                         :: opt
+
+  !> local calculation setup
+  type(coord) :: tmpmol,mol
+  type(calculation_settings) :: clevel
+  type(calcdata),allocatable :: newcalcs(:)
+  real(wp),allocatable :: tmpgrd(:,:),hess(:,:),freq(:)
+  real(wp) :: etmp
+  integer :: n3,io,ich
+
+  real(wp) :: ithr,fscal,sthr
+  integer :: nt,nfreq,nrt
+  real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
+  real(wp) :: zpve
+
+! setting the threads for correct parallelization
+  call new_ompautoset(env,'max',NTMP,T,Tn)
+
+  write (stdout,'(2x,''Starting reoptimizations + Frequency computation of ensemble'')')
+  write (stdout,'(2x,i0,'' jobs to do.'')') NTMP
+
+  call getcwd(thispath)
+
+  if (NTMP .lt. 1) then
+    write (stdout,'(2x,"No structures to be optimized")')
+    return
+  end if
+
+  k = 0 !counting the finished jobs
+  call crest_oloop_pr_progress(env,NTMP,k)
+
+!--- Jobcall
+  if (.not.opt) then
+    write (jobcall,'(a,1x,a,1x,a,'' --hess '',a,'' >xtb_freq.out'')') &
+     &    trim(env%ProgName),trim(fname),trim(env%gfnver),trim(pipe)
+  else
+    write (jobcall,'(a,1x,a,1x,a,'' --ohess '',a,'' >xtb_freq.out'')') &
+    &    trim(env%ProgName),trim(fname),trim(env%gfnver),trim(pipe)
+  end if
+
+!--- prepare calcs
+  call clevel%create(env%gfnver,chrg=env%chrg,uhf=env%uhf)
+  allocate (newcalcs(NTMP))
+  do i = 1,NTMP
+    call newcalcs(i)%add(clevel)
+    newcalcs(i)%optlev = int(env%optlev)
+    !call newcalcs(i)%info(stdout)
+  end do
+
+!--- prepare thermo
+  !> inversion threshold
+  ithr = env%thermo%ithr
+  !> frequency scaling factor
+  fscal = env%thermo%fscal
+  !> RR-HO interpolation
+  sthr = env%thermo%sthr
+
+  !> we just need one temperature
+  nt = 1
+  allocate (temps(nt),et(nt),ht(nt),gt(nt),stot(nt),source=0.0_wp)
+  temps(:) = 298.15_wp
+
+!___________________________________________________________________________________
+!> serial runtype
+  do i = 1,NTMP
+    write (tmppath,'(a,i0)') trim(TMPdir),i
+    call chdirdbug(trim(tmppath))
+    call tmpmol%open(fname)
+
+    allocate (tmpgrd(3,tmpmol%nat),source=0.0_wp)
+    if (opt) then
+      call optimize_geometry(tmpmol,mol,newcalcs(i),etmp,tmpgrd, &
+      & .false.,.false.,io)
+    else
+      mol = tmpmol
+    end if
+
+    n3 = mol%nat*3
+    allocate (hess(n3,n3),source=0.0_wp)
+    allocate (freq(n3),source=0.0_wp)
+
+    !>-- compute Hessian
+    call numhess2(mol%nat,mol%at,mol%xyz,newcalcs(i),hess,io)
+
+    !>-- Projects and mass-weights the Hessian
+    call prj_mw_hess(mol%nat,mol%at,n3,mol%xyz,hess(:,:))
+
+    !>-- Computes the Frequencies
+    call frequencies(mol%nat,mol%at,mol%xyz,n3,newcalcs(i),hess(:,:),freq(:),io)
+
+    !> write dummy "xtb_freq.out"
+    open (newunit=ich,file="xtb_freq.out")
+    !> calcthermo wants input in Angstroem
+    call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
+    & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,ich)
+    close (ich)
+
+    deallocate (freq,hess,tmpgrd)
+    k = k+1
+    call crest_oloop_pr_progress(env,NTMP,k)
+    call chdirdbug(trim(thispath))
+  end do
+
+!__________________________________________________________________________________
+
+  write (stdout,*)
+  write (stdout,'(2x,"done.")')
+end subroutine ens_freq_calculator
 
 !============================================================!
 ! subroutine wr_cluster_cut
