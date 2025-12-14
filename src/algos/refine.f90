@@ -56,19 +56,19 @@ subroutine crest_refine(env,input,output)
   else
     outname = input  !> overwrite
   end if
- 
+
 !>--- presorting step, if necessary
-  if(env%refine_presort)then
+  if (env%refine_presort) then
     call newcregen(env,0,input)
     call rename('crest_ensemble.xyz',input)
-  endif
+  end if
 
 !>--- read in
   call rdensemble(input,nat,nall,at,xyz,eread)
   allocate (etmp(nall),source=0.0_wp)
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- Important: crest_sploop requires coordinates in Bohrs
-    xyz = xyz / bohr
+  xyz = xyz/bohr
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 
 !===========================================================!
@@ -98,15 +98,15 @@ subroutine crest_refine(env,input,output)
         write (stdout,'("> Geometry optimization of ",i0," structures")') nall
         call crest_oloop(env,nat,nall,at,xyz,eread,.false.)
 
-      case(refine%confsolv)
+      case (refine%confsolv)
         call new_ompautoset(env,'subprocess',1,t1,t2)
         write (stdout,'("> ConfSolv: ΔΔGsoln estimation from 3D directed message passing neural networks (D-MPNN)")')
-        call confsolv_request( input, nall, t2, etmp, io)
-        if(io == 0)then
-        eread(:) = etmp(:)*kcaltoau  !> since CREGEN deals with Eh energies
-        endif   
+        call confsolv_request(input,nall,t2,etmp,io)
+        if (io == 0) then
+          eread(:) = etmp(:)*kcaltoau  !> since CREGEN deals with Eh energies
+        end if
       end select
-      write(stdout,*) 
+      write (stdout,*)
     end do
 
     !> reset the refinement stage of the calculator
@@ -118,7 +118,7 @@ subroutine crest_refine(env,input,output)
 
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- Important: ensemble file must be written in AA
-  xyz = xyz / angstrom
+  xyz = xyz/angstrom
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- write output ensemble
   call wrensemble(outname,nat,nall,at,xyz,eread)

@@ -129,7 +129,6 @@ subroutine crest_solvtool(env,tim)
     progress = progress+1
   end if
 
-  stop 'Failsafe'
 !------------------------------------------------------------------------------
 !   Frequency computation and evaluation
 !------------------------------------------------------------------------------
@@ -880,11 +879,6 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
            & 'solute_cut.coord','solvent_shell.coord')
     call remove('crest_input')
     call copy('solvent_shell.coord','crest_input')
-    !deallocate (clus%at)
-    !deallocate (clus%xyz)
-    !call rdnat('solvent_shell.coord',clus%nat)
-    !allocate (clus%at(clus%nat),clus%xyz(3,clus%nat))
-    !call rdcoord('solvent_shell.coord',clus%nat,clus%at,clus%xyz)
     call clus%open('solvent_shell.coord')
   end if
 
@@ -1219,8 +1213,8 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
   type(systemdata)           :: env
   type(timer)                :: tim
   type(coord_qcg)            :: solu,solv,clus
-  type(ensemble)             :: solv_ens
-  type(ensemble),intent(in)  :: ens
+  type(ensemble),intent(inout) :: solv_ens
+  type(ensemble),intent(in)    :: ens
 
   integer                    :: i,j,k,iter
   integer                    :: io,r
@@ -1531,7 +1525,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
 !--- Writing outputfiles
     write (ich31,'(2x,i0)') clus%nat
-    write (ich31,'(2x,f18.8,2x,a)') e_cluster(i)
+    write (ich31,'(2x,a,f18.8,2x,a)') 'energy=', e_cluster(i)
     do j = 1,clus%nat
       write (ich31,'(1x,a2,1x,3f20.10)') i2e(clus%at(j),'nc'),clus%xyz(1:3,j)*bohr
     end do
@@ -1562,7 +1556,7 @@ subroutine qcg_cff(env,solu,solv,clus,ens,solv_ens,tim)
 
   clus%xyz = clus%xyz*bohr
   call chdirdbug(tmppath2)
-  write (comment,'(F20.8)') solv_ens%er(minpos)
+  write (comment,'(a,F20.8)') 'energy=',solv_ens%er(minpos)
   call wrxyz('crest_best.xyz',clus%nat,clus%at,clus%xyz,comment)
 
 !--- Boltz. average-------------------------------------------------------------------------
@@ -1676,7 +1670,7 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   call copysub('.UHF','tmp_gas1')
 
 !--- Frequencies solute molecule
-  write (stdout,*) '  SOLUTE MOLECULE'
+  write (stdout,'(1x,a)') 'processing  SOLUTE MOLECULE' 
   call chdirdbug('tmp_gas1')
   call solu%write('solute.coord')
   call chdirdbug(tmppath2)
@@ -1705,7 +1699,8 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
   clus%nmol = env%nsolv+1 !clus%nat/clus%at
 
   do i = 1,solu_ens%nall
-    call rdxmolselec('solute_ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
+    !call rdxmolselec('solute_ensemble.xyz',i,clus%nat,clus%at,clus%xyz)
+    call solu_ens%get_mol(i,clus)
 
 !--- Solute cluster
     write (to,'("TMPFREQ",i0)') i
@@ -1713,9 +1708,10 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
     call copysub('.UHF',to)
     call copysub('.CHRG',to)
     call chdirdbug(to)
-    open (newunit=ich65,file='cluster.xyz')
-    call wrxyz(ich65,clus%nat,clus%at,clus%xyz*bohr)
-    close (ich65)
+    !open (newunit=ich65,file='cluster.xyz')
+    !call wrxyz(ich65,clus%nat,clus%at,clus%xyz*bohr)
+    !close (ich65)
+    call clus%write("cluster.xyz")
 
     call chdirdbug(tmppath2)
 
@@ -1735,14 +1731,14 @@ subroutine qcg_freq(env,tim,solu,solv,solu_ens,solv_ens)
 
   end do
 
-  write (stdout,*) '  SOLUTE CLUSTER'
+  write (stdout,'(/,1x,a)') 'processing  SOLUTE CLUSTER'
 
 !> Frequency calculation
   opt = .true.
   call ens_freq(env,'cluster.xyz',solu_ens%nall,'TMPFREQ',opt)
   call chdirdbug(tmppath2)
 
-  write (stdout,*) '  SOLVENT CLUSTER'
+  write (stdout,'(/,1x,a)') 'processing  SOLVENT CLUSTER'
   if (env%cff) then
     call chdirdbug('tmp_solv')
     call ens_freq(env,'solvent_cut.coord',solu_ens%nall,'TMPFREQ',opt)

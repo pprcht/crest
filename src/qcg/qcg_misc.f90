@@ -685,11 +685,11 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
   end if
 
   k = 0 !counting the finished jobs
-  if (pr) call printprogbar(0.0_wp)
+  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
 !___________________________________________________________________________________
 
 !$omp parallel &
-!$omp shared( vz,jobcall,NTMP,percent,k,TMPdir,conv )
+!$omp shared( env, vz,jobcall,NTMP,percent,k,TMPdir,conv )
 !$omp single
   do i = 1,NTMP
     vz = i
@@ -700,7 +700,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
     k = k+1
     percent = real(k)/real(NTMP)*100
     if (pr) then
-      call printprogbar(percent)
+      call crest_oloop_pr_progress(env,NTMP,k)
     end if
     !$omp end critical
     !$omp end task
@@ -728,7 +728,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
   end if
 
   k = 0 !counting the finished jobs
-  if (pr) call printprogbar(0.0_wp)
+  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
 !___________________________________________________________________________________
 
 !$omp parallel &
@@ -743,7 +743,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
     k = k+1
     percent = real(k)/real(NTMP)*100
     if (pr) then
-      call printprogbar(percent)
+      call crest_oloop_pr_progress(env,NTMP,k)
     end if
     !$omp end critical
     !$omp end task
@@ -872,7 +872,7 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
   !> therefore, just optimize them serially.
 
   k = 0 !counting the finished jobs
-  if (pr) call printprogbar(0.0_wp)
+  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
 !___________________________________________________________________________________
 
   do i = 1,NTMP
@@ -892,7 +892,7 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
     k = k+1
     percent = real(k)/real(NTMP)*100.0_wp
     if (pr) then
-      call printprogbar(percent)
+      call crest_oloop_pr_progress(env,NTMP,k)
     end if
 
     deallocate (grd)
@@ -918,7 +918,7 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
   end do
 
   k = 0 !counting the finished jobs
-  if (pr) call printprogbar(0.0_wp)
+  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
 !___________________________________________________________________________________
 
   do i = 1,NTMP
@@ -931,7 +931,7 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
     k = k+1
     percent = real(k)/real(NTMP)*100.0_wp
     if (pr) then
-      call printprogbar(percent)
+      call crest_oloop_pr_progress(env,NTMP,k)
     end if
 
     deallocate (grd)
@@ -1073,11 +1073,12 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
   &    trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
 
   k = 0 !counting the finished jobs
-  call printprogbar(0.0_wp)
+  call crest_oloop_pr_progress(env,NTMP,k)
+
 !___________________________________________________________________________________
 
 !$omp parallel &
-!$omp shared( vz,NTMP,percent,k,TMPdir,jobcall )
+!$omp shared( env,vz,NTMP,percent,k,TMPdir,jobcall )
 !$omp single
   do i = 1,NTMP
     vz = i
@@ -1090,7 +1091,7 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
     !$omp critical
     k = k+1
     percent = real(k)/real(NTMP)*100
-    call printprogbar(percent)
+    call crest_oloop_pr_progress(env,NTMP,k)
     !$omp end critical
     !$omp end task
   end do
@@ -1152,7 +1153,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
   end if
 
   k = 0 !counting the finished jobs
-  call printprogbar(0.0_wp)
+  call crest_oloop_pr_progress(env,NTMP,k)
 
 !--- Jobcall
   if (.not.opt) then
@@ -1166,7 +1167,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
 !___________________________________________________________________________________
 
 !$omp parallel &
-!$omp shared( vz,NTMP,percent,k,TMPdir,jobcall )
+!$omp shared( env,vz,NTMP,percent,k,TMPdir,jobcall )
 !$omp single
   do i = 1,NTMP
     vz = i
@@ -1176,7 +1177,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
     !$omp critical
     k = k+1
     percent = real(k)/real(NTMP)*100
-    call printprogbar(percent)
+    call crest_oloop_pr_progress(env,NTMP,k)
     !$omp end critical
     !$omp end task
   end do

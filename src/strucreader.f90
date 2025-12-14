@@ -218,18 +218,25 @@ module strucrd
     procedure :: swap => atswp                  !> swap two atoms coordinates and their at() entries
   end type coord
 !=========================================================================================!
-  !ensemble class. contains all structures of an ensemble
-  !by convention coordinates are in Angström for an ensemble!
+  !> ensemble class. contains all structures of an ensemble
+  !> by convention coordinates are in Angström for an ensemble!
   type :: ensemble
 
-    !--- data
-    integer :: nat = 0             !number of total atoms
-    integer :: nall = 0             !number of structures
-    integer,allocatable :: vnat(:)     !used instead of nat if not all structures have the same      number of atoms, in which case nat will be  =maxval(vnat,1)
+    logical :: mixed = .false.   !> if all molecules were the same == .false.
 
-    integer,allocatable  :: at(:)      !atom types as integer, dimension will be at(nat)
-    real(wp),allocatable :: xyz(:,:,:) !coordinates, dimension will be xyz(3,nat,nall)
-    real(wp),allocatable :: er(:)   !energy of each structure, dimension will be eread(nall)
+    !> data
+    integer :: nat = 0              !> (max) number of total atoms
+    integer :: nall = 0             !> number of structures
+
+    !> if all structures were the same molecule these are filled
+    !> mixed==.false.
+    integer,allocatable  :: at(:)      !> atom types as integer, dimension will be at(nat)
+    real(wp),allocatable :: xyz(:,:,:) !> coordinates, dimension will be xyz(3,nat,nall)
+    real(wp),allocatable :: er(:)      !> energy of each structure, dimension will be eread(nall)
+
+    !> otherwise this is filled
+    !> mixed == .true.
+    type(coord),allocatable :: structures(:)
 
     real(wp)            :: g         !gibbs free energy
     real(wp)            :: s         !entropy
@@ -682,7 +689,12 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     class(ensemble) :: self
     character(len=*),intent(in) :: fname
-    call wrensemble_conf_energy(fname,self%nat,self%nall,self%at,self%xyz,self%er)
+    if (.not.self%mixed) then
+      call wrensemble_conf_energy(fname,self%nat,self%nall,self%at,self%xyz,self%er)
+    else
+      self%structures(:)%energy = self%er(:)
+      call wrensemble_coord_name(fname,self%nall,self%structures)
+    end if
     return
   end subroutine write_ensemble
 
@@ -719,18 +731,21 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine deallocate_ensembletype(self)
     implicit none
     class(ensemble) :: self
+
+    self%mixed = .false.
     self%nat = 0
     self%nall = 0
-    if (allocated(self%vnat)) deallocate (self%vnat)
     if (allocated(self%at)) deallocate (self%at)
     if (allocated(self%xyz)) deallocate (self%xyz)
     if (allocated(self%er)) deallocate (self%er)
+
+    if (allocated(self%structures)) deallocate (self%structures)
+
     if (allocated(self%gt)) deallocate (self%gt)
     if (allocated(self%ht)) deallocate (self%ht)
     if (allocated(self%svib)) deallocate (self%svib)
     if (allocated(self%srot)) deallocate (self%srot)
     if (allocated(self%stra)) deallocate (self%stra)
-
     return
   end subroutine deallocate_ensembletype
 
@@ -749,27 +764,38 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: eread(:)
     integer :: nall
     integer :: i,j,k,ich,io
-    logical :: ex
+    logical :: ex,conform
+    type(coord),allocatable :: structures(:)
 
     inquire (file=fname,exist=ex)
     if (.not.ex) then
       error stop 'ensemble file does not exist.'
     end if
 
-    call rdensembleparam(fname,nat,nall)
+    !> we check if all the structures in the file
+    !> are actually the same length (nat), if not we need to
+    !> take care of this and read into self%structures instead
+    call rdensembleparam(fname,nat,nall,conform)
+    self%mixed = .not.conform
 
-    if (nat > 0.and.nall > 0) then
-      call self%deallocate()
-      allocate (at(nat),xyz(3,nat,nall),eread(nall))
-      call rdensemble(fname,nat,nall,at,xyz,eread)
+    if (conform) then
+      if (nat > 0.and.nall > 0) then
+        call self%deallocate()
+        allocate (at(nat),xyz(3,nat,nall),eread(nall))
+        call rdensemble(fname,nat,nall,at,xyz,eread)
 
-      self%nat = nat
-      self%nall = nall
-      call move_alloc(at,self%at)
-      call move_alloc(xyz,self%xyz)
-      call move_alloc(eread,self%er)
+        self%nat = nat
+        self%nall = nall
+        call move_alloc(at,self%at)
+        call move_alloc(xyz,self%xyz)
+        call move_alloc(eread,self%er)
+      else
+        error stop 'format error while reading ensemble file.'
+      end if
     else
-      error stop 'format error while reading ensemble file.'
+      call rdensemble_coord_type(fname,self%nall,self%structures)
+      allocate(self%er(nall),source=0.0_wp)
+      self%er(:) = self%structures(:)%energy
     end if
 
     return
@@ -783,19 +809,34 @@ contains  !> MODULE PROCEDURES START HERE
     logical :: reinitialize
     if (i > self%nall) error stop 'can´t get molecule from ensemble. i>nall'
     if (i < 1) error stop 'can´t get molecule from ensemble. i<1'
-    n = self%nat
-    reinitialize = (mol%nat == n)
-    if (reinitialize) then
-      mol%nat = n
-      if (allocated(mol%at)) deallocate (mol%at)
-      allocate (mol%at(n),source=0)
-      if (allocated(mol%xyz)) deallocate (mol%xyz)
-      allocate (mol%xyz(3,n),source=0.0_wp)
+    if (.not.self%mixed) then
+      n = self%nat
+      reinitialize = .not. (mol%nat == n)
+      if (reinitialize) then
+        mol%nat = n
+        if (allocated(mol%at)) deallocate (mol%at)
+        allocate (mol%at(n),source=0)
+        if (allocated(mol%xyz)) deallocate (mol%xyz)
+        allocate (mol%xyz(3,n),source=0.0_wp)
+      end if
+      mol%energy = self%er(i)
+      mol%at(:) = self%at(:)
+      !> Important, ens is in Angström, mol is in Bohrs
+      mol%xyz(1:3,1:n) = self%xyz(1:3,1:n,i)*aatoau
+    else !> self%mixed == .true.
+      n = self%structures(i)%nat
+      reinitialize = .not. (mol%nat == n)
+      if (reinitialize) then
+        if (allocated(mol%at)) deallocate (mol%at)
+        allocate (mol%at(n),source=0)
+        if (allocated(mol%xyz)) deallocate (mol%xyz)
+        allocate (mol%xyz(3,n),source=0.0_wp)
+      end if
+      mol%nat = self%structures(i)%nat
+      mol%at(:) = self%structures(i)%at(:)
+      mol%xyz(:,:) = self%structures(i)%xyz(:,:)
+      mol%energy = self%structures(i)%energy
     end if
-    mol%energy = self%er(i)
-    mol%at(:) = self%at(:) 
-    !> Important, ens is in Angström, mol is in Bohrs
-    mol%xyz(1:3,1:n) = self%xyz(1:3,1:n,i)*aatoau
   end subroutine ensemble_get_mol
 
 !=========================================================================================!
