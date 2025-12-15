@@ -28,6 +28,7 @@ subdir('entropy')
 subdir('legacy_algos')
 subdir('msreact')
 subdir('sorting')
+subdir('basinhopping')
 
 srcs += files(
   'atmasses.f90',
