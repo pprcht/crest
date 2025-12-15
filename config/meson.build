@@ -7,16 +7,34 @@ fc = meson.get_compiler('fortran')
 cc_id = cc.get_id()
 fc_id = fc.get_id()
 
-# ------------------------------------------------------------
-# Enforce toolchain consistency (no mixing)
-# ------------------------------------------------------------
-if cc_id != fc_id
-  error('Mixed toolchains are not supported: CC=' + cc_id + ' but FC=' + fc_id +
-        '. Please use a consistent compiler family (e.g. gcc+gfortran or icx+ifx).')
+# ------------------------------------------------------------ 
+# Enforce toolchain consistency (no mixing)                    
+# ------------------------------------------------------------ 
+# Normalize compiler ids into "families"
+func compiler_family(id)
+  if id == 'gcc'
+    return 'gcc'
+  elif id == 'clang'
+    return 'clang'
+  elif id.startswith('intel')
+    # Covers: intel, intel-llvm, intel-cl
+    return 'intel'
+  else
+    return id
+  endif
+endfunc
+
+cc_family = compiler_family(cc_id)
+fc_family = compiler_family(fc_id)
+
+if cc_family != fc_family
+  error('Mixed toolchains are not supported: CC=' + cc_id + ' (family ' + cc_family +
+        ') but FC=' + fc_id + ' (family ' + fc_family + ').')
 endif
 
-toolchain = fc_id
-message('Toolchain: ' + toolchain + ' (CC=' + cc.version() + ', FC=' + fc.version() + ')')
+toolchain = fc_family
+message('Toolchain family: ' + toolchain + ' (CC=' + cc_id + ', FC=' + fc_id + ')')
+
 
 # ------------------------------------------------------------
 # Options
