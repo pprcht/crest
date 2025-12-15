@@ -9,6 +9,7 @@ program tester
   use test_gfn0occ, only: collect_gfn0occ
   use test_cn, only: collect_cn 
   use test_optimization, only: collect_optimization
+  use test_molecular_dynamics, only: collect_mol_dynamics
   implicit none
   integer :: stat, is
   character(len=:), allocatable :: suite_name, test_name
@@ -30,7 +31,8 @@ program tester
     new_testsuite("gfn0", collect_gfn0),       &
     new_testsuite("gfn0occ", collect_gfn0occ), &
     new_testsuite("CN",collect_CN),            &
-    new_testsuite("optimization", collect_optimization) &
+    new_testsuite("optimization", collect_optimization), &
+    new_testsuite("molecular_dynamics", collect_mol_dynamics) & 
   ]
 !&>
 
