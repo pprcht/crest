@@ -40,7 +40,7 @@ jobs:
         toolchain:
           #- { compiler: gcc,   version: '11',       build: cmake }
           #- { compiler: gcc,   version: '12',       build: cmake }
-          - { compiler: gcc,   version: '14',       build: cmake }
+          #- { compiler: gcc,   version: '14',       build: cmake }
           #- { compiler: intel, version: '2023.1.0', build: cmake }
           - { compiler: gcc,   version: '14',       build: meson } 
     
@@ -60,8 +60,8 @@ jobs:
           #    toolchain: { compiler: gcc, version: '12', build: cmake } }
           #- { os: macos-latest, build-type: debug,
           #    toolchain: { compiler: gcc, version: '14', build: cmake } }
-          - { os: macos-latest, build-type: static,
-              toolchain: { compiler: gcc, version: '14', build: cmake } } 
+          #- { os: macos-latest, build-type: static,
+          #    toolchain: { compiler: gcc, version: '14', build: cmake } } 
     defaults:
       run:
         shell: bash
@@ -165,14 +165,38 @@ jobs:
       # Configure
       # ----------------------------------------------------------------------
 
+     # - name: Configure build (Meson)
+     #   if: ${{ matrix.toolchain.build == 'meson' }}
+     #   run: >
+     #     meson setup ${{ env.BUILD_DIR }}
+     #     --buildtype=debugoptimized
+     #     --prefix=$PWD/_dist
+     #     --libdir=lib
+     #     --warnlevel=0
+          
       - name: Configure build (Meson)
         if: ${{ matrix.toolchain.build == 'meson' }}
-        run: >
-          meson setup ${{ env.BUILD_DIR }}
-          --buildtype=debugoptimized
-          --prefix=$PWD/_dist
-          --libdir=lib
-          --warnlevel=0
+        run: |
+          MESON_OPTS=(
+            --prefix="$PWD/_dist"
+            --libdir=lib
+            --warnlevel=0
+          )
+          # Build type
+          if [ "${{ matrix.build-type }}" = "debug" ]; then
+            MESON_OPTS+=(--buildtype=debug)
+          else
+            MESON_OPTS+=(--buildtype=debugoptimized)
+          fi
+          # Static build
+          if [ "${{ matrix.build-type }}" = "static" ]; then
+            MESON_OPTS+=(
+              -Ddefault_library=static
+           #   -Dlink_mode=fully-static
+            )
+          fi
+          meson setup "${{ env.BUILD_DIR }}" "${MESON_OPTS[@]}"
+
 
       - name: Configure build (CMake, debug)
         if: ${{ matrix.toolchain.build == 'cmake' && matrix.build-type == 'debug' }}

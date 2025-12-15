@@ -10,22 +10,24 @@ fc_id = fc.get_id()
 # ------------------------------------------------------------ 
 # Enforce toolchain consistency (no mixing)                    
 # ------------------------------------------------------------ 
-# Normalize compiler ids into "families"
-func compiler_family(id)
-  if id == 'gcc'
-    return 'gcc'
-  elif id == 'clang'
-    return 'clang'
-  elif id.startswith('intel')
-    # Covers: intel, intel-llvm, intel-cl
-    return 'intel'
-  else
-    return id
-  endif
-endfunc
+# Normalize compiler ids into families
+cc_family = cc_id
+if cc_id.startswith('intel')
+  cc_family = 'intel'
+elif cc_id == 'gcc'
+  cc_family = 'gcc'
+elif cc_id == 'clang'
+  cc_family = 'clang'
+endif
 
-cc_family = compiler_family(cc_id)
-fc_family = compiler_family(fc_id)
+fc_family = fc_id
+if fc_id.startswith('intel')
+  fc_family = 'intel'
+elif fc_id == 'gcc'
+  fc_family = 'gcc'
+elif fc_id == 'clang'
+  fc_family = 'clang'
+endif
 
 if cc_family != fc_family
   error('Mixed toolchains are not supported: CC=' + cc_id + ' (family ' + cc_family +
@@ -34,7 +36,6 @@ endif
 
 toolchain = fc_family
 message('Toolchain family: ' + toolchain + ' (CC=' + cc_id + ', FC=' + fc_id + ')')
-
 
 # ------------------------------------------------------------
 # Options
