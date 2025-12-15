@@ -2,7 +2,14 @@ name: CI
 
 on:
   push:
+    branches:
+      - master
+      - '*-maintenance'
   pull_request:
+    branches:
+      - master
+      - '*-maintenance'
+  workflow_dispatch:      
 
 env:
   BUILD_DIR: _build
