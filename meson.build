@@ -1,85 +1,93 @@
 # This file is part of crest.
 # SPDX-Identifier: LGPL-3.0-or-later
-#
-# crest is free software: you can redistribute it and/or modify it under
-# the terms of the GNU Lesser General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# crest is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
 project(
   'crest',
-  'fortran', 'c',
+  ['fortran', 'c'],
   version: '3.0.3',
   license: 'LGPL-3.0-or-later',
   meson_version: '>=0.63',
   default_options: [
     'buildtype=debugoptimized',
-    'default_library=static',
-    'c_link_args=-static',
-    'fortran_link_args=-static',
+    'warning_level=0',
+    # IMPORTANT:
+    # Do NOT force -static here. Linking mode should be controlled via options
+    # (e.g. -Dstatic_exe / -Dlink_mode) implemented in config/meson.build.
+    #
+    # Also do NOT force default_library here. Users can choose via:
+    #   -Ddefault_library=static|shared
   ],
 )
-install = not (meson.is_subproject() and get_option('default_library') == 'static')
 
+# Install only when this is the main project.
+# Subprojects should generally not install by default.
+do_install = not meson.is_subproject()
 
-# =================================== #
-## General configuration information ##
-# =================================== #
+# =========================
+# Configuration (toolchain, deps, options)
+# =========================
 exe_deps = []
+config = configuration_data()
+
+# config/meson.build is responsible for:
+# - enforcing compiler consistency (FC/CC)
+# - adding compiler/link flags
+# - selecting OpenMP
+# - selecting BLAS/LAPACK backend
+# - populating `exe_deps`
+# - populating `config` (configuration_data)
 subdir('config')
 
-# create the metadata file with the configured data
+# Generate configured metadata include
 configure_file(
   input: files('assets/template/metadata.f90'),
   output: 'crest_metadata.fh',
-  configuration : config,
+  configuration: config,
 )
 
-
-# Documentation
-#subdir('docs')
-
-# Collect source of the project
+# =========================
+# Sources
+# =========================
 prog = []
 srcs = []
 subdir('src')
 
-
-# Create library target
+# =========================
+# Targets
+# =========================
 crest_lib = library(
   meson.project_name(),
   sources: srcs,
   dependencies: exe_deps,
-#  include_directories: include_directories('include'),
+  install: do_install,  
 )
 
-# Export as dependency
-crest_inc = crest_lib.private_dir_include()
+crest_inc = include_directories('.')  # safest baseline; add 'include' if you have one
+
 crest_dep = declare_dependency(
   link_with: crest_lib,
   include_directories: crest_inc,
   dependencies: exe_deps,
 )
 
+# Allow `dependency('crest')` when used as a subproject
+meson.override_dependency(meson.project_name(), crest_dep)
 
-# Create executable target
 crest_exe = executable(
   meson.project_name(),
   sources: prog,
   dependencies: crest_dep,
-  install: install,
+  install: do_install,
   link_language: 'fortran',
 )
 
+summary(
+  {
+    'Install': do_install,
+    'default_library': get_option('default_library'),
+    'OpenMP option': get_option('openmp'),
+    'LA backend': get_option('la_backend'),
+  },
+  section: 'crest',
+)
 
-
-# add the testsuite separate meson.build 
-#subdir('testsuite') #has to be filled with tests, not availabel yet
