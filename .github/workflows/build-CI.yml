@@ -5,11 +5,11 @@ on:
     branches:
       - master
       - '*-maintenance'
+      - meson-rework
   pull_request:
     branches:
       - master
       - '*-maintenance'
-  workflow_dispatch:      
 
 env:
   BUILD_DIR: _build
@@ -42,6 +42,7 @@ jobs:
           #- { compiler: gcc,   version: '12',       build: cmake }
           - { compiler: gcc,   version: '14',       build: cmake }
           #- { compiler: intel, version: '2023.1.0', build: cmake }
+          - { compiler: gcc,   version: '14',       build: meson } 
     
         include:
           # ---- Linux GCC CMake debugoptimized build ------------------------
@@ -59,7 +60,7 @@ jobs:
           #    toolchain: { compiler: gcc, version: '12', build: cmake } }
           #- { os: macos-latest, build-type: debug,
           #    toolchain: { compiler: gcc, version: '14', build: cmake } }
-          - { os: macos-latest, build-type: static,                        
+          - { os: macos-latest, build-type: static,
               toolchain: { compiler: gcc, version: '14', build: cmake } } 
     defaults:
       run:
