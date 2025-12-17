@@ -94,6 +94,7 @@ contains
     integer :: i,j,k,nat3
     real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:),hess(:),dx(:)
     real(wp) :: gnorm
+    integer :: unit
 
     nat3 = 3*self%natm
 
@@ -108,6 +109,11 @@ contains
     tmp_coords = reshape(self%coords, [self%steps,nat3])
     tmp_grads = reshape(self%gradient, [self%steps,nat3])
 
+    do k = 1,nat3
+      self%hguess_mat(k,k) = self%hguess
+    end do
+    call dsqtoh(nat3,self%hguess_mat,hess)
+
     if (minval(tmp) == 0) then
       print*,"ERROR: Number of recursive steps for hessian reconstruction larger than number of geoemtry optimization steps!"
     else
@@ -115,10 +121,6 @@ contains
         if (i == 1) then
           j = minloc(tmp,1)
           tmp(j) = HUGE(tmp(j))
-          do k = 1,nat3
-            self%hguess_mat(k,k) = self%hguess
-          end do
-          call dsqtoh(nat3,self%hguess_mat,hess)
         else
           j = minloc(tmp,1)
           if (j == 1) then
@@ -130,6 +132,12 @@ contains
           end if
           tmp(j) = HUGE(tmp(j))
         end if
+        open(newunit=unit, file="reconstruct_bfgs.txt", status="unknown", position="append")
+        write(unit,*) "cycle:", i 
+        do k = 1, 5
+          write(unit,*) hess(k)
+        enddo
+        close(unit)
       end do
     end if
 

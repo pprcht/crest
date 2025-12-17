@@ -34,6 +34,7 @@ module optimize_module
   use optimize_utils
   use thermochem_module
   use hessian_reconstruct
+  use hessian_tools
   implicit none
   private
 
@@ -58,7 +59,9 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out)       :: iostatus
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
-    real(wp),allocatable :: H_inv(:,:)
+    real(wp),allocatable :: H_inv(:,:), freq(:)
+    integer :: nat3
+    integer :: io
 
     iostatus = -1
     !> do NOT overwrite original geometry
@@ -67,6 +70,7 @@ contains  !> MODULE PROCEDURES START HERE
     molnew%xyz = mol%xyz
     molnew%nat = mol%nat
     !$omp end critical
+    nat3 = 3*mol%nat
 
     !> Check for optimization-individual calculation setup
     if (calc%optnewinit) then
@@ -126,9 +130,19 @@ contains  !> MODULE PROCEDURES START HERE
       print*,"THERMO FROM BFGS"
       print*
 
-      call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
-      & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
-      & calc%ht,calc%gt,calc%stot)
+      !call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
+      !& calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+      !& calc%ht,calc%gt,calc%stot)
+
+      call mass_weight_hess(molnew%nat,molnew%at,nat3,calc%chess%H(:,:))
+
+      allocate(freq(nat3))
+
+      call frequencies(molnew%nat,molnew%at,molnew%xyz,nat3,calc%chess%H(:,:),freq,io)
+
+      call calcthermo(molnew%nat,molnew%at,mol%xyz,freq,pr,calc%ithr,calc%fscal,calc%sthr, &
+          & calc%nt,calc%temperatures, &
+          &      calc%et,calc%ht,calc%gt,calc%stot)
 
       !write(stdout,*) "et:", calc%et
       !write(stdout,*) "ht:", calc%ht

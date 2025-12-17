@@ -519,6 +519,9 @@ contains !> MODULE PROCEDURES START HERE
     case('opt_shift')
       calc%shift = kv%value_f
 
+    case('scaling')
+      calc%scaling = kv%value_f
+
 !>--- integers
     case ('maxcycle')
       calc%maxcycle = kv%value_i  !> optimization max cycles

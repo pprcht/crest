@@ -280,6 +280,7 @@ module calc_type
     real(wp) :: L = 1.50_wp
     real(wp) :: k = 5000.0_wp
     real(wp) :: shift = 0.0006_wp
+    real(wp) :: scaling = 0.1_wp
 
 !>--- Type procedures
   contains

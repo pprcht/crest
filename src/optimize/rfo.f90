@@ -107,20 +107,22 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: gold(:)
     real(wp),allocatable :: displ(:)
     integer :: nvar1,npvar,npvar1
-    real(sp),allocatable :: eaug(:)
-    real(sp),allocatable :: Uaug(:,:)
-    real(sp),allocatable :: Aaug(:)
+    real(wp),allocatable :: eaug(:)
+    real(wp),allocatable :: Uaug(:,:)
+    real(wp),allocatable :: Aaug(:)
     type(convergence_log),allocatable :: avconv
     real(wp) :: U(3,3),x_center(3),y_center(3),rmsdval
     integer :: modef
     logical :: ex,converged,linear,exact
     logical :: econverged,gconverged,lowered
     real(wp) :: estart,esave
-    real(sp),parameter :: r4dum = 1.e-8
+    real(wp),parameter :: r4dum = 1.e-8
+    integer :: unit
+    real(wp), allocatable :: dx_test(:)
     !> LAPACK & BLAS
     external :: dgemv
     real(wp),external :: ddot
-    real(sp),external :: sdot
+    !real(sp),external :: sdot
     real(wp),allocatable :: test_hess(:) !> only for testing
     integer :: q,r,s !>only for testing
 
@@ -141,7 +143,7 @@ contains  !> MODULE PROCEDURES START HERE
     echng = 0.0_wp
     alp = 1.0_wp
     alpold = 1.0_wp
-    exact = calc%exact_rf
+    exact = calc%exact_rf .or. tight>0
 
 !> initial number of steps in relax() routine before
 !> new ANC are made by model Hessian
@@ -316,6 +318,10 @@ contains  !> MODULE PROCEDURES START HERE
         alp = 3.0d-1 ! 3
       end if
 
+      !if (calc%optlev>0) then
+        alp = alp_generate(gnorm, calc)
+      !endif
+
 !>------------------------------------------------------------------------
 !> Update the Hessian
 !>------------------------------------------------------------------------
@@ -338,10 +344,20 @@ contains  !> MODULE PROCEDURES START HERE
         end select
       end if
 
+      !allocate(dx_test(size(displ)))
+      dx_test = displ*alpold
+
       !allocate(calc%chess%H(nat3,nat3))
       if (calc%do_HU) then
         call dhtosq(nat3,calc%chess%H(:,:),OPT%hess(:))
       end if
+
+      open(newunit=unit, file="opt_bfgs.txt", status="unknown", position="append")
+      write(unit,*) "cycle:", iter 
+        do i = 1, 5
+          write(unit,*) OPT%hess(i)
+        enddo
+      close(unit)
 !>------------------------------------------------------------------------
 !>  rational function (RF) method
 !>------------------------------------------------------------------------
@@ -353,24 +369,24 @@ contains  !> MODULE PROCEDURES START HERE
 !>     Aaug    Uaug       Uaug
 
 !>--- first, augment Hessian by gradient, everything packed, no blowup
-      Aaug(1:npvar) = real(OPT%hess(1:npvar),sp)
-      Aaug(npvar+1:npvar1-1) = real(grd1(1:OPT%nvar),sp)
-      Aaug(npvar1) = 0.0_sp
+      Aaug(1:npvar) = OPT%hess(1:npvar)
+      Aaug(npvar+1:npvar1-1) = grd1(1:OPT%nvar)
+      Aaug(npvar1) = 0.0_wp
 
 !>--- choose solver for the RF eigenvalue problem
       if (exact.or.nvar1 .lt. 50) then
-        call solver_sspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
+        call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
       else
         !>--- steepest decent guess for displacement
         if (iter .eq. 1) then
-          Uaug(:,1) = [-real(grd1(1:OPT%nvar),sp),1.0_sp]
-          dsnrm = sqrt(sdot(nvar1,Uaug,1,Uaug,1))
-          Uaug = Uaug/real(dsnrm,sp)
+          Uaug(:,1) = [-grd1(1:OPT%nvar),1.0_wp]
+          dsnrm = sqrt(ddot(nvar1,Uaug,1,Uaug,1))
+          Uaug = Uaug/dsnrm
         end if
-        call solver_sdavidson(nvar1,r4dum,Aaug,Uaug,eaug,fail,.false.)
+        call solver_ddavidson(nvar1,r4dum,Aaug,Uaug,eaug,fail,.false.)
         !>--- if that failed, retry with better solver
         if (fail) then
-          call solver_sspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
+          call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
         end if
       end if
 
@@ -487,6 +503,32 @@ contains  !> MODULE PROCEDURES START HERE
 
     return
   end subroutine rfopt
+
+  function alp_generate(gnorm,calc) result(alp)
+  type(calcdata),intent(in) :: calc
+  real(wp), intent(in) :: gnorm
+  real(wp) :: alp, shift, l, k, scaling
+
+  if (calc%optlev == 1) then
+    L = 2.0_wp
+    k = 2000.0_wp
+    shift = 0.0005_wp
+    scaling = 0.12_wp
+  else if (calc%optlev == 2) then
+    L = 1.0_wp
+    k = 8000.0_wp
+    shift = 0.0009_wp
+    scaling = 0.12_wp
+  else
+    L = calc%L
+    k = calc%k
+    shift = calc%shift
+    scaling = calc%scaling
+  endif
+  
+  alp = scaling*(L/(1+euler**(k*(gnorm-shift)))+1)
+
+  end function alp_generate
 
 !========================================================================================!
 !========================================================================================!

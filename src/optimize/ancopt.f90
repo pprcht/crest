@@ -351,11 +351,13 @@ contains  !> MODULE PROCEDURES START HERE
     real(sp),allocatable :: Uaug(:,:)
     real(sp),allocatable :: Aaug(:)
     real(sp),parameter :: r4dum = 1.e-8
+    real(wp), allocatable :: test_hess(:,:)
     !> LAPACK & BLAS
     external :: dgemv
     real(sp),external :: sdot
     integer :: q,r,s,nat3 !> ONLY for testing!
     nat3 = 3*mol%nat
+    allocate(test_hess(nat3,nat3))
 
     iostatus = 0
 
@@ -469,11 +471,13 @@ contains  !> MODULE PROCEDURES START HERE
       if (gnorm .lt. 0.0006) then
         alp = 2.0d0 ! 2
       end if
-      if (gnorm .lt. 0.0003 .and. calc%optlev .le. 1) then
+      if (gnorm .lt. 0.0003) then
         alp = 3.0d0 ! 3
       end if
 
-      alp = alp_generate(gnorm, calc)
+      if (calc%optlev>0) then
+        alp = alp_generate(gnorm, calc)
+      endif
 !>------------------------------------------------------------------------
 !> Update the Hessian
 !>------------------------------------------------------------------------
@@ -494,6 +498,12 @@ contains  !> MODULE PROCEDURES START HERE
           write (*,*) 'invalid hessian update selection'
           stop
         end select
+      end if
+
+      !> Transform hessian to cartesian coordinate basis (still wrong)
+      if (calc%do_HU) then
+          call dhtosq(nat3,test_hess(:,:),OPT%hess(:))
+          calc%chess%H(:,:) = matmul(matmul(Transpose(OPT%B(:,:)), test_hess(:,:)), OPT%B(:,:))
       end if
 
 !>------------------------------------------------------------------------
@@ -638,9 +648,15 @@ contains  !> MODULE PROCEDURES START HERE
   real(wp), intent(in) :: gnorm
   real(wp) :: alp, shift, l, k
 
-  L = calc%L
-  k = calc%k
-  shift = calc%shift
+  if (calc%optlev == 1) then
+    L = 2
+    k = 2000
+    shift = 0.0005
+  else
+    L = calc%L
+    k = calc%k
+    shift = calc%shift
+  endif
   
   alp = L/(1+euler**(k*(gnorm-shift)))+1
 
