@@ -80,6 +80,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
 !* subroutine crest_sploop
 !* This subroutine performs concurrent singlepoint evaluations
 !* for the given ensemble. Input eread is overwritten
+!* xyz must be in Bohrs
 !***************************************************************
   use crest_parameters,only:wp,stdout,sep
   use crest_calculator
@@ -144,7 +145,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
 
 !>--- printout directions and timer initialization
   pr = .false. !> stdout printout
-  wr = .false. !> write crestopt.log
+  wr = .false. !> write crestopt.log.xyz
   call profiler%init(1)
   call profiler%start(1)
 
@@ -244,6 +245,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
 !* dump       - decides on whether to dump an ensemble file
 !*              WARNING: the ensemble file will NOT be in the same order
 !*              as the input xyz array. However, the overwritten xyz will be! 
+!*
 !* customcalc - customized (optional) calculation level data
 !*
 !* IMPORTANT: xyz should be in Bohr(!) for this routine
@@ -330,7 +332,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
 
 !>--- printout directions and timer initialization
   pr = .false. !> stdout printout
-  wr = .false. !> write crestopt.log
+  wr = .false. !> write crestopt.log.xyz
   if (dump) then
     open (newunit=ich,file=ensemblefile)
     open (newunit=ich2,file=ensembleelog)
@@ -387,7 +389,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
       c = c+1
       if (dump) then
         gnorm = norm2(grads(:,:,job))
-        write (atmp,'(1x,"Etot=",f16.10,1x,"g norm=",f12.8)') energy,gnorm
+        write (atmp,'(1x,"energy=",f16.10,1x,"g norm=",f12.8)') energy,gnorm
         molsnew(job)%comment = trim(atmp)
         call molsnew(job)%append(ich)
         call calc_eprint(calculations(job),energy,calculations(job)%etmp,gnorm,ich2)
@@ -542,7 +544,7 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
 !===========================================================!
 !>--- decide wether to skip this call
   if (trackrestart(env)) then
-    call restart_write_dummy('crest_dynamics.trj')
+    call restart_write_dummy('crest_dynamics.trj.xyz')
     return
   end if
 
@@ -643,7 +645,7 @@ contains
     integer :: i,io,ich,ich2
     character(len=:),allocatable :: atmp
     character(len=256) :: btmp
-    open (newunit=ich,file='crest_dynamics.trj')
+    open (newunit=ich,file='crest_dynamics.trj.xyz')
     do i = 1,n
       atmp = mddats(i)%trajectoryfile
       inquire (file=atmp,exist=ex)
@@ -850,7 +852,7 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
 !===========================================================!
 !>--- decide wether to skip this call
   if (trackrestart(env)) then
-    call restart_write_dummy('crest_dynamics.trj')
+    call restart_write_dummy('crest_dynamics.trj.xyz')
     return
   end if
 
@@ -944,7 +946,7 @@ contains
     integer :: i,io,ich,ich2
     character(len=:),allocatable :: atmp
     character(len=256) :: btmp
-    open (newunit=ich,file='crest_dynamics.trj')
+    open (newunit=ich,file='crest_dynamics.trj.xyz')
     do i = 1,n
       atmp = mddats(i)%trajectoryfile
       inquire (file=atmp,exist=ex)
@@ -1006,7 +1008,7 @@ subroutine parallel_md_block_printout(MD,vz)
     if (MD%shk%shake_mode == 2) then
       write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (all bonds) |")') to_str(MD%shake)
     else
-      write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (H only) |")') to_str(MD%shake)
+      write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (H only)    |")') to_str(MD%shake)
     end if
   end if
   if (allocated(MD%active_potentials)) then
@@ -1024,6 +1026,9 @@ subroutine parallel_md_block_printout(MD,vz)
     else
       write (stdout,'(2x,"|   Vbias exponent (α)   :",f8.4,"          |")') MD%mtd(1)%alpha
     end if
+    if (allocated(MD%mtd(1)%atinclude))then
+      write (stdout,'(2x,"|   # active atoms      :",i9," atoms    |")') count(MD%mtd(1)%atinclude,1)
+    endif  
   end if
 
   !$omp end critical

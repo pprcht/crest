@@ -69,7 +69,7 @@ subroutine crest_optimization(env,tim)
 
 !>-- geometry optimization
   pr = .true. !> stdout printout
-  wr = .true. !> write crestopt.log
+  wr = .true. !> write crestopt.log.xyz
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
   call optimize_geometry(mol,molnew,calc,energy,grad,pr,wr,io)

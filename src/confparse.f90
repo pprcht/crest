@@ -46,7 +46,7 @@ subroutine parseflags(env,arg,nra)
   use optimize_module
   use parse_inputfile
   use crest_restartlog
-  use lwoniom_module
+
   implicit none
   type(systemdata),intent(inout) :: env
   integer,intent(in) :: nra
@@ -330,18 +330,12 @@ subroutine parseflags(env,arg,nra)
   env%properties2 = p_none  !> backup for env%properties
   env%iterativeV2 = .true.  !> iterative crest V2 version
   env%preopt = .true.
-!>--- check for input file
-  do i = 1,nra
-    argument = trim(arg(i))
-    if (argument == '--input'.or.argument == '-i') then
-      call parseinputfile(env,trim(arg(i+1)))
-      exit
-    end if
-    if (i == 1.and.index(argument,'.toml') .ne. 0) then
-      call parseinputfile(env,trim(arg(1)))
-      exit
-    end if
-  end do
+!>--- check for (TOML) input file
+  call find_input_file(arg,nra,idum)
+  if (idum .ne. 0) then
+    call parseinputfile(env,trim(arg(idum)))
+  end if
+
 !>--- first arg loop
   do i = 1,nra
     argument = trim(arg(i))
@@ -586,6 +580,14 @@ subroutine parseflags(env,arg,nra)
         end if
         stop
 
+      case ('-rotalign')
+        ctmp = trim(arg(i+1))
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          call rotalign_tool(ctmp)
+        end if
+        stop
+
       case ('-printboltz')
         if (nra >= i+2) then
           ctmp = trim(arg(i+1))
@@ -639,12 +641,52 @@ subroutine parseflags(env,arg,nra)
         end if
 
       case ('-rmsd','-rmsdheavy','-hrmsd')
+        if ((argument == '-rmsdheavy').or.(argument == '-hrmsd')) then
+          env%sortmode = 'hrmsd'
+        else
+          env%sortmode = 'rmsd'
+        end if
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
-        if ((argument == '-rmsdheavy').or.(argument == '-hrmsd')) then
-          call quick_rmsd_tool(ctmp,dtmp,.true.)
+        env%preopt = .false.
+        env%crestver = crest_sorting
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          env%inputcoords = ctmp
+          env%ensemblename = ctmp
+        end if
+        inquire (file=dtmp,exist=ex)
+        if (ex) then
+          env%ensemblename2 = dtmp
+        end if
+
+      case ('-irmsd','-irmsd_noinv')
+        ctmp = trim(arg(i+1))
+        dtmp = trim(arg(i+2))
+        env%preopt = .false.
+        env%crestver = crest_sorting
+        env%sortmode = 'irmsd'
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          env%inputcoords = ctmp
+          env%ensemblename = ctmp
+        end if
+        inquire (file=dtmp,exist=ex)
+        if (ex) then
+          env%ensemblename2 = dtmp
+        end if
+        if (index(argument,'_noinv') .ne. 0) then
+          env%iinversion = 2
+        end if
+
+      case ('-hungarian','-hungarianheavy','-hhungarian','-lsap','-hlsap','-lsapheavy')
+        ctmp = trim(arg(i+1))
+        dtmp = trim(arg(i+2))
+        if ((argument == '-hungarianheavy').or.(argument == '-hhungarian').or. &
+           &(argument == '-lsapheavy').or.(argument == '-hlsap')) then
+          call quick_hungarian_match(ctmp,dtmp,.true.)
         else
-          call quick_rmsd_tool(ctmp,dtmp,.false.)
+          call quick_hungarian_match(ctmp,dtmp,.false.)
         end if
         stop
 
@@ -733,6 +775,24 @@ subroutine parseflags(env,arg,nra)
         env%legacy = .false.
         exit
 
+      case ('-sort')
+        env%preopt = .false.
+        env%crestver = crest_sorting
+        ctmp = trim(arg(i+1))
+        inquire (file=ctmp,exist=ex)
+        if (ex) then
+          env%inputcoords = ctmp
+          env%ensemblename = ctmp
+        end if
+        if (nra >= i+2) then
+          ctmp = trim(arg(i+2))
+          if (ctmp(1:1) .ne. '-') env%sortmode = trim(ctmp)
+        end if
+
+      case ('-bh','-GMIN')
+        env%crestver = crest_bh
+        exit
+
       case ('-SANDBOX')
         !>--- IMPLEMENT HERE WHATEVER YOU LIKE, FOR TESTING
         !>-----
@@ -787,11 +847,6 @@ subroutine parseflags(env,arg,nra)
   else
     call inputcoords(env,trim(arg(1)))
   end if
-!========================================================================================!
-!> after this point there should always be a "coord" file present
-!========================================================================================!
-  allocate (env%includeRMSD(env%nat))
-  env%includeRMSD = 1
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
@@ -1202,6 +1257,24 @@ subroutine parseflags(env,arg,nra)
             env%ref%ichrg = idum
           end if
         end if
+
+      case ('-efield')  !> electric field in V/Ang, only compatibe with tblite
+        if (.not.allocated(env%ref%efield)) allocate (env%ref%efield(3),source=0.0_wp)
+        if (nra >= i+3) then
+          ctmp = trim(arg(i+1))
+          read (ctmp,*,iostat=io) env%ref%efield(1)
+          ctmp = trim(arg(i+2))
+          read (ctmp,*,iostat=io) env%ref%efield(2)
+          ctmp = trim(arg(i+3))
+          read (ctmp,*,iostat=io) env%ref%efield(3)
+          write (stdout,'("  --efield: ",3(1x,es10.3)," V/Å")') env%ref%efield(1:3)
+        else
+          write (stdout,'(a)')
+        end if
+
+      case ('-ceh_guess')
+        env%ceh_guess = .true.
+
       case ('-dscal','-dispscal','-dscal_global','-dispscal_global')
         env%cts%dispscal_md = .true.
         if (index(argument,'_global') .ne. 0) then
@@ -1260,6 +1333,11 @@ subroutine parseflags(env,arg,nra)
         write (ich,'(i0)') nint(xx(1))
         close (ich)
         write (*,'(2x,a,1x,a)') trim(arg(i)),trim(arg(i+1))
+
+      case ('-grad')
+        env%gradsp = .true.
+      case ('-nograd')
+        env%gradsp = .false.
 
       case ('-len','-mdlen','-mdtime') !> set md length in ps
         atmp = arg(i+1)
@@ -1362,11 +1440,11 @@ subroutine parseflags(env,arg,nra)
           env%cts%cbonds_md = .true.
           env%cts%cbonds_global = .false.
         end if
-      case ('-cfile','-cinp')                   !> specify the constrain file
+      case ('-cfile','-cinp','-C','-c')     !> specify the constrain file
         ctmp = trim(arg(i+1))
         if (ctmp(1:1) .ne. '-') then
           env%constraints = trim(ctmp)
-          write (*,'(2x,a,1x,a)') '--cinp :',trim(ctmp)
+          write (*,'(2x,a,1x,a)') argument//' :',trim(ctmp)
         end if
       case ('-fc','-forceconstant')
         ctmp = trim(arg(i+1))
@@ -1579,7 +1657,7 @@ subroutine parseflags(env,arg,nra)
         env%preopt = .false.
       case ('-topo','-topocheck')
         env%checktopo = .true.
-      case ('-notopo','-notopocheck')
+      case ('-notopo','-notopocheck','-noreftopo')
         env%checktopo = .false.
         ctmp = trim(arg(i+1))
         if (ctmp(1:1) .ne. '-') then
@@ -1588,12 +1666,24 @@ subroutine parseflags(env,arg,nra)
             env%checktopo = .true.
           end if
         end if
-      case ('-noreftopo')
         env%reftopo = .false.
       case ('-ezcheck','-checkez')
         env%checkiso = .true.
       case ('-noezcheck','-nocheckez')
         env%checkiso = .false.
+      case ('-inversion')
+        ctmp = lowercase(trim(arg(i+1)))
+        select case (ctmp)
+        case ('auto')
+          env%iinversion = 0
+        case ('on')
+          env%iinversion = 1
+        case ('off')
+          env%iinversion = 2
+        case default
+          write (stdout,'(a,a,a,a)') 'invalid argument for ',argument,': ',trim(ctmp)
+          stop
+        end select
 !========================================================================================!
 !-------- PROPERTY CALCULATION related flags
 !========================================================================================!
@@ -1857,7 +1947,7 @@ subroutine parseflags(env,arg,nra)
         ctmp = arg(i+1)
         env%user_enslvl = .true.
         env%qcg_flag = .true.
-        if (arg(i+1) == 'gfn') then
+        if (arg(i+1) == '-gfn') then
           dtmp = trim(arg(i+2))
           ctmp = trim(ctmp)//dtmp
         end if
@@ -1879,7 +1969,7 @@ subroutine parseflags(env,arg,nra)
       case ('-freqlvl')
         ctmp = arg(i+1)
         env%qcg_flag = .true.
-        if (arg(i+1) == 'gfn') then
+        if (arg(i+1) == '-gfn') then
           dtmp = trim(arg(i+2))
           ctmp = trim(ctmp)//dtmp
         end if
@@ -2070,8 +2160,11 @@ subroutine parseflags(env,arg,nra)
     error stop 'Z sorting of the input is unavailable for -qcg runtyp.'
   end if
 
+!>--- avoid 0 potscal
+  if(env%potscal < 1.0d-5) env%potscal = 1.0_wp
+
 !>--- automatic wall potential for the LEGACY version
-  if (env%NCI.or.env%wallsetup.and.env%legacy) then
+  if ((env%NCI.or.env%wallsetup).and.env%legacy) then
     call wallpot(env)
     if (env%wallsetup) then
       write (*,'(2x,a)') 'Automatically generated ellipsoide potential:'
@@ -2212,22 +2305,20 @@ subroutine parseflags(env,arg,nra)
     flush (stdout)
     call env2calc_setup(env)
     write (stdout,*) 'done.'
-    call env%calc%info(stdout)
-  end if
-!>--- pass on opt-level to new calculator
-  if (.not.env%legacy) then
-    env%calc%optlev = nint(env%optlev)
   end if
 
-!>--- ONIOM setup from toml file
-  if (allocated(env%ONIOM_toml)) then
-    allocate (env%calc%ONIOM)
-    call ONIOM_read_toml(env%ONIOM_toml,env%nat,env%ref%at,env%ref%xyz,env%calc%ONIOM)
-    call env%calc%ONIOMexpand()
+!>--- pass on other settings (from cli) to new calculator
+  if (.not.env%legacy) then
+    call env2calc_modify(env)
   end if
 
 !>--- important printouts
   if (.not.env%legacy) then
+
+    if (env%crestver .ne. crest_sorting) then
+      call env%calc%info(stdout)
+    end if
+
     call print_frozen(env)
   end if
 
@@ -2422,7 +2513,8 @@ subroutine inputcoords(env,arg)
   character(len=:),allocatable :: arg2
   type(coord) :: mol
   type(zmolecule) :: zmol
-  integer :: i
+  integer :: i,idiff
+  integer,allocatable :: tmpinclude(:)
 
 !>--- Redirect for QCG input reading
   if (env%QCG) then
@@ -2506,6 +2598,24 @@ subroutine inputcoords(env,arg)
   call simpletopo_file('coord',zmol,.false.,.false.,'')
   env%protb%nfrag = zmol%nfrag
   call zmol%deallocate()
+
+!>--- Repair logic of includeRMSD array (especially for something like QCG)
+  if (.not.allocated(env%includeRMSD)) then
+    allocate (env%includeRMSD(env%ref%nat))
+    env%includeRMSD(:) = 1
+  else
+    !> assuming if the current includeRMSD is smaller than the
+    !> current system we have *appended* some atoms
+    idiff = size(env%includeRMSD,1)
+    if (idiff < env%ref%nat) then
+      allocate (tmpinclude(env%ref%nat),source=1)
+      do i = 1,idiff
+        tmpinclude(i) = env%includeRMSD(i)
+      end do
+      !deallocate(env%includeRMSD)
+      call move_alloc(tmpinclude,env%includeRMSD)
+    end if
+  end if
 
   return
 end subroutine inputcoords

@@ -168,24 +168,54 @@ contains   !> MODULE PROCEDURES START HERE
         env%preopt = .false.
         env%crestver = crest_scanning
       case ('search_1')
-        env%preopt = .false.
+        env%preopt = .true.
         env%crestver = crest_s1
         env%runver = crest_s1
       case ('mecp','mecp_search')
         env%preopt = .false.
         env%crestver = crest_mecp
         env%runver = crest_mecp
-      case ('imtd-gc')
-        env%preopt = .false.
+      case ('imtd-gc','mtd_search')
+        env%preopt = .true.
         env%crestver = crest_imtd
         env%runver = 1
-      case ('nci-mtd','nci')
+      case ('mtd_search_quick')
+        env%preopt = .true.
+        env%crestver = crest_imtd
+        env%quick = .true.
+        env%runver = 2
+        env%ewin = 5.0d0
+        env%optlev = 1.0d0    !> optlev tight for quick run
+      case ('mtd_search_mquick')
+        env%preopt = .true.
+        env%crestver = crest_imtd
+        env%rotamermds = .false.      !> no NORMMD
+        env%performCross = .false.    !> no GC
+        env%quick = .true.            !> MTD settings from the quick-mode
+        env%superquick = .true.       !> use user-set opt level in Multilevel opt.
+        env%Maxrestart = 1            !> only one MTD iteration
+        env%runver = 6
+        env%optlev = 0.0d0  !> user-set opt level
+        env%ewin = 2.5d0              !> smaller energy window
+      case ('mtd_search_squick')
+        env%preopt = .true.
+        env%crestver = crest_imtd
+        env%rotamermds = .false.      !> no NORMMD
+        env%performCross = .false.    !> no GC
+        env%quick = .true.            !> MTD settings from the quick-mode
+        env%superquick = .true.       !> use user-set opt level in Multilevel opt.
+        env%runver = 5
+        env%optlev = 0.0d0            !> user-set opt level
+        env%ewin = 5.0d0              !> smaller energy window
+      case ('nci-mtd','nci','nci_search')
         env%NCI = .true.
         env%runver = 4
         env%autozsort = .false.
         env%performCross = .false.
         env%rotamermds = .false.
-      case ('entropy','imtd-smtd')
+      case ('bh','gmin')
+        env%crestver = crest_bh
+      case ('entropy','imtd-smtd','entropy_search')
         env%crestver = crest_imtd  !> the entropy mode acts as subtype of the crest_imtd algo
         env%properties = abs(p_CREentropy)
         env%autozsort = .false.     !> turn off zsort (since we are not going to GC anyways)
@@ -203,7 +233,7 @@ contains   !> MODULE PROCEDURES START HERE
         env%crestver = crest_numhessian
         env%runver = crest_numhessian
       case ('rigidconf')
-        env%preopt = .false.
+        env%preopt = .true.
         env%crestver = crest_rigcon
         env%runver = crest_rigcon
 
@@ -228,7 +258,7 @@ contains   !> MODULE PROCEDURES START HERE
     case ('ensemble_input','ensemble','input_ensemble')
       env%ensemblename = val
       env%inputcoords = val
-    case ('input','structure')
+    case ('input','structure','coord','coords')
       env%inputcoords = val
       call mol%open(val)
       call env%ref%load(mol)

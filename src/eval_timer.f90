@@ -25,15 +25,18 @@ subroutine eval_timer(tim)
   use crest_data
   use crest_calculator,only: engrad_total
   use crest_restartlog
+  use iomod, only: get_peak_rss_kb
   implicit none
   type(timer) :: tim
-  real(wp) :: time_total,time_avg
+  real(wp) :: time_total,time_avg,mem
   character(len=40) :: atmp
   write (stdout,*)
   call smallhead('Wall Time Summary')
   call tim%write(stdout,'CREST runtime',verbose=.true.)
   time_total = tim%get()
   call tim%clear
+  mem = real(get_peak_rss_kb(),wp)
+  write(stdout,'(" * Peak RSS: ",f8.2, " MiB")') mem/1024.0_wp
   if(engrad_total > 0)then
   write(atmp,'(f30.3)') time_total/real(engrad_total,wp)
   write(stdout,'(" * Total number of energy+grad calls: ",i0)') & !,a,1x,a,a)') & 

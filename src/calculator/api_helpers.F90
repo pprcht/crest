@@ -21,7 +21,7 @@ module api_helpers
   use iso_fortran_env,only:wp => real64,stdout => output_unit
   use strucrd
   use calc_type
-  use iomod,only:makedir,directory_exist,remove
+  use iomod,only:makedir,directory_exist,remove,random_tmp_name
   !> APIs
   use tblite_api
   use gfn0_api
@@ -389,6 +389,8 @@ contains    !> MODULE PROCEDURES START HERE
     if (calc%apiclean) loadnew = .true.
 #endif
   end subroutine libpvol_initcheck
+
+  
 
 !========================================================================================!
 !========================================================================================!

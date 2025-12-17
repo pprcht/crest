@@ -30,18 +30,18 @@ subroutine crest_playground(env,tim)
   use crest_parameters
   use crest_data
   use crest_calculator
-  use strucrd 
+  use strucrd
   use canonical_mod
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
   type(coord) :: mol,molnew
-  integer :: i,j,k,l,io,ich 
+  integer :: i,j,k,l,io,ich
   logical :: pr,wr
 !========================================================================================!
   type(calcdata) :: calc
   real(wp) :: accuracy,etemp
-   
+
   integer :: V,maxgen
   integer,allocatable :: A(:,:)
   logical,allocatable :: rings(:,:)
@@ -49,41 +49,34 @@ subroutine crest_playground(env,tim)
   logical :: connected,fail
 
   real(wp) :: energy
-  real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:)
+  real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:),q(:)
 
   type(canonical_sorter) ::  can
 !========================================================================================!
-  call tim%start(14,'Test implementation') 
+  call tim%start(14,'Test implementation')
 !========================================================================================!
   !call system('figlet welcome')
-  write(*,*) "              _                          "
-  write(*,*) "__      _____| | ___ ___  _ __ ___   ___ "
-  write(*,*) "\ \ /\ / / _ \ |/ __/ _ \| '_ ` _ \ / _ \"
-  write(*,*) " \ V  V /  __/ | (_| (_) | | | | | |  __/"
-  write(*,*) "  \_/\_/ \___|_|\___\___/|_| |_| |_|\___|"
-  write(*,*) 
+  write (*,*) "              _                          "
+  write (*,*) "__      _____| | ___ ___  _ __ ___   ___ "
+  write (*,*) "\ \ /\ / / _ \ |/ __/ _ \| '_ ` _ \ / _ \"
+  write (*,*) " \ V  V /  __/ | (_| (_) | | | | | |  __/"
+  write (*,*) "  \_/\_/ \___|_|\___\___/|_| |_| |_|\___|"
+  write (*,*)
 !========================================================================================!
   call env%ref%to(mol)
-  write(*,*)
-  write(*,*) 'Input structure:'
+  write (*,*)
+  write (*,*) 'Input structure:'
   call mol%append(stdout)
-  write(*,*) 
+  write (*,*)
 !========================================================================================!
 
-  allocate(grad(3,mol%nat), source=0.0_wp)
+  allocate (grad(3,mol%nat),source=0.0_wp)
   call env2calc(env,calc,mol)
-  calc%calcs(1)%rdwbo=.true.
+  calc%calcs(1)%rdwbo = .true.
   call calc%info(stdout)
 
   call engrad(mol,calc,energy,grad,io)
   call calculation_summary(calc,mol,energy,grad)
-  
-
-  write(stdout,*)
-  write(stdout,*) 'CANGEN algorithm' 
-  call can%init(mol,calc%calcs(1)%wbo,'apsp+')
-  call can%stereo(mol)
-  call can%rankprint(mol) 
 
 !========================================================================================!
   call tim%stop(14)

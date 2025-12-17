@@ -2,7 +2,7 @@
 module canonical_mod
 !*************************************************************************
 !* Implementation of different algorithms for determining atom identities
-!* 
+!*
 !* A) Implementation of the CANGEN algorithm by Weininger et al.
 !* D.Weininger et al., J. Chem. Inf. Comput. Sci., 1989, 29, 97-101.
 !* doi.org/10.1021/ci00062a008
@@ -21,6 +21,7 @@ module canonical_mod
   use strucrd
   use adjacency
   use geo
+  use utilities, only: nth_prime
   implicit none
   private
 
@@ -55,7 +56,9 @@ module canonical_mod
     procedure :: iterate
     procedure :: rankprint
     procedure :: stereo => analyze_stereo
+    procedure :: hasstereo => has_stereo
     procedure :: compare => compare_canonical_sorter
+    procedure :: add_h_ranks
   end type canonical_sorter
 
   logical,parameter :: debug = .false.
@@ -107,7 +110,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine init_canonical_sorter(self,mol,wbo,invtype)
+  subroutine init_canonical_sorter(self,mol,wbo,invtype,heavy)
 !*****************************************************************
 !* Initializes the canonical_sorter and runs the CANGEN algorithm
 !*****************************************************************
@@ -116,6 +119,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord),intent(in) :: mol
     real(wp),intent(in),optional :: wbo(mol%nat,mol%nat)
     character(len=*),intent(in),optional :: invtype
+    logical,intent(in),optional :: heavy
     integer :: nodes
     integer,allocatable :: Amat(:,:) !> adjacency matrix for FULL molecule
     integer :: counth,countb,countbo
@@ -124,7 +128,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,l,ii,ati,atj,maxnei
     integer,allocatable :: ichrgs(:),frag(:)
     character(len=:),allocatable :: myinvtype
-    logical :: use_icharges
+    logical :: use_icharges,include_H,anyH
 
 !>--- optional argument handling
     if (present(invtype)) then
@@ -132,6 +136,12 @@ contains  !> MODULE PROCEDURES START HERE
     else
       myinvtype = 'cangen'
     end if
+    if (present(heavy)) then
+      include_H = .not.heavy
+    else
+      include_H = .false.
+    end if
+    anyH = any(mol%at(:).eq.1)
 
 !>--- all atoms of the full mol. graph are nodes
     nodes = mol%nat
@@ -139,17 +149,17 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- map to heavy atom-only representation
     k = 0
     do i = 1,mol%nat
-      if (mol%at(i) .ne. 1) k = k+1
+      if (mol%at(i) .ne. 1.or.include_h) k = k+1
     end do
     self%nat = nodes
     self%hatms = k
-    allocate (self%nmap(nodes))
-    allocate (self%hmap(k))
-    allocate (self%invariants(k),source=0_int64)
-    allocate (self%invariants0(k),source=0)
-    allocate (self%prime(k),source=2)
-    allocate (self%rank(k),source=1)
-    allocate (self%hadjac(k,k),source=0)
+    if (.not.allocated(self%nmap)) allocate (self%nmap(nodes))
+    if (.not.allocated(self%hmap)) allocate (self%hmap(k))
+    if (.not.allocated(self%invariants)) allocate (self%invariants(k),source=0_int64)
+    if (.not.allocated(self%invariants0)) allocate (self%invariants0(k),source=0)
+    if (.not.allocated(self%prime)) allocate (self%prime(k),source=2)
+    if (.not.allocated(self%rank)) allocate (self%rank(k),source=1)
+    if (.not.allocated(self%hadjac)) allocate (self%hadjac(k,k),source=0)
 
 !>--- determine number of subgraphs via CN
     call mol%cn_to_bond(cn,Bmat,'cov')
@@ -170,13 +180,13 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     if (debug) write (stdout,*) 'maximum number of neighbours',maxnei
     self%maxnei = maxnei
-    allocate (self%neigh(maxnei,mol%nat),source=0)
+    if (.not.allocated(self%neigh)) allocate (self%neigh(maxnei,mol%nat),source=0)
 
 !>--- fill rest of self
     k = 0
     do i = 1,nodes
       l = 0
-      if (mol%at(i) .ne. 1) then
+      if (mol%at(i) .ne. 1.or.include_h) then
         k = k+1
         self%nmap(i) = k
         self%hmap(k) = i
@@ -190,8 +200,11 @@ contains  !> MODULE PROCEDURES START HERE
         end if
       end do
     end do
+    !> H's excluded from hadjac, always
     do i = 1,k
+      if (mol%at(self%hmap(i)) .eq. 1) cycle
       do j = 1,i-1
+        if (mol%at(self%hmap(j)) .eq. 1) cycle
         self%hadjac(j,i) = Amat(self%hmap(j),self%hmap(i))
         self%hadjac(i,j) = self%hadjac(j,i)
       end do
@@ -226,9 +239,9 @@ contains  !> MODULE PROCEDURES START HERE
 
     case default !> CANGEN
 
-      if(.not.present(wbo))then
+      if (.not.present(wbo)) then
         error stop 'CANGEN implementation requires wbo matrix as argument'
-      endif
+      end if
       do i = 1,k
         ii = self%hmap(i)
         ati = mol%at(ii)
@@ -239,7 +252,7 @@ contains  !> MODULE PROCEDURES START HERE
           if (Amat(j,ii) .ne. 0) then
             if (mol%at(j) .eq. 1) then
               counth = counth+1 !> count H neighbours
-                 countbo2 = countbo2-wbo(j,ii) !> but NOT in total bond order
+              countbo2 = countbo2-wbo(j,ii) !> but NOT in total bond order
             end if
             countb = countb+1 !> count all neighbours
             !countbo2 = countbo2+wbo(j,ii)  !> sum the total bond order
@@ -264,8 +277,8 @@ contains  !> MODULE PROCEDURES START HERE
       call debugprint(self,mol)
     end if
 !>--- start assignment
-    allocate (self%newrank(k),source=0) !> workspace
-    allocate (self%newinv(k),source=0_int64) !>workspace
+    if (.not.allocated(self%newrank)) allocate (self%newrank(k),source=0) !> workspace
+    if (.not.allocated(self%newinv)) allocate (self%newinv(k),source=0_int64) !>workspace
     call self%update_ranks()
     self%rank(:) = self%newrank(:)
     if (debug) then
@@ -276,6 +289,14 @@ contains  !> MODULE PROCEDURES START HERE
       call debugprint(self,mol)
     end if
     call self%iterate(mol) !> iterate recursively until ranking doesn't change
+
+!>--- finally, if required, add H atoms
+    if (include_H .and. anyH) then
+      !> sinc H's will have been added with rank 1, shift all ranks
+      self%rank(:) = self%rank(:)-1
+      call self%add_h_ranks(mol)
+    end if
+
   end subroutine init_canonical_sorter
 
 !========================================================================================!
@@ -475,7 +496,7 @@ contains  !> MODULE PROCEDURES START HERE
       zero = count(self%neigh(:,ii) == 0)
       nei = self%maxnei-zero
 !>--- consider only atoms with 4 unique (in terms of CANGEN ranks) neighbours as stereocenter
-      if (nei == 4) then 
+      if (nei == 4) then
         do j = 1,4
           jj = self%neigh(j,ii)
           if (mol%at(jj) == 1) then !> one hydrogen allowed
@@ -512,6 +533,42 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     deallocate (neiranks,isstereo)
   end subroutine analyze_stereo
+
+!===========================================================================================!
+
+  function has_stereo(self,mol) result(yesno)
+    implicit none
+    logical :: yesno
+    class(canonical_sorter),intent(in) :: self
+    type(coord),intent(in) :: mol
+    integer :: i,ii,zero,nei,j,jj,maxrank
+    integer :: k,l,rs
+    integer,allocatable :: neiranks(:,:)
+    real(wp) :: coords(3,4)
+    logical,allocatable :: isstereo(:)
+    allocate (isstereo(mol%nat),source=.false.)
+    allocate (neiranks(4,mol%nat),source=0)
+    maxrank = maxval(self%rank(:))
+    do i = 1,self%hatms
+      ii = self%hmap(i)
+      zero = count(self%neigh(:,ii) == 0)
+      nei = self%maxnei-zero
+!>--- consider only atoms with 4 unique (in terms of ranks) neighbours as stereocenter
+      if (nei == 4) then
+        do j = 1,4
+          jj = self%neigh(j,ii)
+          if (mol%at(jj) == 1) then !> one hydrogen allowed
+            neiranks(j,ii) = maxrank+1
+          else
+            neiranks(j,ii) = self%rank(jj)
+          end if
+        end do
+        isstereo(ii) = unique_neighbours(4,neiranks(:,ii))
+      end if
+    end do
+    yesno = any(isstereo(:))
+    deallocate (neiranks,isstereo)
+  end function has_stereo
 
 !========================================================================================!
 
@@ -570,43 +627,52 @@ contains  !> MODULE PROCEDURES START HERE
   end function compare_canonical_sorter
 
 !========================================================================================!
-!========================================================================================!
 
-  function nth_prime(x) result(prime)
+  subroutine add_h_ranks(self,mol)
+!******************************************************************
+!* Mapps ranks of the heavy atoms back to the full molecule order
+!* And continues ranks for H atoms, based on neighbor list
+!******************************************************************
     implicit none
-    integer,intent(in) :: x
-    integer :: prime
-    integer :: c,num,i
-    logical :: is_prime
-    integer,parameter :: prime_numbers(100) = (/2,3,5,7,11,13,17,19,23,29, &
-    & 31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109, &
-    & 113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197, &
-    & 199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283, &
-    & 293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389, &
-    & 397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487, &
-    & 491,499,503,509,521,523,541/)
-    if (x <= 100) then
-      prime = prime_numbers(x)
-      return
+    class(canonical_sorter),intent(inout) :: self
+    type(coord),intent(in) :: mol
+    integer,allocatable :: rankh(:)
+    integer,allocatable :: rankmap(:)
+    integer :: i,ii,zero,nei,j,jj,maxrank,rr,maxrank2
+    logical :: hneigh
+!>--- self%rank must already have the correct dimension!
+    if (size(self%rank,1) .ne. mol%nat) then
+      stop 'wrong dimension for adding H to canonical ranks!'
     end if
-    c = 0
-    num = 1
-    do while (c < x)
-      num = num+1
-      is_prime = .true.
-      do i = 2,int(sqrt(real(num)))
-        if (mod(num,i) == 0) then
-          is_prime = .false.
-          exit
-        end if
-      end do
-      if (is_prime) then
-        c = c+1
+
+!>--- otherwise, analyze and resize
+    maxrank = maxval(self%rank(:),1)
+
+!>--- cycle through atoms, assign ranks depending on neighbour list
+    allocate (rankmap(maxrank),source=0)
+    rr = 0
+    do i = 1,self%hatms
+      if (mol%at(i) .ne. 1) cycle
+      ii = self%neigh(1,i)
+      jj = self%rank(ii)
+      rankmap(jj) = 1
+    end do
+    do i = 1,maxrank
+      if (rankmap(i) .eq. 1) then
+        rr = rr+1
+        rankmap(i) = maxrank+rr
       end if
     end do
-    prime = num
-  end function nth_prime
+    do i = 1,self%hatms
+      if (mol%at(i) .ne. 1) cycle
+      ii = self%neigh(1,i)
+      jj = self%rank(ii)
+      self%rank(i) = rankmap(jj)
+    end do
+    deallocate (rankmap)
+  end subroutine add_h_ranks
 
+!========================================================================================!
 !========================================================================================!
 
   subroutine debugprint(can,mol)

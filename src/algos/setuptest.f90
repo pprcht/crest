@@ -60,6 +60,7 @@ subroutine trialMD_calculator(env)
   type(timer) :: profiler
 
   type(calcdata) :: tmpcalc
+  type(calcdata) :: calcstart
   real(wp) :: energy
   real(wp),allocatable :: grd(:,:)
   integer :: T,Tn
@@ -104,6 +105,7 @@ subroutine trialMD_calculator(env)
   MTD%mtdtype = cv_rmsd
   MTD%cvdump_fs = 550.0_wp
   call MDSTART%add(MTD)
+  calcstart = env%calc !> Save clean state before loop
 
   pr = .false. !> supress stdout printout of MD
 
@@ -121,6 +123,8 @@ subroutine trialMD_calculator(env)
 
 !>--- Restore initial starting geometry
     mol = molstart
+!>--- Restore clean calculation state
+    env%calc = calcstart
 !>--- Modify MD output trajectory
     MD = MDSTART
     MD%tstep = tstep
@@ -304,9 +308,9 @@ subroutine trialOPT_calculator(env)
 
 !>--- perform geometry optimization
   pr = .false. !> stdout printout
-  wr = .true.  !> write crestopt.log
+  wr = .true.  !> write crestopt.log.xyz
   if(wr)then
-    call remove('crestopt.log')
+    call remove('crestopt.log.xyz')
   endif 
   call optimize_geometry(mol,molopt,tmpcalc,energy,grd,pr,wr,io)
 
@@ -348,7 +352,7 @@ subroutine trialOPT_warning(env,mol,success)
   if (.not.success) then
     write (stdout,*)
     write (stdout,*) ' Initial geometry optimization failed!'
-    write (stdout,*) ' Please check your input and, if present, crestopt.log.'
+    write (stdout,*) ' Please check your input and, if present, crestopt.log.xyz.'
     call creststop(status_failed)
   end if
   write (stdout,*) 'Geometry successfully optimized.'
@@ -392,7 +396,7 @@ subroutine trialOPT_warning(env,mol,success)
         if (env%legacy) then
           write (stdout,'(1x,a)') 'You can check the optimization trajectory in the "xtbopt.log" file.'
         else
-          write (stdout,'(1x,a)') 'You can check the optimization trajectory in the "crestopt.log" file.'
+          write (stdout,'(1x,a)') 'You can check the optimization trajectory in the "crestopt.log.xyz" file.'
         end if
         write (stdout,'(1x,a)') 'Try either of these options:'
         write (stdout,'(/,4x,a)') 'A) Pre-optimize your input seperately and use the optimized'

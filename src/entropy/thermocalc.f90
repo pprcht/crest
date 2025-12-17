@@ -16,11 +16,6 @@
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
-
-!=========================================================================================!
-!CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC!
-!=========================================================================================!
-
 subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
         &  nt,temps,et,ht,gt,stot,bhess)
 !**********************************************
@@ -152,7 +147,7 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
   fscal = env%thermo%fscal
   sthr = env%thermo%sthr
   call calcthermo(nat,at,xyz,freq,pr,ithr,fscal,sthr, &
-  &    nt,temps,et,ht,gt,stot)
+  &    nt,temps,et,ht,gt,stot,stdout)
   deallocate (freq)
 !$omp end critical
   call initsignal()
@@ -321,7 +316,7 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   fscal = env%thermo%fscal
   sthr = env%thermo%sthr
   call calcthermo(nat,at,xyz,freq,pr,ithr,fscal,sthr, &
-  &    nt,temps,et,ht,gt,stot)
+  &    nt,temps,et,ht,gt,stot,stdout)
   deallocate (hess,freq)
 !$omp end critical
   call initsignal()

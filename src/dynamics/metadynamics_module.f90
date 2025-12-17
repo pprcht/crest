@@ -101,7 +101,9 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: at(:)
 
     if (pr) then
-      write (stdout,'(">--- metadynamics parameter ---")')
+      write (stdout,'(1X,17("─"))', advance='no')
+      write (stdout,'(1X,"Metadynamics Parameters")', advance='no')
+      write (stdout,'(1X,17("─"))')
     end if
 
     dum1 = anint((mdlength*1000.0_wp)/tstep)
@@ -158,7 +160,7 @@ contains  !> MODULE PROCEDURES START HERE
       if (nat .ne. mol%nat) then !> can't do that! something is wrong
         if (allocated(pot%cvxyz)) deallocate (pot%cvxyz)
         pot%mtdtype = 0
-        write (*,'(1x,a)') '*WARNING* static metadynamics setup failed! Mismatch of #atoms'
+        write (stdout,'(1x,a)') '*WARNING* static metadynamics setup failed! Mismatch of #atoms'
         !return
         error stop
       end if
@@ -180,8 +182,8 @@ contains  !> MODULE PROCEDURES START HERE
     !>--- printout
     if (pr) then
       call pot%info(stdout)
+      write (stdout,'(1X,59("─"))')
     end if
-
 
     return
   end subroutine mtd_ini
@@ -226,25 +228,30 @@ contains  !> MODULE PROCEDURES START HERE
     !write (iunit,'(" --- metadynamics parameter ---")')
     select case (self%mtdtype)
     case (cv_std_mtd)
-      write (iunit,'(" MTD/CV type   :",1x,a)') 'standard'
+      write (iunit,'("  MTD/CV type",t25,":",1x,a)') 'standard'
     case (cv_rmsd)
-      write (*,'(" MTD/CV type   :",1x,a)') 'RMSD bias'
+      write (stdout,'("  MTD/CV type",t25,":",1x,a)') 'RMSD bias'
     case (cv_rmsd_static)
-      write (iunit,'(" MTD/CV type   :",1x,a)') 'RMSD bias (static)'
+      write (iunit,'("  MTD/CV type",t25,":",1x,a)') 'RMSD bias (static)'
     end select
-    write (iunit,'(" kpush /Eh     :",f10.4)') self%kpush
-    write (iunit,'(" alpha /bohr⁻² :",f10.4)') self%alpha
+    write (iunit,'("  kpush /Eh",t25,":",f10.4)') self%kpush
+    write (iunit,'("  alpha /Bohr⁻²",t28,":",f10.4)') self%alpha
 
     select case (self%mtdtype)
     case (cv_rmsd)
-      write (iunit,'(" ramp          :",f10.4,1x,i0)') self%ramp,check_dump_steps_rmsd(self)
-      write (iunit,'(" dump/fs       :",f10.4,1x,i0 )') self%cvdump_fs,self%cvdumpstep
-      write (iunit,'(" # CVs (max)   :",i10 )') self%maxsave
+      write (iunit,'("  ramp rate",t25,":",f10.4,1x,"(",i0,")")') self%ramp,check_dump_steps_rmsd(self)
+      write (iunit,'("  dump/fs",t25,":",f10.4,1x,"(",i0,")")') self%cvdump_fs,self%cvdumpstep
+      write (iunit,'("  # CVs (max)",t25,":",i10 )') self%maxsave
     case (cv_rmsd_static)
-      if (allocated(self%biasfile)) write (iunit,'(" reading from  :",1x,a)') self%biasfile
-      write (iunit,'(" ramp (adjust.):",f10.4,1x,i0)') self%ramp,check_dump_steps_rmsd(self)
-      write (iunit,'(" # CVs (loaded):",i10 )') self%maxsave
+      if (allocated(self%biasfile)) write (iunit,'(" reading from",t25,":",1x,a)') self%biasfile
+      write (iunit,'("  ramp (adjust.)",t25,":",f10.4,1x,i0)') self%ramp,check_dump_steps_rmsd(self)
+      write (iunit,'("  # CVs (loaded)",t25,":",i10 )') self%maxsave
     end select
+    if (self%mtdtype == cv_rmsd.or.self%mtdtype == cv_rmsd_static) then
+      if (allocated(self%atinclude)) then
+        write (iunit,'("  # of atoms affected",t25,":",i10)') count(self%atinclude,1)
+      end if
+    end if
 
     return
   end subroutine mtd_info
@@ -278,7 +285,7 @@ contains  !> MODULE PROCEDURES START HERE
           call rmsdcv_perturb(mol%nat,pot%cvxyz(:,:,pot%ncur))
         end if
         if (pr) then
-          write (*,'(2x,"adding snapshot to metadynamics bias, now at ",i0," CVs")') pot%ncur
+          write (stdout,'(2x,"adding snapshot to metadynamics bias, now at ",i0," CVs")') pot%ncur
         end if
       end if
 

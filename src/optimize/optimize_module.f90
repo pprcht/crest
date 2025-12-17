@@ -31,6 +31,7 @@ module optimize_module
   use ancopt_module
   use gradientdescent_module
   use rfo_module
+  use lbfgs_module
   use optimize_utils
   use thermochem_module
   use hessian_reconstruct
@@ -90,15 +91,16 @@ contains  !> MODULE PROCEDURES START HERE
 
     !> optimization
     select case (calc%opt_engine)
-    case (0)
-      call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
-    case (1)
-      !> l-bfgs goes here
-      write (stdout,'(a)') 'L-BFGS currently not implemented'
-      stop
-    case (2)
-      !> rfo goes here
-      call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case ( 0)
+       call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case ( 1)
+       !> l-bfgs goes here
+      !write(stdout,'(a)') 'L-BFGS currently not implemented'
+      !stop
+      call lbfgs_optimize(molnew,calc,etot,grd,pr,iostatus)
+    case ( 2)
+       !> rfo goes here
+       call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
     case (-1)
       call gradientdescent(molnew,calc,etot,grd,pr,wr,iostatus)
     case default
@@ -158,14 +160,27 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine print_opt_data(calc,ich)
+  subroutine print_opt_data(calc,ich,natoms,tag)
     implicit none
     type(calcdata) :: calc
     integer,intent(in) :: ich
-    integer :: tight
+    integer,intent(in),optional :: natoms
+    character(len=*),intent(in),optional :: tag
+    integer :: tight,nat
     real(wp) :: ethr,gthr
+    character(len=:),allocatable :: ttag
+    if(present(tag))then
+      ttag=tag
+    else
+      ttag=' '    
+    endif
+    if(present(natoms))then
+      nat=natoms
+    else
+      nat=0
+    endif
 
-    write (ich,'(1x,a)',advance='no') 'Optimization engine: '
+    write (ich,'(a,a)',advance='no') ttag,'Optimization engine: '
     select case (calc%opt_engine)
     case (0)
       write (ich,'(a)') 'ANCOPT'
@@ -179,7 +194,7 @@ contains  !> MODULE PROCEDURES START HERE
       write (ich,'(a)') 'Unknown'
     end select
     if (calc%opt_engine >= 0) then
-      write (ich,'(1x,a)',advance='no') 'Hessian update type: '
+      write (ich,'(a,a)',advance='no') ttag,'Hessian update type: '
       select case (calc%iupdat)
       case (0)
         write (ich,'(a)') 'BFGS'
@@ -195,12 +210,12 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     tight = calc%optlev
-    call get_optthr(0,tight,calc,ethr,gthr)
-    write (ich,'(1x,a,e10.3,a,e10.3,a)') 'E/G convergence criteria: ',&
+    call get_optthr(nat,tight,calc,ethr,gthr)
+    write (ich,'(a,a,e10.3,a,e10.3,a)') ttag,'E/G convergence criteria: ',&
     & ethr,' Eh,',gthr,' Eh/a0'
 
-    write (ich,'(1x,a,i0)') 'maximum optimization steps: ',calc%maxcycle
-
+    write (ich,'(a,a,i0)') ttag,'maximum optimization steps: ',calc%maxcycle
+     
   end subroutine print_opt_data
 
 !========================================================================================!

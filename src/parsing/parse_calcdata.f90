@@ -28,6 +28,7 @@ module parse_calcdata
   use crest_data
   use crest_calculator,only:calcdata,calculation_settings,jobtype,constraint,scantype
   use dynamics_module
+  use bh_module
   use gradreader_module,only:gradtype,conv2gradfmt
   use tblite_api,only:xtblvl
   use strucrd,only:get_atlist,coord
@@ -62,6 +63,7 @@ module parse_calcdata
 
   public :: parse_calculation_data
   public :: parse_dynamics_data
+  public :: parse_basinhopping_data
 
   character(len=*),parameter,private :: fmturk = '("unrecognized KEYWORD in ",a," : ",a)'
   character(len=*),parameter,private :: fmtura = '("unrecognized ARGUMENT : ",a)'
@@ -173,6 +175,7 @@ contains !> MODULE PROCEDURES START HERE
     type(keyvalue) :: kv
     logical,intent(out) :: rd
     logical :: ex
+    integer :: n
     rd = .true.
     select case (kv%key)
 
@@ -189,6 +192,15 @@ contains !> MODULE PROCEDURES START HERE
       job%proberad = kv%value_f
     case ('radscal','pvol_radscal')
       job%pvradscal = kv%value_f
+    case ('efield')
+      n = size(kv%value_fa,1)
+      if (n .ne. 3) then
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) trim(kv%rawvalue)
+        call creststop(status_config)
+      end if
+      allocate (job%efield(3),source=0.0_wp)
+      job%efield(:) = kv%value_fa(:)
 
 !>--- integers
     case ('uhf','multiplicity')
@@ -450,6 +462,8 @@ contains !> MODULE PROCEDURES START HERE
       job%apiclean = kv%value_b
     case ('lmo','lmocent')
       job%getlmocent = kv%value_b
+    case ('ceh_guess')
+      job%ceh_guess = kv%value_b
 
     case default
       !>--- keyword not correctly read/found
@@ -1001,7 +1015,7 @@ contains !> MODULE PROCEDURES START HERE
         included = .true.
         call parse_mddat(env,blk,mddat,istat)
       else if (blk%header == 'dynamics.meta') then
-        call parse_metadyn(blk,mddat,istat)
+        call parse_metadyn(env,blk,mddat,istat)
         included = .true.
       end if
     end do
@@ -1049,13 +1063,15 @@ contains !> MODULE PROCEDURES START HERE
       mddat%active_potentials = kv%value_ia
 
     case ('includermsd','atlist+')
+      nat = env%ref%nat
       call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
-      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
+      if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=0)
       do j = 1,nat
         if (atlist(j)) env%includeRMSD(j) = 1
       end do
 
     case ('excludermsd','atlist-')
+      nat = env%ref%nat
       call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
       if (.not.allocated(env%includeRMSD)) allocate (env%includeRMSD(nat),source=1)
       do j = 1,nat
@@ -1108,13 +1124,14 @@ contains !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine parse_metadyn(blk,mddat,istat)
+  subroutine parse_metadyn(env,blk,mddat,istat)
 !**************************************************
 !* The following routines are used to
 !* read information into the "metadynamics" object
 !* and add it to a mol.dynamics data object
 !***************************************************
     implicit none
+    type(systemdata),intent(inout) :: env
     type(datablock),intent(in) :: blk
     type(mddata),intent(inout) :: mddat
     integer,intent(inout) :: istat
@@ -1126,7 +1143,7 @@ contains !> MODULE PROCEDURES START HERE
     success = .false.
     if (blk%header .ne. 'dynamics.meta') return
     do i = 1,blk%nkv
-      call parse_metadyn_auto(mtd,blk%kv_list(i),success,rd)
+      call parse_metadyn_auto(env,mtd,blk%kv_list(i),success,rd)
       if (.not.rd) then
         istat = istat+1
         write (stdout,fmturk) '[['//blk%header//']]-block',blk%kv_list(i)%key
@@ -1135,12 +1152,15 @@ contains !> MODULE PROCEDURES START HERE
     if (success) call mddat%add(mtd)
     return
   end subroutine parse_metadyn
-  subroutine parse_metadyn_auto(mtd,kv,success,rd)
+  subroutine parse_metadyn_auto(env,mtd,kv,success,rd)
     implicit none
+    type(systemdata),intent(inout) :: env
     type(keyvalue) :: kv
     type(mtdpot) :: mtd
     logical,intent(inout) :: success
     logical,intent(out) :: rd
+    integer :: j,nat
+    logical,allocatable :: atlist(:)
     rd = .true.
 
     select case (kv%key)
@@ -1174,12 +1194,145 @@ contains !> MODULE PROCEDURES START HERE
       mtd%mtdtype = cv_rmsd_static
       mtd%biasfile = kv%value_c
 
+    case ('includermsd','atlist+')
+      nat = env%ref%nat
+      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
+      if (.not.allocated(mtd%atinclude)) allocate (mtd%atinclude(nat),source=.false.)
+      do j = 1,nat
+        if (atlist(j)) mtd%atinclude(j) = .true.
+      end do
+
+    case ('excludermsd','atlist-')
+      nat = env%ref%nat
+      call get_atlist(nat,atlist,kv%rawvalue,env%ref%at)
+      if (.not.allocated(mtd%atinclude)) allocate (mtd%atinclude(nat),source=.true.)
+      do j = 1,nat
+        if (atlist(j)) mtd%atinclude(j) = .false.
+      end do
+
     case default
       rd = .false.
       return
     end select
 
   end subroutine parse_metadyn_auto
+
+!========================================================================================!
+
+  subroutine parse_basinhopping_data(env,bh,dict,included,istat)
+!**********************************************
+!* The following routines are used to
+!* read information into the "bh_class" object
+!**********************************************
+    implicit none
+    type(systemdata) :: env
+    type(bh_class) :: bh
+    type(root_object) :: dict
+    type(datablock) :: blk
+    type(calculation_settings) :: newjob
+    type(constraint) :: newcstr
+    integer :: i,j,k,l
+    logical,intent(out) :: included
+    integer,intent(inout) :: istat
+
+    included = .false.
+
+    do i = 1,dict%nblk
+      call blk%deallocate()
+      blk = dict%blk_list(i)
+      if (blk%header == 'basinhopping') then
+        included = .true.
+        call parse_bh_class(env,blk,bh,istat)
+      end if
+    end do
+    return
+  end subroutine parse_basinhopping_data
+  subroutine parse_bh_class(env,blk,bh,istat)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(datablock),intent(in) :: blk
+    type(bh_class),intent(inout) :: bh
+    integer,intent(inout) :: istat
+    integer :: i,j,nat
+    logical :: rd
+    if (blk%header .ne. 'basinhopping') return
+
+    do i = 1,blk%nkv
+      call parse_bh_auto(env,bh,blk%kv_list(i),rd)
+      if (.not.rd) then
+        istat = istat+1
+        write (stdout,fmturk) '['//blk%header//']-block',blk%kv_list(i)%key
+      end if
+    end do
+    return
+  end subroutine parse_bh_class
+  subroutine parse_bh_auto(env,bh,kv,rd)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(bh_class) :: bh
+    type(keyvalue) :: kv
+    logical,intent(out) :: rd
+    logical,allocatable :: atlist(:)
+    integer :: n,j
+    logical :: ex
+    rd = .true.
+
+    select case (kv%key)
+    case ('maxiter') !> these are NOT the BH steps!
+      bh%maxiter = max(1,kv%value_i)
+
+    case ('maxsave')
+      bh%maxsave = kv%value_i
+
+    case ('seed')
+      if (.not.allocated(bh%seed)) allocate (bh%seed)
+      bh%seed = kv%value_i
+
+    case ('step','stepsize')
+      select case (kv%id)
+      case (valuetypes%int)
+        bh%stepsize(1) = real(kv%value_i)
+      case (valuetypes%float)
+        bh%stepsize(1) = kv%value_f
+      case (valuetypes%float_array)
+        n = min(size(kv%value_fa,1),3)
+        bh%stepsize(1:n) = kv%value_fa(1:n)
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%rawvalue
+        call creststop(status_config)
+      end select
+
+    case ('steps','maxsteps')  !> these are the BH steps
+      bh%maxsteps = kv%value_i
+
+    case ('steptype')
+      select case (kv%value_c)
+      case ('cartesian')
+        bh%steptype = 0
+      case ('internal')
+        bh%steptype = 1
+      case ('dihedral')
+        bh%steptype = 2
+      case ('intermol')
+        bh%steptype = 3
+      case default
+        write (stdout,fmtura) trim(kv%value_c)
+        call creststop(status_config)
+      end select
+
+    case ('temp','T')
+      bh%temp = kv%value_f
+
+    case ('parallel')
+      bh%parallel = kv%value_b
+
+    case default
+      rd = .false.
+      return
+    end select
+
+  end subroutine parse_bh_auto
 
 !========================================================================================!
 !========================================================================================!

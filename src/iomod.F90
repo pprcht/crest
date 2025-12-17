@@ -55,6 +55,20 @@ module iomod
     end function
   end interface
 
+  interface
+    integer(c_int) function c_isatty(fd) bind(c,name="isatty")
+      use iso_c_binding
+      integer(c_int),value :: fd
+    end function c_isatty
+  end interface
+
+  interface
+    function get_peak_rss_kb() bind(C,name="get_peak_rss_kb") result(kb)
+      import :: c_long_long
+      integer(c_long_long) :: kb
+    end function
+  end interface
+
   interface wrshort
     module procedure wrshort_real
     module procedure wrshort_int
@@ -772,10 +786,12 @@ contains !> MODULE PROCEDURES START HERE
 !=========================================================================================!
 !=========================================================================================!
 
-!> a wrapper for the intrinsic isatty function.
-!> ifort only seems to work if isatty is declard as external
-!> while gfortran does not want that...
   function myisatty(channel) result(term)
+!************************************************************
+!* a wrapper for the intrinsic isatty function.
+!* ifort only seems to work if isatty is declard as external
+!* while gfortran does not want that...
+!************************************************************
     implicit none
     integer,intent(in) :: channel
     logical :: term
@@ -784,6 +800,60 @@ contains !> MODULE PROCEDURES START HERE
 #endif
     term = isatty(channel)
   end function myisatty
+
+  logical function is_terminal()
+!*****************************************************************************
+!* Helper function to check if stdout (fd=1) is a TTY
+!* This version runs via the iso_c interface rather than the isatty function
+!* Also, it doesn't need an output channel
+!*****************************************************************************
+    use iso_c_binding
+    implicit none
+    is_terminal = (c_isatty(1_c_int) /= 0)
+  end function is_terminal
+
+!=========================================================================================!
+!=========================================================================================!
+!=========================================================================================!
+
+  function colorify(text,color) result(colored_text)
+!******************************************************************************
+!* colorify(text, color) returns a string that wraps `text` in
+!* ANSI color codes if stdout is a TTY, or returns `text` as-is otherwise.
+!******************************************************************************
+    implicit none
+    !> INPUT
+    character(len=*),intent(in) :: text
+    character(len=*),intent(in) :: color
+    !> We will build the returned string with a deferred-length character
+    character(len=:),allocatable :: colored_text
+    !> Escape sequence for ANSI codes
+    character(len=*),parameter :: ESC = char(27)//"["
+    !> Decide if we want color (only if stdout is a terminal)
+    if (is_terminal()) then
+      select case (trim(adjustl(color)))
+      case ("red")
+        colored_text = ESC//"31m"//trim(text)//ESC//"0m"
+      case ("green")
+        colored_text = ESC//"32m"//trim(text)//ESC//"0m"
+      case ("blue")
+        colored_text = ESC//"34m"//trim(text)//ESC//"0m"
+      case ("yellow")
+        colored_text = ESC//"33m"//trim(text)//ESC//"0m"
+      case ("gold")
+        !> 256-color code for a “gold-ish” color
+        colored_text = ESC//"38;5;214m"//trim(text)//ESC//"0m"
+      case default
+        !> If color not recognized (or empty), return text unmodified
+        colored_text = text
+      end select
+
+    else
+      ! Not a terminal => no color codes
+      colored_text = text
+    end if
+
+  end function colorify
 
 !=========================================================================================!
 !=========================================================================================!
@@ -1160,6 +1230,47 @@ contains !> MODULE PROCEDURES START HERE
     end if
 
   end subroutine split_path
+
+!=========================================================================================!
+
+  function random_tmp_name() result(fname)
+    implicit none
+    character(len=20) :: fname
+    character(len=16) :: core
+    integer :: i,idx
+    real(wp) :: idxr
+    character(len=*),parameter :: letters = &
+    & "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    integer,parameter :: lenletters = len(letters)
+
+    do i = 1,len(core)
+      call random_number(idxr)
+      idx = int(idxr*lenletters)+1
+      core(i:i) = letters(idx:idx)
+    end do
+
+    fname = trim(core)//".tmp"
+  end function random_tmp_name
+
+!==========================================================================================!
+!
+  function dump_array_to_tmp(arr) result(fname)
+    implicit none
+    real(wp),intent(in) :: arr(:)
+    character(len=:),allocatable :: fname
+    integer :: unit,i
+
+    fname = trim(random_tmp_name())
+
+    open (newunit=unit,file=fname,status="replace",action="write",iostat=i)
+    if (i /= 0) stop "Could not open temp file."
+
+    do i = 1,size(arr)
+      write (unit,'(f25.15)') arr(i)
+    end do
+
+    close (unit)
+  end function dump_array_to_tmp
 
 !========================================================================================!
 !========================================================================================!

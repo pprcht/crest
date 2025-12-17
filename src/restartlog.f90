@@ -206,6 +206,7 @@ contains !> MODULE PROCEDURES START HERE
     if (debug) write (stdout,*) '%%% RESTART DEBUG dump summary'
 
     !> DO NOT OVERWRITE IF WE HAVEN'T REACHED THE PREVIOUS RESTART ENTRY POINT
+    if( restart_goal .eq. 0 ) return
     if( restart_tracker < restart_goal) return
 
     open (newunit=ich,file='crest.restart',status='replace',form='unformatted')

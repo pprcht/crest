@@ -52,11 +52,17 @@ subroutine env2calc(env,calc,molin)
   cal%rdwbo = .false.
   cal%rddip = .false.
   !> except for SP runtype (from command line!)
-  if (env%crestver == crest_sp.and. &
-  &   cal%id .ne. jobtype%turbomole) then
-    cal%rdwbo = .true.
-    cal%rddip = .true.
-    cal%rdqat = .true.
+  if (env%crestver == crest_sp) then
+    cal%rdgrad = env%gradsp
+    if (cal%id .ne. jobtype%turbomole) then
+      cal%rdwbo = .true.
+      cal%rddip = .true.
+      cal%rdqat = .true.
+    else
+      if (.not.env%gradsp) then
+        cal%other = ''
+      end if
+    end if
   end if
 
   !> implicit solvation
@@ -147,6 +153,51 @@ subroutine env2calc_setup(env)
 
   ! env%calc = calc
 end subroutine env2calc_setup
+
+subroutine env2calc_modify(env)
+!******************************************
+!* Modify the calc object within env with
+!* additional settings
+!******************************************
+  use crest_parameters
+  use crest_data
+  use crest_calculator
+  use strucrd
+  use lwoniom_module
+  implicit none
+  !> INOUT
+  type(systemdata),intent(inout) :: env
+  !> LOCAL
+  integer :: i,j
+
+!>--- pass on opt-level to new calculator
+  env%calc%optlev = nint(env%optlev)
+
+!>--- pass electric field to tblite
+  if (allocated(env%ref%efield)) then
+    do i = 1,env%calc%ncalculations
+      if (env%calc%calcs(i)%id == jobtype%tblite) then
+        if (.not.allocated(env%calc%calcs(i)%efield)) allocate (env%calc%calcs(i)%efield(3),source=0.0_wp)
+        env%calc%calcs(i)%efield(1:3) = env%ref%efield(1:3)
+      end if
+    end do
+  end if
+
+  !>--- pass on CEH guess flag
+  if (env%ceh_guess) then
+    do i = 1,env%calc%ncalculations
+      env%calc%calcs(i)%ceh_guess = env%ceh_guess
+    end do
+  end if
+
+!>--- ONIOM setup from toml file
+  if (allocated(env%ONIOM_toml)) then
+    if (.not.allocated(env%calc%ONIOM)) allocate (env%calc%ONIOM)
+    call ONIOM_read_toml(env%ONIOM_toml,env%nat,env%ref%at,env%ref%xyz,env%calc%ONIOM)
+    call env%calc%ONIOMexpand()
+  end if
+
+end subroutine env2calc_modify
 
 !================================================================================!
 subroutine confscript2i(env,tim)
@@ -358,7 +409,8 @@ subroutine trialOPT(env)
   if (env%crestver == crest_trialopt) then
 !>-- if we reach this point in the standalone trialopt the geometry is ok!
     write (stdout,*)
-    stop 'Geometry ok!'
+    write (stdout,*) 'Geometry ok!'
+    stop
   end if
 end subroutine trialOPT
 

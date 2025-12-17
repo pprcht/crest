@@ -42,6 +42,7 @@ subroutine parseinputfile(env,fname)
   use crest_data
   use crest_calculator,only:calcdata
   use dynamics_module,only:mddata
+  use bh_module,only:bh_class
 
   !> modules used for parsing the root_object
   use parse_keyvalue,only:keyvalue
@@ -50,7 +51,7 @@ subroutine parseinputfile(env,fname)
   use parse_maindata
   use parse_inputfile,only:parse_input
   use parse_calcdata,only:parse_calculation_data, &
-  &                         parse_dynamics_data
+  &                       parse_dynamics_data,parse_basinhopping_data
   !> Declarations
   implicit none
   type(systemdata),intent(inout) :: env
@@ -60,6 +61,7 @@ subroutine parseinputfile(env,fname)
   type(datablock) :: blk
   type(calcdata) :: newcalc
   type(mddata) :: mddat
+  type(bh_class) :: bh
   logical :: ex,l1,l2
   integer :: i,j,k,l
   integer :: readstatus
@@ -110,6 +112,12 @@ subroutine parseinputfile(env,fname)
   if (l1) then
     env%mddat = mddat
     call env_mddat_specialcases(env)
+  end if
+
+!>--- check for any basinhopping/MC setup
+  call parse_basinhopping_data(env,bh,dict,l1,readstatus)
+  if (l1) then
+    env%bh_ref = bh
   end if
 
 !>--- terminate if there were any unrecognized keywords

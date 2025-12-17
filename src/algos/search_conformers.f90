@@ -80,6 +80,8 @@ subroutine crest_search_imtdgc(env,tim)
     return
   endif
 
+  !call env%calc%info(stdout)
+
 !>--- sets the MD length according to a flexibility measure
   call md_length_setup(env) 
 !>--- create the MD calculator saved to env
@@ -124,8 +126,8 @@ subroutine crest_search_imtdgc(env,tim)
     call tim%start(2,'Metadynamics (MTD)')
     call crest_search_multimd(env,mol,mddats,nsim)
     call tim%stop(2)
-!>--- a file called crest_dynamics.trj should have been written
-    ensnam = 'crest_dynamics.trj'
+!>--- a file called crest_dynamics.trj.xyz should have been written
+    ensnam = 'crest_dynamics.trj.xyz'
 !>--- deallocate for next iteration
     if(allocated(mddats))deallocate(mddats)
 
@@ -193,7 +195,7 @@ subroutine crest_search_imtdgc(env,tim)
 !>--- Reoptimization of trajectories
     call checkname_xyz(crefile,atmp,btmp)
     write(stdout,'('' Appending file '',a,'' with new structures'')')trim(atmp)
-    ensnam = 'crest_dynamics.trj'
+    ensnam = 'crest_dynamics.trj.xyz'
     call appendto(ensnam,trim(atmp))
     call tim%start(3,'Geometry optimization')
     call crest_multilevel_wrap(env,trim(atmp),-1)
@@ -480,7 +482,7 @@ contains
      env%calc%optlev = 0
     end select
 
-    call print_opt_data(env%calc, stdout)
+    call print_opt_data(env%calc, stdout, natoms=env%ref%nat)
 
   end subroutine set_multilevel_options
 end subroutine crest_multilevel_oloop

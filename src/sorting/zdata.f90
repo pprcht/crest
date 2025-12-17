@@ -161,22 +161,6 @@ module zdata
     integer,allocatable :: map(:)
     integer,allocatable :: revmap(:)
 
-    !>--- QCG information
-    integer   :: nmol          !> number of molecules
-    real(wp)  :: cma(3)        !> center of mass
-    real(wp)  :: aniso         !> anisotropy factor
-    real(wp)  :: ell_abc(3)    !> ellipsoid axis
-    real(wp)  :: atot          !> surface area
-    real(wp)  :: vtot          !> volume
-    real(wp)  :: rtot          !> radius
-    real(wp)  :: mass          !> mass
-    real(wp)  :: gt            !> gibbs free energy
-    real(wp)  :: ht            !> enthalpy
-    real(wp)  :: svib          !> vibrational entropy
-    real(wp)  :: srot          !> rotational entropy
-    real(wp)  :: stra          !> translational entropy
-    real(wp)  :: eax(3)        !> molecular axis
-
     !>--- procedures to be used with the zmol type
   contains
     procedure :: wrtable => wrtable          !> write CNs and neighbours

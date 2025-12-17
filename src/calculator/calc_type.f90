@@ -131,6 +131,7 @@ module calc_type
     logical :: getlmocent = .false.
     integer :: nprot = 0
     real(wp),allocatable :: protxyz(:,:)
+    real(wp),allocatable :: efield(:)  !> in V/Å
 
 !>--- API constructs
     integer  :: tblitelvl = 2
@@ -151,6 +152,7 @@ module calc_type
 !>--- tblite data
     type(tblite_data),allocatable :: tblite
     character(len=:),allocatable :: tbliteparam
+    logical :: ceh_guess = .false.
 
 !>--- GFN0-xTB data
     type(gfn0_data),allocatable :: g0calc
@@ -252,6 +254,7 @@ module calc_type
     logical  :: tsopt = .false.
     integer  :: iupdat = 0  !> 0=BFGS, 1=Powell, 2=SR1, 3=Bofill, 4=Schlegel
     integer  :: opt_engine = 0 !> default: ANCOPT
+    integer  :: lbfgs_histsize = 20  !> L-BFGS history size
 
 !>--- GFN0* data, needed for special MECP application
     type(gfn0_data),allocatable  :: g0calc
@@ -297,6 +300,8 @@ module calc_type
     procedure :: ONIOMexpand => calculation_ONIOMexpand
     procedure :: active => calc_set_active
     procedure :: active_restore => calc_set_active_restore
+    generic,public :: set_freeze => calculation_set_freeze_range,calculation_set_freeze_bools
+    procedure,private :: calculation_set_freeze_range,calculation_set_freeze_bools
     procedure :: freezegrad => calculation_freezegrad
     procedure :: increase_charge => calculation_increase_charge
     procedure :: decrease_charge => calculation_decrease_charge
@@ -589,6 +594,33 @@ contains  !>--- Module routines start here
   end subroutine calculation_copy
 
 !=========================================================================================!
+  subroutine calculation_set_freeze_range(self,nat,start,finish)
+    class(calcdata) :: self
+    integer,intent(in) :: nat,start,finish
+    integer :: i,k
+    if (allocated(self%freezelist)) deallocate (self%freezelist)
+    allocate (self%freezelist(nat),source=.false.)
+    k = 0
+    do i = 1,nat
+
+      if (i >= start.and.i <= finish) then
+        k = k+1
+        self%freezelist(i) = .true.
+      end if
+    end do
+    self%nfreeze = k
+  end subroutine calculation_set_freeze_range
+
+  subroutine calculation_set_freeze_bools(self,freezetmp)
+    class(calcdata) :: self
+    logical,intent(in) :: freezetmp(:)
+    integer :: nat
+    if (allocated(self%freezelist)) deallocate (self%freezelist)
+    nat = size(freezetmp,1)
+    allocate (self%freezelist(nat),source=.false.)
+    self%nfreeze = count(freezetmp)
+    self%freezelist(:) = freezetmp(:)
+  end subroutine calculation_set_freeze_bools
 
   subroutine calculation_freezegrad(self,grad)
     class(calcdata) :: self
@@ -1202,16 +1234,30 @@ contains  !>--- Module routines start here
 
 !=========================================================================================!
 
-  subroutine create_calclevel_shortcut(self,levelstring)
+  subroutine create_calclevel_shortcut(self,levelstring, &
+      & chrg,uhf,solvmodel,solvent)
 !*********************************************************************
 !* subroutine create_calclevel_shortcut called with %create(...)
 !* Set up a calculation_settings object for a given level of theory
 !* More shortcuts can be added as required.
+!*
+!* Optional settings are for:
+!*  - molecular charge  (integer)
+!*  - uhf parameter (integer)
+!*  - solvent/solventmodel (either none or BOTH must be present to work)
+!*
 !* Be careful about the intent(out) setting!
+!* Also, the routine is "dumb" and does not check if the user-provided
+!* settings actually make sense for a create_calclevel_shortcutation. It very much
+!* exists as an internal code shortcut only.
 !*********************************************************************
     implicit none
     class(calculation_settings),intent(out) :: self
-    character(len=*) :: levelstring
+    character(len=*),intent(in) :: levelstring
+    integer,intent(in),optional :: chrg
+    integer,intent(in),optional :: uhf
+    character(len=*),intent(in),optional :: solvmodel
+    character(len=*),intent(in),optional :: solvent
     call self%deallocate()
     select case (trim(levelstring))
     case ('gfnff','--gff','--gfnff')
@@ -1244,6 +1290,29 @@ contains  !>--- Module routines start here
       self%id = jobtype%generic
 
     end select
+
+    if (present(chrg)) then
+      self%chrg = chrg
+    end if
+
+    if (present(uhf)) then
+      self%uhf = uhf
+    end if
+
+    !> both must be present to work
+    if (present(solvmodel).and.present(solvent)) then
+      !> the first two if-cases exist to convert cli args
+      !> into sensible keywords (required for legacy compatibility)
+      if (index(solvmodel,'gbsa') .ne. 0) then
+        self%solvmodel = 'gbsa'
+      else if (index(solvmodel,'alpb') .ne. 0) then
+        self%solvmodel = 'alpb'
+      else
+        self%solvmodel = trim(solvmodel)
+      end if
+      self%solvent = trim(solvent)
+    end if
+
     call self%autocomplete(self%id)
   end subroutine create_calclevel_shortcut
 

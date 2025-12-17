@@ -18,6 +18,8 @@ srcs += files(
   'ancopt.f90',
   'gd.f90',
   'rfo.f90',
+  'lbfgs.f90',
+  'coordtrafo.f90',
   'hessupdate.f90',
   'modelhessian.f90',
   'optimize_maths.f90',
