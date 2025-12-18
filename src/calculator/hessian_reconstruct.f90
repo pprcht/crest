@@ -2,6 +2,7 @@ module hessian_reconstruct
   use iso_fortran_env,only:wp => real64
   use hessupdate_module
   use optimize_maths
+  use crest_parameters
   implicit none
   private
 
@@ -79,7 +80,7 @@ contains
     class(cashed_hessian),intent(inout) :: self
     real(wp),intent(in) :: gradient(:,:),energy,coords(:,:)
     integer :: idx,i
-    
+
     self%stepcount = self%stepcount+1
     idx = minloc(self%order,1)
     self%order(idx) = self%stepcount
@@ -94,7 +95,7 @@ contains
     integer :: i,j,k,nat3
     real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:),hess(:),dx(:)
     real(wp) :: gnorm
-    integer :: unit
+    integer :: unit,iter,made_iters
 
     nat3 = 3*self%natm
 
@@ -114,26 +115,36 @@ contains
     end do
     call dsqtoh(nat3,self%hguess_mat,hess)
 
-    if (minval(tmp) == 0) then
-      print*,"ERROR: Number of recursive steps for hessian reconstruction larger than number of geoemtry optimization steps!"
-    else
-      do i = 1,self%steps
-        if (i == 1) then
-          j = minloc(tmp,1)
-          tmp(j) = HUGE(tmp(j))
-        else
-          j = minloc(tmp,1)
-          if (j == 1) then
-            dx = tmp_coords(j,:)-tmp_coords(self%steps,:)
-            call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,hess)
-          else
-            dx = tmp_coords(j,:)-tmp_coords(j-1,:)
-            call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,hess)
-          end if
-          tmp(j) = HUGE(tmp(j))
-        end if
+    made_iters = self%steps
+
+    if (minval(tmp) == 0) then !> Implement keyword like exact HU that kills the process
+      made_iters = maxval(tmp) !> if made_iters<steps
+      write (stdout,*) "Requsted Number of reconstruction steps is",self%steps, &
+      & "but only",made_iters,"geometry optimization steps were made!"
+      write (stdout,*) "Hessian is reconstructed with",made_iters,"update steps only!"
+
+      do while (minval(tmp) == 0)
+        j = minloc(tmp,1)
+        tmp(j) = HUGE(tmp(j))
       end do
     end if
+
+    do i = 1,made_iters
+      if (i == 1) then
+        j = minloc(tmp,1)
+        tmp(j) = HUGE(tmp(j))
+      else
+        j = minloc(tmp,1) !> This only happens if made_iters>steps
+        if (j == 1) then  !> => Not affected if too many steps requested
+          dx = tmp_coords(j,:)-tmp_coords(self%steps,:)
+          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,hess)
+        else
+          dx = tmp_coords(j,:)-tmp_coords(j-1,:)
+          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,hess)
+        end if
+        tmp(j) = HUGE(tmp(j))
+      end if
+    end do
 
     call dhtosq(nat3,self%B,hess)
 

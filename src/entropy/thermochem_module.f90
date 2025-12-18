@@ -102,7 +102,7 @@ contains
   end subroutine prepthermo
 
   subroutine calcthermo(nat,at,xyz,freq,pr,ithr,fscal,sthr,nt,temps, &
-      &      et,ht,gt,stot,iunit)
+      &      et,ht,gt,stot,iunit_in)
 !**************************************************************
 !* Calculate thermodynamic contributions for a given structure
 !* from it's frequencies (from second derivatives/the Hessian)
@@ -123,7 +123,7 @@ contains
     real(wp),intent(in) :: sthr     !rotor cut
     integer,intent(in)  :: nt
     real(wp),intent(in) :: temps(nt)
-    integer,intent(in)     :: iunit
+    integer,intent(in),optional     :: iunit_in
     real(wp) :: et(nt)          !< enthalpy in Eh
     real(wp) :: ht(nt)          !< enthalpy in Eh
     real(wp) :: gt(nt)          !< free energy in Eh
@@ -143,7 +143,7 @@ contains
     real(wp) :: vibthr
     real(wp),allocatable :: vibs(:)
 
-    integer :: i,j
+    integer :: i,j,iunit
     integer :: n3,rt
     real(wp) :: adum(nt)
     character(len=64) :: atmp
@@ -162,6 +162,12 @@ contains
     real(wp),parameter :: autocal = 627.50947428_wp*1000.0_wp
 
     xyz = xyz*autoaa
+
+    if (present(iunit_in)) then
+      iunit = iunit_in
+    else
+      iunit = stdout
+    end if
 
     call prepthermo(nat,at,xyz,pr,molmass,rabc,avmom,sym,symchar,iunit)
 
@@ -296,7 +302,7 @@ contains
     call frequencies(mol%nat,mol%at,mol%xyz,nat3,hess,freq,io)
 
     call calcthermo(mol%nat,mol%at,mol%xyz,freq,pr,ithr,fscal,sthr,nt,temps, &
-        &      et,ht,gt,stot,iunit)
+        &      et,ht,gt,stot)
 
     call print_hessian(hess(:,:),nat3,'','numhess')
 
