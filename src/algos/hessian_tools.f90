@@ -29,7 +29,7 @@
 
 module hessian_tools
   use crest_parameters,only:wp,stdout
-  use crest_data
+  ! use crest_data
   use crest_calculator
   use strucrd
   !use optimize_module
@@ -65,6 +65,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: work(:)
 
     integer :: lwork,liwork,info,i
+    integer :: unit
     !>LAPCK
     external :: dsyevd
 
@@ -89,6 +90,13 @@ contains  !> MODULE PROCEDURES START HERE
         freq(i) = -sqrt(abs(freq(i)))*219474.63_wp
       end if
     end do
+
+    open (newunit=unit,file="frequencies")
+    write (unit,*) "Frequencies:"
+    do i = 1,size(freq)
+      write (unit,*) freq(i)
+    end do
+    close (unit)
 
     return
 
@@ -147,10 +155,6 @@ contains  !> MODULE PROCEDURES START HERE
 
     allocate (hess_ut(nat3*(nat3+1)/2),source=0.0_wp)
     allocate (pmode(nat3,1),source=0.0_wp)
-
-    do i = 1,size(hess,dim=1)
-      print*,hess(1,i)
-    end do
 
     !> Transforms matrix of the upper triangle vector
     call dsqtoh(nat3,hess,hess_ut)

@@ -35,7 +35,7 @@ module optimize_module
   use optimize_utils
   use thermochem_module
   use hessian_reconstruct
-  use hessian_tools
+  !use hessian_tools
   implicit none
   private
 
@@ -60,7 +60,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out)       :: iostatus
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
-    real(wp),allocatable :: H_inv(:,:), freq(:)
+    real(wp),allocatable :: H_inv(:,:),freq(:)
     integer :: nat3
     integer :: io
 
@@ -91,16 +91,16 @@ contains  !> MODULE PROCEDURES START HERE
 
     !> optimization
     select case (calc%opt_engine)
-    case ( 0)
-       call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
-    case ( 1)
-       !> l-bfgs goes here
+    case (0)
+      call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case (1)
+      !> l-bfgs goes here
       !write(stdout,'(a)') 'L-BFGS currently not implemented'
       !stop
       call lbfgs_optimize(molnew,calc,etot,grd,pr,iostatus)
-    case ( 2)
-       !> rfo goes here
-       call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case (2)
+      !> rfo goes here
+      call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
     case (-1)
       call gradientdescent(molnew,calc,etot,grd,pr,wr,iostatus)
     case default
@@ -110,46 +110,24 @@ contains  !> MODULE PROCEDURES START HERE
     molnew%energy = etot
 
     if (calc%do_HU) then !> Hessian construction and post-processing happen here
-      !print*, "Energies", calc%chess%energy
-      !print*, "Gradients", calc%chess%gradient
-      !print*, "Coords", calc%chess%coords
-      !print*, "Order", calc%chess%order
 
       call calc%chess%construct_hessian_bfgs()
 
-      !allocate(H_inv(size(calc%chess%B,1),size(calc%chess%B,2)))
-      !H_inv(:,:) = invert_matrix(calc%chess%B)
-
-      print*
-      print*,"THERMO FROM MY OWN SHITTY HESSIAN"
-      print*
+      write (stdout,*)
+      write (stdout,*) "THERMO FROM RECONSTRUCTED HESSIAN:"
+      write (stdout,*)
 
       call calc_thermo_from_hess(molnew,calc%chess%B,pr, &
       & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
       & calc%ht,calc%gt,calc%stot)
 
-      print*
-      print*,"THERMO FROM BFGS"
-      print*
+      !print*
+      !print*,"THERMO FROM BFGS"
+      !print*
 
       !call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
       !& calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
       !& calc%ht,calc%gt,calc%stot)
-
-      call mass_weight_hess(molnew%nat,molnew%at,nat3,calc%chess%H(:,:))
-
-      allocate(freq(nat3))
-
-      call frequencies(molnew%nat,molnew%at,molnew%xyz,nat3,calc%chess%H(:,:),freq,io)
-
-      call calcthermo(molnew%nat,molnew%at,mol%xyz,freq,pr,calc%ithr,calc%fscal,calc%sthr, &
-          & calc%nt,calc%temperatures, &
-          &      calc%et,calc%ht,calc%gt,calc%stot)
-
-      !write(stdout,*) "et:", calc%et
-      !write(stdout,*) "ht:", calc%ht
-      !write(stdout,*) "gt:", calc%gt
-      !write(stdout,*) "stot:", calc%stot
 
       call calc%chess%dealloc()
       deallocate (calc%chess)
@@ -169,16 +147,16 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: tight,nat
     real(wp) :: ethr,gthr
     character(len=:),allocatable :: ttag
-    if(present(tag))then
-      ttag=tag
+    if (present(tag)) then
+      ttag = tag
     else
-      ttag=' '    
-    endif
-    if(present(natoms))then
-      nat=natoms
+      ttag = ' '
+    end if
+    if (present(natoms)) then
+      nat = natoms
     else
-      nat=0
-    endif
+      nat = 0
+    end if
 
     write (ich,'(a,a)',advance='no') ttag,'Optimization engine: '
     select case (calc%opt_engine)
@@ -215,7 +193,7 @@ contains  !> MODULE PROCEDURES START HERE
     & ethr,' Eh,',gthr,' Eh/a0'
 
     write (ich,'(a,a,i0)') ttag,'maximum optimization steps: ',calc%maxcycle
-     
+
   end subroutine print_opt_data
 
 !========================================================================================!

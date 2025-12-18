@@ -165,8 +165,6 @@ contains
 
     call prepthermo(nat,at,xyz,pr,molmass,rabc,avmom,sym,symchar,iunit)
 
-    print*,freq
-
     n3 = 3*nat
     allocate (vibs(n3))
     vibthr = 1.0
@@ -222,7 +220,7 @@ contains
       write (iunit,dblfmt) "rotor cutoff     ",sthr,"cm⁻¹"
       write (iunit,dblfmt) "imag. cutoff     ",ithr,"cm⁻¹"
       write (iunit,'(10x,":",49("."),":")')
-  end if
+    end if
 
     vibs = vibs*rcmtoau   ! thermodyn needs vibs and zp in Eh
 
@@ -243,29 +241,29 @@ contains
       stot(j) = (ts(j)/temps(j))*autocal
     end do
 
-    if ( pr )then
-    write (iunit,'(a)')
-    write (iunit,'(a10)',advance='no') "T/K"
-    write (iunit,'(a16)',advance='no') "H(0)-H(T)+PV"
-    write (iunit,'(a16)',advance='no') "H(T)/Eh"
-    write (iunit,'(a16)',advance='no') "T*S/Eh"
-    write (iunit,'(a16)',advance='no') "G(T)/Eh"
-    write (iunit,'(a)')
-    write (iunit,'(3x,72("-"))')
-    do i = 1,nt
-      write (iunit,'(3f10.2)',advance='no') temps(i)
-      write (iunit,'(3e16.6)',advance='no') ht(i)
-      write (iunit,'(3e16.6)',advance='no') et(i)
-      write (iunit,'(3e16.6)',advance='no') ts(i)
-      write (iunit,'(3e16.6)',advance='no') gt(i)
-      if (i == rt .and. nt > 1) then
-        write (iunit,'(1x,"(used)")')
-      else
-        write (iunit,'(a)')
-      end if
-    end do
-    write (iunit,'(3x,72("-"))')
-  end if
+    if (pr) then
+      write (iunit,'(a)')
+      write (iunit,'(a10)',advance='no') "T/K"
+      write (iunit,'(a16)',advance='no') "H(0)-H(T)+PV"
+      write (iunit,'(a16)',advance='no') "H(T)/Eh"
+      write (iunit,'(a16)',advance='no') "T*S/Eh"
+      write (iunit,'(a16)',advance='no') "G(T)/Eh"
+      write (iunit,'(a)')
+      write (iunit,'(3x,72("-"))')
+      do i = 1,nt
+        write (iunit,'(3f10.2)',advance='no') temps(i)
+        write (iunit,'(3e16.6)',advance='no') ht(i)
+        write (iunit,'(3e16.6)',advance='no') et(i)
+        write (iunit,'(3e16.6)',advance='no') ts(i)
+        write (iunit,'(3e16.6)',advance='no') gt(i)
+        if (i == rt.and.nt > 1) then
+          write (iunit,'(1x,"(used)")')
+        else
+          write (iunit,'(a)')
+        end if
+      end do
+      write (iunit,'(3x,72("-"))')
+    end if
 
     xyz = xyz*aatoau
 
@@ -277,7 +275,7 @@ contains
   & fscal,sthr,et,ht,gt,stot)
     type(coord),intent(inout) :: mol
     integer :: nat3
-    integer :: io
+    integer :: io,iunit
     logical :: pr
     real(wp) :: ithr,fscal,sthr
     real(wp),intent(in) :: temps(nt)
@@ -298,7 +296,9 @@ contains
     call frequencies(mol%nat,mol%at,mol%xyz,nat3,hess,freq,io)
 
     call calcthermo(mol%nat,mol%at,mol%xyz,freq,pr,ithr,fscal,sthr,nt,temps, &
-        &      et,ht,gt,stot)
+        &      et,ht,gt,stot,iunit)
+
+    call print_hessian(hess(:,:),nat3,'','numhess')
 
   end subroutine calc_thermo_from_hess
 

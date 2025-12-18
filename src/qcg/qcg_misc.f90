@@ -92,6 +92,7 @@ subroutine xtb_opt_qcg(env,mol,constrain)
   use crest_data
   use qcg_coord_type
   use strucrd
+  use optimize_module
 
   implicit none
   type(systemdata),intent(in) :: env
@@ -1270,6 +1271,8 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
   use strucrd
   use crest_calculator
   use hessian_tools
+  use thermochem_module
+  use optimize_module
   implicit none
 
   type(systemdata)                :: env
@@ -1371,12 +1374,12 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
     call prj_mw_hess(mol%nat,mol%at,n3,mol%xyz,hess(:,:))
 
     !>-- Computes the Frequencies
-    call frequencies(mol%nat,mol%at,mol%xyz,n3,newcalcs(i),hess(:,:),freq(:),io)
+    call frequencies(mol%nat,mol%at,mol%xyz,n3,hess(:,:),freq(:),io)
 
     !> write dummy "xtb_freq.out"
     open (newunit=ich,file="xtb_freq.out")
-    !> calcthermo wants input in Angstroem
-    call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
+    !> calcthermo wants input in Bohr
+    call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
     & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,ich)
     close (ich)
 

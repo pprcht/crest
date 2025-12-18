@@ -132,12 +132,6 @@ contains
           end if
           tmp(j) = HUGE(tmp(j))
         end if
-        open(newunit=unit, file="reconstruct_bfgs.txt", status="unknown", position="append")
-        write(unit,*) "cycle:", i 
-        do k = 1, 5
-          write(unit,*) hess(k)
-        enddo
-        close(unit)
       end do
     end if
 

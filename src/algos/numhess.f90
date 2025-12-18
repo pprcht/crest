@@ -276,7 +276,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   implicit none
   !> INPUT
   type(systemdata) :: env
-  type(coord), intent(inout) :: mol
+  type(coord),intent(inout) :: mol
   integer,intent(in) :: nat3
   real(wp),intent(in) :: hess(nat3,nat3)
   real(wp),intent(inout) :: freq(nat3)
@@ -288,6 +288,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   real(wp) :: zpve
   character(len=*),parameter :: outfmt = &
   &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
+  integer :: iunit
 
   !> inversion threshold
   ithr = env%thermo%ithr
@@ -309,7 +310,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
 
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,iunit)
 
   !> printoutgeometr
   zpve = et(nrt)-ht(nrt)
@@ -353,7 +354,7 @@ subroutine thermo_standalone(env)
   integer :: nt,nfreq,nrt
   real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
   real(wp) :: zpve
-  integer :: ich,i
+  integer :: ich,i,iunit
   character(len=*),parameter :: outfmt = &
   &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
 
@@ -413,15 +414,9 @@ subroutine thermo_standalone(env)
   !write(*,*) nrt
   temps = env%thermo%temps
 
-<<<<<<< HEAD
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot)
-=======
-  !> calcthermo wants input in Angstroem
-  call calcthermo(mol%nat,mol%at,mol%xyz*autoaa,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,stdout)
->>>>>>> pprcht/3.0.3-maintenance
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,iunit)
 
   !> printout
   zpve = et(nrt)-ht(nrt)
