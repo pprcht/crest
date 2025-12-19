@@ -1533,6 +1533,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (newnat == self%nat) then
       molout = self
     else
+      molout%nat = newnat
       allocate (molout%at(newnat),source=0)
       allocate (molout%xyz(3,newnat),source=0.0_wp)
       k = 0

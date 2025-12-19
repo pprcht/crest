@@ -31,7 +31,6 @@ subroutine crest_playground(env,tim)
   use crest_data
   use crest_calculator
   use strucrd
-  use canonical_mod
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -51,7 +50,6 @@ subroutine crest_playground(env,tim)
   real(wp) :: energy
   real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:),q(:)
 
-  type(canonical_sorter) ::  can
 !========================================================================================!
   call tim%start(14,'Test implementation')
 !========================================================================================!
@@ -63,20 +61,53 @@ subroutine crest_playground(env,tim)
   write (*,*) "  \_/\_/ \___|_|\___\___/|_| |_| |_|\___|"
   write (*,*)
 !========================================================================================!
-  call env%ref%to(mol)
-  write (*,*)
-  write (*,*) 'Input structure:'
-  call mol%append(stdout)
-  write (*,*)
+!  call env%ref%to(mol)
+!  write (*,*)
+!  write (*,*) 'Input structure:'
+!  call mol%append(stdout)
+!  write (*,*)
+!!========================================================================================!
+!
+!  allocate (grad(3,mol%nat),source=0.0_wp)
+!  call env2calc(env,calc,mol)
+!  calc%calcs(1)%rdwbo = .true.
+!  call calc%info(stdout)
+!
+!  call engrad(mol,calc,energy,grad,io)
+!  call calculation_summary(calc,mol,energy,grad)
 !========================================================================================!
+  block
+    use construct_mod
+    type(coord) :: base,side,new
+    type(coord),allocatable :: splitlist(:)
+    integer,allocatable :: alignmap(:,:)
 
-  allocate (grad(3,mol%nat),source=0.0_wp)
-  call env2calc(env,calc,mol)
-  calc%calcs(1)%rdwbo = .true.
-  call calc%info(stdout)
+    !call base%open("base.xyz")
+    !call side%open("side.xyz")
 
-  call engrad(mol,calc,energy,grad,io)
-  call calculation_summary(calc,mol,energy,grad)
+    open (newunit=ich,file='molbuilder.xyz')
+    !call base%append(ich)
+    !call side%append(ich)
+
+    !allocate (alignmap(3,2),source=0)
+
+    !alignmap(1:3,1) = [9,7,8]
+    !alignmap(1:3,2) = [3,1,2]
+    !call attach(base,side,alignmap,new)
+    !call new%append(ich)
+
+
+    call new%open("struc.xyz")
+    !call split(new, [8,9],base,side)
+    call split(new, [6,7,8],splitlist,alignmap)
+
+    do i=1,size(splitlist,1)
+      call splitlist(i)%append(ich)
+    enddo
+    !call base%append(ich)
+    !call side%append(ich)
+    close (ich) 
+  end block
 
 !========================================================================================!
   call tim%stop(14)

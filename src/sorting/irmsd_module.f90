@@ -14,7 +14,7 @@ module irmsd_module
   public :: rmsd
   public :: min_rmsd
 
-  public :: checkranks,fallbackranks
+  public :: checkranks,fallbackranks,molatomsort
 
   real(wp),parameter :: bigval = huge(bigval)
 
