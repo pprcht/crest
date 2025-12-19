@@ -341,6 +341,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out),allocatable :: sharedmap(:,:)
     !> OPTIONAL
     real(wp),intent(in),optional :: wbo(input%nat,input%nat)
+    integer,allocatable :: ncapped(:)
     !> LOCAL
     type(coord) :: shared
     real(wp),allocatable :: cn(:),wbofake(:,:)
@@ -355,10 +356,10 @@ contains  !> MODULE PROCEDURES START HERE
     logical,allocatable :: assign_to_mols(:,:)
     logical,allocatable :: unassigned_fragments(:)
     logical,allocatable :: capping_mapping(:,:)
-    integer :: npath,nbase,nside,nfrag,nfragnew
-    logical :: needs_capping
-    real(wp) :: distcap
-    integer :: ii,jj,jjj,kk,sii,M,mm,nn,ll
+    logical,allocatable :: methylizemapping(:,:)
+    integer :: npath,nfrag,nfragnew,nbonds
+    real(wp) :: distcap,methylproxy(3,3)
+    integer :: ii,jj,jjj,kk,sii,sjj,M,mm,nn,ll,lll
 
     integer :: bond(2)
 
@@ -485,11 +486,31 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     !> prepare capping.
-    !> Entries will be .true. for atoms that need to be added to fragment
     allocate (capping_mapping(V,M),source=.false.)
+    allocate (methylizemapping(nshared,M),source=.false.)
+    !> First, simple, chemoinformatic rules
     do ii = 1,M
       mm = ii+1
       do jj = 1,nshared
+        nbonds = 0
+        kk = sharedlist(jj)
+        do ll = 1,V
+          if ((A(ll,kk) == 1).and.assign_to_mols(ll,mm)) then
+            nbonds = nbonds+1
+          end if
+        end do
+        if (nbonds == 1.and.input%at(kk) == 6) then
+          methylizemapping(jj,ii) = .true.
+        end if
+      end do
+    end do
+    !> then "regular" capping, we determine original atoms as proxy for
+    !> the cap (and later adjust the bondlength)
+    !> Entries will be .true. for atoms that need to be added to fragment
+    do ii = 1,M
+      mm = ii+1
+      do jj = 1,nshared
+        if (methylizemapping(jj,ii)) cycle
         do kk = 1,V
           if (A(kk,sharedlist(jj)) == 1.and..not.assign_to_mols(kk,mm)) then
             capping_mapping(kk,ii) = .true.
@@ -506,10 +527,14 @@ contains  !> MODULE PROCEDURES START HERE
 
     allocate (structures(M)) !> we know that splitting produces M fragment
     allocate (sharedmap(nshared,M),source=0)
+    allocate (ncapped(M),source=0)
+
     do ii = 1,M
       mm = ii+1
       !> count atoms, allocate
-      nn = count(assign_to_mols(:,mm),1)+count(capping_mapping(:,ii),1)
+      nn = count(assign_to_mols(:,mm),1)+ &
+        &  count(capping_mapping(:,ii),1)+ &
+        &  count(methylizemapping(:,ii),1)*3
       structures(ii)%nat = nn
       allocate (structures(ii)%at(nn),source=2)
       allocate (structures(ii)%xyz(3,nn),source=0.0_wp)
@@ -523,7 +548,7 @@ contains  !> MODULE PROCEDURES START HERE
           structures(ii)%xyz(1:3,kk) = input%xyz(1:3,jj)
           if (any(sharedlist(:) == jj)) then
             jjj = jjj+1
-            sharedmap(jjj,ii) = jj
+            sharedmap(jjj,ii) = kk
           end if
         end if
       end do
@@ -531,6 +556,7 @@ contains  !> MODULE PROCEDURES START HERE
       do jj = 1,V
         if (capping_mapping(jj,ii)) then
           kk = kk+1
+          ncapped(ii) = ncapped(ii)+1
           structures(ii)%at(kk) = 1 !input%at(jj)
           structures(ii)%xyz(1:3,kk) = input%xyz(1:3,jj)
           !> repair distance for capping atoms
@@ -542,12 +568,32 @@ contains  !> MODULE PROCEDURES START HERE
           end do
         end if
       end do
+      !> methylation atoms
+      do jj = 1,nshared
+        if (methylizemapping(jj,ii)) then
+          sjj = sharedlist(jj)
+          do ll = 1,V
+            if (A(ll,sjj) == 1 .and.assign_to_mols(ll,mm)) then
+              call methylize(input%xyz(1:3,sjj),input%xyz(1:3,ll),methylproxy)
+              do lll=1,3
+                kk=kk+1
+                structures(ii)%at(kk) = 1
+                structures(ii)%xyz(1:3,kk) = methylproxy(1:3,lll)
+              enddo
+              exit
+            end if
+          end do
+        end if
+      end do
     end do
 
 !> ----------------------------------------------------------------------------
 !> MOLECULE CONSTRUCTION END
 !> ----------------------------------------------------------------------------
 
+    if (allocated(assign_to_mols)) deallocate (assign_to_mols)
+    if (allocated(capping_mapping)) deallocate (capping_mapping)
+    if (allocated(unassigned_fragments)) deallocate (unassigned_fragments)
     if (allocated(number_of_neighbours)) deallocate (number_of_neighbours)
     if (allocated(terminal_atom)) deallocate (terminal_atom)
     if (allocated(connected_to_share)) deallocate (connected_to_share)
@@ -585,7 +631,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !==============================================================================!
 
-  subroutine methylize_from_methane(x,n,h_new,h_aligned,r_ch,ok)
+  subroutine methylize(x,n,h_new,h_aligned,r_ch,ok)
     use geo
     implicit none
     real(wp),intent(in)  :: x(3),n(3)
@@ -615,7 +661,7 @@ contains  !> MODULE PROCEDURES START HERE
     Htmpl(:,4) = rch*(/-1.0_wp,-1.0_wp,1.0_wp/)*invs3
 
     !>--- desired direction: outward from x away from neighbor n
-    dir = x-n
+    dir = n-x
     if (vec_len(dir) < eps) then
       h_new = 0.0_wp
       if (present(h_aligned)) h_aligned = 0.0_wp
@@ -666,7 +712,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     success = .true.
     if (present(ok)) ok = success
-  end subroutine methylize_from_methane
+  end subroutine methylize
 
 !=============================================================================!
 !#############################################################################!

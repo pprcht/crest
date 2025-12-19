@@ -78,7 +78,7 @@ subroutine crest_playground(env,tim)
 !========================================================================================!
   block
     use construct_mod
-    type(coord) :: base,side,new
+    type(coord) :: base,side,new,newnew
     type(coord),allocatable :: splitlist(:)
     integer,allocatable :: alignmap(:,:)
 
@@ -104,9 +104,14 @@ subroutine crest_playground(env,tim)
     do i=1,size(splitlist,1)
       call splitlist(i)%append(ich)
     enddo
+
+    call attach(splitlist(1), splitlist(2), alignmap,newnew)
+ 
+    call newnew%append(ich)
     !call base%append(ich)
     !call side%append(ich)
     close (ich) 
+    
   end block
 
 !========================================================================================!
