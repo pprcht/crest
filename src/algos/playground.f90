@@ -80,7 +80,7 @@ subroutine crest_playground(env,tim)
     use construct_mod
     type(coord) :: base,side,new,newnew
     type(coord),allocatable :: splitlist(:)
-    integer,allocatable :: alignmap(:,:),ncap(:)
+    integer,allocatable :: alignmap(:,:),ncap(:),position_mapping(:,:)
 
     !call base%open("base.xyz")
     !call side%open("side.xyz")
@@ -99,14 +99,16 @@ subroutine crest_playground(env,tim)
 
     call new%open("struc.xyz")
     !call split(new, [8,9],base,side)
-    call split(new, [6,7,8],splitlist,alignmap,ncap=ncap)
+    call split(new, [6,7,8],splitlist,alignmap,ncap=ncap,position_mapping=position_mapping)
 
-    write(*,*)  ncap
+    !write(*,*)  position_mapping(:,1)
+    !write(*,*) position_mapping(:,2)
     do i=1,size(splitlist,1)
       call splitlist(i)%append(ich)
     enddo
 
-    call attach(splitlist(1), splitlist(2), alignmap,newnew,remove_lastx=ncap)
+    call attach(splitlist(1), splitlist(2), alignmap,newnew, &
+      & remove_lastx=ncap,original_map=position_mapping)
  
     call newnew%append(ich)
     !call base%append(ich)

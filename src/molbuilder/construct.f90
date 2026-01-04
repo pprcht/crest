@@ -24,7 +24,7 @@ contains  !> MODULE PROCEDURES START HERE
 !=============================================================================!
 
   subroutine attach(base,side,alignmap,new,clash, &
-      & remove_base,remove_side,remove_lastx)
+      & original_map,remove_base,remove_side,remove_lastx)
     !***********************************************************************
     !* This routine attaches a side-molecule to a base-molecule
     !* The assumption is that we have (at least) 3 proxy atoms
@@ -38,6 +38,7 @@ contains  !> MODULE PROCEDURES START HERE
     !*
     !* Optionl args:
     !*         clash - logical, were clashes produced?
+    !*  original_map - original atom position mapping
     !*   remove_base - list of atoms to remove from base upon
     !*                 constructing the new mol
     !*   remove_side - list of atoms to remove from side upon
@@ -53,6 +54,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord),intent(out) :: new
 
     logical,intent(out),optional :: clash
+    integer,intent(in),optional :: original_map(:,:)
     integer,intent(in),optional :: remove_base(:)
     integer,intent(in),optional :: remove_side(:)
     integer,intent(in),optional :: remove_lastx(:)
@@ -61,6 +63,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord) :: cutout_base,cutout_side,side_tmp
     logical,allocatable :: cutlist_base(:),cutlist_side(:)
     integer,allocatable :: current_order(:),target_order(:),idx(:)
+    integer,allocatable :: revorder_base(:),revorder_side(:)
     real(wp) :: rms,Umat(3,3),shift(3),center_base(3),center_side(3)
     integer :: nalign,nat_new
 
@@ -170,6 +173,7 @@ contains  !> MODULE PROCEDURES START HERE
       end do
     end if
     if (present(remove_lastx)) then
+      !> useful for not transfering appended capping atoms
       do ii = base%nat-(remove_lastx(1)-1),base%nat
         cutlist_base(ii) = .true.
       end do
@@ -177,27 +181,58 @@ contains  !> MODULE PROCEDURES START HERE
         cutlist_side(ii) = .true.
       end do
     end if
-
+    allocate (revorder_base(base%nat),source=0)
+    allocate (revorder_side(side%nat),source=0)
+    if (present(original_map)) then
+      !> if we have info on the original order, avoid all atoms
+      !> present in all fragments
+      do ii = 1,size(original_map,1)
+        if (all(original_map(ii,:) .ne. 0)) then
+          cutlist_side(original_map(ii,2)) = .true.
+        end if
+        if (original_map(ii,1) .ne. 0) then
+          revorder_base(original_map(ii,1)) = ii
+        end if
+        if (original_map(ii,2) .ne. 0) then
+          revorder_side(original_map(ii,2)) = ii
+        end if
+      end do
+    end if
+    kk = max(maxval(revorder_base),maxval(revorder_side))
     new%nat = 0
     do ii = 1,base%nat
-      if (.not.cutlist_base(ii)) new%nat = new%nat+1
+      if (.not.cutlist_base(ii)) then
+        new%nat = new%nat+1
+        if (revorder_base(ii) .eq. 0) then
+          kk = kk+1
+          revorder_base(ii) = kk
+        end if
+      end if
     end do
     do ii = 1,side%nat
-      if (.not.cutlist_side(ii)) new%nat = new%nat+1
+      if (.not.cutlist_side(ii)) then
+        new%nat = new%nat+1
+        if(revorder_side(ii).eq.0)then
+           kk=kk+1
+           revorder_side(ii) = kk
+        endif
+      end if
     end do
     allocate (new%at(new%nat),source=0)
     allocate (new%xyz(3,new%nat),source=0.0_wp)
-    kk = 0
+    !kk = 0
     do ii = 1,base%nat
       if (.not.cutlist_base(ii)) then
-        kk = kk+1
+        !kk = kk+1
+        kk = revorder_base(ii)
         new%at(kk) = base%at(ii)
         new%xyz(1:3,kk) = base%xyz(1:3,ii)
       end if
     end do
     do ii = 1,side%nat
       if (.not.cutlist_side(ii)) then
-        kk = kk+1
+        !kk = kk+1
+        kk = revorder_side(ii)
         new%at(kk) = side_tmp%at(ii)
         new%xyz(1:3,kk) = side_tmp%xyz(1:3,ii)
       end if
@@ -545,7 +580,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (structures(M)) !> we know that splitting produces M fragment
     allocate (sharedmap(nshared,M),source=0)
     allocate (ncapped(M),source=0)
-    allocate (pos_map(V,M), source=0) 
+    allocate (pos_map(V,M),source=0)
 
     do ii = 1,M
       mm = ii+1
@@ -568,7 +603,7 @@ contains  !> MODULE PROCEDURES START HERE
             jjj = jjj+1
             sharedmap(jjj,ii) = kk
           end if
-          pos_map(jj,ii) = kk 
+          pos_map(jj,ii) = kk
         end if
       end do
       !> capping atoms
@@ -615,11 +650,11 @@ contains  !> MODULE PROCEDURES START HERE
       call move_alloc(ncapped,ncap)
     end if
 
-    if(present(position_mapping))then
+    if (present(position_mapping)) then
       call move_alloc(pos_map,position_mapping)
-    endif
+    end if
 
-    if (allocated(pos_map)) deallocate(pos_map)
+    if (allocated(pos_map)) deallocate (pos_map)
     if (allocated(ncapped)) deallocate (ncapped)
     if (allocated(assign_to_mols)) deallocate (assign_to_mols)
     if (allocated(capping_mapping)) deallocate (capping_mapping)
