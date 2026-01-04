@@ -23,7 +23,8 @@ module construct_mod
 contains  !> MODULE PROCEDURES START HERE
 !=============================================================================!
 
-  subroutine attach(base,side,alignmap,new,clash,remove_base,remove_side)
+  subroutine attach(base,side,alignmap,new,clash, &
+      & remove_base,remove_side,remove_lastx)
     !***********************************************************************
     !* This routine attaches a side-molecule to a base-molecule
     !* The assumption is that we have (at least) 3 proxy atoms
@@ -41,6 +42,8 @@ contains  !> MODULE PROCEDURES START HERE
     !*                 constructing the new mol
     !*   remove_side - list of atoms to remove from side upon
     !*                 constructing the new mol
+    !*   remove_lastx - integer (one for base and side) to remove
+    !*                  final x atoms in constructing new mol
     !***********************************************************************
     implicit none
     !> IN/OUTPUTS
@@ -52,6 +55,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,intent(out),optional :: clash
     integer,intent(in),optional :: remove_base(:)
     integer,intent(in),optional :: remove_side(:)
+    integer,intent(in),optional :: remove_lastx(:)
 
     !> LOCAL
     type(coord) :: cutout_base,cutout_side,side_tmp
@@ -163,6 +167,14 @@ contains  !> MODULE PROCEDURES START HERE
       kk = size(remove_side,1)
       do ii = 1,kk
         cutlist_side(remove_side(ii)) = .true.
+      end do
+    end if
+    if (present(remove_lastx)) then
+      do ii = base%nat-(remove_lastx(1)-1),base%nat
+        cutlist_base(ii) = .true.
+      end do
+      do ii = side%nat-(remove_lastx(2)-1),side%nat
+        cutlist_side(ii) = .true.
       end do
     end if
 
@@ -332,7 +344,8 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine split_onbond
 
 !==============================================================================!
-  subroutine split_onshared(input,sharedlist,structures,sharedmap,wbo)
+  subroutine split_onshared(input,sharedlist,structures,sharedmap,&
+      & wbo,ncap,position_mapping)
     implicit none
     !> IN/OUTPUTS
     type(coord),intent(in) :: input
@@ -341,13 +354,16 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out),allocatable :: sharedmap(:,:)
     !> OPTIONAL
     real(wp),intent(in),optional :: wbo(input%nat,input%nat)
-    integer,allocatable :: ncapped(:)
+    integer,intent(out),allocatable,optional :: ncap(:)
+    integer,intent(out),allocatable,optional :: position_mapping(:,:)
     !> LOCAL
     type(coord) :: shared
     real(wp),allocatable :: cn(:),wbofake(:,:)
     integer :: V,fbase,fside,nshared,ftmp
     integer,allocatable :: A(:,:),Anew(:,:)
     integer,allocatable :: frag(:),fragnew(:),molassign(:)
+    integer,allocatable :: ncapped(:)
+    integer,allocatable :: pos_map(:,:)
     logical,allocatable :: in_ring(:,:)
     integer,allocatable :: path_tmp(:)
     integer,allocatable :: number_of_neighbours(:)
@@ -357,6 +373,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,allocatable :: unassigned_fragments(:)
     logical,allocatable :: capping_mapping(:,:)
     logical,allocatable :: methylizemapping(:,:)
+
     integer :: npath,nfrag,nfragnew,nbonds
     real(wp) :: distcap,methylproxy(3,3)
     integer :: ii,jj,jjj,kk,sii,sjj,M,mm,nn,ll,lll
@@ -485,7 +502,7 @@ contains  !> MODULE PROCEDURES START HERE
       end do
     end if
 
-    !> prepare capping.
+    !> prepare mapping and capping.
     allocate (capping_mapping(V,M),source=.false.)
     allocate (methylizemapping(nshared,M),source=.false.)
     !> First, simple, chemoinformatic rules
@@ -528,6 +545,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (structures(M)) !> we know that splitting produces M fragment
     allocate (sharedmap(nshared,M),source=0)
     allocate (ncapped(M),source=0)
+    allocate (pos_map(V,M), source=0) 
 
     do ii = 1,M
       mm = ii+1
@@ -550,6 +568,7 @@ contains  !> MODULE PROCEDURES START HERE
             jjj = jjj+1
             sharedmap(jjj,ii) = kk
           end if
+          pos_map(jj,ii) = kk 
         end if
       end do
       !> capping atoms
@@ -573,13 +592,14 @@ contains  !> MODULE PROCEDURES START HERE
         if (methylizemapping(jj,ii)) then
           sjj = sharedlist(jj)
           do ll = 1,V
-            if (A(ll,sjj) == 1 .and.assign_to_mols(ll,mm)) then
+            if (A(ll,sjj) == 1.and.assign_to_mols(ll,mm)) then
               call methylize(input%xyz(1:3,sjj),input%xyz(1:3,ll),methylproxy)
-              do lll=1,3
-                kk=kk+1
+              do lll = 1,3
+                kk = kk+1
+                ncapped(ii) = ncapped(ii)+1
                 structures(ii)%at(kk) = 1
                 structures(ii)%xyz(1:3,kk) = methylproxy(1:3,lll)
-              enddo
+              end do
               exit
             end if
           end do
@@ -591,6 +611,16 @@ contains  !> MODULE PROCEDURES START HERE
 !> MOLECULE CONSTRUCTION END
 !> ----------------------------------------------------------------------------
 
+    if (present(ncap)) then
+      call move_alloc(ncapped,ncap)
+    end if
+
+    if(present(position_mapping))then
+      call move_alloc(pos_map,position_mapping)
+    endif
+
+    if (allocated(pos_map)) deallocate(pos_map)
+    if (allocated(ncapped)) deallocate (ncapped)
     if (allocated(assign_to_mols)) deallocate (assign_to_mols)
     if (allocated(capping_mapping)) deallocate (capping_mapping)
     if (allocated(unassigned_fragments)) deallocate (unassigned_fragments)
