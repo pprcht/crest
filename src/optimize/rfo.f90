@@ -348,16 +348,9 @@ contains  !> MODULE PROCEDURES START HERE
       dx_test = displ*alpold
 
       !allocate(calc%chess%H(nat3,nat3))
-      if (calc%do_HU) then
+      if (calc%full_HR) then
         call dhtosq(nat3,calc%chess%H(:,:),OPT%hess(:))
       end if
-
-      open(newunit=unit, file="opt_bfgs.txt", status="unknown", position="append")
-      write(unit,*) "cycle:", iter 
-        do i = 1, 5
-          write(unit,*) OPT%hess(i)
-        enddo
-      close(unit)
 !>------------------------------------------------------------------------
 !>  rational function (RF) method
 !>------------------------------------------------------------------------

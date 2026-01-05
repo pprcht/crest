@@ -272,9 +272,10 @@ module calc_type
 
 !>--- Hessian Reconstructor
     type(cashed_hessian),allocatable :: chess
-    logical :: do_HU = .false.
-    integer :: hu_steps = 10
-    integer :: nt
+    logical :: do_HR = .false.
+    logical :: full_HR = .false. !> Keyword for HR with all opt steps
+    integer :: hu_steps = 10 !> default number of update steps
+    integer :: nt !> following all required for thermochemistry
     real(wp),allocatable :: temperatures(:)
     real(wp),allocatable :: et(:),ht(:),gt(:),stot(:)
     real(wp) :: ithr,fscal,sthr

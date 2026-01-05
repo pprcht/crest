@@ -80,8 +80,8 @@ contains  !> MODULE PROCEDURES START HERE
       !$omp end critical
     end if
 
-    !> Check if Hessian Reconstruct is called
-    if (calc%do_HU) then
+    !> Check if Hessian Reconstruct is called and initialize the type
+    if (calc%do_HR) then
       allocate (calc%chess)
       call calc%chess%alloc(mol%nat,calc%hu_steps,calc%hguess)
     end if
@@ -109,25 +109,29 @@ contains  !> MODULE PROCEDURES START HERE
     end select
     molnew%energy = etot
 
-    if (calc%do_HU) then !> Hessian construction and post-processing happen here
+    if (calc%do_HR) then !> Hessian construction and post-processing happen here
+      if (calc%full_HR) then
 
-      call calc%chess%construct_hessian_bfgs()
+        write (stdout,*)
+        write (stdout,*) "THERMO FROM BFGS" !> This is here for full hessian reconstruct
+        write (stdout,*)
 
-      write (stdout,*)
-      write (stdout,*) "THERMO FROM RECONSTRUCTED HESSIAN:"
-      write (stdout,*)
+        call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
+        & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+        & calc%ht,calc%gt,calc%stot)
 
-      call calc_thermo_from_hess(molnew,calc%chess%B,pr, &
-      & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
-      & calc%ht,calc%gt,calc%stot)
+      else
 
-      !print*
-      !print*,"THERMO FROM BFGS"
-      !print*
+        call calc%chess%construct_hessian_bfgs()
 
-      !call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
-      !& calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
-      !& calc%ht,calc%gt,calc%stot)
+        write (stdout,*)
+        write (stdout,*) "THERMO FROM RECONSTRUCTED HESSIAN:"
+        write (stdout,*)
+
+        call calc_thermo_from_hess(molnew,calc%chess%B,pr, &
+        & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+        & calc%ht,calc%gt,calc%stot)
+      end if
 
       call calc%chess%dealloc()
       deallocate (calc%chess)

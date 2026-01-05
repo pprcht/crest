@@ -310,7 +310,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
 
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,iunit)
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot) !> THIS HAS IUNIT IN IT!!!!
 
   !> printoutgeometr
   zpve = et(nrt)-ht(nrt)

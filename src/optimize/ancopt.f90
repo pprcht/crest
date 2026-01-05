@@ -501,10 +501,10 @@ contains  !> MODULE PROCEDURES START HERE
       end if
 
       !> Transform hessian to cartesian coordinate basis (still wrong)
-      if (calc%do_HU) then
-          call dhtosq(nat3,test_hess(:,:),OPT%hess(:))
-          calc%chess%H(:,:) = matmul(matmul(Transpose(OPT%B(:,:)), test_hess(:,:)), OPT%B(:,:))
-      end if
+      !if (calc%do_HR) then
+      !    call dhtosq(nat3,test_hess(:,:),OPT%hess(:))
+      !    calc%chess%H(:,:) = matmul(matmul(Transpose(OPT%B(:,:)), test_hess(:,:)), OPT%B(:,:))
+      !end if
 
 !>------------------------------------------------------------------------
 !>  rational function (RF) method
@@ -649,9 +649,13 @@ contains  !> MODULE PROCEDURES START HERE
   real(wp) :: alp, shift, l, k
 
   if (calc%optlev == 1) then
-    L = 2
-    k = 2000
-    shift = 0.0005
+    L = 2.0_wp
+    k = 2000.0_wp
+    shift = 0.0005_wp
+  else if (calc%optlev == 2) then
+    L = 1.0_wp
+    k = 8000.0_wp
+    shift = 0.0009_wp
   else
     L = calc%L
     k = calc%k

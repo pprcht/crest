@@ -609,7 +609,10 @@ contains !> MODULE PROCEDURES START HERE
       calc%exact_rf = kv%value_b
 
     case ('chess')
-      calc%do_HU = kv%value_b
+      calc%do_HR = kv%value_b
+
+    case ('full_chess') !> Do Hessian Reconstruct with all optimization steps
+      calc%full_HR = kv%value_b
 
     case default
       rd = .false.
