@@ -29,7 +29,6 @@ module parse_maindata
   use crest_restartlog
   use strucrd,only:coord
   !> modules used for parsing the root_object
-  !>
   use parse_keyvalue,only:keyvalue,valuetypes
   use parse_block,only:datablock
   use parse_datastruct,only:root_object
@@ -72,6 +71,15 @@ contains   !> MODULE PROCEDURES START HERE
       select case (kv%key)
       case ('optlev','ancopt_level')
         env%optlev = optlevnum(kv%rawvalue)
+
+      case ('split')
+        if (kv%id .ne. valuetypes%int_array.or. &
+          & kv%na < 3) then
+          write (stdout,'(a)') '**ERROR** "split" must be a list of at least 3 integers'
+          call creststop(status_config)
+        end if
+        call env%addsplitqueue(kv%value_ia)
+
       case default
         istat = istat+1
       end select

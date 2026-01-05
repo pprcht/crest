@@ -29,6 +29,7 @@ module crest_data
   use strucrd,only:coord
   use crest_type_timer,only:timer
   use lwoniom_module,only:lwoniom_input
+  use construct_list !> from molbuilder dir
   implicit none
 
   public :: systemdata
@@ -460,6 +461,8 @@ module crest_data
 
     !>--- reference structure data (the input structure)
     type(refdata) :: ref
+    type(split_atms),allocatable :: splitqueue(:)
+    type(construct_heap) :: splitheap
 
     !>--- QCG data
     integer :: qcg_runtype = 0      !> Default is grow, 1= ensemble & opt, 2= e_solv, 3= g_solv
@@ -640,6 +643,7 @@ module crest_data
     procedure :: rmhy => pqueue_removehybrid
     procedure :: addrefine => add_to_refinequeue
     procedure :: wrtCHRG => wrtCHRG
+    procedure :: addsplitqueue => env_addsplitqueue
   end type systemdata
 
 !========================================================================================!
@@ -719,7 +723,7 @@ contains  !> MODULE PROCEDURES START HERE
           write (*,'(a)') trim(self%cbonds(i))
         end if
       end do
-      if(self%n_cbonds>10) write(*,*) '... and some more'
+      if (self%n_cbonds > 10) write (*,*) '... and some more'
     end if
   end subroutine legacy_constraints_info
 
@@ -814,6 +818,13 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     return
   end subroutine add_to_refinequeue
+
+  subroutine env_addsplitqueue(self,raw_split)
+    implicit none
+    class(systemdata) :: self
+    integer,intent(in) :: raw_split(:)
+    call add_to_splitqueue(self%splitqueue,raw_split)
+  end subroutine env_addsplitqueue
 
 !========================================================================================!
 !========================================================================================!

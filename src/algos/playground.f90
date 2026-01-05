@@ -96,25 +96,28 @@ subroutine crest_playground(env,tim)
     !call attach(base,side,alignmap,new)
     !call new%append(ich)
 
-
-    call new%open("struc.xyz")
+    !call new%open("struc.xyz")
+    call env%ref%to(new)
     !call split(new, [8,9],base,side)
-    call split(new, [6,7,8],splitlist,alignmap,ncap=ncap,position_mapping=position_mapping)
-
+    if (allocated(env%splitqueue)) then
+      call split(new,env%splitqueue(1)%atms,splitlist,alignmap,ncap=ncap,position_mapping=position_mapping)
+    else
+      call split(new,[1,2,3],splitlist,alignmap,ncap=ncap,position_mapping=position_mapping)
+    end if
     !write(*,*)  position_mapping(:,1)
     !write(*,*) position_mapping(:,2)
-    do i=1,size(splitlist,1)
+    do i = 1,size(splitlist,1)
       call splitlist(i)%append(ich)
-    enddo
+    end do
 
-    call attach(splitlist(1), splitlist(2), alignmap,newnew, &
+    call attach(splitlist(1),splitlist(2),alignmap,newnew, &
       & remove_lastx=ncap,original_map=position_mapping)
- 
+
     call newnew%append(ich)
     !call base%append(ich)
     !call side%append(ich)
-    close (ich) 
-    
+    close (ich)
+
   end block
 
 !========================================================================================!
