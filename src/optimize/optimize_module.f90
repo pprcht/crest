@@ -35,6 +35,7 @@ module optimize_module
   use optimize_utils
   use thermochem_module
   use hessian_reconstruct
+  use newton_raphson_module
   !use hessian_tools
   implicit none
   private
@@ -101,6 +102,9 @@ contains  !> MODULE PROCEDURES START HERE
     case (2)
       !> rfo goes here
       call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
+    case (3)
+      !> newton-raphson step goes here, this is a newton step with updated hessians, i.e. quasi Newton
+      call newton_raphson(molnew,calc,etot,grd,pr,wr,iostatus)
     case (-1)
       call gradientdescent(molnew,calc,etot,grd,pr,wr,iostatus)
     case default

@@ -21,6 +21,7 @@ list(APPEND srcs
   "${dir}/gd.f90"
   "${dir}/rfo.f90"
   "${dir}/lbfgs.f90"
+  "${dir}/newton_raphson.f90"
   "${dir}/hessupdate.f90"
   "${dir}/modelhessian.f90"
   "${dir}/coordtrafo.f90"
