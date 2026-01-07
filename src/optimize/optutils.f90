@@ -355,6 +355,8 @@ contains  !> MODULE PROCEDURES START HERE
       write (*,chrfmt) "algorithm         ","          L-BFGS"
     case (2)
       write (*,chrfmt) "algorithm         ","Rational Function"
+    case (3)
+      write (*,chrfmt) "algorithm         ","Quasi Newton"
     case (-1)
       write (*,chrfmt) "algorithm         ","Gradient Descent"
     end select
