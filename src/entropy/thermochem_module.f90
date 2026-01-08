@@ -278,7 +278,7 @@ contains
   end subroutine calcthermo
 
   subroutine calc_thermo_from_hess(mol,hess,pr,nt,temps,ithr,&
-  & fscal,sthr,et,ht,gt,stot)
+  & fscal,sthr,et,ht,gt,stot, etot)
     type(coord),intent(inout) :: mol
     integer :: nat3
     integer :: io,iunit
@@ -289,6 +289,12 @@ contains
     real(wp),allocatable,intent(out) :: et(:),ht(:),gt(:),stot(:)
     real(wp),intent(inout) :: hess(:,:)
     real(wp),allocatable :: freq(:)
+    real(wp), intent(in) :: etot
+    real(wp) :: zpve
+    integer :: nrt
+    real(wp),allocatable :: int_temps(:)
+    character(len=*),parameter :: outfmt = &
+    &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
 
     nat3 = 3*mol%nat
     allocate (freq(nat3))
@@ -296,6 +302,10 @@ contains
     allocate (ht(nt))
     allocate (gt(nt))
     allocate (stot(nt))
+    allocate (int_temps(nt))
+
+    int_temps = abs(temps-298.15_wp)
+    nrt = minloc(int_temps(:),1)
 
     call prj_mw_hess(mol%nat,mol%at,nat3,mol%xyz,hess)
 
@@ -304,8 +314,20 @@ contains
     call calcthermo(mol%nat,mol%at,mol%xyz,freq,pr,ithr,fscal,sthr,nt,temps, &
         &      et,ht,gt,stot)
 
-    call print_hessian(hess(:,:),nat3,'','numhess')
+    zpve = et(nrt)-ht(nrt)
+    write (stdout,*)
+    write (stdout,'(10x,a)') repeat(':',50)
+    write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
+    write (stdout,'(10x,a)') repeat(':',50)
+    write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
+    write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
+    write (stdout,outfmt) 'total energy     ',etot,'Eh'
+    write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
+    write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
+    write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
+    write (stdout,'(10x,a)') repeat(':',50)
 
   end subroutine calc_thermo_from_hess
+
 
 end module thermochem_module

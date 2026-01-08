@@ -122,7 +122,7 @@ contains  !> MODULE PROCEDURES START HERE
 
         call calc_thermo_from_hess(molnew,calc%chess%H,pr, &
         & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
-        & calc%ht,calc%gt,calc%stot)
+        & calc%ht,calc%gt,calc%stot,etot)
 
       else
 
@@ -134,7 +134,7 @@ contains  !> MODULE PROCEDURES START HERE
 
         call calc_thermo_from_hess(molnew,calc%chess%B,pr, &
         & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
-        & calc%ht,calc%gt,calc%stot)
+        & calc%ht,calc%gt,calc%stot,etot)
       end if
 
       call calc%chess%dealloc()
