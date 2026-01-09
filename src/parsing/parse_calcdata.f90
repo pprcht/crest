@@ -588,7 +588,7 @@ contains !> MODULE PROCEDURES START HERE
         calc%opt_engine = 1
       case ('rfo','rfo-cart')
         calc%opt_engine = 2
-      case('newton')
+      case('newton','nr')
         calc%opt_engine = 3
       case ('gd','gradient descent')
         calc%opt_engine = -1

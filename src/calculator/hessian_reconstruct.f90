@@ -19,6 +19,7 @@ module hessian_reconstruct
     integer :: stepcount = 0
     real(wp) :: hguess = 0.02_wp
     real(wp),allocatable ::hguess_mat(:,:)
+    logical :: track_step = .true.
 
   contains
 
