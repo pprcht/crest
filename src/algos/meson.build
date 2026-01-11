@@ -33,4 +33,5 @@ srcs += files(
   'search_conformers.f90',
   'search_entropy.f90',
   'parallel.f90', 
+  'queueing.f90',
 )

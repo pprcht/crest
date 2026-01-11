@@ -82,40 +82,20 @@ subroutine crest_playground(env,tim)
     type(coord),allocatable :: splitlist(:)
     integer,allocatable :: alignmap(:,:),ncap(:),position_mapping(:,:)
 
-    !call base%open("base.xyz")
-    !call side%open("side.xyz")
-
-    open (newunit=ich,file='molbuilder.xyz')
-    !call base%append(ich)
-    !call side%append(ich)
-
-    !allocate (alignmap(3,2),source=0)
-
-    !alignmap(1:3,1) = [9,7,8]
-    !alignmap(1:3,2) = [3,1,2]
-    !call attach(base,side,alignmap,new)
-    !call new%append(ich)
-
-    !call new%open("struc.xyz")
+    open (newunit=ich,file='molbuilder.xyz', &
+          status="unknown", &
+          action="write", &
+          position="append")
     call env%ref%to(new)
-    !call split(new, [8,9],base,side)
-    if (allocated(env%splitqueue)) then
-      call split(new,env%splitqueue(1)%atms,splitlist,alignmap,ncap=ncap,position_mapping=position_mapping)
-    else
-      call split(new,[1,2,3],splitlist,alignmap,ncap=ncap,position_mapping=position_mapping)
-    end if
-    !write(*,*)  position_mapping(:,1)
-    !write(*,*) position_mapping(:,2)
-    do i = 1,size(splitlist,1)
-      call splitlist(i)%append(ich)
-    end do
-
-    call attach(splitlist(1),splitlist(2),alignmap,newnew, &
-      & remove_lastx=ncap,original_map=position_mapping)
-
-    call newnew%append(ich)
-    !call base%append(ich)
-    !call side%append(ich)
+    call new%append(ich)
+    !if(allocated(env%splitqueue))then
+    !  do i=1,env%splitheap%nlayer
+    !  write(*,*) 'layer',i
+    !    do j=1,env%splitheap%layer(i)%nnodes
+    !      call env%splitheap%layer(i)%node(j)%append(ich)
+    !    enddo
+    !  enddo
+    !endif
     close (ich)
 
   end block

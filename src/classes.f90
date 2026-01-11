@@ -461,8 +461,12 @@ module crest_data
 
     !>--- reference structure data (the input structure)
     type(refdata) :: ref
+    !>--- the reference mol may be partitioned into subfragments
+    !>    the corresponding bookkeeping data is saved here
+    logical :: substructure_queue = .false.
     type(split_atms),allocatable :: splitqueue(:)
     type(construct_heap) :: splitheap
+    integer :: queue_iter = 0
 
     !>--- QCG data
     integer :: qcg_runtype = 0      !> Default is grow, 1= ensemble & opt, 2= e_solv, 3= g_solv

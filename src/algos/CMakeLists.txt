@@ -35,6 +35,7 @@ list(APPEND srcs
   "${dir}/search_conformers.f90"
   "${dir}/search_entropy.f90"
   "${dir}/parallel.f90"
+  "${dir}/queueing.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

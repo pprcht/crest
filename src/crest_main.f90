@@ -36,7 +36,7 @@ program CREST
   character(len=512) :: thisdir
   character(len=1024) :: cmd
   real(wp) :: dumfloat,dumfloat2,d3,d4,d5,d6,d7,d8
-  logical :: ex,ex1,ex2
+  logical :: ex,ex1,ex2,iterate
 
   intrinsic :: iargc,getarg
   LOGICAL :: overflow,division_by_zero,invalid_operation
@@ -141,22 +141,12 @@ program CREST
   case (p_compare)
     call compare_ensembles(env)
     call propquit(tim)
-! !>--- protonation tool
-!  case (p_protonate)
-!    call protonate(env,tim)
-!    call propquit(tim)
-!>--- deprotonation
-!  case (p_deprotonate)
-!    call deprotonate(env,tim)
-!    call propquit(tim)
-!>--- tautomerization
-!  case (p_tautomerize)
-!    call tautomerize(env,tim)
-!    call propquit(tim)
+
 !>--- extended tautomerization
   case (p_tautomerize2)
     call tautomerize_ext(env%ensemblename,env,tim)
     call propquit(tim)
+
 !>--- stereoisomerization
   case (p_isomerize)
     call stereoisomerize(env,tim)
@@ -165,8 +155,8 @@ program CREST
 !>--- reactor setup
   case (p_reactorset)
     call reactor_setup(env)
-
     stop
+
 !>--- enhanched ensemble entropy
   case (p_CREentropy)
     call entropic(env,.true.,.true.,.false.,env%ensemblename, &
@@ -230,89 +220,102 @@ program CREST
     call xtbsp(env)
   end if
 !=========================================================================================!
-!>         MAIN WORKFLOW CALLS START HERE
+!>         SET UP QUEUES, IF REQUIRED
 !=========================================================================================!
-!> many of these routine calls take a detour through legacy_wrappers.f90 !
-  select case (env%crestver)
-  case (crest_mfmdgc)           !> MF-MD-GC algo (deprecated)
-    call confscript1(env,tim)
+  call crest_queue_setup(env,iterate)
+!=========================================================================================!
+!>         MAIN WORKFLOW CALLS START HERE (including iterator)
+!=========================================================================================!
 
-  case (crest_imtd,crest_imtd2) !> MTD-GC algo
-    call confscript2i(env,tim)
+  ITERATOR: do while (iterate)
+    call crest_queue_iter(env,iterate)
 
-  case (crest_mdopt,crest_mdopt2)
-    call mdopt(env,tim)        !> MDOPT
+!> NOTE: many of these routine calls take a detour through legacy_wrappers.f90 !
+    select case (env%crestver)
+    case (crest_mfmdgc)           !> MF-MD-GC algo (deprecated)
+      call confscript1(env,tim)
 
-  case (crest_screen)
-    call screen(env,tim)       !> SCREEN
+    case (crest_imtd,crest_imtd2) !> MTD-GC algo
+      call confscript2i(env,tim)
 
-  case (crest_nano)
-    call reactor(env,tim)      !> NANO-REACTOR
+    case (crest_mdopt,crest_mdopt2)
+      call mdopt(env,tim)        !> MDOPT
 
-  case (crest_compr)
-    call compress(env,tim)     !> MTD COMPRESS mode
+    case (crest_screen)
+      call screen(env,tim)       !> SCREEN
 
-  case (crest_msreac)
-    call msreact_handler(env,tim) !> MSREACT sub-program
+    case (crest_nano)
+      call reactor(env,tim)      !> NANO-REACTOR
 
-  case (crest_pka)
-    call pkaquick(env,tim)
+    case (crest_compr)
+      call compress(env,tim)     !> MTD COMPRESS mode
 
-  case (crest_solv)             !> microsolvation tools
-    call crest_solvtool(env,tim)
+    case (crest_msreac)
+      call msreact_handler(env,tim) !> MSREACT sub-program
 
-  case (crest_sp)
-    call crest_singlepoint(env,tim)
+    case (crest_pka)
+      call pkaquick(env,tim)
 
-  case (crest_optimize)
-    call crest_optimization(env,tim)
+    case (crest_solv)             !> microsolvation tools
+      call crest_solvtool(env,tim)
 
-  case (crest_moldyn)
-    call crest_moleculardynamics(env,tim)
+    case (crest_sp)
+      call crest_singlepoint(env,tim)
 
-  case (crest_s1)
-    call crest_search_1(env,tim)
+    case (crest_optimize)
+      call crest_optimization(env,tim)
 
-  case (crest_mecp)
-    call crest_search_mecp(env,tim)
+    case (crest_moldyn)
+      call crest_moleculardynamics(env,tim)
 
-  case (crest_numhessian)
-    call crest_numhess(env,tim)
+    case (crest_s1)
+      call crest_search_1(env,tim)
 
-  case (crest_scanning)
-    call crest_scan(env,tim)
+    case (crest_mecp)
+      call crest_search_mecp(env,tim)
 
-  case (crest_rigcon) !> rule-based conformer generation
-    call crest_rigidconf(env,tim)
+    case (crest_numhessian)
+      call crest_numhess(env,tim)
 
-  case (crest_trialopt) !> test optimization standalone
-    call trialOPT(env)
+    case (crest_scanning)
+      call crest_scan(env,tim)
 
-  case (crest_ensemblesp) !> singlepoints along ensemble
-    call crest_ensemble_singlepoints(env,tim)
+    case (crest_rigcon) !> rule-based conformer generation
+      call crest_rigidconf(env,tim)
 
-  case (crest_protonate)
-    call protonate(env,tim)
+    case (crest_trialopt) !> test optimization standalone
+      call trialOPT(env)
 
-  case (crest_deprotonate)
-    call deprotonate(env,tim)
+    case (crest_ensemblesp) !> singlepoints along ensemble
+      call crest_ensemble_singlepoints(env,tim)
 
-  case (crest_tautomerize)
-    call tautomerize(env,tim)
+    case (crest_protonate)
+      call protonate(env,tim)
 
-  case (crest_sorting) !> interface to standalone ensemble sorting
-    call crest_sort(env,tim)
+    case (crest_deprotonate)
+      call deprotonate(env,tim)
 
-  case (crest_bh) !> Standard basin-hopping
-    call crest_basinhopping(env,tim)
+    case (crest_tautomerize)
+      call tautomerize(env,tim)
 
-  case (crest_test)
-    call crest_playground(env,tim)
+    case (crest_sorting) !> interface to standalone ensemble sorting
+      call crest_sort(env,tim)
 
-  case default
-    continue
-  end select
+    case (crest_bh) !> Standard basin-hopping
+      call crest_basinhopping(env,tim)
 
+    case (crest_test)
+      call crest_playground(env,tim)
+
+    case default
+      continue
+    end select
+
+  end do ITERATOR
+
+!=========================================================================================!
+!>        ADDITIONAL OUTPUT FORMATTING
+!=========================================================================================!
   if (env%outputsdf.or.env%sdfformat) then
     if (any((/crest_mfmdgc,crest_imtd,crest_imtd2/) == env%crestver)) then
       call new_wrsdfens(env,conformerfile,conformerfilebase//'.sdf',.false.)
