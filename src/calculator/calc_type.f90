@@ -188,6 +188,7 @@ module calc_type
     procedure :: create => create_calclevel_shortcut
     procedure :: norestarts => calculation_settings_norestarts
     procedure :: dumpdipgrad => calculation_dump_dipgrad
+    procedure :: copy => calculation_settings_copy
   end type calculation_settings
 
 !=========================================================================================!
@@ -540,40 +541,50 @@ contains  !>--- Module routines start here
   subroutine calculation_copy(self,src)
     class(calcdata) :: self
     type(calcdata) :: src
+    type(calculation_settings) :: newset
     integer :: i
+
+    call self%reset()
 
     self%id = src%id
 
-    self%ncalculations = src%ncalculations
     if (allocated(self%calcs)) deallocate (self%calcs)
     !self%calcs = src%calcs
-    do i = 1,self%ncalculations
-      call self%add(src%calcs(i))
+    do i = 1,src%ncalculations
+      call newset%copy(src%calcs(i))
+      call self%add(newset)
     end do
 
-    self%nconstraints = src%nconstraints
     if (allocated(self%cons)) deallocate (self%cons)
-    !self%cons = src%cons
-    do i = 1,self%nconstraints
+    do i = 1,src%nconstraints
       call self%add(src%cons(i))
     end do
 
-    self%optlev = src%optlev
-    self%micro_opt = src%micro_opt
-    self%maxcycle = src%maxcycle
-    self%maxdispl_opt = src%maxdispl_opt
-    self%hlow_opt = src%hlow_opt
-    self%hmax_opt = src%hmax_opt
-    self%acc_opt = src%acc_opt
-    self%exact_rf = src%exact_rf
-    self%average_conv = src%average_conv
-    self%tsopt = src%tsopt
-    self%iupdat = src%iupdat
+!&>
+    self%optnewinit     = src%optnewinit
+    self%anopt          = src%anopt
+    self%optlev         = src%optlev 
+    self%micro_opt      = src%micro_opt
+    self%maxcycle       = src%maxcycle 
+    self%maxdispl_opt   = src%maxdispl_opt
+    self%ethr_opt       = src%ethr_opt 
+    self%gthr_opt       = src%gthr_opt 
+    self%hlow_opt       = src%hlow_opt 
+    self%hmax_opt       = src%hmax_opt 
+    self%acc_opt        = src%acc_opt 
+    self%maxerise       = src%maxerise 
+    self%hguess         = src%hguess 
+    self%exact_rf       = src%exact_rf 
+    self%average_conv   = src%average_conv 
+    self%tsopt          = src%tsopt 
+    self%iupdat         = src%iupdat 
+    self%opt_engine     = src%opt_engine 
+    self%lbfgs_histsize = src%lbfgs_histsize
 
-    self%pr_energies = src%pr_energies
-    self%eout_unit = src%eout_unit
-    self%elog = src%elog
-
+    self%pr_energies    = src%pr_energies
+    self%eout_unit      = src%eout_unit
+    self%elog           = src%elog
+!&<
     return
   end subroutine calculation_copy
 
@@ -979,6 +990,53 @@ contains  !>--- Module routines start here
     self%ONIOM_id = 0
     return
   end subroutine calculation_settings_deallocate
+
+  subroutine calculation_settings_copy(self,src)
+    implicit none
+    class(calculation_settings),intent(out) :: self
+    type(calculation_settings) :: src
+
+!&>    
+    if (allocated(src%calcspace))   self%calcspace = src%calcspace
+    if (allocated(src%calcfile))    self%calcfile = src%calcfile
+    if (allocated(src%gradfile))    self%gradfile = src%gradfile
+    if (allocated(src%path))        self%path = src%path
+    if (allocated(src%other))       self%other = src%other
+    if (allocated(src%binary))      self%binary = src%binary
+    if (allocated(src%systemcall))  self%systemcall = src%systemcall
+    if (allocated(src%description)) self%description = src%description
+    if (allocated(src%gradkey))     self%gradkey = src%gradkey
+    if (allocated(src%efile))       self%efile = src%efile
+    if (allocated(src%solvmodel))   self%solvmodel = src%solvmodel
+    if (allocated(src%solvent))     self%solvent = src%solvent
+
+    self%id         = src%id
+    self%prch       = src%prch
+    self%chrg       = src%chrg
+    self%uhf        = src%uhf
+
+    self%rdwbo      = src%rdwbo
+    self%rddip      = src%rddip
+    self%rddipgrad  = src%rddipgrad
+    self%gradtype   = src%gradtype
+    self%gradfmt    = src%gradfmt
+
+    self%tblitelvl  = src%tblitelvl
+    self%etemp      = src%etemp
+    self%accuracy   = src%accuracy
+    self%apiclean   = src%apiclean
+    self%maxscc     = src%maxscc
+    self%saveint    = src%saveint
+
+    self%ngrid      = src%ngrid
+    self%extpressure = src%extpressure
+    self%proberad   = src%proberad
+
+    self%ONIOM_highlowroot = src%ONIOM_highlowroot
+    self%ONIOM_id   = src%ONIOM_id
+!&<
+    return
+  end subroutine calculation_settings_copy
 
 !=========================================================================================!
 

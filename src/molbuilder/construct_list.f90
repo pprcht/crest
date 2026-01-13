@@ -3,6 +3,7 @@ module construct_list
   !* Bookkeeping module for reconstructing molecules
   !**************************************************
   use crest_parameters
+  use crest_calculator
   use strucrd
   use quicksort_interface,only:qqsorti
   implicit none
@@ -39,6 +40,7 @@ module construct_list
     integer :: duplicate_of_queue = 0
     character(len=:),allocatable :: workdir
     character(len=:),allocatable :: file
+    type(calcdata) :: calc
   end type construct_queue
 
   type :: construct_heap

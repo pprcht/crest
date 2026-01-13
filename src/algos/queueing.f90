@@ -205,6 +205,9 @@ subroutine crest_queue_iter(env,iterate)
       case default
         queue%file = 'struc.xyz'
       end select
+      call queue%calc%copy(env%calc)
+
+      call queue%calc%info(stdout)
 
       mol = env%splitheap%layer(jj)%node(kk)
       call env%ref%load(mol)
@@ -213,6 +216,7 @@ subroutine crest_queue_iter(env,iterate)
       if(allocated(env%ref%wbo)) deallocate(env%ref%wbo)
       env%nat = mol%nat
       env%rednat = mol%nat
+      call env%calc%copy(queue%calc)
 
     end associate
     if (ii < env%splitheap%nqueue) then
