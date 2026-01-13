@@ -36,7 +36,7 @@ subroutine crest_queue_setup(env,iterate)
   integer :: parentlayer,parentnode
   character(len=1024) :: thispath
 
-  iterate = .false.
+  iterate = .true.
 
   if (allocated(env%splitqueue)) then
 
@@ -174,6 +174,11 @@ subroutine crest_queue_iter(env,iterate)
     ii = env%queue_iter+1
     env%queue_iter = ii
 
+
+    write(stdout,'(/,70("§"))')
+    write(stdout,'(a,i0)') "§§§   QUEUE ITERATION ",ii
+    write(stdout,'(70("§"))')
+
     associate (queue => env%splitheap%queue(ii))
 
       jj = queue%layer
@@ -184,13 +189,36 @@ subroutine crest_queue_iter(env,iterate)
       queue%workdir = dirname//trim(atmp)
       io = makedir(queue%workdir)
       call chdir(queue%workdir)
+      write(stdout,'(a,a)') 'Queue work (sub-)directory: ', &
+        & trim(queue%workdir)
+
+      !> selecting output file depending on runtype
+      select case(env%crestver)
+      case ( crest_imtd,crest_imtd2 )
+         queue%file = 'crest_conformers.xyz'
+      case ( crest_optimize )
+         queue%file = 'crestopt.xyz'
+      case ( crest_moldyn )
+         queue%file = 'crest_dynamics.trj.xyz'
+      case ( crest_bh )
+          queue%file = 'crest_quenched.xyz'
+      case default
+        queue%file = 'struc.xyz'
+      end select
 
       mol = env%splitheap%layer(jj)%node(kk)
       call env%ref%load(mol)
+      call mol%write('coord')
+
+      if(allocated(env%ref%wbo)) deallocate(env%ref%wbo)
+      env%nat = mol%nat
+      env%rednat = mol%nat
 
     end associate
     if (ii < env%splitheap%nqueue) then
       iterate = .true.
     end if
+
+    write(stdout,*)
   end if
 end subroutine crest_queue_iter
