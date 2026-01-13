@@ -160,7 +160,7 @@ subroutine crest_queue_iter(env,iterate)
   use strucrd
   use iomod
   implicit none
-  type(systemdata),intent(inout) :: env
+  type(systemdata),intent(inout),target :: env
   logical,intent(out) :: iterate
   integer :: ii,jj,kk,io
   type(coord) :: mol
@@ -216,7 +216,8 @@ subroutine crest_queue_iter(env,iterate)
       if(allocated(env%ref%wbo)) deallocate(env%ref%wbo)
       env%nat = mol%nat
       env%rednat = mol%nat
-      call env%calc%copy(queue%calc)
+
+      env%calc => queue%calc
 
     end associate
     if (ii < env%splitheap%nqueue) then

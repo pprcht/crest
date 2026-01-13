@@ -24,10 +24,12 @@ program CREST
 !  use iso_fortran_env,wp => real64
   use crest_parameters !> Datatypes and constants
   use crest_data !> module for the main data storage (imports systemdata and timer)
+  use crest_calculator
   use crest_restartlog
   USE,INTRINSIC :: IEEE_EXCEPTIONS
   implicit none
   type(systemdata) :: env  !> MAIN STORAGE OF SYSTEM DATA
+  type(calcdata),target :: calc_origin
   type(timer)   :: tim     !> timer object
 
   integer :: i,j,l,args,io
@@ -47,6 +49,7 @@ program CREST
 !>  Initialize system clock time
   call tim%init(20)
 
+  env%calc => calc_origin 
 !=========================================================================================!
 !> set defaults and pars flags
   args = iargc()

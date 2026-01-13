@@ -512,7 +512,7 @@ module crest_data
 
     !================================================!
     !>--- Calculation settings for newer implementations (version >= 3.0)
-    type(calcdata) :: calc
+    type(calcdata),pointer :: calc
     type(mddata)   :: mddat
     type(bh_class),allocatable :: bh_ref
     !>--- rigidconf data
