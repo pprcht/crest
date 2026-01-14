@@ -36,6 +36,7 @@ module optimize_module
   use thermochem_module
   use hessian_reconstruct
   use newton_raphson_module
+  use hr_utils
   !use hessian_tools
   implicit none
   private
@@ -61,9 +62,10 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out)       :: iostatus
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
-    real(wp),allocatable :: H_inv(:,:),freq(:)
+    real(wp),allocatable :: H_init(:,:),freq(:)
     integer :: nat3
     integer :: io
+
 
     iostatus = -1
     !> do NOT overwrite original geometry
@@ -84,7 +86,8 @@ contains  !> MODULE PROCEDURES START HERE
     !> Check if Hessian Reconstruct is called and initialize the type
     if (calc%do_HR) then
       allocate (calc%chess)
-      call calc%chess%alloc(mol%nat,calc%hu_steps,calc%hguess)
+      allocate (H_init(nat3,nat3))
+      call calc%chess%alloc(mol%nat,calc%hu_steps,calc%hguess,calc%initialize_hr_type)
     end if
 
     !> initial singlepoint
@@ -114,7 +117,7 @@ contains  !> MODULE PROCEDURES START HERE
     end select
     molnew%energy = etot
 
-    if (calc%do_HR) then !> Hessian construction and post-processing happen here
+    if (calc%do_HR .and. iostatus .eq. 0) then !> Hessian construction and post-processing happen here, only do it if geometry relaxation successful
       if (calc%full_HR) then
 
         write (stdout,*)
@@ -126,7 +129,15 @@ contains  !> MODULE PROCEDURES START HERE
         & calc%ht,calc%gt,calc%stot,etot)
 
       else
-
+        
+        call hr_initialize_hessian(calc, molnew%at)
+        write(stdout,*)
+        write(stdout,*)"THERMO FROM INITIALIZED HESSIAN:"
+        write(stdout,*)
+        H_init(:,:) = calc%chess%hguess_mat(:,:)
+        call calc_thermo_from_hess(molnew,H_init,pr, &
+        & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+        & calc%ht,calc%gt,calc%stot,etot)
         call calc%chess%construct_hessian_bfgs()
 
         write (stdout,*)

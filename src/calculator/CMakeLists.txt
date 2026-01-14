@@ -40,6 +40,7 @@ list(APPEND srcs
   "${dir}/turbom_sc.f90"
   "${dir}/subprocess_engrad.f90"
   "${dir}/hessian_reconstruct.f90"
+  "${dir}/hr_utils.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

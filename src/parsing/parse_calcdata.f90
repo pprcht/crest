@@ -598,6 +598,20 @@ contains !> MODULE PROCEDURES START HERE
         call creststop(status_config)
       end select
 
+    case ('hr_init','hr_initialization') !> here we set how the matrix for hessian reconstruction is initialized
+      select case (kv%value_c)
+      case('identity')
+        calc%initialize_hr_type = 0
+      case('gfnff', 'gfn-ff')
+        calc%initialize_hr_type = 1
+      case('gfn2')
+        calc%initialize_hr_type = 2
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%value_c
+        call creststop(status_config)
+      end select
+
     case ('freeze')
       call get_atlist(env%ref%nat,atlist,kv%value_c,env%ref%at)
       calc%nfreeze = count(atlist)

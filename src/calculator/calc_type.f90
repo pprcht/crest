@@ -279,6 +279,7 @@ module calc_type
     real(wp),allocatable :: temperatures(:)
     real(wp),allocatable :: et(:),ht(:),gt(:),stot(:)
     real(wp) :: ithr,fscal,sthr
+    integer :: initialize_hr_type !> case defining initialization
 
 !>--- Parameters for smooth function within optimizer
     real(wp) :: L = 1.50_wp
