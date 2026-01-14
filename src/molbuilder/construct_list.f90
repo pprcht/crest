@@ -52,6 +52,7 @@ module construct_list
     type(construct_queue),allocatable :: queue(:)
     !> originial directory
     character(len=:),allocatable :: origindir
+    type(calcdata),pointer :: origincalc
   contains
     procedure map_origins_for_layer
     procedure find_current_position

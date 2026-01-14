@@ -538,27 +538,36 @@ contains  !>--- Module routines start here
 
 !=========================================================================================!
 !> copy a calcdata object from src to self
-  subroutine calculation_copy(self,src)
+  subroutine calculation_copy(self,src,ignore_constraints)
     class(calcdata) :: self
-    type(calcdata) :: src
+    type(calcdata),intent(in) :: src
+    logical,intent(in),optional :: ignore_constraints
     type(calculation_settings) :: newset
+    type(constraint) :: newcons
     integer :: i
+    logical :: igno
 
     call self%reset()
 
     self%id = src%id
 
     if (allocated(self%calcs)) deallocate (self%calcs)
-    !self%calcs = src%calcs
+    self%ncalculations = 0
     do i = 1,src%ncalculations
       call newset%copy(src%calcs(i))
       call self%add(newset)
     end do
 
+    igno = .false.
+    if(present(ignore_constraints)) igno = ignore_constraints
     if (allocated(self%cons)) deallocate (self%cons)
+    self%nconstraints = 0
+    if(.not.igno)then
     do i = 1,src%nconstraints
-      call self%add(src%cons(i))
+      call newcons%copy(src%cons(i)) 
+      call self%add(newcons)
     end do
+  endif
 
 !&>
     self%optnewinit     = src%optnewinit
@@ -883,11 +892,13 @@ contains  !>--- Module routines start here
       write (iunit,'("> ",a)') 'User-defined constraints:'
       if (self%nconstraints <= 20) then
         do i = 1,self%nconstraints
+          if (.not.self%cons(i)%active) cycle
           call self%cons(i)%print(iunit)
         end do
       else
         constraintype(:) = 0
         do i = 1,self%nconstraints
+          if (.not.self%cons(i)%active) cycle
           j = self%cons(i)%type
           if (j > 0.and.j < 9) then
             constraintype(j) = constraintype(j)+1

@@ -89,12 +89,9 @@ subroutine crest_queue_setup(env,iterate)
       end do
 
       call heap%setup_queue()
-      !write (*,*) 'endpoints selected:'
-      !do ii = 1,heap%nqueue
-      !  write (*,*) 'layer and node',heap%queue(ii)%layer,heap%queue(ii)%node
-      !end do
       call getcwd(thispath)
       heap%origindir = trim(thispath)
+      heap%origincalc => env%calc
     end associate
     iterate = .true.
   end if
@@ -154,15 +151,20 @@ contains
   end subroutine pick_parent
 end subroutine crest_queue_setup
 
+!=============================================================================! 
+!#############################################################################! 
+!=============================================================================! 
+
 subroutine crest_queue_iter(env,iterate)
   use crest_parameters
   use crest_data
   use strucrd
   use iomod
+  use crest_calculator
   implicit none
   type(systemdata),intent(inout),target :: env
   logical,intent(out) :: iterate
-  integer :: ii,jj,kk,io
+  integer :: ii,jj,kk,io,nn,ll,lll,ati,atj
   type(coord) :: mol
   character(len=10) :: atmp
   character(len=*),parameter :: dirname = 'crest_queue_'
@@ -170,42 +172,48 @@ subroutine crest_queue_iter(env,iterate)
   iterate = .false.
 
   if (allocated(env%splitqueue).and.env%splitheap%nqueue > 0) then
+!>--- important restoring to initial calc/dir
+    env%calc => env%splitheap%origincalc
     call chdir(env%splitheap%origindir)
+
+    !> next iter
     ii = env%queue_iter+1
     env%queue_iter = ii
 
+    write (stdout,'(/,70("§"))')
+    write (stdout,'(a,i0)') "§§§   QUEUE ITERATION ",ii
+    write (stdout,'(70("§"))')
 
-    write(stdout,'(/,70("§"))')
-    write(stdout,'(a,i0)') "§§§   QUEUE ITERATION ",ii
-    write(stdout,'(70("§"))')
-
-    associate (queue => env%splitheap%queue(ii))
-
-      jj = queue%layer
-      kk = queue%node
+    jj = env%splitheap%queue(ii)%layer
+    kk = env%splitheap%queue(ii)%node
+    associate (heap => env%splitheap,queue => env%splitheap%queue(ii))
 
       !> create a dedicated work directory
-      write(atmp,'(i0)') ii
+      write (atmp,'(i0)') ii
       queue%workdir = dirname//trim(atmp)
       io = makedir(queue%workdir)
       call chdir(queue%workdir)
-      write(stdout,'(a,a)') 'Queue work (sub-)directory: ', &
+      write (stdout,'(a,a)') 'Queue work (sub-)directory: ', &
         & trim(queue%workdir)
 
       !> selecting output file depending on runtype
-      select case(env%crestver)
-      case ( crest_imtd,crest_imtd2 )
-         queue%file = 'crest_conformers.xyz'
-      case ( crest_optimize )
-         queue%file = 'crestopt.xyz'
-      case ( crest_moldyn )
-         queue%file = 'crest_dynamics.trj.xyz'
-      case ( crest_bh )
-          queue%file = 'crest_quenched.xyz'
+      select case (env%crestver)
+      case (crest_imtd,crest_imtd2)
+        queue%file = 'crest_conformers.xyz'
+      case (crest_optimize)
+        queue%file = 'crestopt.xyz'
+      case (crest_moldyn)
+        queue%file = 'crest_dynamics.trj.xyz'
+      case (crest_bh)
+        queue%file = 'crest_quenched.xyz'
       case default
         queue%file = 'struc.xyz'
       end select
-      call queue%calc%copy(env%calc)
+
+!>--- new calculator setup section and env update
+      call queue%calc%copy(env%calc,ignore_constraints=.true.)
+      !> for constraints we must be careful and map them to the new order
+      call update_constraints_queue(heap,jj,kk,env%calc,queue%calc)
 
       call queue%calc%info(stdout)
 
@@ -213,7 +221,7 @@ subroutine crest_queue_iter(env,iterate)
       call env%ref%load(mol)
       call mol%write('coord')
 
-      if(allocated(env%ref%wbo)) deallocate(env%ref%wbo)
+      if (allocated(env%ref%wbo)) deallocate (env%ref%wbo)
       env%nat = mol%nat
       env%rednat = mol%nat
 
@@ -224,6 +232,63 @@ subroutine crest_queue_iter(env,iterate)
       iterate = .true.
     end if
 
-    write(stdout,*)
+    write (stdout,*)
   end if
+
+contains
+  subroutine update_constraints_queue(heap,layer,node,refcalc,newcalc)
+    use construct_list
+    implicit none
+    type(construct_heap) :: heap
+    integer :: layer,node
+    type(calcdata),intent(in) :: refcalc
+    type(calcdata),intent(inout) :: newcalc
+    integer :: nn,ll,lll,ati,atj,nn2
+    type(constraint),allocatable :: cons(:)
+    if (refcalc%nconstraints > 0) then
+      nn = refcalc%nconstraints
+      allocate (cons(nn))
+      do ll = 1,nn
+        call cons(ll)%copy(refcalc%cons(ll))
+        do lll = 1,cons(ll)%n
+          ati = cons(ll)%atms(lll)
+          call heap%find_current_position(ati,layer,node,atj)
+          cons(ll)%atms(lll) = atj !> overwrite with the current position
+        end do
+        if (any(cons(ll)%atms(:) .eq. 0)) then
+          cons(ll)%active = .false.
+        end if
+      end do
+      !> clean (active) constraints
+      nn2 = 0
+      do ll = 1,nn
+        if (cons(ll)%active) nn2 = nn2+1
+      end do
+      if (nn2 > 0) then
+        newcalc%nconstraints = nn2
+        allocate (newcalc%cons(nn2))
+        lll = 0
+        do ll = 1,nn
+          if (cons(ll)%active) then
+            lll = lll+1
+            call newcalc%cons(lll)%copy(cons(ll))
+          end if
+        end do
+      end if
+    end if
+  end subroutine update_constraints_queue
 end subroutine crest_queue_iter
+
+!=============================================================================!
+!#############################################################################!
+!=============================================================================!
+
+subroutine crest_queue_reconstruct(env,tim)
+  use crest_parameters
+  use crest_data
+  implicit none
+  type(systemdata),intent(inout) ::  env
+  type(timer),intent(inout) :: tim
+
+end subroutine crest_queue_reconstruct
+
