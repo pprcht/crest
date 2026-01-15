@@ -31,7 +31,8 @@ module construct_list
     integer,allocatable :: position_mapping(:,:)
     type(origin_map),allocatable :: origin(:)
     !> initial/reconstructed molecule
-    type(coord) :: mol
+    integer :: nmols = 0
+    type(coord),allocatable :: mols(:)
   end type construct_layer
 
   type :: construct_queue
@@ -50,7 +51,8 @@ module construct_list
     !> the queue to treat endpoints
     integer :: nqueue = 0
     type(construct_queue),allocatable :: queue(:)
-    !> originial directory
+    !> originial data
+    type(coord) :: originmol
     character(len=:),allocatable :: origindir
     type(calcdata),pointer :: origincalc
   contains

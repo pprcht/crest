@@ -90,6 +90,7 @@ subroutine crest_queue_setup(env,iterate)
 
       call heap%setup_queue()
       call getcwd(thispath)
+      call env%ref%to(heap%originmol)
       heap%origindir = trim(thispath)
       heap%origincalc => env%calc
     end associate
@@ -120,7 +121,8 @@ contains
       do ii = 1,heap%layer(prev_layer)%nnodes
         matching = .true.
         do jj = 1,size(splitatms,1)
-          matching = matching.and.any(heap%layer(prev_layer)%origin(ii)%map(:) .eq. splitatms(jj))
+          matching = matching.and. &
+            & any(heap%layer(prev_layer)%origin(ii)%map(:) .eq. splitatms(jj))
         end do
         if (matching) then
           parentlayer = prev_layer
@@ -151,9 +153,9 @@ contains
   end subroutine pick_parent
 end subroutine crest_queue_setup
 
-!=============================================================================! 
-!#############################################################################! 
-!=============================================================================! 
+!=============================================================================!
+!#############################################################################!
+!=============================================================================!
 
 subroutine crest_queue_iter(env,iterate)
   use crest_parameters
@@ -193,7 +195,7 @@ subroutine crest_queue_iter(env,iterate)
       queue%workdir = dirname//trim(atmp)
       io = makedir(queue%workdir)
       call chdir(queue%workdir)
-      write (stdout,'(a,a)') 'Queue work (sub-)directory: ', &
+      write (stdout,'(a,t28,a,t30,a)') 'Queue work (sub-)directory',':', &
         & trim(queue%workdir)
 
       !> selecting output file depending on runtype
@@ -209,6 +211,7 @@ subroutine crest_queue_iter(env,iterate)
       case default
         queue%file = 'struc.xyz'
       end select
+      write (stdout,'(a,t28,a,t30,a)') 'Selected output file',':',queue%file
 
 !>--- new calculator setup section and env update
       call queue%calc%copy(env%calc,ignore_constraints=.true.)
@@ -286,9 +289,98 @@ end subroutine crest_queue_iter
 subroutine crest_queue_reconstruct(env,tim)
   use crest_parameters
   use crest_data
+  use construct_list
+  use strucrd
   implicit none
   type(systemdata),intent(inout) ::  env
   type(timer),intent(inout) :: tim
+  type(coord) :: mol
+
+  if (.not. (allocated(env%splitqueue).and.env%splitheap%nqueue > 0)) then
+    return
+  end if
+
+  write (stdout,'(/,80("#"))')
+  write (stdout,'(3("#"),t25,a,t78,3("#"))') 'QUEUE STRUCTURE RECONSTRUCTION'
+  write (stdout,'(80("#"),/)')
+
+  !> reset
+  mol = env%splitheap%originmol
+  call env%ref%load(mol)
+  env%nat = mol%nat
+  env%rednat = mol%nat
+  env%calc => env%splitheap%origincalc
+  call chdir(env%splitheap%origindir)
+
+  call recusrive_construct(env,env%splitheap,1)
+
+contains
+  recursive subroutine recusrive_construct(env,heap,targetlayer)
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(construct_heap),intent(inout) :: heap
+    integer,intent(in) :: targetlayer
+
+    integer :: ii,jj
+    character(len=:),allocatable :: basefile,sidefile
+    type(coord),allocatable :: structures_b(:)
+    type(coord),allocatable :: structures_s(:)
+    integer :: nall_b,nall_s,id_b,id_s
+    logical :: ex
+
+    character(len=*),parameter :: subdir_tmp = 'crest_queue_'
+    character(len=:),allocatable :: subdirfile
+    character(len=10) :: atmp
+
+    associate (layer => heap%layer(targetlayer))
+      if (layer%nnodes > 2) then
+        write (stdout,'(a)') 'currently unhandled edge-case in layer reconstruction:'
+        write (stdout,'(a,i0,a)') 'layer ',targetlayer,' was split in more than 2 structures'
+        stop
+      end if
+
+      if (.not.allocated(layer%childlayer).or. &
+        & all(layer%childlayer(:) .eq. 0)) then
+        !> saveguard to not reconstruct layer multiple times
+        if (layer%nmols > 0) return
+
+        !> pick base an side-group files
+        do ii = 1,heap%nqueue
+          if (heap%queue(ii)%layer == targetlayer.and.heap%queue(ii)%node == 1) then
+            basefile = heap%queue(ii)%file
+            id_b = ii
+          else if (heap%queue(ii)%layer == targetlayer.and.heap%queue(ii)%node == 2) then
+            sidefile = heap%queue(ii)%file
+            id_s = ii
+          end if
+        end do
+
+        write (atmp,'(i0)') id_b
+        subdirfile = subdir_tmp//trim(atmp)//'/'//basefile
+        inquire (exist=ex,file=subdirfile)
+        if (ex) then
+          write (stdout,'(a,t28,a,t30,a)') 'Reading fragment(s) from',':',subdirfile
+          call rdensemble(subdirfile,nall_b,structures_b)
+        end if
+
+        write (atmp,'(i0)') id_s
+        subdirfile = subdir_tmp//trim(atmp)//'/'//sidefile
+        inquire (exist=ex,file=subdirfile)
+        if (ex) then
+          write (stdout,'(a,t28,a,t30,a)') 'Reading fragment(s) from',':',subdirfile
+          call rdensemble(subdirfile,nall_s,structures_s)
+        end if
+
+      else
+        do ii = 1,layer%nnodes
+          jj = layer%childlayer(ii)
+          if (jj == 0) cycle
+          call recusrive_construct(env,heap,jj)
+        end do
+      end if
+
+    end associate
+  end subroutine recusrive_construct
 
 end subroutine crest_queue_reconstruct
 
