@@ -14,11 +14,11 @@ module hessian_reconstruct
     real(wp),allocatable :: gradient(:,:,:)
     real(wp),allocatable :: coords(:,:,:)
     real(wp),allocatable :: energy(:)
-    real(wp),allocatable :: s(:,:),y(:,:),B(:,:),H(:,:),Hinv(:,:),p(:),rho(:),V(:,:,:),I(:,:)
+    real(wp),allocatable :: H(:,:)
     integer,allocatable :: order(:),natm
     integer :: stepcount = 0
     real(wp) :: hguess = 0.02_wp
-    real(wp),allocatable ::hguess_mat(:,:)
+    real(wp),allocatable ::hess(:)
     logical :: track_step = .true.
     integer :: initialize_type = 0
 
@@ -46,16 +46,8 @@ contains
     allocate (self%coords(steps,3,N))
     allocate (self%energy(steps))
     allocate (self%order(steps))
-    allocate (self%s(self%steps-1,3*N))
-    allocate (self%y(self%steps-1,3*N))
-    allocate (self%p(self%steps-1))
-    allocate (self%rho(self%steps-1))
-    allocate (self%V(self%steps-1,3*N,3*N))
-    allocate (self%I(3*N,3*N))
-    allocate (self%hguess_mat(3*N,3*N))
+    allocate (self%hess((3*N*(3*N+1))/2))
     allocate (self%H(3*N,3*N))
-    allocate (self%Hinv(3*N,3*N))
-    allocate (self%B(3*N,3*N))
 
     self%order(:) = 0
 
@@ -68,12 +60,6 @@ contains
     if (allocated(self%coords)) deallocate (self%coords)
     if (allocated(self%energy)) deallocate (self%energy)
     if (allocated(self%order)) deallocate (self%order)
-    if (allocated(self%s)) deallocate (self%s)
-    if (allocated(self%y)) deallocate (self%y)
-    if (allocated(self%p)) deallocate (self%p)
-    if (allocated(self%rho)) deallocate (self%rho)
-    if (allocated(self%V)) deallocate (self%V)
-    if (allocated(self%I)) deallocate (self%I)
 
   end subroutine cashed_hessian_deallocate
 
@@ -94,7 +80,7 @@ contains
   subroutine construct_hessian_bfgs(self)
     class(cashed_hessian),intent(inout) :: self
     integer :: i,j,k,nat3
-    real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:),hess(:),dx(:)
+    real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:),dx(:)
     real(wp) :: gnorm
     integer :: unit,iter,made_iters
 
@@ -103,7 +89,6 @@ contains
     allocate (tmp_coords(self%steps,nat3))
     allocate (tmp_grads(self%steps,nat3))
     allocate (tmp(self%steps))
-    allocate (hess(nat3*(nat3+1)/2))
     allocate (dx(nat3))
 
     tmp = self%order
@@ -113,7 +98,7 @@ contains
 
     made_iters = self%steps
 
-    call dsqtoh(nat3,self%hguess_mat,hess) !> Here, Hessian is packed and transferred to hess
+    !>Hessian guess is installed previously in optimize routine but could also be read in explicitly for better readability?
 
     if (minval(tmp) == 0) then !> Implement keyword like exact HU that kills the process
       made_iters = maxval(tmp) !> if made_iters<steps
@@ -135,16 +120,16 @@ contains
         j = minloc(tmp,1) !> This only happens if made_iters>steps
         if (j == 1) then  !> => Not affected if too many steps requested
           dx = tmp_coords(j,:)-tmp_coords(self%steps,:)
-          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,hess)
+          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,self%hess(:))
         else
           dx = tmp_coords(j,:)-tmp_coords(j-1,:)
-          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,hess)
+          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,self%hess(:))
         end if
         tmp(j) = HUGE(tmp(j))
       end if
     end do
 
-    call dhtosq(nat3,self%B,hess)
+    call dhtosq(nat3,self%H(:,:),self%hess(:)) !>B needs to be renamed eventually!
 
   end subroutine construct_hessian_bfgs
 

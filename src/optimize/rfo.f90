@@ -35,6 +35,7 @@ module rfo_module
   use hessupdate_module
   use optimize_utils
   use hessian_reconstruct
+  use hr_utils
   implicit none
   private
 
@@ -125,6 +126,12 @@ contains  !> MODULE PROCEDURES START HERE
     !real(sp),external :: sdot
     real(wp),allocatable :: test_hess(:) !> only for testing
     integer :: q,r,s !>only for testing
+    !>These are for spectral projection
+    real(wp), allocatable :: eigvec(:,:), eigval(:)
+    real(wp), allocatable :: work(:)
+    integer, allocatable :: iwork_spec(:)
+    integer :: lwork, liwork, info_spec
+    real(wp) :: elow, damp_spec, scale
 
     iostatus = 0
     fail = .false.
@@ -192,17 +199,19 @@ contains  !> MODULE PROCEDURES START HERE
 !>------------------------------------------------------------------------
 !>--- put the Hessian guess into the type
 !>------------------------------------------------------------------------
-    k = 0
-    do i = 1,nat3
-      do j = 1,i
-        k = k+1
-        if (i /= j) then
-          OPT%hess(k) = 0.0_wp
-        else
-          OPT%hess(k) = calc%hguess
-        end if
-      end do
-    end do
+    !k = 0
+    !do i = 1,nat3
+    !  do j = 1,i
+    !    k = k+1
+    !    if (i /= j) then
+    !      OPT%hess(k) = 0.0_wp
+    !    else
+    !      OPT%hess(k) = calc%hguess
+    !    end if
+    !  end do
+    !end do
+
+    call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,OPT%hess(:),calc%hguess,pr) !>Need to add printout about how hessian is initialized! Potentially also force positive definiteness by eigenvalue shifting!
 
 !>--- backup coordinates, and starting energy
     molopt%nat = mol%nat

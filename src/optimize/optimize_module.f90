@@ -63,8 +63,8 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
     real(wp),allocatable :: H_init(:,:),freq(:)
-    integer :: nat3
-    integer :: io
+    integer :: nat3,io,idx
+    real(wp),allocatable :: hess(:)
 
 
     iostatus = -1
@@ -117,7 +117,7 @@ contains  !> MODULE PROCEDURES START HERE
     end select
     molnew%energy = etot
 
-    if (calc%do_HR .and. iostatus .eq. 0) then !> Hessian construction and post-processing happen here, only do it if geometry relaxation successful
+    if (calc%do_HR .and. iostatus .eq. 0) then !> Hessian reconstruction and post-processing happen here, only do it if geometry relaxation successful
       if (calc%full_HR) then
 
         write (stdout,*)
@@ -129,22 +129,25 @@ contains  !> MODULE PROCEDURES START HERE
         & calc%ht,calc%gt,calc%stot,etot)
 
       else
+        call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,calc%chess%hess(:),calc%hguess,pr)
+        idx = minloc(calc%chess%order,1)
         
-        call hr_initialize_hessian(calc, molnew%at)
-        write(stdout,*)
+        call initialize_hessian(calc,calc%chess%initialize_type,calc%chess%coords(idx,:,:),molnew%nat,molnew%at,calc%chess%hess(:),calc%chess%hguess,pr)  !> This hguess is set through the hguess variable of the optimizer and needs to be hardcoded/set explicitly before initialization for benchmarking!!
+        call dhtosq(nat3,H_init,calc%chess%hess) !> maybe this should all be inside the construct bfgs function later? -> cannot due to circular import!!!
+        write(stdout,*)                                                                                                   !> Hessian type (gfnff,mod,identity) is set through input file and is already encoded into the calc object
         write(stdout,*)"THERMO FROM INITIALIZED HESSIAN:"
-        write(stdout,*)
-        H_init(:,:) = calc%chess%hguess_mat(:,:)
+        write(stdout,*) 
         call calc_thermo_from_hess(molnew,H_init,pr, &
         & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
         & calc%ht,calc%gt,calc%stot,etot)
+
         call calc%chess%construct_hessian_bfgs()
 
         write (stdout,*)
-        write (stdout,*) "THERMO FROM RECONSTRUCTED HESSIAN:"
+        write (stdout,*) "THERMO FROM RECONSTRUCTED HESSIAN:" 
         write (stdout,*)
 
-        call calc_thermo_from_hess(molnew,calc%chess%B,pr, &
+        call calc_thermo_from_hess(molnew,calc%chess%H(:,:),pr, &
         & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
         & calc%ht,calc%gt,calc%stot,etot)
       end if

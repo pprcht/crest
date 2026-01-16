@@ -35,6 +35,7 @@ module newton_raphson_module
   use hessupdate_module
   use optimize_utils
   use hessian_reconstruct
+  use hr_utils
   implicit none
   private
 
@@ -190,17 +191,19 @@ contains  !> MODULE PROCEDURES START HERE
 !>------------------------------------------------------------------------
 !>--- put the Hessian guess into the type
 !>------------------------------------------------------------------------
-    k = 0
-    do i = 1,nat3
-      do j = 1,i
-        k = k+1
-        if (i /= j) then
-          OPT%hess(k) = 0.0_wp
-        else
-          OPT%hess(k) = calc%hguess
-        end if
-      end do
-    end do
+    !k = 0
+    !do i = 1,nat3
+    !  do j = 1,i
+    !    k = k+1
+    !    if (i /= j) then
+    !      OPT%hess(k) = 0.0_wp
+    !    else
+    !      OPT%hess(k) = calc%hguess
+    !    end if
+    !  end do
+    !end do
+
+    call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,hess,calc%hguess,pr)
 
 !>--- backup coordinates, and starting energy
     molopt%nat = mol%nat
