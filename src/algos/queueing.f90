@@ -217,6 +217,11 @@ subroutine crest_queue_iter(env,iterate)
       call queue%calc%copy(env%calc,ignore_constraints=.true.)
       !> for constraints we must be careful and map them to the new order
       call update_constraints_queue(heap,jj,kk,env%calc,queue%calc)
+      do ll=1,heap%layer(jj)%node(kk)%nat
+        atj = heap%layer(jj)%origin(kk)%map(ll)
+        write(*,*) 'c',ll,'o',atj
+
+      enddo
 
       call queue%calc%info(stdout)
 
@@ -290,11 +295,14 @@ subroutine crest_queue_reconstruct(env,tim)
   use crest_parameters
   use crest_data
   use construct_list
+  use construct_mod
   use strucrd
   implicit none
   type(systemdata),intent(inout) ::  env
   type(timer),intent(inout) :: tim
   type(coord) :: mol
+  integer :: ii,jj,kk,nall
+  type(coord),allocatable :: structures(:)
 
   if (.not. (allocated(env%splitqueue).and.env%splitheap%nqueue > 0)) then
     return
@@ -313,6 +321,13 @@ subroutine crest_queue_reconstruct(env,tim)
   call chdir(env%splitheap%origindir)
 
   call recusrive_construct(env,env%splitheap,1)
+  nall = env%splitheap%layer(1)%nmols
+  allocate(structures(nall))
+  do ii=1,nall
+    structures(ii) = env%splitheap%layer(1)%mols(ii)
+  enddo
+  deallocate(env%splitheap%layer(1)%mols)
+  call wrensemble('crest_queue_reconstruct.xyz',nall,structures)
 
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)
@@ -321,12 +336,14 @@ contains
     type(construct_heap),intent(inout) :: heap
     integer,intent(in) :: targetlayer
 
-    integer :: ii,jj
+    integer :: ii,jj,kk
+    integer :: queuepos
     character(len=:),allocatable :: basefile,sidefile
     type(coord),allocatable :: structures_b(:)
     type(coord),allocatable :: structures_s(:)
+    type(coord) :: mol
     integer :: nall_b,nall_s,id_b,id_s
-    logical :: ex
+    logical :: ex,clash
 
     character(len=*),parameter :: subdir_tmp = 'crest_queue_'
     character(len=:),allocatable :: subdirfile
@@ -339,45 +356,92 @@ contains
         stop
       end if
 
-      if (.not.allocated(layer%childlayer).or. &
-        & all(layer%childlayer(:) .eq. 0)) then
-        !> saveguard to not reconstruct layer multiple times
-        if (layer%nmols > 0) return
-
-        !> pick base an side-group files
-        do ii = 1,heap%nqueue
-          if (heap%queue(ii)%layer == targetlayer.and.heap%queue(ii)%node == 1) then
-            basefile = heap%queue(ii)%file
-            id_b = ii
-          else if (heap%queue(ii)%layer == targetlayer.and.heap%queue(ii)%node == 2) then
-            sidefile = heap%queue(ii)%file
-            id_s = ii
-          end if
-        end do
-
-        write (atmp,'(i0)') id_b
-        subdirfile = subdir_tmp//trim(atmp)//'/'//basefile
-        inquire (exist=ex,file=subdirfile)
-        if (ex) then
-          write (stdout,'(a,t28,a,t30,a)') 'Reading fragment(s) from',':',subdirfile
-          call rdensemble(subdirfile,nall_b,structures_b)
-        end if
-
-        write (atmp,'(i0)') id_s
-        subdirfile = subdir_tmp//trim(atmp)//'/'//sidefile
-        inquire (exist=ex,file=subdirfile)
-        if (ex) then
-          write (stdout,'(a,t28,a,t30,a)') 'Reading fragment(s) from',':',subdirfile
-          call rdensemble(subdirfile,nall_s,structures_s)
-        end if
-
-      else
-        do ii = 1,layer%nnodes
+      do ii = 1,layer%nnodes
+        if (allocated(layer%childlayer)) then
           jj = layer%childlayer(ii)
-          if (jj == 0) cycle
+        else
+          jj = 0
+        end if
+        if (jj == 0.and.ii == 1) then
+
+          do kk = 1,heap%nqueue
+            if (heap%queue(kk)%layer == targetlayer.and.heap%queue(kk)%node == ii) then
+              basefile = heap%queue(kk)%file
+              id_b = kk
+            end if
+          end do
+
+          write (atmp,'(i0)') id_b
+          subdirfile = subdir_tmp//trim(atmp)//'/'//basefile
+          inquire (exist=ex,file=subdirfile)
+          if (ex) then
+            write (stdout,'(a,t26,a,t30,a)',advance='no') &
+              & 'Reading fragment(s) from',':',subdirfile
+            call rdensemble(subdirfile,nall_b,structures_b)
+            write (stdout,'(1x,a,i0,a)') '--> ',nall_b,' structure(s)'
+
+          end if
+
+        else if (jj == 0.and.ii == 2) then
+
+          do kk = 1,heap%nqueue
+            if (heap%queue(kk)%layer == targetlayer.and.heap%queue(kk)%node == ii) then
+              sidefile = heap%queue(kk)%file
+              id_s = kk
+            end if
+          end do
+
+          write (atmp,'(i0)') id_s
+          subdirfile = subdir_tmp//trim(atmp)//'/'//sidefile
+          inquire (exist=ex,file=subdirfile)
+          if (ex) then
+            write (stdout,'(a,t26,a,t30,a)',advance='no') &
+              & 'Reading fragment(s) from',':',subdirfile
+            call rdensemble(subdirfile,nall_s,structures_s)
+            write (stdout,'(1x,a,i0,a)') '--> ',nall_s,' structure(s)'
+          end if
+
+        else
           call recusrive_construct(env,heap,jj)
+          if (ii == 1) then
+            nall_b = heap%layer(jj)%nmols
+            allocate (structures_b(nall_b))
+            do kk = 1,nall_b
+              structures_b(kk) = heap%layer(jj)%mols(kk)
+            end do
+            !deallocate (heap%layer(jj)%mols)
+          else if (ii == 2) then
+
+            nall_s = heap%layer(jj)%nmols
+            allocate (structures_s(nall_s))
+            do kk = 1,nall_s
+              structures_s(kk) = heap%layer(jj)%mols(kk)
+            end do
+            !deallocate (heap%layer(jj)%mols)
+          end if
+        end if
+      end do
+
+      write (stdout,*)
+      write (stdout,'(a,i0)') 'Reconstructing layer : ',targetlayer
+      write (stdout,'(2x,a,i0)') 'Base structures       : ',nall_b
+      write (stdout,'(2x,a,i0)') 'Side chain structures : ',nall_s
+      write (stdout,'(2x,a,i0)') 'Max. combinations     : ',nall_b*nall_s
+
+      layer%nmols = 0
+      kk = nall_b*nall_s
+      allocate (layer%mols(kk))
+      do ii = 1,nall_b
+        do jj = 1,nall_s
+          call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
+          & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
+          & clash=clash)
+          if(.not.clash)then
+            layer%nmols = layer%nmols + 1
+            layer%mols(layer%nmols) = mol 
+          endif
         end do
-      end if
+      end do
 
     end associate
   end subroutine recusrive_construct

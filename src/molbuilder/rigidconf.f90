@@ -81,12 +81,8 @@ contains
     write (stdout,'(7x,"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")')
     write (stdout,'(7x,"┃          R I G I D C O N F           ┃ ")')
     write (stdout,'(7x,"┃     (name is work-in-progress)       ┃ ")')
-    !write(stdout,'(7x,"┃               R i C o                ┃")')
-    !write(stdout,'(7x,"┃              ConfAcc                 ┃")')
     write (stdout,'(7x,"┃    rule-based conformer generator    ┃")')
     write (stdout,'(7x,"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")')
-    !write(stdout,'(12x,"C.Zurek, C.Bannwarth, P.Pracht")')
-    !write(stdout,*)
   end subroutine this_header
 end subroutine crest_rigidconf
 !========================================================================================!

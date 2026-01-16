@@ -74,7 +74,7 @@ contains  !> MODULE PROCEDURES START HERE
     !> defaults/checks of the alignmap
     nalign = size(alignmap,1)
     if (nalign < 3) then
-      error stop source//": alignmap needs at leaast 3 atoms"
+      error stop source//": alignmap needs at least 3 atoms"
     end if
     if (size(alignmap,2) .ne. 2) then
       error stop source//": alignmap has wrong dimension"
