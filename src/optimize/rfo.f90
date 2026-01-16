@@ -368,13 +368,13 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- choose solver for the RF eigenvalue problem
       if (exact.or.nvar1 .lt. 50) then
-        if (iter .eq. 1) then
-          Uaug(:,1) = [-grd1(1:OPT%nvar),1.0_wp]
-          dsnrm = sqrt(ddot(nvar1,Uaug,1,Uaug,1))
-          Uaug = Uaug/dsnrm
-        else
-          call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
-        endif
+        !if (iter .eq. 1) Uaug(:,1) = 0.0_wp
+        !  Uaug(:,1) = [-grd1(1:OPT%nvar),1.0_wp]
+        !  dsnrm = sqrt(ddot(nvar1,Uaug,1,Uaug,1))
+        !  Uaug = Uaug/dsnrm
+        !else
+          call solver_dspevx(nvar1,0.0_wp,Aaug,Uaug,eaug,fail)
+        !endif
       else
         !>--- steepest decent guess for displacement
         if (iter .eq. 1) then
