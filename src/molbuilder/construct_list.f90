@@ -112,35 +112,68 @@ contains  !> MODULE PROCEDURES START HERE
 
   end subroutine add_to_splitqueue
 
-  recursive function find_original_atom(atom,heap,targetlayer,targetnode) result(this)
+  recursive subroutine find_original_atoms(heap,targetlayer,targetnode,atoms)
     implicit none
     type(construct_heap),intent(in) :: heap
-    integer,intent(in) :: targetlayer,targetnode,atom
+    integer,intent(in) :: targetlayer,targetnode
+    integer,intent(out),allocatable :: atoms(:)
     integer :: this
-    integer :: ii,jj,kk
+    integer :: ii,jj,kk,nat,dim1,dim2
+    integer,allocatable :: tmpatoms(:)
 
-    this = 0
-    kk = 0
-    do ii = 1,size(heap%layer(targetlayer)%position_mapping,1)
-      if (atom == heap%layer(targetlayer)%position_mapping(ii,targetnode)) then
-        kk = ii
-        exit
+    write(*,*) "calling find_original_atoms"
+    associate (layer => heap%layer(targetlayer))
+      nat = layer%node(targetnode)%nat
+      allocate (atoms(nat),source=0)
+      if (layer%parent == 0) then
+        call position_mapping_reverse( &
+          & layer%position_mapping,targetnode,nat,atoms)
+      else
+        ii = layer%parent
+        jj = layer%parentnode
+        call find_original_atoms(heap,ii,jj,tmpatoms)
+        dim1 = size(tmpatoms,1)
+        dim2 = size(layer%position_mapping,1)
+        if (dim1 .ne. dim2) then
+          stop "something went wrong in find_original_atoms()"
+        end if
+        do ii = 1,dim1
+          kk = layer%position_mapping(ii,targetnode)
+          do jj = 1,nat
+            if (kk == jj) then
+              atoms(jj) = tmpatoms(ii)
+            end if
+          end do
+        end do
+        deallocate (tmpatoms)
       end if
+    end associate
+  end subroutine find_original_atoms
+
+  subroutine position_mapping_reverse(position_mapping,node,nat,revats)
+    !* get the original (one layer up) atom positions for ati
+    !* of a given node from the saved position_mapping  of the associated layer
+    !* Invalid setups return 0
+    implicit none
+    integer,intent(in) :: position_mapping(:,:)
+    integer,intent(in) :: node,nat
+    integer,intent(out),allocatable :: revats(:)
+    integer :: ii,jj,dim1,dim2
+    dim1 = size(position_mapping,1)
+    dim2 = size(position_mapping,2)
+    allocate (revats(nat),source=0)
+    if (node < 1.or.node > dim2) return
+    do ii = 1,dim1
+      jj = position_mapping(ii,node)
+      if (jj > 0) revats(jj) = ii
     end do
-    if (heap%layer(targetlayer)%parent == 0.or.kk == 0) then
-      this = kk
-    else
-      ii = heap%layer(targetlayer)%parent
-      jj = heap%layer(targetlayer)%parentnode
-      this = find_original_atom(kk,heap,ii,jj)
-    end if
-  end function find_original_atom
+  end subroutine position_mapping_reverse
 
   subroutine map_origins_for_layer(heap,targetlayer)
     implicit none
     class(construct_heap),intent(inout) :: heap
     integer,intent(in) :: targetlayer
-    integer :: ii,jj,kk,nat
+    integer :: ii,jj
     logical,parameter :: debug = .false.
     if (targetlayer < 1.or.targetlayer > heap%nlayer) return
     if (.not.allocated(heap%layer(targetlayer)%node)) return
@@ -148,18 +181,8 @@ contains  !> MODULE PROCEDURES START HERE
       if (allocated(layer%origin)) deallocate (layer%origin)
       allocate (layer%origin(layer%nnodes))
       do ii = 1,layer%nnodes
-        nat = layer%node(ii)%nat
-        allocate (layer%origin(ii)%map(nat),source=0)
-        layer%origin(ii)%natms = nat
-        do jj = 1,nat
-          layer%origin(ii)%map(jj) = find_original_atom(jj,heap,targetlayer,ii)
-        end do
-        if (debug) then
-          write (stdout,*) 'Original atom positions for fragment',ii,'of layer',targetlayer
-          do jj = 1,nat
-            write (stdout,*) 'frag.atm.',jj,'<-- original:',layer%origin(ii)%map(jj)
-          end do
-        end if
+        layer%origin(ii)%natms = layer%node(ii)%nat 
+        call find_original_atoms(heap,targetlayer,ii,layer%origin(ii)%map)
       end do
     end associate
   end subroutine map_origins_for_layer
@@ -209,7 +232,7 @@ contains  !> MODULE PROCEDURES START HERE
     nqueue = heap%count_endpoints()
     heap%nqueue = nqueue
     allocate (heap%queue(nqueue))
-    
+
     kk = 0
     do ii = 1,heap%nlayer
       if (.not.allocated(heap%layer(ii)%childlayer)) then

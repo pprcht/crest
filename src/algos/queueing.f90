@@ -29,7 +29,7 @@ subroutine crest_queue_setup(env,iterate)
   logical,intent(out) :: iterate
 
   integer :: splitlayers
-  integer :: ii,jj,nn
+  integer :: ii,jj,nn,kk,ich
   type(coord),pointer :: reference_mol
   type(coord),target :: mol
   integer,allocatable :: splitatms(:)
@@ -66,7 +66,6 @@ subroutine crest_queue_setup(env,iterate)
         nn = env%splitqueue(ii)%natms
         allocate (splitatms(nn))
         splitatms(:) = env%splitqueue(ii)%atms(:)
-
         if (ii == 1) then
           call env%ref%to(mol)
           reference_mol => mol
@@ -79,6 +78,8 @@ subroutine crest_queue_setup(env,iterate)
           else
             mol = heap%layer(parentlayer)%node(parentnode)
             reference_mol => mol
+            heap%layer(ii)%parent = parentlayer
+            heap%layer(ii)%parentnode = parentnode
           end if
         end if
         call split(reference_mol,splitatms,layer(ii)%node,layer(ii)%alignmap, &
@@ -93,12 +94,23 @@ subroutine crest_queue_setup(env,iterate)
       call env%ref%to(heap%originmol)
       heap%origindir = trim(thispath)
       heap%origincalc => env%calc
+
+      !open(newunit=ich,file='split.xyz')
+      !do nn = 1,heap%nqueue
+      !  ii = heap%queue(nn)%layer
+      !  jj = heap%queue(nn)%node
+      !  write (*,*) '    layer,node',ii,jj
+      !  call heap%layer(ii)%node(jj)%append(ich) 
+      !  do kk = 1,heap%layer(ii)%node(jj)%nat
+      !    write (*,*) 'c',kk,'o',heap%layer(ii)%origin(jj)%map(kk)
+      !  end do
+      !end do
+      !close(ich)
     end associate
     iterate = .true.
   end if
 
   return
-
 contains
   subroutine pick_parent(heap,current_layer,splitatms,parentlayer,parentnode)
     use construct_list
@@ -136,6 +148,7 @@ contains
     end do LAYITER
 
     !> IMPORTANT; we need to update the splitatms with the correctly mapped indices
+    !> reflecting their position in the selected parent layer
     if (parentnode .ne. 0) then
       do ii = 1,size(splitatms,1)
         jj = splitatms(ii)
@@ -217,11 +230,11 @@ subroutine crest_queue_iter(env,iterate)
       call queue%calc%copy(env%calc,ignore_constraints=.true.)
       !> for constraints we must be careful and map them to the new order
       call update_constraints_queue(heap,jj,kk,env%calc,queue%calc)
-      do ll=1,heap%layer(jj)%node(kk)%nat
+      do ll = 1,heap%layer(jj)%node(kk)%nat
         atj = heap%layer(jj)%origin(kk)%map(ll)
-        write(*,*) 'c',ll,'o',atj
+        write (*,*) 'c',ll,'o',atj
 
-      enddo
+      end do
 
       call queue%calc%info(stdout)
 
@@ -322,11 +335,11 @@ subroutine crest_queue_reconstruct(env,tim)
 
   call recusrive_construct(env,env%splitheap,1)
   nall = env%splitheap%layer(1)%nmols
-  allocate(structures(nall))
-  do ii=1,nall
+  allocate (structures(nall))
+  do ii = 1,nall
     structures(ii) = env%splitheap%layer(1)%mols(ii)
-  enddo
-  deallocate(env%splitheap%layer(1)%mols)
+  end do
+  deallocate (env%splitheap%layer(1)%mols)
   call wrensemble('crest_queue_reconstruct.xyz',nall,structures)
 
 contains
@@ -436,10 +449,10 @@ contains
           call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
           & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
           & clash=clash)
-          if(.not.clash)then
-            layer%nmols = layer%nmols + 1
-            layer%mols(layer%nmols) = mol 
-          endif
+          if (.not.clash) then
+            layer%nmols = layer%nmols+1
+            layer%mols(layer%nmols) = mol
+          end if
         end do
       end do
 
