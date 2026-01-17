@@ -21,4 +21,5 @@ srcs += files(
   'reconstruct.f90',
   'construct.f90',
   'construct_list.f90',
+  'classify.f90',
 )

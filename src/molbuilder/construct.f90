@@ -1,4 +1,4 @@
-module construct_mod
+module molbuilder_construct_mod
   !***********************************************
   !* A module for constructing molecules
   !* E.g. replacing functional groups and so on
@@ -782,5 +782,5 @@ contains  !> MODULE PROCEDURES START HERE
 !=============================================================================!
 !#############################################################################!
 !=============================================================================!
-end module construct_mod
+end module molbuilder_construct_mod
 

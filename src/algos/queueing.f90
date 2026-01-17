@@ -22,8 +22,8 @@ subroutine crest_queue_setup(env,iterate)
   use crest_data
   use crest_calculator
   use strucrd
-  use construct_list
-  use construct_mod
+  use molbuilder_construct_list
+  use molbuilder_construct_mod
   implicit none
   type(systemdata),intent(inout) :: env
   logical,intent(out) :: iterate
@@ -113,7 +113,7 @@ subroutine crest_queue_setup(env,iterate)
   return
 contains
   subroutine pick_parent(heap,current_layer,splitatms,parentlayer,parentnode)
-    use construct_list
+    use molbuilder_construct_list
     implicit none
     type(construct_heap),intent(inout) :: heap
     integer,intent(inout) :: splitatms(:)
@@ -258,7 +258,7 @@ subroutine crest_queue_iter(env,iterate)
 
 contains
   subroutine update_constraints_queue(heap,layer,node,refcalc,newcalc)
-    use construct_list
+    use molbuilder_construct_list
     implicit none
     type(construct_heap) :: heap
     integer :: layer,node
@@ -307,8 +307,8 @@ end subroutine crest_queue_iter
 subroutine crest_queue_reconstruct(env,tim)
   use crest_parameters
   use crest_data
-  use construct_list
-  use construct_mod
+  use molbuilder_construct_list
+  use molbuilder_construct_mod
   use strucrd
   implicit none
   type(systemdata),intent(inout) ::  env

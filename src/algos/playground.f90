@@ -77,26 +77,16 @@ subroutine crest_playground(env,tim)
 !  call calculation_summary(calc,mol,energy,grad)
 !========================================================================================!
   block
-    use construct_mod
-    type(coord) :: base,side,new,newnew
-    type(coord),allocatable :: splitlist(:)
-    integer,allocatable :: alignmap(:,:),ncap(:),position_mapping(:,:)
-
-    open (newunit=ich,file='molbuilder.xyz', &
-          status="unknown", &
-          action="write", &
-          position="append")
+    use molbuilder_classify
+    type(coord) :: new
+    type(coord_classify) :: newc
     call env%ref%to(new)
-    call new%append(ich)
-    !if(allocated(env%splitqueue))then
-    !  do i=1,env%splitheap%nlayer
-    !  write(*,*) 'layer',i
-    !    do j=1,env%splitheap%layer(i)%nnodes
-    !      call env%splitheap%layer(i)%node(j)%append(ich)
-    !    enddo
-    !  enddo
-    !endif
-    close (ich)
+
+    call setup_classify(new,newc)
+
+    do i=1,newc%nat
+    write(*,'(a,i0,3(1x,i0))') trim(i2e(newc%at(i),'nc')),i,newc%hyb(i),newc%nhn(i),newc%prio(i)
+    enddo
 
   end block
 

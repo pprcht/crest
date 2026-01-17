@@ -23,6 +23,7 @@ list(APPEND srcs
   "${dir}/reconstruct.f90"
   "${dir}/construct.f90"
   "${dir}/construct_list.f90"
+  "${dir}/classify.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

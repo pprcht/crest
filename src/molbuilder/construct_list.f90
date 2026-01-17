@@ -1,4 +1,4 @@
-module construct_list
+module molbuilder_construct_list
   !**************************************************
   !* Bookkeeping module for reconstructing molecules
   !**************************************************
@@ -254,4 +254,4 @@ contains  !> MODULE PROCEDURES START HERE
 
   end subroutine setup_queue
 
-end module construct_list
+end module molbuilder_construct_list

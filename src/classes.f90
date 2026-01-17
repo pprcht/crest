@@ -29,7 +29,7 @@ module crest_data
   use strucrd,only:coord
   use crest_type_timer,only:timer
   use lwoniom_module,only:lwoniom_input
-  use construct_list !> from molbuilder dir
+  use molbuilder_construct_list !> from molbuilder dir
   implicit none
 
   public :: systemdata

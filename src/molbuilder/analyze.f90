@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2023 Philipp Pracht, Christopher Zurek, Christoph Bannwarth
+! Copyright (C) 2026 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -15,9 +15,6 @@
 !
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
-!
-! Routines were adapted from the xtb code (github.com/grimme-lab/xtb)
-! under the Open-source software LGPL-3.0 Licencse.
 !================================================================================!
 
 module rigidconf_analyze
@@ -208,10 +205,6 @@ contains !> MODULE PROCEDURES START HERE
     integer,intent(out),allocatable  :: ztod(:)
     integer,intent(out),allocatable  :: dvalues(:)
     real(wp),intent(out),allocatable :: dstep(:)
-    !integer,intent(in)  :: ndieder
-    !integer,intent(out)  :: ztod(nat)
-    !integer,intent(out)  :: dvalues(ndieder)
-    !real(wp),intent(out) :: dstep(ndieder)
     !> LOCAL
     integer :: V,i,j,k,l,m,ich,io,n
     integer,allocatable :: Amap(:,:)
