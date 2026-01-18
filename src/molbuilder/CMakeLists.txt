@@ -24,6 +24,8 @@ list(APPEND srcs
   "${dir}/construct.f90"
   "${dir}/construct_list.f90"
   "${dir}/classify.f90"
+  "${dir}/classify_type.f90" 
+  "${dir}/classify_func.f90" 
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

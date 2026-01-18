@@ -400,7 +400,6 @@ subroutine testtopo(fname,env,tmode)
   character(len=*) :: fname
   character(len=:),allocatable :: wbofile
   character(len=*) :: tmode
-  character(len=40) :: sumform
   type(zmolecule) :: zmol
   type(coord) :: mol
   real(wp),allocatable :: xyz(:,:)
@@ -512,32 +511,6 @@ subroutine testtopo(fname,env,tmode)
 end subroutine testtopo
 
 !========================================================================================!
-
-character(len=40) function sumform(nat,at)
-!************************************************
-!* get sumformula as a string from the AT array
-!************************************************
-  use strucrd,only:i2e
-  implicit none
-  integer :: nat
-  integer :: at(nat)
-  integer :: sumat(94)
-  integer :: i
-  character(len=6) :: str
-  sumform = ''
-  sumat = 0
-  do i = 1,nat
-    sumat(at(i)) = sumat(at(i))+1
-  end do
-  do i = 1,94
-    if (sumat(i) .lt. 1) cycle
-    write (str,'(a,i0)') trim(adjustl(i2e(i,'nc'))),sumat(i)
-    sumform = trim(sumform)//trim(str)
-  end do
-  return
-end function sumform
-
-!=========================================================================================!
 
 subroutine ensemble_analsym(fname,pr)
 !*****************************************************************

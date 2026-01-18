@@ -95,17 +95,6 @@ subroutine crest_queue_setup(env,iterate)
       heap%origindir = trim(thispath)
       heap%origincalc => env%calc
 
-      !open(newunit=ich,file='split.xyz')
-      !do nn = 1,heap%nqueue
-      !  ii = heap%queue(nn)%layer
-      !  jj = heap%queue(nn)%node
-      !  write (*,*) '    layer,node',ii,jj
-      !  call heap%layer(ii)%node(jj)%append(ich) 
-      !  do kk = 1,heap%layer(ii)%node(jj)%nat
-      !    write (*,*) 'c',kk,'o',heap%layer(ii)%origin(jj)%map(kk)
-      !  end do
-      !end do
-      !close(ich)
     end associate
     iterate = .true.
   end if

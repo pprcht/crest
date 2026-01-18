@@ -83,10 +83,15 @@ subroutine crest_playground(env,tim)
     call env%ref%to(new)
 
     call setup_classify(new,newc)
+    !call atinfo_classify(newc)
+    call functional_group_classify(newc)
 
     do i=1,newc%nat
-    write(*,'(a,i0,3(1x,i0))') trim(i2e(newc%at(i),'nc')),i,newc%hyb(i),newc%nhn(i),newc%prio(i)
+    write(*,'(a,i0,3(1x,i0),1x,a)') trim(i2e(newc%at(i),'nc')),i,&
+      & newc%hyb(i),newc%nhn(i),newc%prio(i),trim(newc%atinfo(i))
     enddo
+
+    call newc%print_funcgroups(stdout)
 
   end block
 

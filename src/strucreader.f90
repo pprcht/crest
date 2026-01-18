@@ -139,6 +139,7 @@ module strucrd
   public :: mollist
   public :: coordline
   public :: get_atlist
+  public :: sumform
 
 !=========================================================================================!
   !coord class. contains a single structure in the PDB format.
@@ -794,7 +795,7 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     else
       call rdensemble_coord_type(fname,self%nall,self%structures)
-      allocate(self%er(nall),source=0.0_wp)
+      allocate (self%er(nall),source=0.0_wp)
       self%er(:) = self%structures(:)%energy
     end if
 
@@ -2464,6 +2465,43 @@ contains  !> MODULE PROCEDURES START HERE
     self%xyz(1:3,atj) = xyztmp(1:3)
     self%at(atj) = attmp
   end subroutine atswp
+
+!=========================================================================================!
+
+  function sumform(nat,at) result(sumformula)
+!************************************************
+!* get sumformula as a string from the AT array
+!************************************************
+    implicit none
+    integer,intent(in) :: nat
+    integer,intent(in) :: at(nat)
+    character(len=:),allocatable :: sumformula
+    integer :: sumat(118)
+    integer :: i
+    character(len=6) :: str
+    sumformula = ''
+    sumat = 0
+    do i = 1,nat
+      sumat(at(i)) = sumat(at(i))+1
+    end do
+    !> carbon always first
+    if (sumat(6) > 0) then
+      write (str,'(a,i0)') trim(adjustl(i2e(6,'nc'))),sumat(6)
+      sumformula = trim(sumformula)//trim(str)
+    end if
+    do i = 2,118
+      if (i == 6) cycle
+      if (sumat(i) .lt. 1) cycle
+      write (str,'(a,i0)') trim(adjustl(i2e(i,'nc'))),sumat(i)
+      sumformula = trim(sumformula)//trim(str)
+    end do
+    !> hydrogen always last
+    if (sumat(1) > 0) then
+      write (str,'(a,i0)') trim(adjustl(i2e(1,'nc'))),sumat(1)
+      sumformula = trim(sumformula)//trim(str)
+    end if
+    return
+  end function sumform
 
 !=========================================================================================!
 !=========================================================================================!

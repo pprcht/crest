@@ -22,4 +22,6 @@ srcs += files(
   'construct.f90',
   'construct_list.f90',
   'classify.f90',
+  'classify_type.f90', 
+  'classify_func.f90', 
 )

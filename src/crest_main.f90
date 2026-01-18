@@ -49,7 +49,7 @@ program CREST
 !>  Initialize system clock time
   call tim%init(20)
 
-  env%calc => calc_origin 
+  env%calc => calc_origin
 !=========================================================================================!
 !> set defaults and pars flags
   args = iargc()
@@ -214,6 +214,12 @@ program CREST
   case default
     continue
   end select
+
+!>--- alkylation prep
+  if (env%alkylize) then
+    call crest_setup_alkylize(env)
+  end if
+
 !=========================================================================================!
 !>         PRE-OPTIMIZATION OF THE GEOMETRY
 !=========================================================================================!
@@ -317,7 +323,6 @@ program CREST
   end do ITERATOR
 
   call crest_queue_reconstruct(env,tim)
-
 
 !=========================================================================================!
 !>        ADDITIONAL OUTPUT FORMATTING

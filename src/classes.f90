@@ -543,6 +543,7 @@ module crest_data
 
     !>--- general logical data
     logical :: allrot = .true.       !> use all rotational constants for check instead of mean?
+    logical :: alkylize = .false.    !> alkylization setting
     logical :: altopt = .false.
     logical :: autothreads           !> automatically determine threads
     logical :: autozsort             !> do the ZSORT in the beginning ?

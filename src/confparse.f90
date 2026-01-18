@@ -1533,6 +1533,9 @@ subroutine parseflags(env,arg,nra)
         env%wallsetup = .true.
         env%potscal = 2.0_wp
         write (*,'(2x,a,1x,a)') '--wall-xxl:','requesting setup of wall potential (x2.0 size)'
+
+      case ('-alkylize')
+        env%alkylize = .true.
 !========================================================================================!
 !------ flags for parallelization / disk space
 !========================================================================================!

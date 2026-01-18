@@ -34,4 +34,5 @@ srcs += files(
   'search_entropy.f90',
   'parallel.f90', 
   'queueing.f90',
+  'alkylize.f90',
 )
