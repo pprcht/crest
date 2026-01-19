@@ -23,7 +23,7 @@ module molbuilder_classify_func
   use adjacency
   use canonical_mod
   use molbuilder_classify_type
-  use quicksort_interface, only: qqsorti
+  use quicksort_interface,only:qqsorti
   implicit none
   private
 
@@ -39,7 +39,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(coord_classify),intent(inout) :: molc
     type(functional_group) :: fg
-    integer :: ii,jj,nn,nfunc
+    integer :: ii,jj,nn,nfunc,nfunc2
     logical :: success,updated,duplicate
 
     if (.not.allocated(molc%atinfo)) then
@@ -55,7 +55,7 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
     updated = .true.
-    nfunc = size(molc%funcgroups,1)
+    nfunc = molc%nfuncs
     do while (updated)
 
       do ii = 1,nfunc
@@ -64,7 +64,8 @@ contains  !> MODULE PROCEDURES START HERE
         if (success) then
           !> check for duplicates, only add new ones
           duplicate = .false.
-          do jj = 1,nfunc
+          nfunc2 = molc%nfuncs
+          do jj = 1,nfunc2
             if (all(molc%funcgroups(jj)%ids .eq. fg%ids)) duplicate = .true.
           end do
           if (.not.duplicate) call molc%add(fg)
@@ -72,7 +73,7 @@ contains  !> MODULE PROCEDURES START HERE
         molc%funcgroups(ii)%seeded = .true.
       end do
 
-      nn = size(molc%funcgroups,1)
+      nn = molc%nfuncs
       if (nn == nfunc) then
         updated = .false.
       else
@@ -209,9 +210,9 @@ contains  !> MODULE PROCEDURES START HERE
     select case (trim(molc%funcgroups(ii)%name))
     case ('methyl')
 
+      !> n-alkyl chains always start from methyl
       call check_alkyl(molc,ii,fg,success)
       if (success) then
-        fg%name = 'alkyl'
         fg%natms = count(molc%lwork)
         allocate (fg%ids(fg%natms),source=0)
         kk = 0
@@ -265,6 +266,13 @@ contains  !> MODULE PROCEDURES START HERE
           else if (molc%at(ii) == 6) then
             if (trim(molc%atinfo(ii)) == 'CH2') then
               !> continue chain
+              fg%name = 'alkyl'
+              success = .true. !> at the first occurence of CH2 we have at least ethyl
+              atii = ii
+              molc%lwork(ii) = .true.
+            else if (trim(molc%atinfo(ii)) == 'CH3') then
+              !> continue chain
+              fg%name = 'alkane'
               success = .true. !> at the first occurence of CH2 we have at least ethyl
               atii = ii
               molc%lwork(ii) = .true.

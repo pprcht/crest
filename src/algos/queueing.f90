@@ -219,11 +219,6 @@ subroutine crest_queue_iter(env,iterate)
       call queue%calc%copy(env%calc,ignore_constraints=.true.)
       !> for constraints we must be careful and map them to the new order
       call update_constraints_queue(heap,jj,kk,env%calc,queue%calc)
-      do ll = 1,heap%layer(jj)%node(kk)%nat
-        atj = heap%layer(jj)%origin(kk)%map(ll)
-        write (*,*) 'c',ll,'o',atj
-
-      end do
 
       call queue%calc%info(stdout)
 

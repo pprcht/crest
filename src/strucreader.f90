@@ -217,6 +217,7 @@ module strucrd
     procedure :: get_z => coord_get_z           !> calculate nuclear charge
     procedure :: cn_to_bond => coord_cn_to_bond !> generate neighbour matrix from CN
     procedure :: swap => atswp                  !> swap two atoms coordinates and their at() entries
+    procedure :: sumform => coord_sumform       !> generate a string with the sum formula
   end type coord
 !=========================================================================================!
   !> ensemble class. contains all structures of an ensemble
@@ -2486,22 +2487,41 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     !> carbon always first
     if (sumat(6) > 0) then
-      write (str,'(a,i0)') trim(adjustl(i2e(6,'nc'))),sumat(6)
+      if (sumat(6) > 1) then
+        write (str,'(a,i0)') trim(adjustl(i2e(6,'nc'))),sumat(6)
+      else
+        str = 'C'
+      end if
       sumformula = trim(sumformula)//trim(str)
     end if
     do i = 2,118
       if (i == 6) cycle
       if (sumat(i) .lt. 1) cycle
-      write (str,'(a,i0)') trim(adjustl(i2e(i,'nc'))),sumat(i)
+      if (sumat(i) > 1) then
+        write (str,'(a,i0)') trim(adjustl(i2e(i,'nc'))),sumat(i)
+      else
+        str = trim(i2e(i,'nc'))
+      end if
       sumformula = trim(sumformula)//trim(str)
     end do
     !> hydrogen always last
     if (sumat(1) > 0) then
-      write (str,'(a,i0)') trim(adjustl(i2e(1,'nc'))),sumat(1)
+      if (sumat(1) > 1) then
+        write (str,'(a,i0)') trim(adjustl(i2e(1,'nc'))),sumat(1)
+      else
+        str = 'H'
+      end if
       sumformula = trim(sumformula)//trim(str)
     end if
     return
   end function sumform
+
+  function coord_sumform(self) result(sumformula)
+    implicit none
+    class(coord) :: self
+    character(len=:),allocatable :: sumformula
+    sumformula = sumform(self%nat,self%at)
+  end function coord_sumform
 
 !=========================================================================================!
 !=========================================================================================!

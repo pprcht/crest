@@ -121,7 +121,6 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: ii,jj,kk,nat,dim1,dim2
     integer,allocatable :: tmpatoms(:)
 
-    write(*,*) "calling find_original_atoms"
     associate (layer => heap%layer(targetlayer))
       nat = layer%node(targetnode)%nat
       allocate (atoms(nat),source=0)

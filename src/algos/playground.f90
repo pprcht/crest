@@ -93,6 +93,7 @@ subroutine crest_playground(env,tim)
 
     call newc%print_funcgroups(stdout)
 
+    write(*,*) newc%sumform()
   end block
 
 !========================================================================================!

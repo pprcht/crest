@@ -66,10 +66,11 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: revorder_base(:),revorder_side(:)
     real(wp) :: rms,Umat(3,3),shift(3),center_base(3),center_side(3)
     integer :: nalign,nat_new
-
-    integer :: ii,jj,kk
+    logical :: closcontact
+    integer :: ii,jj,kk,ll
 
     character(len=*),parameter :: source = "attach()"
+    real(wp),parameter :: closedist = 0.95_wp
 
     !> defaults/checks of the alignmap
     nalign = size(alignmap,1)
@@ -186,9 +187,28 @@ contains  !> MODULE PROCEDURES START HERE
     if (present(original_map)) then
       !> if we have info on the original order, avoid all atoms
       !> present in all fragments
+      closcontact = .false.
       do ii = 1,size(original_map,1)
         if (all(original_map(ii,:) .ne. 0)) then
-          cutlist_side(original_map(ii,2)) = .true.
+          if (.not.closcontact) then
+            cutlist_side(original_map(ii,2)) = .true.
+          else
+            cutlist_base(original_map(ii,1)) = .true.
+          end if
+          jj = original_map(ii,1)
+          if (.not.closcontact) then
+            do kk = 1,size(original_map,1)
+              ll = original_map(kk,2)
+              if (ll .ne. 0.and.original_map(kk,1) .eq. 0) then
+                !write (*,*) ii,jj,ll,sqrt(sum((side_tmp%xyz(:,ll)-base%xyz(:,jj))**2))
+                if ((sum((side_tmp%xyz(:,ll)-base%xyz(:,jj))**2)) < closedist) then
+                  closcontact = .true.
+                  cutlist_side(original_map(ii,2)) = .false.
+                  cutlist_base(original_map(ii,1)) = .true.
+                end if
+              end if
+            end do
+          end if
         end if
         if (original_map(ii,1) .ne. 0) then
           revorder_base(original_map(ii,1)) = ii
@@ -197,6 +217,15 @@ contains  !> MODULE PROCEDURES START HERE
           revorder_side(original_map(ii,2)) = ii
         end if
       end do
+      if (closcontact) then
+        do kk = 1,size(original_map,1)
+          if (all(original_map(kk,:) .ne. 0).and. &
+              .not.any(original_map(kk,1) .eq. alignmap(:,1))) then
+            cutlist_side(original_map(kk,2)) = .false.
+            cutlist_base(original_map(kk,1)) = .true.
+          end if
+        end do
+      end if
     end if
     kk = max(maxval(revorder_base),maxval(revorder_side))
     new%nat = 0
@@ -212,10 +241,10 @@ contains  !> MODULE PROCEDURES START HERE
     do ii = 1,side%nat
       if (.not.cutlist_side(ii)) then
         new%nat = new%nat+1
-        if(revorder_side(ii).eq.0)then
-           kk=kk+1
-           revorder_side(ii) = kk
-        endif
+        if (revorder_side(ii) .eq. 0) then
+          kk = kk+1
+          revorder_side(ii) = kk
+        end if
       end if
     end do
     allocate (new%at(new%nat),source=0)
