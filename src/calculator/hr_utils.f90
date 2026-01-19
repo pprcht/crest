@@ -57,20 +57,26 @@ subroutine initialize_hessian(calc,type,xyz,nat,at,hess,hguess,pr) !>Matrix is f
         call clevel%create('gfnff', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)   
-        call dsqtoh(nat3,hess_full(:,:),hess(:))   
+        call dsqtoh(nat3,hess_full(:,:),hess(:)) !>Pack Hessian
     case(2)
+        allocate(hess_full(nat3,nat3),source=0.0_wp)
+        call clevel%create('gfn0', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
+        call newcalc%add(clevel)
+        call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
+        call dsqtoh(nat3,hess_full(:,:),hess(:))   
+    case(3)
         allocate(hess_full(nat3,nat3),source=0.0_wp)
         call clevel%create('gfn1', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
         call dsqtoh(nat3,hess_full(:,:),hess(:))
-    case(3)
+    case(4)
         allocate(hess_full(nat3,nat3),source=0.0_wp)
         call clevel%create('gfn2', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
         call dsqtoh(nat3,hess_full(:,:),hess(:))
-    case(4)
+    case(5)
         call modhes(calc,mhset,nat,xyz,at,hess(:),pr)
     end select
 

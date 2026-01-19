@@ -604,30 +604,34 @@ contains !> MODULE PROCEDURES START HERE
         calc%initialize_hr_type = 0
       case('gfnff', 'gfn-ff')
         calc%initialize_hr_type = 1
-      case('gfn1')
+      case('gfn0')
           calc%initialize_hr_type = 2
-      case('gfn2')
+      case('gfn1')
           calc%initialize_hr_type = 3
-      case('lindh')
+      case('gfn2')
           calc%initialize_hr_type = 4
+      case('lindh')
+          calc%initialize_hr_type = 5
       case default
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) kv%value_c
         call creststop(status_config)
       end select
 
-      case ('hess_init','hess_initialization') !> here we set how the matrix for hessian reconstruction is initialized
+      case ('hess_init','hess_initialization') !> here we set how the hessian for optimization
         select case (kv%value_c)
         case('identity')
           calc%hess_init = 0
         case('gfnff', 'gfn-ff')
           calc%hess_init = 1
-        case('gfn1')
+        case('gfn0')
           calc%hess_init = 2
-        case('gfn2')
+        case('gfn1')
           calc%hess_init = 3
-        case('lindh')
+        case('gfn2')
           calc%hess_init = 4
+        case('lindh')
+          calc%hess_init = 5
         case default
           !>--- keyword was recognized, but invalid argument supplied
           write (stdout,fmtura) kv%value_c
