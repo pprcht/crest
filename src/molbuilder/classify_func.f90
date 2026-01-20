@@ -66,6 +66,7 @@ contains  !> MODULE PROCEDURES START HERE
           duplicate = .false.
           nfunc2 = molc%nfuncs
           do jj = 1,nfunc2
+            if (molc%funcgroups(jj)%natms .ne. fg%natms) cycle
             if (all(molc%funcgroups(jj)%ids .eq. fg%ids)) duplicate = .true.
           end do
           if (.not.duplicate) call molc%add(fg)

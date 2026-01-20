@@ -395,6 +395,7 @@ subroutine testtopo(fname,env,tmode)
   use atmasses
   use zdata
   use strucrd
+  use molbuilder_classify
   implicit none
   type(systemdata) :: env
   character(len=*) :: fname
@@ -402,6 +403,7 @@ subroutine testtopo(fname,env,tmode)
   character(len=*) :: tmode
   type(zmolecule) :: zmol
   type(coord) :: mol
+  type(coord_classify) :: molc
   real(wp),allocatable :: xyz(:,:)
   real(wp) :: dum
   integer,allocatable :: inc(:)
@@ -474,7 +476,6 @@ subroutine testtopo(fname,env,tmode)
     if (.not.env%legacy.and.env%calc%ncalculations == 0) then
       call env2calc_setup(env)
     end if
-
     call thermo_wrap(env,.true.,zmol%nat,zmol%at,xyz,'', &
     &    nt,temps,et,ht,gt,stot,.false.)
     deallocate (stot,gt,ht,et,temps)
@@ -504,10 +505,16 @@ subroutine testtopo(fname,env,tmode)
     end do
     close (ich)
 
+  case ('func')
+    call setup_classify(mol,molc)
+    call functional_group_classify(molc)
+    call molc%print_funcgroups(stdout)
+
+
   end select
   deallocate (xyz)
   write (*,*)
-  stop
+  call creststop(status_normal)
 end subroutine testtopo
 
 !========================================================================================!

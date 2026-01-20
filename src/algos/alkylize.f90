@@ -58,7 +58,7 @@ subroutine crest_setup_alkylize(env)
             do jj = 1,molc%nat
               if (molc%Ah(jj,splt(kk)) == 1.and. &
                 & .not.any(splt(:) .eq. jj).and. &
-                & any(func%ids(:) .eq. jj)) then
+                & any(func%ids(:) .eq. jj) .and. kk < 3) then
                 kk = kk+1
                 splt(kk) = jj
               end if
