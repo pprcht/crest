@@ -24,7 +24,7 @@ contains  !> MODULE PROCEDURES START HERE
 !=============================================================================!
 
   subroutine attach(base,side,alignmap,new,clash, &
-      & original_map,remove_base,remove_side,remove_lastx)
+      & original_map,remove_base,remove_side,remove_lastx,reficn)
     !***********************************************************************
     !* This routine attaches a side-molecule to a base-molecule
     !* The assumption is that we have (at least) 3 proxy atoms
@@ -45,6 +45,7 @@ contains  !> MODULE PROCEDURES START HERE
     !*                 constructing the new mol
     !*   remove_lastx - integer (one for base and side) to remove
     !*                  final x atoms in constructing new mol
+    !*   reficn       - CNs of the reference structure as integers
     !***********************************************************************
     implicit none
     !> IN/OUTPUTS
@@ -58,6 +59,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in),optional :: remove_base(:)
     integer,intent(in),optional :: remove_side(:)
     integer,intent(in),optional :: remove_lastx(:)
+    integer,intent(in),optional :: reficn(:)
 
     !> LOCAL
     type(coord) :: cutout_base,cutout_side,side_tmp
@@ -65,6 +67,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: current_order(:),target_order(:),idx(:)
     integer,allocatable :: revorder_base(:),revorder_side(:)
     real(wp) :: rms,Umat(3,3),shift(3),center_base(3),center_side(3)
+    real(wp),allocatable :: cn(:)
     integer :: nalign,nat_new
     logical :: closcontact,failconstruct
     integer :: ii,jj,kk,ll
@@ -191,7 +194,7 @@ contains  !> MODULE PROCEDURES START HERE
       do ii = 1,size(original_map,1)
         if (all(original_map(ii,:) .ne. 0)) then
           if (.not.closcontact) then
-          cutlist_side(original_map(ii,2)) = .true.
+            cutlist_side(original_map(ii,2)) = .true.
           else
             cutlist_base(original_map(ii,1)) = .true.
           end if
@@ -280,7 +283,18 @@ contains  !> MODULE PROCEDURES START HERE
     if (present(clash)) then
       clash = .false.
       !> TODO implement geometric clash check
-      if (failconstruct) clash = .true.
+      if (failconstruct) then
+        clash = .true.
+      else if (present(reficn)) then
+        call new%get_cn(cn)
+        do ii = 1,new%nat
+          if (nint(cn(ii)) .ne. reficn(ii)) then
+            clash = .true.
+            !write(*,*) "removing clash"
+            exit
+          end if
+        end do
+      end if
     end if
   end subroutine attach
 

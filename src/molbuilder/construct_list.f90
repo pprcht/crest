@@ -33,6 +33,10 @@ module molbuilder_construct_list
     !> initial/reconstructed molecule
     integer :: nmols = 0
     type(coord),allocatable :: mols(:)
+    !> reference
+    type(coord) :: refmol
+    real(wp),allocatable :: refcn(:)
+    integer,allocatable :: reficn(:)
   end type construct_layer
 
   type :: construct_queue
@@ -180,7 +184,7 @@ contains  !> MODULE PROCEDURES START HERE
       if (allocated(layer%origin)) deallocate (layer%origin)
       allocate (layer%origin(layer%nnodes))
       do ii = 1,layer%nnodes
-        layer%origin(ii)%natms = layer%node(ii)%nat 
+        layer%origin(ii)%natms = layer%node(ii)%nat
         call find_original_atoms(heap,targetlayer,ii,layer%origin(ii)%map)
       end do
     end associate

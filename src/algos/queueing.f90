@@ -82,6 +82,10 @@ subroutine crest_queue_setup(env,iterate)
             heap%layer(ii)%parentnode = parentnode
           end if
         end if
+        layer(ii)%refmol = reference_mol
+        call reference_mol%get_cn(layer(ii)%refcn)
+        allocate(layer(ii)%reficn(reference_mol%nat))
+        layer(ii)%reficn(:) = nint(layer(ii)%refcn(:))
         call split(reference_mol,splitatms,layer(ii)%node,layer(ii)%alignmap, &
           & ncap=layer(ii)%ncapped,position_mapping=layer(ii)%position_mapping)
         deallocate (splitatms)
@@ -294,12 +298,16 @@ subroutine crest_queue_reconstruct(env,tim)
   use molbuilder_construct_list
   use molbuilder_construct_mod
   use strucrd
+  use iomod
+  use crest_calculator
   implicit none
   type(systemdata),intent(inout) ::  env
   type(timer),intent(inout) :: tim
   type(coord) :: mol
   integer :: ii,jj,kk,nall
+  logical :: ex
   type(coord),allocatable :: structures(:)
+  type(calcdata),target :: newcalc
   character(len=*),parameter :: recfile = 'crest_reconstruct.xyz'
 
   if (.not. (allocated(env%splitqueue).and.env%splitheap%nqueue > 0)) then
@@ -324,14 +332,25 @@ subroutine crest_queue_reconstruct(env,tim)
   do ii = 1,nall
     structures(ii) = env%splitheap%layer(1)%mols(ii)
   end do
-  deallocate (env%splitheap%layer(1)%mols)
+  !deallocate (env%splitheap%layer(1)%mols)
+  deallocate (env%splitheap%layer)
+  deallocate (env%splitheap%queue)
 
   write(stdout,'(/,1x,a)') 'Wrting reconstructed structures to: "'//recfile//'"'
   call wrensemble(recfile,nall,structures)
-  
   write(stdout,*)
-  call crest_multilevel_wrap(env,recfile,0)
 
+  call newcalc%copy(env%calc)
+  env%calc => newcalc
+  call env%calc%info(stdout)
+
+  call crest_multilevel_wrap(env,recfile,0)
+ 
+  inquire(file='cregen.out.tmp',exist=ex)
+  if(ex)then
+    call catdel('cregen.out.tmp')
+    call rmrf('crest_rotamers_*.xyz')
+  endif
 
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)
@@ -439,13 +458,14 @@ contains
         do jj = 1,nall_s
           call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
           & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
-          & clash=clash)
+          & clash=clash,reficn=layer%reficn)
           if (.not.clash) then
             layer%nmols = layer%nmols+1
             layer%mols(layer%nmols) = mol
           end if
         end do
       end do
+      write (stdout,'(2x,a,i0)') 'Successful combinations : ',layer%nmols
 
     end associate
   end subroutine recusrive_construct
