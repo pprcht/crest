@@ -101,7 +101,7 @@ contains  !> MODULE PROCEDURES START HERE
       fg%ids(1) = ii
       kk = 1
       do jj = 1,molc%nat
-        if (molc%A(jj,ii) == 1) then
+        if (molc%bond(jj,ii) == 1) then
           if (molc%at(jj) == 1) then
             kk = kk+1
             fg%ids(kk) = jj
@@ -119,7 +119,7 @@ contains  !> MODULE PROCEDURES START HERE
       fg%ids(1) = ii
       kk = 1
       do jj = 1,molc%nat
-        if (molc%A(jj,ii) == 1) then
+        if (molc%bond(jj,ii) == 1) then
           if (molc%at(jj) == 1) then
             kk = kk+1
             fg%ids(kk) = jj
@@ -137,7 +137,7 @@ contains  !> MODULE PROCEDURES START HERE
       fg%ids(1) = ii
       kk = 1
       do jj = 1,molc%nat
-        if (molc%A(jj,ii) == 1) then
+        if (molc%bond(jj,ii) == 1) then
           if (molc%at(jj) == 1) then
             kk = kk+1
             fg%ids(kk) = jj
@@ -158,7 +158,7 @@ contains  !> MODULE PROCEDURES START HERE
       fg%ids(1) = ii
       kk = 1
       do jj = 1,molc%nat
-        if (molc%A(jj,ii) == 1) then
+        if (molc%bond(jj,ii) == 1) then
           if (molc%at(jj) == 1) then
             kk = kk+1
             fg%ids(kk) = jj
@@ -176,7 +176,7 @@ contains  !> MODULE PROCEDURES START HERE
       fg%ids(1) = ii
       kk = 1
       do jj = 1,molc%nat
-        if (molc%A(jj,ii) == 1) then
+        if (molc%bond(jj,ii) == 1) then
           if (molc%at(jj) == 6) then
             kk = kk+1
             fg%ids(kk) = jj
@@ -193,7 +193,7 @@ contains  !> MODULE PROCEDURES START HERE
       fg%name = 'halide'
       fg%natms = 1
       allocate (fg%ids(1),source=ii)
-      fg%attached_to = maxloc(molc%A(:,ii),1)
+      fg%attached_to = maxloc(molc%bond(:,ii),1)
       success = .true.
 
     end select
@@ -261,7 +261,7 @@ contains  !> MODULE PROCEDURES START HERE
     do while (contin)
       do ii = 1,nat
         if (molc%lwork(ii)) cycle !> skip alreaty iterated atoms
-        if (molc%A(ii,ati) == 1) then
+        if (molc%bond(ii,ati) == 1) then
           if (molc%at(ii) == 1) then
             molc%lwork(ii) = .true. !> H's simply set to true
           else if (molc%at(ii) == 6) then

@@ -22,6 +22,8 @@ module molbuilder_classify_type
   use strucrd,only:coord,i2e,sumform
   use adjacency
   use canonical_mod
+  use molbuilder_rigidconf_analyze
+  use INTERNALS_mod
   implicit none
   private
 
@@ -38,7 +40,7 @@ module molbuilder_classify_type
 
   type,extends(coord) :: coord_classify
     !> new components that are added to the coord type:
-    integer,allocatable :: A(:,:)  !> molecular graph/adjacency matrix
+    !integer,allocatable :: A(:,:)  !> molecular graph/adjacency matrix
     integer,allocatable :: Ah(:,:) !> heavy-atom molecular graph/adjacency
 
     !> per-atom properties/information
@@ -51,8 +53,14 @@ module molbuilder_classify_type
     character(len=10),allocatable :: atinfo(:)  !> atom info
 
     !> functional groups
-    integer :: nfuncs=0
+    integer :: nfuncs = 0
     type(functional_group),allocatable :: funcgroups(:)
+
+    !> internal coordinates
+    integer :: ndieder = 0
+    real(wp),allocatable :: zmat(:,:)
+    integer,allocatable  :: zmap(:,:) !> na,nb,nc
+    integer,allocatable  :: ztod(:)
 
     !> utility storage
     logical,allocatable :: lwork(:)
@@ -63,7 +71,10 @@ module molbuilder_classify_type
     procedure :: from_coord
     generic,public :: add => coord_classify_add_fg
     procedure,private :: coord_classify_add_fg
+    procedure :: get_zmat => coord_classify_calculate_zmat
+    procedure :: from_zmat => coord_classify_reconstruct_from_zmat
     procedure :: print_funcgroups => coord_classify_print_functional
+    procedure :: print_zmat => coord_classify_print_zmat
   end type coord_classify
 
   public :: coord_classify   !> the extended coord type
@@ -164,7 +175,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !> CLASSIFICATION ROUTINES
 
-  subroutine setup_classify(mol,molc)
+  subroutine setup_classify(mol,molc,wbo)
     !***************************************************
     !* set up the derived coord_classify object "molc"
     !* from a standard coord object "mol".
@@ -173,6 +184,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(coord),intent(in) :: mol
     type(coord_classify),intent(out) :: molc
+    real(wp),intent(in),optional :: wbo(:,:)
 
     real(wp),allocatable :: Bmat(:,:)
     logical,allocatable :: rings(:,:)
@@ -186,16 +198,19 @@ contains  !> MODULE PROCEDURES START HERE
 
     !> set up CN, and from that topology
     call mol%cn_to_bond(molc%CN,Bmat,'cov')
-    call wbo2adjacency(molc%nat,Bmat,molc%A,0.02_wp)
+    if (present(wbo)) then
+      Bmat(:,:) = wbo(:,:)
+    end if
+    call wbo2adjacency(molc%nat,Bmat,molc%bond,0.02_wp)
     deallocate (Bmat)
 
     !> set up other parameters
     allocate (molc%hyb(nat),source=0)
     allocate (molc%inring(nat),source=.false.)
     allocate (molc%term(nat),source=.false.)
-    call check_rings_min(nat,molc%A,rings)
+    call check_rings_min(nat,molc%bond,rings)
     do ii = 1,nat
-      molc%hyb(ii) = sum(molc%A(:,ii))
+      molc%hyb(ii) = sum(molc%bond(:,ii))
       if (any(rings(:,ii))) molc%inring(ii) = .true.
       if (molc%hyb(ii) .eq. 1) molc%term(ii) = .true.
     end do
@@ -288,6 +303,52 @@ contains  !> MODULE PROCEDURES START HERE
     end do
   end subroutine atinfo_classify
 
+  subroutine coord_classify_calculate_zmat(molc,natural)
+    implicit none
+    class(coord_classify),intent(inout) :: molc
+    logical,intent(in),optional :: natural
+
+    if (.not.allocated(molc%xyz)) return
+
+    if (allocated(molc%zmat)) deallocate (molc%zmat)
+    if (allocated(molc%zmap)) deallocate (molc%zmap)
+    if (allocated(molc%ztod)) deallocate (molc%ztod)
+
+    allocate (molc%zmap(molc%nat,3),source=0)
+    allocate (molc%zmat(3,molc%nat),source=0.0_wp)
+    call BETTER_XYZINT(molc%nat,molc%xyz,molc%bond, &
+    &    molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%zmat)
+
+    if (present(natural)) then
+      if (natural) then
+        allocate (molc%ztod(molc%nat),source=0)
+        call rigidconf_count_fallback(molc%nat, &
+       & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3), &
+       & molc%bond,molc%ndieder,molc%ztod)
+      end if
+      call molc%print_zmat(stdout)
+      call prune_zmat_dihedrals(molc,molc%zmat, &
+      & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%ztod)
+    end if
+
+  end subroutine coord_classify_calculate_zmat
+
+  subroutine coord_classify_reconstruct_from_zmat(molc,mol)
+    implicit none
+    class(coord_classify),intent(inout) :: molc
+    type(coord),intent(out) :: mol
+
+    mol = molc%as_coord()
+
+    if (.not.allocated(molc%zmat)) then
+      write (stdout,*) '** ERROR ** in coord_classify_reconstruct_from_zmat(): zmat not allocated!'
+      return
+    end if
+    call GMETRY2(molc%nat,molc%zmat, &
+      &              mol%xyz,        &
+      &  molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3))
+  end subroutine coord_classify_reconstruct_from_zmat
+
 !=============================================================================!
 !#############################################################################!
 !=============================================================================!
@@ -306,16 +367,29 @@ contains  !> MODULE PROCEDURES START HERE
 
     do ii = 1,size(self%funcgroups,1)
       nn = self%funcgroups(ii)%natms
-      allocate(at(nn),source=0)
-      do jj=1,nn
-         at(jj) = self%at(self%funcgroups(ii)%ids(jj))
-      enddo
+      allocate (at(nn),source=0)
+      do jj = 1,nn
+        at(jj) = self%at(self%funcgroups(ii)%ids(jj))
+      end do
       write (prch,'(3(1x,a))') 'functional group:', &
         & self%funcgroups(ii)%name,sumform(nn,at)
-      deallocate(at)
+      deallocate (at)
     end do
-
   end subroutine coord_classify_print_functional
+
+  subroutine coord_classify_print_zmat(self,prch)
+    implicit none
+    class(coord_classify) :: self
+    integer,intent(in) :: prch
+    if (.not.allocated(self%zmat)) then
+      write (prch,*) 'zmat not allocated!'
+      return
+    end if
+
+    write (prch,'(/,a)') 'Internal coordinates:'
+    call print_zmat(prch,self%nat,self%at,self%zmat, &
+    &    self%zmap(:,1),self%zmap(:,2),self%zmap(:,3),.true.)
+  end subroutine coord_classify_print_zmat
 
 !=============================================================================!
 !#############################################################################!

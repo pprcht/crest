@@ -66,7 +66,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: revorder_base(:),revorder_side(:)
     real(wp) :: rms,Umat(3,3),shift(3),center_base(3),center_side(3)
     integer :: nalign,nat_new
-    logical :: closcontact
+    logical :: closcontact,failconstruct
     integer :: ii,jj,kk,ll
 
     character(len=*),parameter :: source = "attach()"
@@ -191,7 +191,7 @@ contains  !> MODULE PROCEDURES START HERE
       do ii = 1,size(original_map,1)
         if (all(original_map(ii,:) .ne. 0)) then
           if (.not.closcontact) then
-            cutlist_side(original_map(ii,2)) = .true.
+          cutlist_side(original_map(ii,2)) = .true.
           else
             cutlist_base(original_map(ii,1)) = .true.
           end if
@@ -209,6 +209,7 @@ contains  !> MODULE PROCEDURES START HERE
               end if
             end do
           end if
+
         end if
         if (original_map(ii,1) .ne. 0) then
           revorder_base(original_map(ii,1)) = ii
@@ -250,10 +251,15 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (new%at(new%nat),source=0)
     allocate (new%xyz(3,new%nat),source=0.0_wp)
     !kk = 0
+    failconstruct = .false.
     do ii = 1,base%nat
       if (.not.cutlist_base(ii)) then
         !kk = kk+1
         kk = revorder_base(ii)
+        if (kk > new%nat) then
+          failconstruct = .true.
+          exit
+        end if
         new%at(kk) = base%at(ii)
         new%xyz(1:3,kk) = base%xyz(1:3,ii)
       end if
@@ -262,6 +268,10 @@ contains  !> MODULE PROCEDURES START HERE
       if (.not.cutlist_side(ii)) then
         !kk = kk+1
         kk = revorder_side(ii)
+        if (kk > new%nat) then
+          failconstruct = .true.
+          exit
+        end if
         new%at(kk) = side_tmp%at(ii)
         new%xyz(1:3,kk) = side_tmp%xyz(1:3,ii)
       end if
@@ -270,6 +280,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (present(clash)) then
       clash = .false.
       !> TODO implement geometric clash check
+      if (failconstruct) clash = .true.
     end if
   end subroutine attach
 

@@ -27,7 +27,7 @@ subroutine crest_setup_alkylize(env)
   type(coord_classify) :: molc
   type(coord) :: mol
 
-  integer :: ii,jj,kk
+  integer :: ii,jj,kk,cc
   integer :: splt(3)
 
   call env%ref%to(mol)
@@ -58,15 +58,25 @@ subroutine crest_setup_alkylize(env)
             do jj = 1,molc%nat
               if (molc%Ah(jj,splt(kk)) == 1.and. &
                 & .not.any(splt(:) .eq. jj).and. &
-                & any(func%ids(:) .eq. jj) .and. kk < 3) then
+                & any(func%ids(:) .eq. jj).and.kk < 3) then
                 kk = kk+1
                 splt(kk) = jj
               end if
             end do
           end do
+          !kk = 3
+          !cc = splt(2)
+          !do jj = 1,molc%nat
+          !  if (molc%A(jj,cc) == 1.and. &
+          !     & .not.any(splt(:) .eq. jj).and. &
+          !     & any(func%ids(:) .eq. jj).and.molc%at(jj) == 1) then
+          !    kk = kk+1
+          !    splt(kk) = jj
+          !  end if
+          !end do
           call env%addsplitqueue(splt)
         end if
-
+        write (stdout,'(2x,a,5(1x,i0))') '> shared atoms:',splt(:)
       end if
     end associate
   end do
@@ -88,6 +98,7 @@ subroutine crest_proxy_nalkane(env,doreturn)
   integer :: ii,jj
   integer,allocatable  :: na(:),nb(:),nc(:)
   real(wp),allocatable :: zmat(:,:)
+  integer :: itmp(3)
 
   doreturn = .false.
 
@@ -102,21 +113,25 @@ subroutine crest_proxy_nalkane(env,doreturn)
         write (stdout,'(a)') '> SKIPPING sampling and writing linear structure.'
         doreturn = .true.
 
-        !> ZMAT construction to make the molecule linear
-        allocate (na(mol%nat),nb(mol%nat),nc(mol%nat),source=0)
-        allocate (zmat(3,mol%nat),source=0.0_wp)
-        call BETTER_XYZINT(mol%nat,mol%xyz,molc%A,na,nb,nc,zmat)
+        call molc%get_zmat(.true.)
+        call molc%print_zmat(stdout)
 
-        !> setting internal CC dihedrals to trans-config
-        do jj=1,mol%nat
-           if(mol%at(jj) == 6 .and. mol%at(na(jj)) == 6 .and. &
-             mol%at(nb(jj)) == 6 .and. mol%at(nc(jj)) == 6)then
-              zmat(3,jj) = -pi
-           endif
-        enddo
-        call smallhead('Internal coordinates:')
-        call print_zmat(stdout,mol%nat,mol%at,zmat,na,nb,nc,.true.)
-        call reconstruct_zmat_to_mol(mol%nat,mol%at,zmat,na,nb,nc,newmol)
+        !> ZMAT construction to make the molecule linear 
+        do jj = 1,molc%nat
+          if (molc%ztod(jj) .ne. 0) then
+            itmp(1) = molc%at(jj)
+            itmp(2) = molc%at(molc%zmap(jj,1))
+            itmp(3) = molc%at(molc%zmap(jj,2))
+            if(all(itmp(:).eq.6))then
+               !write(*,*) 'C-C bond:',molc%zmap(jj,1:2)
+               molc%zmat(3,jj) = -pi
+            endif
+          end if
+        end do
+        call molc%print_zmat(stdout)
+        call molc%from_zmat(newmol)
+        !call reconstruct_zmat_to_mol(mol%nat,mol%at,molc%zmat, &
+        !  molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),newmol)
         call newmol%write(conformerfile)
 
         exit

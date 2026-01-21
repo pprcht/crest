@@ -300,6 +300,7 @@ subroutine crest_queue_reconstruct(env,tim)
   type(coord) :: mol
   integer :: ii,jj,kk,nall
   type(coord),allocatable :: structures(:)
+  character(len=*),parameter :: recfile = 'crest_reconstruct.xyz'
 
   if (.not. (allocated(env%splitqueue).and.env%splitheap%nqueue > 0)) then
     return
@@ -324,7 +325,13 @@ subroutine crest_queue_reconstruct(env,tim)
     structures(ii) = env%splitheap%layer(1)%mols(ii)
   end do
   deallocate (env%splitheap%layer(1)%mols)
-  call wrensemble('crest_queue_reconstruct.xyz',nall,structures)
+
+  write(stdout,'(/,1x,a)') 'Wrting reconstructed structures to: "'//recfile//'"'
+  call wrensemble(recfile,nall,structures)
+  
+  write(stdout,*)
+  call crest_multilevel_wrap(env,recfile,0)
+
 
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)

@@ -17,9 +17,8 @@
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
 
-module rigidconf_analyze
+module molbuilder_rigidconf_analyze
   use crest_parameters
-  use crest_data
   use strucrd
   use geo
   use INTERNALS_mod
@@ -32,7 +31,7 @@ contains !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine rigidconf_analyze_fallback(env,mol,zmat,na,nb,nc,wbo, &
+  subroutine rigidconf_analyze_fallback(mol,zmat,na,nb,nc,wbo, &
   &                                     ndieder,dvalues,dstep,ztod)
 !************************************************************
 !* Fallback routine for the dihedral setup.
@@ -43,7 +42,7 @@ contains !> MODULE PROCEDURES START HERE
 !* dstep of 120°
 !*
 !* Input:
-!*    env,mol,zmat,na,nb,nc,wbo,ndieder
+!*   mol,zmat,na,nb,nc,wbo,ndieder
 !*
 !* Output:
 !*    dvalues, dstep, ztod
@@ -51,7 +50,6 @@ contains !> MODULE PROCEDURES START HERE
 !************************************************************
     implicit none
     !> INPUT
-    type(systemdata),intent(inout) :: env
     type(coord),intent(in) :: mol  !> by convention mol is in Bohrs
     real(wp),intent(in) :: zmat(3,mol%nat)
     integer,intent(in)  :: na(mol%nat),nb(mol%nat),nc(mol%nat)
@@ -98,7 +96,7 @@ contains !> MODULE PROCEDURES START HERE
   end subroutine rigidconf_analyze_fallback
 
 !========================================================================================!
-  subroutine rigidconf_count_fallback(nat,na,nb,nc,wbo,ndieder,ztod)
+  subroutine rigidconf_count_fallback(nat,na,nb,nc,A,ndieder,ztod)
 !************************************************************
 !* Count number of unique single-bond dihedral angles that
 !* correspond to an entry in the zmat.
@@ -107,7 +105,7 @@ contains !> MODULE PROCEDURES START HERE
     !> INPUT
     integer,intent(in)  :: nat
     integer,intent(in)  :: na(nat),nb(nat),nc(nat)
-    real(wp),intent(in) :: wbo(nat,nat)
+    integer,intent(in) :: A(nat,nat)
     !> OUTPUT
     integer,intent(out)  :: ndieder
     integer,intent(out),optional :: ztod(nat)
@@ -128,7 +126,7 @@ contains !> MODULE PROCEDURES START HERE
         if (Amap(j,l) > 0) then
           m = Amap(j,l)
         else
-          if (nint(wbo(j,l)) == 1) then
+          if (A(j,l) == 1) then
             k = k+1
             Amap(j,l) = k
             Amap(l,j) = k
@@ -144,44 +142,51 @@ contains !> MODULE PROCEDURES START HERE
   end subroutine rigidconf_count_fallback
 
 !========================================================================================!
-  subroutine prune_zmat_dihedrals(nat,xyz,zmat,na,nb,nc,ztod)
+  subroutine prune_zmat_dihedrals(mol,zmat,na,nb,nc,ztod)
 !********************************************************
 !* Remove zmat entries that correspond
 !* to the same bond and replace them with internal
-!* dihedral angles. There you go, Christoph...
+!* dihedral angles.
+!* Giving preference to non-H-atoms in the selection
 !********************************************************
     implicit none
-    integer,intent(in)  :: nat
-    real(wp),intent(in) :: xyz(3,nat)
-    real(wp),intent(inout) :: zmat(3,nat)
-    integer,intent(inout)  :: na(nat),nb(nat),nc(nat)
-    integer,intent(inout)  :: ztod(nat)
+    class(coord),intent(in) :: mol
+    real(wp),intent(inout) :: zmat(3,mol%nat)
+    integer,intent(inout)  :: na(mol%nat),nb(mol%nat),nc(mol%nat)
+    integer,intent(inout)  :: ztod(mol%nat)
     integer :: i,j,k,l
     integer :: maxgroup,nmembers,refi
 
-    write (*,*) ztod
-    maxgroup = maxval(ztod,1)
-    do i = 1,maxgroup
-      nmembers = count(ztod(:) .eq. i)
-      if (nmembers < 2) cycle
-      do j = 1,nat
-        if (ztod(j) == i) then
-          refi = j
-          exit
+    associate (nat => mol%nat,at => mol%at,xyz => mol%xyz)
+      maxgroup = maxval(ztod,1)
+      do i = 1,maxgroup
+        nmembers = count(ztod(:) .eq. i)
+        if (nmembers < 2) cycle
+        refi = 0
+        do j = 1,nat
+          if (ztod(j) == i.and.at(j) > 1) then
+            refi = j
+            exit
+          end if
+        end do
+        if (refi == 0) then
+          do j = 1,nat
+            if (ztod(j) == i) then
+              refi = j
+              exit
+            end if
+          end do
         end if
+        do j = 1,nat
+          if (j == refi) cycle
+          if (ztod(j) == i) then
+            nc(j) = refi
+            call DIHED2(xyz,j,na(j),nb(j),nc(j),zmat(3,j))
+            ztod(j) = 0
+          end if
+        end do
       end do
-      do j = 1,nat
-        if (j == refi) cycle
-        if (ztod(j) == i) then
-          !nc(j) = nb(j)
-          nc(j) = refi
-          !call BANGLE2( xyz, j, na(j), nb(j), zmat(2,j) )
-          call DIHED2(xyz,j,na(j),nb(j),nc(j),zmat(3,j))
-          ztod(j) = 0
-        end if
-      end do
-    end do
-    write (*,*) ztod
+    end associate
   end subroutine prune_zmat_dihedrals
 
 !========================================================================================!
@@ -261,7 +266,7 @@ contains !> MODULE PROCEDURES START HERE
         write (stdout,'(a,i0,1x,i0)') '**WARNING** no bond defined for atoms ',i,j
         cycle
       end if
-      write(stdout,'(">",1x,a,i0,a,i0,a,i0)') 'adding ',abs(n),' points for bond between atoms ', &
+      write (stdout,'(">",1x,a,i0,a,i0,a,i0)') 'adding ',abs(n),' points for bond between atoms ', &
       & i,' and ',j
       tmppairs(i,j) = abs(n)
       tmppairs(j,i) = abs(n)
@@ -271,16 +276,16 @@ contains !> MODULE PROCEDURES START HERE
       allocate (dvalues(ndieder),source=0)
       allocate (dstep(ndieder),source=0.0_wp)
       dvalues(:) = 0
-      dstep(:) = 360.0_wp * degtorad
+      dstep(:) = 360.0_wp*degtorad
       k = 0
       do i = 1,nat
         do j = 1,i-1
           if (tmppairs(j,i) > 0) then
             m = Amap(j,i)
-            if(m == 0) cycle
+            if (m == 0) cycle
             n = tmppairs(j,i)
             dvalues(m) = n
-            dstep(m) = (360.0_wp / real(n)) * degtorad  
+            dstep(m) = (360.0_wp/real(n))*degtorad
           end if
         end do
       end do
@@ -292,4 +297,4 @@ contains !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 !========================================================================================!
-end module rigidconf_analyze
+end module molbuilder_rigidconf_analyze

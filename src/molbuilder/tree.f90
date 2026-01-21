@@ -57,7 +57,7 @@ subroutine rigidconf_tree(env,mol)
   use zdata,only:readwbo
   use adjacency
   use INTERNALS_mod
-  use rigidconf_analyze
+  use molbuilder_rigidconf_analyze
   use miscdata,only:rcov
   use crest_cn_module
   implicit none
@@ -162,15 +162,16 @@ subroutine rigidconf_tree(env,mol)
   else !if (.true.) then
 !>--- fallback implementation for testing: All single-bonds with a corresponding
 !>    entry in the zmatrix (this excludes terminal atoms, e.g. H)
-    call rigidconf_count_fallback(mol%nat,na,nb,nc,wbo,ndieder)
+    Amat(:,:) = nint(wbo(:,:))
+    call rigidconf_count_fallback(mol%nat,na,nb,nc,Amat,ndieder)
     if (ndieder < 1) stop 'no dihedral angles selected!'
     allocate (dvalues(ndieder),source=0)
     allocate (dstep(ndieder),source=0.0_wp)
     allocate (ztod(mol%nat),source=0)
-    call rigidconf_analyze_fallback(env,mol,zmat,na,nb,nc,wbo, &
+    call rigidconf_analyze_fallback(mol,zmat,na,nb,nc,wbo, &
     &                               ndieder,dvalues,dstep,ztod)
 
-    !call prune_zmat_dihedrals(mol%nat, mol%xyz, zmat, na,nb,nc, ztod )
+    !call prune_zmat_dihedrals(mol, zmat, na,nb,nc, ztod )
     !call smallhead('New internal coordinates:')
     !call print_zmat(stdout,mol%nat,mol%at,zmat,na,nb,nc,.true.)
 

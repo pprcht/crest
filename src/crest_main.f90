@@ -322,6 +322,7 @@ program CREST
 
   end do ITERATOR
 
+  env%calc => calc_origin
   call crest_queue_reconstruct(env,tim)
 
 !=========================================================================================!
