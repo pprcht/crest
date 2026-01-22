@@ -1537,7 +1537,18 @@ subroutine parseflags(env,arg,nra)
         write (*,'(2x,a,1x,a)') '--wall-xxl:','requesting setup of wall potential (x2.0 size)'
 
       case ('-alkylize')
+        write (*,'(2x,a,1x)',advance='no') '--alkylize'
         env%alkylize = .true.
+        if( nra >= i+1)then
+          ctmp = trim(arg(i+1))
+          select case (ctmp)
+          case ('full','sample')
+            env%alkylizeskip = .false.
+            write(*,'(a,1x)',advance='no') ctmp
+          end select
+        endif
+        write(*,'(a)') ': automatic alkyl group dispatch'
+
 !========================================================================================!
 !------ flags for parallelization / disk space
 !========================================================================================!

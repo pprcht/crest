@@ -51,7 +51,7 @@ module crest_calculator
 !=========================================================================================!
 
 !>--- global engrad call counter
-  integer(int64),public :: engrad_total = 0
+  real(wp),public :: engrad_total = 0.0_wp
 
 !>--- public module routines
   public :: potential_core
@@ -126,7 +126,7 @@ contains  !> MODULE PROCEDURES START HERE
         end do
       end if
       !>--- count the engrad call
-      engrad_total = engrad_total+1
+      engrad_total = engrad_total+1.0_wp
     end if
 
 !>--- update ONIOM geometries

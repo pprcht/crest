@@ -64,16 +64,6 @@ subroutine crest_setup_alkylize(env)
               end if
             end do
           end do
-          !kk = 3
-          !cc = splt(2)
-          !do jj = 1,molc%nat
-          !  if (molc%A(jj,cc) == 1.and. &
-          !     & .not.any(splt(:) .eq. jj).and. &
-          !     & any(func%ids(:) .eq. jj).and.molc%at(jj) == 1) then
-          !    kk = kk+1
-          !    splt(kk) = jj
-          !  end if
-          !end do
           call env%addsplitqueue(splt)
         end if
         write (stdout,'(2x,a,5(1x,i0))') '> shared atoms:',splt(:)
@@ -98,7 +88,7 @@ subroutine crest_proxy_nalkane(env,doreturn)
   integer :: ii,jj
   integer,allocatable  :: na(:),nb(:),nc(:)
   real(wp),allocatable :: zmat(:,:)
-  integer :: itmp(3)
+  integer :: itmp(4)
 
   doreturn = .false.
 
@@ -108,32 +98,40 @@ subroutine crest_proxy_nalkane(env,doreturn)
     call functional_group_classify(molc)
 
     do ii = 1,molc%nfuncs
-      if (molc%funcgroups(ii)%name == 'alkane') then
+      if (molc%funcgroups(ii)%name == 'alkane'.or.  &
+      &  (molc%funcgroups(ii)%name == 'alkyl'.and.  &
+      &   molc%funcgroups(ii)%natms >= (molc%nat-3)) &
+      &  ) then
         write (stdout,'(a)') '> This substructure contains an n-alkane.'
-        write (stdout,'(a)') '> SKIPPING sampling and writing linear structure.'
-        doreturn = .true.
+        if (env%alkylizeskip) then
+          write (stdout,'(a)') '> SKIPPING sampling and writing LINEAR structure.'
+          doreturn = .true.
+        else
+          write (stdout,'(a)') '> Writing LINEAR structure and sampling independently.' 
+        end if
 
         call molc%get_zmat(.true.)
         call molc%print_zmat(stdout)
 
-        !> ZMAT construction to make the molecule linear 
+        !> ZMAT construction to make the molecule linear
         do jj = 1,molc%nat
           if (molc%ztod(jj) .ne. 0) then
             itmp(1) = molc%at(jj)
             itmp(2) = molc%at(molc%zmap(jj,1))
             itmp(3) = molc%at(molc%zmap(jj,2))
-            if(all(itmp(:).eq.6))then
-               !write(*,*) 'C-C bond:',molc%zmap(jj,1:2)
-               molc%zmat(3,jj) = -pi
-            endif
+            itmp(4) = molc%at(molc%zmap(jj,3))
+            if (all(itmp(:) > 1)) then
+              !write(*,*) 'C-C bond:',molc%zmap(jj,1:2)
+              molc%zmat(3,jj) = -pi
+            end if
           end if
         end do
+
         call molc%print_zmat(stdout)
         call molc%from_zmat(newmol)
-        !call reconstruct_zmat_to_mol(mol%nat,mol%at,molc%zmat, &
-        !  molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),newmol)
         call newmol%write(conformerfile)
 
+        call env%ref%load(newmol)
         exit
       end if
     end do

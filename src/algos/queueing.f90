@@ -84,7 +84,7 @@ subroutine crest_queue_setup(env,iterate)
         end if
         layer(ii)%refmol = reference_mol
         call reference_mol%get_cn(layer(ii)%refcn)
-        allocate(layer(ii)%reficn(reference_mol%nat))
+        allocate (layer(ii)%reficn(reference_mol%nat))
         layer(ii)%reficn(:) = nint(layer(ii)%refcn(:))
         call split(reference_mol,splitatms,layer(ii)%node,layer(ii)%alignmap, &
           & ncap=layer(ii)%ncapped,position_mapping=layer(ii)%position_mapping)
@@ -233,6 +233,10 @@ subroutine crest_queue_iter(env,iterate)
       if (allocated(env%ref%wbo)) deallocate (env%ref%wbo)
       env%nat = mol%nat
       env%rednat = mol%nat
+      if (.not.env%user_mdtime) then
+        env%mdtime = -1.0_wp
+        env%mddat%length_ps = -1.0_wp
+      end if
 
       env%calc => queue%calc
 
@@ -300,19 +304,24 @@ subroutine crest_queue_reconstruct(env,tim)
   use strucrd
   use iomod
   use crest_calculator
+  use utilities, only: checkname_xyz
   implicit none
   type(systemdata),intent(inout) ::  env
   type(timer),intent(inout) :: tim
   type(coord) :: mol
   integer :: ii,jj,kk,nall
-  logical :: ex
+  logical :: ex,multilevel(6)
+  type(timer) :: timtmp
   type(coord),allocatable :: structures(:)
   type(calcdata),target :: newcalc
+  character(len=256) :: inpnam,outnam
   character(len=*),parameter :: recfile = 'crest_reconstruct.xyz'
 
   if (.not. (allocated(env%splitqueue).and.env%splitheap%nqueue > 0)) then
     return
   end if
+
+  call tim%start(9,'Queue reconstruction')
 
   write (stdout,'(/,80("#"))')
   write (stdout,'(3("#"),t25,a,t78,3("#"))') 'QUEUE STRUCTURE RECONSTRUCTION'
@@ -336,21 +345,36 @@ subroutine crest_queue_reconstruct(env,tim)
   deallocate (env%splitheap%layer)
   deallocate (env%splitheap%queue)
 
-  write(stdout,'(/,1x,a)') 'Wrting reconstructed structures to: "'//recfile//'"'
+  write (stdout,'(/,1x,a)') 'Wrting reconstructed structures to: "'//recfile//'"'
   call wrensemble(recfile,nall,structures)
-  write(stdout,*)
+  write (stdout,*)
 
   call newcalc%copy(env%calc)
   env%calc => newcalc
   call env%calc%info(stdout)
 
-  call crest_multilevel_wrap(env,recfile,0)
- 
-  inquire(file='cregen.out.tmp',exist=ex)
-  if(ex)then
-    call catdel('cregen.out.tmp')
-    call rmrf('crest_rotamers_*.xyz')
-  endif
+  select case (env%crestver)
+  case (crest_optimize)
+    call env%ref%load(structures(1))
+    call crest_optimization(env,timtmp)
+  case default
+    call optlev_to_multilev(env%optlev,multilevel)
+    call crest_multilevel_oloop(env,recfile,multilevel)
+    if (env%iostatus_meta .ne. 0) return
+
+    call smallheadline('FINAL GEOMETRY OPTIMIZATION IN QUEUE RECONSTRUCTION')
+    call checkname_xyz(crefile,inpnam,outnam)
+    call rename(inpnam,recfile)
+    call crest_multilevel_wrap(env,recfile,0)
+
+    call V2terminating()
+  end select
+
+  if (.not.env%keepmodef) then
+    call rmrf('crest_queue_*')
+  end if
+
+  call tim%stop(9)
 
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)
@@ -365,7 +389,8 @@ contains
     type(coord),allocatable :: structures_b(:)
     type(coord),allocatable :: structures_s(:)
     type(coord) :: mol
-    integer :: nall_b,nall_s,id_b,id_s
+    integer :: nall_b,nall_s,id_b,id_s,nallsq,sss
+    integer :: iliml,ilimu,jliml,jlimu
     logical :: ex,clash
 
     character(len=*),parameter :: subdir_tmp = 'crest_queue_'
@@ -452,19 +477,89 @@ contains
       write (stdout,'(2x,a,i0)') 'Max. combinations     : ',nall_b*nall_s
 
       layer%nmols = 0
-      kk = nall_b*nall_s
+      kk = min(nall_b*nall_s,env%queue_maxreconstruct)
       allocate (layer%mols(kk))
-      do ii = 1,nall_b
-        do jj = 1,nall_s
-          call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
-          & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
-          & clash=clash,reficn=layer%reficn)
-          if (.not.clash) then
-            layer%nmols = layer%nmols+1
-            layer%mols(layer%nmols) = mol
-          end if
-        end do
-      end do
+
+      !> NOTE:
+      !> we want a balanced amount of combinations, sourcing
+      !> roughly equal amounts of structures from base and
+      !> side chain ensembles.
+      !> We implement some additional logic to do so:
+      !> 1. decide on size which is the inner loop (the smaller one)
+      !> 2. limit loops to square of max allowed output combis (kk)
+      !> 3. if we have space left, increase sampling
+
+      nallsq = nint(sqrt(real(kk,wp)))
+      if (nall_b > nall_s) then
+        sssloop: do sss = 1,3
+          select case (sss)
+          case (1)
+            iliml = 1
+            jliml = 1
+            ilimu = min(nall_b,nallsq)
+            jlimu = min(nall_s,nallsq)
+          case (2)
+            if (jlimu == nall_s) then
+              iliml = ilimu+1
+              ilimu = nall_b
+            else
+              jliml = jlimu+1
+              jlimu = nall_s
+            end if
+          case (3)
+            iliml = ilimu+1
+            ilimu = nall_b
+            jliml = 1
+          end select
+          iiloop: do ii = iliml,ilimu
+            jjloop: do jj = jliml,jlimu
+              call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
+              & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
+              & clash=clash,reficn=layer%reficn)
+              if (.not.clash) then
+                layer%nmols = layer%nmols+1
+                layer%mols(layer%nmols) = mol
+                if (layer%nmols == kk) exit sssloop
+              end if
+            end do jjloop
+          end do iiloop
+        end do sssloop
+      else
+        sssloop2: do sss = 1,3
+
+          select case (sss)
+          case (1)
+            iliml = 1
+            jliml = 1
+            ilimu = min(nall_b,nallsq)
+            jlimu = min(nall_s,nallsq)
+          case (2)
+            if (ilimu == nall_b) then
+              jliml = jlimu+1
+              jlimu = nall_s
+            else
+              iliml = ilimu+1
+              ilimu = nall_b
+            end if
+          case (3)
+            jliml = jlimu+1
+            jlimu = nall_s
+            iliml = 1
+          end select
+          jjloop2: do jj = jliml,jlimu
+            iiloop2: do ii = iliml,ilimu
+              call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
+              & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
+              & clash=clash,reficn=layer%reficn)
+              if (.not.clash) then
+                layer%nmols = layer%nmols+1
+                layer%mols(layer%nmols) = mol
+                if (layer%nmols == kk) exit sssloop2
+              end if
+            end do iiloop2
+          end do jjloop2
+        end do sssloop2
+      end if
       write (stdout,'(2x,a,i0)') 'Successful combinations : ',layer%nmols
 
     end associate

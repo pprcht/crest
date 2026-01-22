@@ -467,6 +467,7 @@ module crest_data
     type(split_atms),allocatable :: splitqueue(:)
     type(construct_heap) :: splitheap
     integer :: queue_iter = 0
+    integer :: queue_maxreconstruct = 10000
 
     !>--- QCG data
     integer :: qcg_runtype = 0      !> Default is grow, 1= ensemble & opt, 2= e_solv, 3= g_solv
@@ -544,11 +545,12 @@ module crest_data
     !>--- general logical data
     logical :: allrot = .true.       !> use all rotational constants for check instead of mean?
     logical :: alkylize = .false.    !> alkylization setting
+    logical :: alkylizeskip = .true. !> alkylization sampling skip
     logical :: altopt = .false.
-    logical :: autothreads           !> automatically determine threads
-    logical :: autozsort             !> do the ZSORT in the beginning ?
+    logical :: autothreads = .true.  !> automatically determine threads
+    logical :: autozsort = .false.   !> do the ZSORT in the beginning ?
     logical :: allowrestart = .true. !> allow restart in crest algos?
-    logical :: better                !> found a better conformer and restart in V1
+    logical :: better = .false.      !> found a better conformer and restart in V1
     logical :: ceh_guess = .false.   !> use CEH guess in tblite or gfnff, if available
     logical :: cff                   !> CFF used in QCG-energy calculation
     logical :: cluster = .false.     !> perform a clustering analysis
@@ -559,7 +561,7 @@ module crest_data
     logical :: confgo                !> perform only the CREGEN routine ?
     logical :: constrain_solu        !> constrain the solute
     logical :: crest_ohess = .false. !> append numerical Hessian after optimization
-    logical :: doNMR                 !> determine NMR equivalencies in CREGEN ?
+    logical :: doNMR = .false.       !> determine NMR equivalencies in CREGEN ?
     logical :: dryrun = .false.      !> dryrun to print settings
     logical :: ENSO                  !> some options for usage of CREST within ENSO
     logical :: ens_const = .false.   !> constrain solute also in Ensemble generation
@@ -570,12 +572,12 @@ module crest_data
     logical :: extLFER = .false.     !> read in external LFER parameters
     logical :: FINAL_GFN2_OPT = .false.
     logical :: fullcre = .false.     !> calculate exact rotamer degeneracies
-    logical :: gbsa                  !> use gbsa
+    logical :: gbsa = .false.        !> use gbsa
     logical :: gcmultiopt            !> 2 level optimization for GC in V2
     logical :: gradsp = .true.       !> turn on/off gradient calculation in singlepoint
     logical :: heavyrmsd = .false.   !> use only heavy atoms for RMSD in CREGEN?
     logical :: inplaceMode = .true.  !> in-place mode: optimization dirs are created "on-the-fly"
-    logical :: iterativeV2           !> iterative version of V2 (= V3)
+    logical :: iterativeV2 = .true.  !> iterative version of V2 (= V3)
     logical :: iru                   !> re-use previously found conformers as bias in iterative approach
     logical :: keepModef             !> keep MODEF* dirs in V1 ?
     logical :: keepScratch = .false. !> keep scratch directory or delete it?
@@ -584,10 +586,10 @@ module crest_data
     logical :: methautocorr          !> try to automatically include Methyl equivalencies in CREGEN ?
     logical :: multilevelopt = .true. !> perform the multileveloptimization
     logical :: newcregen = .false.   !> use the CREGEN rewrite
-    logical :: NCI                   !> NCI special usage
-    logical :: niceprint             !> make a nice progress-bar printout
+    logical :: NCI = .false.         !> NCI special usage
+    logical :: niceprint = .false.   !> make a nice progress-bar printout
     logical :: noconst = .false.     !> no constrain of solute during QCG Growth
-    logical :: onlyZsort             !> do only the ZSORT routine ?
+    logical :: onlyZsort = .false.   !> do only the ZSORT routine ?
     logical :: optpurge = .false.    !> MDOPT purge application
     logical :: outputsdf = .false.   !> write output ensemble as sdf?
     logical :: pcaexclude = .false.  !> exclude user set atoms from PCA?
@@ -617,7 +619,7 @@ module crest_data
     logical :: refine_esort = .false.  !> if CREGEN is run after crest_refine, only sort energy?
     logical :: sameRandomNumber = .false. !> QCG related, choose same random number for iff
     logical :: scallen               !> scale the automatically determined MD length by some factor?
-    logical :: scratch               !> use scratch directory
+    logical :: scratch = .false.     !> use scratch directory
     logical :: setgcmax = .false.    !> adjust the maxmimum number of structures taken into account for GC?
     logical :: sdfformat = .false.   !> was the SDF format used as input file?
     logical :: slow                  !> slowmode (counterpart to quick mode)
@@ -636,7 +638,7 @@ module crest_data
     logical :: user_nclust = .false. !> true if number of cluster is set by user (only QCG)
     logical :: user_dumxyz = .false. !> true if dumpxyz is set by user
     logical :: user_wscal = .false.  !> true if wscal is set by user
-    logical :: useqmdff              !> use QMDFF in V2?
+    logical :: useqmdff = .false.    !> use QMDFF in V2?
     logical :: water = .false.       !> true if water is used as solvent (only QCG)
     logical :: wallsetup = .false.   !> set up a wall potential?
     logical :: wbotopo = .false.     !> set up topo with WBOs

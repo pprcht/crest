@@ -23,9 +23,9 @@ subroutine eval_timer(tim)
 !********************************
   use crest_parameters
   use crest_data
-  use crest_calculator,only: engrad_total
+  use crest_calculator,only:engrad_total
   use crest_restartlog
-  use iomod, only: get_peak_rss_kb
+  use iomod,only:get_peak_rss_kb
   implicit none
   type(timer) :: tim
   real(wp) :: time_total,time_avg,mem
@@ -36,18 +36,23 @@ subroutine eval_timer(tim)
   time_total = tim%get()
   call tim%clear
   mem = real(get_peak_rss_kb(),wp)
-  write(stdout,'(" * Peak RSS: ",f8.2, " MiB")') mem/1024.0_wp
-  if(engrad_total > 0)then
-  write(atmp,'(f30.3)') time_total/real(engrad_total,wp)
-  write(stdout,'(" * Total number of energy+grad calls: ",i0)') & !,a,1x,a,a)') & 
-  &  engrad_total!,' (avg. wall-time',trim(adjustl(atmp)),' sec)'
-  write(stdout,*)
-  call dump_restart() 
-  endif
+  write (stdout,'(" * Peak RSS: ",f8.2, " MiB")') mem/1024.0_wp
+  if (engrad_total > 0.0_wp) then
+    write (atmp,'(f30.3)') time_total/real(engrad_total,wp)
+    if (engrad_total < 10.0_wp**5) then
+      write (stdout,'(" * Total number of energy+grad calls: ",i0)') &
+      &  nint(engrad_total)
+    else
+      write (stdout,'(" * Total number of energy+grad calls: ",es10.4)') &
+      &  engrad_total
+    end if
+    write (stdout,*)
+    call dump_restart()
+  end if
 end subroutine eval_timer
 
 subroutine propquit(tim)
-  use crest_parameters, only: stdout
+  use crest_parameters,only:stdout
   use crest_data
   implicit none
   type(timer) :: tim

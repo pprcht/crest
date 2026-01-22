@@ -326,7 +326,7 @@ contains  !> MODULE PROCEDURES START HERE
        & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3), &
        & molc%bond,molc%ndieder,molc%ztod)
       end if
-      call molc%print_zmat(stdout)
+      !call molc%print_zmat(stdout)
       call prune_zmat_dihedrals(molc,molc%zmat, &
       & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%ztod)
     end if
