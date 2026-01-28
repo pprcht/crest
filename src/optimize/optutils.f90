@@ -462,7 +462,7 @@ contains  !> MODULE PROCEDURES START HERE
 !****************************************************
     integer, intent(in) :: optlev, optimizer
     real(wp), intent(in) :: gnorm
-    real(wp) :: alp, shift, l, k, scaling
+    real(wp) :: alp, shift, l, k
 
     alp = 1.0_wp
     if (gnorm .lt. 0.002) then ! 0.002
@@ -491,9 +491,9 @@ contains  !> MODULE PROCEDURES START HERE
         k=6000_wp
         shift=0.0007_wp
       case(2) !vtight
-        L=2.0_wp
+        L=1.5_wp
         k=2000_wp
-        shift=0.0001_wp
+        shift=0.0007_wp
       end select
     case  (2) !rfo
       select case(optlev)
