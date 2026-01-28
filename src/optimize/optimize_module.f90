@@ -129,7 +129,7 @@ contains  !> MODULE PROCEDURES START HERE
         & calc%ht,calc%gt,calc%stot,etot)
 
       else
-        call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,calc%chess%hess(:),calc%hguess,pr)
+        
         idx = minloc(calc%chess%order,1)
         
         call initialize_hessian(calc,calc%chess%initialize_type,calc%chess%coords(idx,:,:),molnew%nat,molnew%at,calc%chess%hess(:),calc%chess%hguess,pr)  !> This hguess is set through the hguess variable of the optimizer and needs to be hardcoded/set explicitly before initialization for benchmarking!!

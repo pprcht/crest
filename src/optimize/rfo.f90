@@ -316,20 +316,21 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- if we are close to convergence we can take larger steps
       alpold = alp
 
-      alp = 1.0d-1
-      if (gnorm .lt. 0.002) then ! 0.002
-        alp = 1.5d-1 ! 1.5
-      end if
-      if (gnorm .lt. 0.0006) then
-        alp = 2.0d-1 ! 2
-      end if
-      if (gnorm .lt. 0.0003) then
-        alp = 3.0d-1 ! 3
-      end if
+      !alp = 1.0d0
+      !if (gnorm .lt. 0.002) then ! 0.002
+      !  alp = 1.5d0 ! 1.5
+      !end if
+      !if (gnorm .lt. 0.0006) then
+      !  alp = 2.0d0 ! 2
+      !end if
+      !if (gnorm .lt. 0.0003) then
+      !  alp = 3.0d0 ! 3
+      !end if
 
-      !if (calc%optlev>0) then
-        alp = alp_generate(gnorm, calc)
-      !endif
+      
+      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine)
+      !write(stdout,*) alp
+      
 
 !>------------------------------------------------------------------------
 !> Update the Hessian
@@ -382,7 +383,7 @@ contains  !> MODULE PROCEDURES START HERE
         !  dsnrm = sqrt(ddot(nvar1,Uaug,1,Uaug,1))
         !  Uaug = Uaug/dsnrm
         !else
-          call solver_dspevx(nvar1,0.0_wp,Aaug,Uaug,eaug,fail)
+          call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
         !endif
       else
         !>--- steepest decent guess for displacement
@@ -511,32 +512,6 @@ contains  !> MODULE PROCEDURES START HERE
 
     return
   end subroutine rfopt
-
-  function alp_generate(gnorm,calc) result(alp)
-  type(calcdata),intent(in) :: calc
-  real(wp), intent(in) :: gnorm
-  real(wp) :: alp, shift, l, k, scaling
-
-  if (calc%optlev == 1) then
-    L = 2.0_wp
-    k = 2000.0_wp
-    shift = 0.0005_wp
-    scaling = 0.12_wp
-  else if (calc%optlev == 2) then
-    L = 1.0_wp
-    k = 8000.0_wp
-    shift = 0.0009_wp
-    scaling = 0.12_wp
-  else
-    L = calc%L
-    k = calc%k
-    shift = calc%shift
-    scaling = calc%scaling
-  endif
-  
-  alp = scaling*(L/(1+euler**(k*(gnorm-shift)))+1)
-
-  end function alp_generate
 
 !========================================================================================!
 !========================================================================================!

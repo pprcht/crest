@@ -24,7 +24,7 @@
 
 module ancopt_module
   use iso_fortran_env,only:wp => real64,sp => real32
-  !use crest_parameters, only
+  !use crest_parameters
   use crest_calculator
   use axis_module
   use strucrd
@@ -343,18 +343,18 @@ contains  !> MODULE PROCEDURES START HERE
     logical :: lowered
     integer :: i,j,ii,jj,jjj,iii,k,lwork,info,m,idum,imax(3)
     real(wp) :: energy,dsnrm,maxdispl,t0,w0,t1,w1
-    real(wp) :: lambda,gnorm,dnorm,ddot,eold,xdum,estart,acc,e_in
+    real(wp) :: lambda,gnorm,dnorm,eold,xdum,estart,acc,e_in
     real(wp) :: depred,echng,dummy,maxd,alp,alpold,gchng,gnold
     real(wp),allocatable :: gold(:)
     real(wp),allocatable :: displ(:),gint(:)
-    real(sp),allocatable :: eaug(:)
-    real(sp),allocatable :: Uaug(:,:)
-    real(sp),allocatable :: Aaug(:)
-    real(sp),parameter :: r4dum = 1.e-8
+    real(wp),allocatable :: eaug(:)
+    real(wp),allocatable :: Uaug(:,:)
+    real(wp),allocatable :: Aaug(:)
+    real(wp),parameter :: r4dum = 1.e-8
     real(wp), allocatable :: test_hess(:,:)
     !> LAPACK & BLAS
     external :: dgemv
-    real(sp),external :: sdot
+    real(wp),external :: ddot
     integer :: q,r,s,nat3 !> ONLY for testing!
     nat3 = 3*mol%nat
     allocate(test_hess(nat3,nat3))
@@ -380,7 +380,7 @@ contains  !> MODULE PROCEDURES START HERE
     nvar1 = OPT%nvar+1             !> dimension of RF calculation
     npvar = OPT%nvar*(nvar1)/2   !> packed size of Hessian (note the abuse of nvar1!)
     npvar1 = nvar1*(nvar1+1)/2 !> packed size of augmented Hessian
-    allocate (Uaug(nvar1,1),eaug(nvar1),Aaug(npvar1),source=0.0_sp)
+    allocate (Uaug(nvar1,1),eaug(nvar1),Aaug(npvar1),source=0.0_wp)
     !$omp end critical
 
 !! ========================================================================
@@ -464,20 +464,20 @@ contains  !> MODULE PROCEDURES START HERE
         end if
       end if
 
-      alp = 1.0d0
-      if (gnorm .lt. 0.002) then ! 0.002
-        alp = 1.5d0 ! 1.5
-      end if
-      if (gnorm .lt. 0.0006) then
-        alp = 2.0d0 ! 2
-      end if
-      if (gnorm .lt. 0.0003) then
-        alp = 3.0d0 ! 3
-      end if
+      !alp = 1.0d0
+      !if (gnorm .lt. 0.002) then ! 0.002
+      !  alp = 1.5d0 ! 1.5
+      !end if
+      !if (gnorm .lt. 0.0006) then
+      !  alp = 2.0d0 ! 2
+      !end if
+      !if (gnorm .lt. 0.0003) then
+      !  alp = 3.0d0 ! 3
+      !end if
 
-      if (calc%optlev>0) then
-        alp = alp_generate(gnorm, calc)
-      endif
+      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine)
+      !write(stdout,*) alp
+
 !>------------------------------------------------------------------------
 !> Update the Hessian
 !>------------------------------------------------------------------------
@@ -500,12 +500,6 @@ contains  !> MODULE PROCEDURES START HERE
         end select
       end if
 
-      !> Transform hessian to cartesian coordinate basis (still wrong)
-      !if (calc%do_HR) then
-      !    call dhtosq(nat3,test_hess(:,:),OPT%hess(:))
-      !    calc%chess%H(:,:) = matmul(matmul(Transpose(OPT%B(:,:)), test_hess(:,:)), OPT%B(:,:))
-      !end if
-
 !>------------------------------------------------------------------------
 !>  rational function (RF) method
 !>------------------------------------------------------------------------
@@ -517,24 +511,24 @@ contains  !> MODULE PROCEDURES START HERE
 !>     Aaug    Uaug       Uaug
 
 !>--- first, augment Hessian by gradient, everything packed, no blowup
-      Aaug(1:npvar) = real(OPT%hess(1:npvar),sp)
-      Aaug(npvar+1:npvar1-1) = real(gint(1:OPT%nvar),sp)
-      Aaug(npvar1) = 0.0_sp
+      Aaug(1:npvar) = OPT%hess(1:npvar)
+      Aaug(npvar+1:npvar1-1) = gint(1:OPT%nvar)
+      Aaug(npvar1) = 0.0_wp
 
-!>--- choose solver
+!>--- choose solver for the RF eigenvalue problem
       if (exact.or.nvar1 .lt. 50) then
-        call solver_sspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
+          call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
       else
         !>--- steepest decent guess for displacement
         if (ii .eq. 1) then
-          Uaug(:,1) = [-real(gint(1:OPT%nvar),sp),1.0_sp]
-          dsnrm = sqrt(sdot(nvar1,Uaug,1,Uaug,1))
-          Uaug = Uaug/real(dsnrm,sp)
+          Uaug(:,1) = [-gint(1:OPT%nvar),1.0_wp]
+          dsnrm = sqrt(ddot(nvar1,Uaug,1,Uaug,1))
+          Uaug = Uaug/dsnrm
         end if
-        call solver_sdavidson(nvar1,r4dum,Aaug,Uaug,eaug,fail,.false.)
+        call solver_ddavidson(nvar1,r4dum,Aaug,Uaug,eaug,fail,.false.)
         !>--- if that failed, retry with better solver
         if (fail) then
-          call solver_sspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
+          call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
         end if
       end if
 
@@ -569,7 +563,7 @@ contains  !> MODULE PROCEDURES START HERE
         write (*,'(6x,"in ANC''s ",3("#",i0,", "),"...")') imax
         !call prdispl(OPT%nvar,displ)
       end if
-!>------------------------------------------------------------------------
+!>---------------------------------------------------------------------------
 
 !>--- 2nd: exit and redo hessian (internal restart)
       if (ii .gt. 2.and.dsnrm .gt. 2.0) then
@@ -642,30 +636,6 @@ contains  !> MODULE PROCEDURES START HERE
 
     return
   end subroutine trfp2xyz
-
-  function alp_generate(gnorm,calc) result(alp)
-  type(calcdata),intent(in) :: calc
-  real(wp), intent(in) :: gnorm
-  real(wp) :: alp, shift, l, k
-
-  if (calc%optlev == 1) then
-    L = 2.0_wp
-    k = 2000.0_wp
-    shift = 0.0005_wp
-  else if (calc%optlev == 2) then
-    L = 1.0_wp
-    k = 8000.0_wp
-    shift = 0.0009_wp
-  else
-    L = calc%L
-    k = calc%k
-    shift = calc%shift
-  endif
-  
-  alp = L/(1+euler**(k*(gnorm-shift)))+1
-
-  end function alp_generate
-
 
 !========================================================================================!
 !========================================================================================!

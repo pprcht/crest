@@ -80,16 +80,16 @@ subroutine initialize_hessian(calc,type,xyz,nat,at,hess,hguess,pr) !>Matrix is f
         call modhes(calc,mhset,nat,xyz,at,hess(:),pr)
     end select
 
-    call axis(nat,at,xyz,rot,dumi)
-    linear = (rot(3) .lt. 1.d-10).or.(nat == 2)
+    !call axis(nat,at,xyz,rot,dumi)
+    !linear = (rot(3) .lt. 1.d-10).or.(nat == 2)
 
-    if (.not.linear) then
-        if (calc%nfreeze == 0) then
-          call trproj(nat,nat3,xyz,hess,.false.,0,pmode,1)  !> normal
-        else
-          call trproj(nat,nat3,xyz,hess,.false.,calc%freezelist) !> fozen atoms
-        end if
-    end if
+    !if (.not.linear) then
+    !    if (calc%nfreeze == 0) then
+    !      call trproj(nat,nat3,xyz,hess,.false.,0,pmode,1)  !> normal
+    !    else
+    !      call trproj(nat,nat3,xyz,hess,.false.,calc%freezelist) !> fozen atoms
+    !    end if
+    !end if
 
     call force_positive_definiteness(hess, nat3)
 

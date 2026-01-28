@@ -454,5 +454,91 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine print_convd
 
 !========================================================================================!
+
+  function alp_generate(gnorm,optlev,optimizer) result(alp)
+!****************************************************
+!* Computes stepsize scaling factor depending on optimizer
+!* and optlev
+!****************************************************
+    integer, intent(in) :: optlev, optimizer
+    real(wp), intent(in) :: gnorm
+    real(wp) :: alp, shift, l, k, scaling
+
+    alp = 1.0_wp
+    if (gnorm .lt. 0.002) then ! 0.002
+      alp = 1.5_wp ! 1.5
+    end if
+    if (gnorm .lt. 0.0006) then
+      alp = 2.0_wp ! 2
+    end if
+    if (gnorm .lt. 0.0003) then
+      alp = 3.0_wp ! 3
+    end if
+
+    select case(optimizer)
+    case  (0) !ancopt
+      select case(optlev)
+      case (-1) !loose
+        L=2.0_wp
+        k=4000_wp
+        shift=0.0005_wp
+      case(0) !normal
+        L=1.5_wp
+        k=8000_wp
+        shift=0.0007_wp
+      case(1) !tight
+        L=1.5_wp
+        k=6000_wp
+        shift=0.0007_wp
+      case(2) !vtight
+        L=2.0_wp
+        k=2000_wp
+        shift=0.0001_wp
+      end select
+    case  (2) !rfo
+      select case(optlev)
+      case (-1) !loose
+        L=2.0_wp
+        k=2000_wp
+        shift=0.0005_wp
+      case(0) !normal
+        L=1.5_wp
+        k=8000_Wp
+        shift=0.0003_wp
+      case(1) !tight
+        L=0.05_wp
+        k=6000_wp
+        shift=0.0003_wp
+      case(2) !vtight, we do not scale here
+        L=0.0_wp
+        k=1.0_wp
+        shift=1.0_wp
+      end select
+    case  (3) !Newton
+      select case(optlev)
+      case (-1) !loose
+        L=2.0_wp
+        k=4000_wp
+        shift=0.0005_wp
+      case(0) !normal
+        L=0.5_wp
+        k=4000_wp
+        shift=0.0001_wp
+      case(1) !tight, we do not scale here
+        L=0.0_wp
+        k=1.0_wp
+        shift=1.0_wp
+      case(2) !vtight
+        L=0.5_wp
+        k=8000_wp
+        shift=0.0003_wp
+      end select
+    end select
+
+    
+    alp = L/(1+euler**(k*(gnorm-shift)))+1
+
+  end function alp_generate
+
 !========================================================================================!
 end module optimize_utils

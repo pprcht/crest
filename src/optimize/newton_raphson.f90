@@ -203,7 +203,7 @@ contains  !> MODULE PROCEDURES START HERE
     !  end do
     !end do
 
-    call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,hess,calc%hguess,pr)
+    call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,OPT%hess,calc%hguess,pr)
 
 !>--- backup coordinates, and starting energy
     molopt%nat = mol%nat
@@ -298,20 +298,20 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- if we are close to convergence we can take larger steps
       alpold = alp
 
-      alp = 1.0d-1
-      if (gnorm .lt. 0.002) then ! 0.002
-        alp = 1.5d-1 ! 1.5
-      end if
-      if (gnorm .lt. 0.0006) then
-        alp = 2.0d-1 ! 2
-      end if
-      if (gnorm .lt. 0.0003) then
-        alp = 3.0d-1 ! 3
-      end if
+      !alp = 1.0d-0
+      !if (gnorm .lt. 0.002) then ! 0.002
+      !  alp = 1.5d-0 ! 1.5
+      !end if
+      !if (gnorm .lt. 0.0006) then
+      !  alp = 2.0d-0 ! 2
+      !end if
+      !if (gnorm .lt. 0.0003) then
+      !  alp = 3.0d-1 ! 3
+      !end if
 
-      !if (calc%optlev>0) then
-        !alp = alp_generate(gnorm, calc)
-      !endif
+      
+      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine)
+      !write(stdout,*) alp
 
 !>------------------------------------------------------------------------
 !> Update the Hessian
@@ -458,6 +458,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     return
   end subroutine newton_raphson
+
 
 !========================================================================================!
 !========================================================================================!
