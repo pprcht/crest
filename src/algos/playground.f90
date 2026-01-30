@@ -45,7 +45,7 @@ subroutine crest_playground(env,tim)
   integer,allocatable :: A(:,:)
   logical,allocatable :: rings(:,:)
   integer,allocatable :: tmp(:)
-  logical :: connected,fail
+  logical :: connected,fail,doreturn
 
   real(wp) :: energy
   real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:),q(:)
@@ -76,25 +76,9 @@ subroutine crest_playground(env,tim)
 !  call engrad(mol,calc,energy,grad,io)
 !  call calculation_summary(calc,mol,energy,grad)
 !========================================================================================!
-  block
-    use molbuilder_classify
-    type(coord) :: new
-    type(coord_classify) :: newc
-    call env%ref%to(new)
 
-    call setup_classify(new,newc)
-    !call atinfo_classify(newc)
-    call functional_group_classify(newc)
-
-    do i=1,newc%nat
-    write(*,'(a,i0,3(1x,i0),1x,a)') trim(i2e(newc%at(i),'nc')),i,&
-      & newc%hyb(i),newc%nhn(i),newc%prio(i),trim(newc%atinfo(i))
-    enddo
-
-    call newc%print_funcgroups(stdout)
-
-    write(*,*) newc%sumform()
-  end block
+  env%alkylize = .true.
+  call crest_proxy_nalkane(env,doreturn)
 
 !========================================================================================!
   call tim%stop(14)

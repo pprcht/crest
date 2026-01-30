@@ -61,6 +61,7 @@ module molbuilder_classify_type
     real(wp),allocatable :: zmat(:,:)
     integer,allocatable  :: zmap(:,:) !> na,nb,nc
     integer,allocatable  :: ztod(:)
+    integer,allocatable  :: hatsort(:,:)
 
     !> utility storage
     logical,allocatable :: lwork(:)
@@ -314,6 +315,13 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(molc%zmap)) deallocate (molc%zmap)
     if (allocated(molc%ztod)) deallocate (molc%ztod)
 
+    if (present(natural)) then
+      if (natural) then
+        write (stdout,'(/,a)') 'NOTE: atom order will temporarily be changed!'
+        call coord_classify_hatsort(molc)
+      end if
+    end if
+
     allocate (molc%zmap(molc%nat,3),source=0)
     allocate (molc%zmat(3,molc%nat),source=0.0_wp)
     call BETTER_XYZINT(molc%nat,molc%xyz,molc%bond, &
@@ -329,6 +337,7 @@ contains  !> MODULE PROCEDURES START HERE
       !call molc%print_zmat(stdout)
       call prune_zmat_dihedrals(molc,molc%zmat, &
       & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%ztod)
+      call coord_classify_hatsort_restore(molc)
     end if
 
   end subroutine coord_classify_calculate_zmat
@@ -336,18 +345,126 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine coord_classify_reconstruct_from_zmat(molc,mol)
     implicit none
     class(coord_classify),intent(inout) :: molc
-    type(coord),intent(out) :: mol
-
-    mol = molc%as_coord()
+    type(coord),intent(out),optional :: mol
 
     if (.not.allocated(molc%zmat)) then
       write (stdout,*) '** ERROR ** in coord_classify_reconstruct_from_zmat(): zmat not allocated!'
       return
     end if
     call GMETRY2(molc%nat,molc%zmat, &
-      &              mol%xyz,        &
+      &              molc%xyz,        &
       &  molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3))
+
+    if (present(mol)) then
+      mol = molc%as_coord()
+    end if
   end subroutine coord_classify_reconstruct_from_zmat
+
+  subroutine coord_classify_hatsort(molc)
+    !**************************************************************
+    !* a routine that resorts the atomorder in molc so that
+    !* hydrogen atoms come last. required for natural z-mat setup
+    !* Also mapps the order to restore it later on
+    !**************************************************************
+    implicit none
+    class(coord_classify),intent(inout) :: molc
+
+    real(wp),allocatable :: xyztmp(:,:)
+    integer,allocatable :: attmp(:),bondtmp(:,:)
+
+    integer :: ii,kk,jj
+    if (allocated(molc%hatsort)) deallocate (molc%hatsort)
+    allocate (molc%hatsort(molc%nat,2),source=0)
+    allocate (attmp(molc%nat),source=0)
+    allocate (xyztmp(3,molc%nat),source=0.0_wp)
+
+    kk = 0
+    !> heavy atoms
+    do ii = 1,molc%nat
+      if (molc%at(ii) .ne. 1) then
+        kk = kk+1
+        molc%hatsort(kk,1) = ii
+        molc%hatsort(ii,2) = kk
+        xyztmp(1:3,kk) = molc%xyz(1:3,ii)
+        attmp(kk) = molc%at(ii)
+      end if
+    end do
+    !> hydrogen
+    do ii = 1,molc%nat
+      if (molc%at(ii) .eq. 1) then
+        kk = kk+1
+        molc%hatsort(kk,1) = ii
+        molc%hatsort(ii,2) = kk
+        xyztmp(1:3,kk) = molc%xyz(1:3,ii)
+        attmp(kk) = molc%at(ii)
+      end if
+    end do
+
+    call move_alloc(xyztmp,molc%xyz)
+    call move_alloc(attmp,molc%at)
+
+    if (allocated(molc%bond)) then
+      allocate (bondtmp(molc%nat,molc%nat),source=0)
+      do ii = 1,molc%nat
+        do jj = 1,molc%nat
+          bondtmp(molc%hatsort(jj,2),molc%hatsort(ii,2)) = molc%bond(jj,ii)
+        end do
+      end do
+      call move_alloc(bondtmp,molc%bond)
+    end if
+  end subroutine coord_classify_hatsort
+
+  subroutine coord_classify_hatsort_restore(molc)
+    !**********************************************
+    !* Restore original order from h-atom sorting
+    !*********************************************
+    implicit none
+    class(coord_classify),intent(inout) :: molc
+
+    real(wp),allocatable :: xyztmp(:,:)
+    integer,allocatable :: attmp(:),bondtmp(:,:)
+    integer,allocatable :: ztodtmp(:),zmaptmp(:,:)
+    real(wp),allocatable :: zmattmp(:,:)
+    integer :: ii,kk,jj
+    if (.not.allocated(molc%hatsort)) return
+
+    allocate (attmp(molc%nat),source=0)
+    allocate (xyztmp(3,molc%nat),source=0.0_wp)
+    do ii = 1,molc%nat
+      kk = molc%hatsort(ii,1)
+      xyztmp(1:3,kk) = molc%xyz(1:3,ii)
+      attmp(kk) = molc%at(ii)
+    end do
+    call move_alloc(xyztmp,molc%xyz)
+    call move_alloc(attmp,molc%at)
+    if (allocated(molc%bond)) then
+      allocate (bondtmp(molc%nat,molc%nat),source=0)
+      do ii = 1,molc%nat
+        do jj = 1,molc%nat
+          bondtmp(molc%hatsort(jj,1),molc%hatsort(ii,1)) = molc%bond(jj,ii)
+        end do
+      end do
+      call move_alloc(bondtmp,molc%bond)
+    end if
+
+    allocate (ztodtmp(molc%nat),source=0)
+    allocate (zmaptmp(molc%nat,3),source=0)
+    allocate (zmattmp(3,molc%nat),source=0.0_wp)
+    do ii = 1,molc%nat
+      ztodtmp(molc%hatsort(ii,1)) = molc%ztod(ii)
+      zmattmp(1:3,molc%hatsort(ii,1)) = molc%zmat(1:3,ii)
+      do jj = 1,3
+        if (molc%zmap(ii,jj) > 0) then
+          zmaptmp(molc%hatsort(ii,1),jj) = molc%hatsort(molc%zmap(ii,jj),1)
+        else
+          zmaptmp(molc%hatsort(ii,1),jj) = 0
+        end if
+      end do
+    end do
+    call move_alloc(ztodtmp,molc%ztod)
+    call move_alloc(zmaptmp,molc%zmap)
+    call move_alloc(zmattmp,molc%zmat)
+  end subroutine coord_classify_hatsort_restore
 
 !=============================================================================!
 !#############################################################################!
