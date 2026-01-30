@@ -86,7 +86,7 @@ subroutine crest_queue_setup(env,iterate)
         call reference_mol%get_cn(layer(ii)%refcn)
         allocate (layer(ii)%reficn(reference_mol%nat))
         layer(ii)%reficn(:) = nint(layer(ii)%refcn(:))
-        call split(reference_mol,splitatms,layer(ii)%node,layer(ii)%alignmap, &
+        call binarysplit(reference_mol,splitatms,layer(ii)%node,layer(ii)%alignmap, &
           & ncap=layer(ii)%ncapped,position_mapping=layer(ii)%position_mapping)
         deallocate (splitatms)
         layer(ii)%nnodes = size(layer(ii)%node,1)

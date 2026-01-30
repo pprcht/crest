@@ -19,6 +19,11 @@ module molbuilder_construct_mod
     module procedure split_onshared
   end interface split
 
+  public :: binarysplit
+  interface binarysplit
+    module procedure binarysplit_onshared
+  end interface binarysplit
+
 !=============================================================================!
 contains  !> MODULE PROCEDURES START HERE
 !=============================================================================!
@@ -719,6 +724,288 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(Anew)) deallocate (Anew)
     if (allocated(frag)) deallocate (frag)
   end subroutine split_onshared
+!==============================================================================!
+  subroutine binarysplit_onshared(input,sharedlist,structures,sharedmap,&
+      & wbo,ncap,position_mapping)
+    implicit none
+    !> IN/OUTPUTS
+    type(coord),intent(in) :: input
+    integer,intent(in) :: sharedlist(:)
+    type(coord),intent(out),allocatable :: structures(:)
+    integer,intent(out),allocatable :: sharedmap(:,:)
+    !> OPTIONAL
+    real(wp),intent(in),optional :: wbo(input%nat,input%nat)
+    integer,intent(out),allocatable,optional :: ncap(:)
+    integer,intent(out),allocatable,optional :: position_mapping(:,:)
+    !> LOCAL
+    type(coord) :: shared
+    real(wp),allocatable :: cn(:),wbofake(:,:)
+    integer :: V,fbase,fside,nshared,ftmp
+    integer,allocatable :: A(:,:),Anew(:,:)
+    integer,allocatable :: frag(:),fragnew(:),molassign(:)
+    integer,allocatable :: ncapped(:)
+    integer,allocatable :: pos_map(:,:)
+    logical,allocatable :: in_ring(:,:)
+    integer,allocatable :: path_tmp(:)
+    integer,allocatable :: number_of_neighbours(:)
+    logical,allocatable :: terminal_atom(:)
+    logical,allocatable :: connected_to_share(:)
+    logical,allocatable :: assign_to_mols(:,:)
+    logical,allocatable :: unassigned_fragments(:)
+    logical,allocatable :: capping_mapping(:,:)
+    logical,allocatable :: methylizemapping(:,:)
+
+    integer :: npath,nfrag,nfragnew,nbonds
+    real(wp) :: distcap,methylproxy(3,3)
+    integer :: ii,jj,jjj,kk,sii,sjj,M,mm,nn,ll,lll
+
+    integer :: bond(2)
+
+    character(len=*),parameter :: source = "binarysplit_onshared()"
+
+    !> we will be working with graphs. define number of vertices = #atoms
+    V = input%nat
+    !> how many atoms are shared
+    nshared = size(sharedlist,1)
+
+    !> checks
+    if (any(sharedlist(:) > input%nat).or.(nshared < 1)) then
+
+      error stop source//": sharedlist() has invalid atom specification"
+    end if
+
+    !> set up adjacency matrix
+    if (present(wbo)) then
+      call wbo2adjacency(V,wbo,A,0.01_wp)
+    else
+      call input%cn_to_bond(cn,wbofake)
+      call wbo2adjacency(V,wbofake,A,0.01_wp)
+      deallocate (wbofake,cn)
+    end if
+
+!> ----------------------------------------------------------------------------
+!> BOOKKEEPING START
+!> ----------------------------------------------------------------------------
+    !> get fragment array (indicates which atom is on which fragment)
+    call setup_fragments(V,A,frag)
+
+    !> some other mappings
+    allocate (number_of_neighbours(V),source=0)
+    do ii = 1,V
+      number_of_neighbours(ii) = sum(A(:,ii))
+    end do
+    allocate (terminal_atom(V),source=.false.)
+    do ii = 1,V
+      terminal_atom(ii) = (number_of_neighbours(ii) == 1)
+    end do
+
+    !> The cutting logic starts here.
+    !> First, we need to identify all atoms actually sharing fragments with the shared atoms
+    allocate (connected_to_share(V),source=.false.)
+    do ii = 1,V
+      ftmp = frag(ii)
+      do jj = 1,nshared
+        if (ftmp == frag(sharedlist(jj))) then
+          connected_to_share(ii) = .true.
+          exit
+        end if
+      end do
+    end do
+    !> all atoms NOT part of that list will be present in both output fragments
+
+    !> Then, we take the graph and construct a new one with detachted "shared" atoms
+    nfrag = maxval(frag)
+    allocate (Anew(V,V),source=A)
+    iiloop1: do ii = 1,nshared
+      sii = sharedlist(ii)
+      do jj = 1,V
+        if (jj == sii) cycle
+        if ((A(jj,sii) == 1).and. &  !> look at existing bonds to shared section
+         & any(sharedlist(:) == jj).and. & !> must be connected to other shared section atoms
+         & .not.terminal_atom(jj)) then  !> and except terminal atoms (directly bound to shared section)
+          Anew(jj,sii) = 0
+          Anew(sii,jj) = 0
+
+          !> get new fragments
+          call setup_fragments(V,Anew,fragnew)
+          nfragnew = maxval(fragnew)
+          if ((nfragnew-nfrag) == 1) then
+            exit iiloop1
+          end if
+        end if
+      end do
+    end do iiloop1
+
+    M = 2
+    if (nfragnew == nfrag) then
+      error stop source//": system fragmentation yields currently unhandled edge-case"
+    else
+      !> now we can check asignment to new, split-up fragments
+      !> we distinguish between the shared secion (:,1), and all M others (:,2:M)
+      allocate (assign_to_mols(V,M+1),source=.false.)
+      allocate (unassigned_fragments(nfragnew),source=.true.)
+      !> distribute the separated fragments. Also assign the shared atoms themselves
+      mm = 1
+      do ii = 1,nshared
+        sii = fragnew(sharedlist(ii))
+        assign_to_mols(sharedlist(ii),:) = .true.
+        if (.not.unassigned_fragments(sii)) cycle
+        mm = mm+1
+        unassigned_fragments(sii) = .false.
+        do jj = 1,V
+          if (fragnew(jj) == sii) then
+            assign_to_mols(jj,mm) = .true.
+          end if
+        end do
+      end do
+      !> then, all atoms that had no connection to the shared region
+      !> and hence are present everywhere (except the shard region)
+      do ii = 1,V
+        if (.not.connected_to_share(ii)) then
+          sii = fragnew(ii)
+          unassigned_fragments(sii) = .false.
+          do jj = 1,V
+            if (fragnew(jj) == sii) then
+              assign_to_mols(jj,2:mm) = .true.
+            end if
+          end do
+        end if
+      end do
+
+      !!> exactly 0 fragments should be remaining because we had the even split
+      if (count(unassigned_fragments) .ne. 0) then
+        error stop source//": wrong number of unassigned_fragments"
+      end if
+    end if
+
+    !> prepare mapping and capping.
+    allocate (capping_mapping(V,M),source=.false.)
+    allocate (methylizemapping(nshared,M),source=.false.)
+    !> First, simple, chemoinformatic rules
+    do ii = 1,M
+      mm = ii+1
+      do jj = 1,nshared
+        nbonds = 0
+        sii = sharedlist(jj)
+        do ll = 1,V
+          if ((A(ll,sii) == 1).and.assign_to_mols(ll,mm)) then
+            nbonds = nbonds+1
+          end if
+        end do
+        if (nbonds == 1.and.input%at(sii) == 6) then
+          methylizemapping(jj,ii) = .true.
+        end if
+      end do
+    end do
+    !> then "regular" capping, we determine original atoms as proxy for
+    !> the cap (and later adjust the bondlength)
+    !> Entries will be .true. for atoms that need to be added to fragment
+    do ii = 1,M
+      mm = ii+1
+      do jj = 1,nshared
+        if (methylizemapping(jj,ii)) cycle
+        do kk = 1,V
+          if (A(kk,sharedlist(jj)) == 1.and..not.assign_to_mols(kk,mm)) then
+            capping_mapping(kk,ii) = .true.
+          end if
+        end do
+      end do
+    end do
+
+!> ----------------------------------------------------------------------------
+!> BOOKKEEPING END
+!> ----------------------------------------------------------------------------
+!> MOLECULE CONSTRUCTION START
+!> ----------------------------------------------------------------------------
+
+    allocate (structures(M)) !> we know that splitting produces M fragment
+    allocate (sharedmap(nshared,M),source=0)
+    allocate (ncapped(M),source=0)
+    allocate (pos_map(V,M),source=0)
+
+    do ii = 1,M
+      mm = ii+1
+      !> count atoms, allocate
+      nn = count(assign_to_mols(:,mm),1)+ &
+        &  count(capping_mapping(:,ii),1)+ &
+        &  count(methylizemapping(:,ii),1)*3
+      structures(ii)%nat = nn
+      allocate (structures(ii)%at(nn),source=2)
+      allocate (structures(ii)%xyz(3,nn),source=0.0_wp)
+      kk = 0
+      jjj = 0
+      !> directly assigned atoms
+      do jj = 1,V
+        if (assign_to_mols(jj,mm)) then
+          kk = kk+1
+          structures(ii)%at(kk) = input%at(jj)
+          structures(ii)%xyz(1:3,kk) = input%xyz(1:3,jj)
+          if (any(sharedlist(:) == jj)) then
+            jjj = jjj+1
+            sharedmap(jjj,ii) = kk
+          end if
+          pos_map(jj,ii) = kk
+        end if
+      end do
+      !> capping atoms
+      do jj = 1,V
+        if (capping_mapping(jj,ii)) then
+          kk = kk+1
+          ncapped(ii) = ncapped(ii)+1
+          structures(ii)%at(kk) = 1 !input%at(jj)
+          structures(ii)%xyz(1:3,kk) = input%xyz(1:3,jj)
+          !> repair distance for capping atoms
+          do ll = 1,V
+            if ((A(ll,jj) == 1).and.assign_to_mols(ll,mm)) then
+              distcap = (rcov(1)+rcov(input%at(ll)))*(3.0_wp/4.0_wp)
+              call place_at_distance(input%xyz(1:3,ll),structures(ii)%xyz(1:3,kk),distcap)
+            end if
+          end do
+        end if
+      end do
+      !> methylation atoms
+      do jj = 1,nshared
+        if (methylizemapping(jj,ii)) then
+          sjj = sharedlist(jj)
+          do ll = 1,V
+            if (A(ll,sjj) == 1.and.assign_to_mols(ll,mm)) then
+              call methylize(input%xyz(1:3,sjj),input%xyz(1:3,ll),methylproxy)
+              do lll = 1,3
+                kk = kk+1
+                ncapped(ii) = ncapped(ii)+1
+                structures(ii)%at(kk) = 1
+                structures(ii)%xyz(1:3,kk) = methylproxy(1:3,lll)
+              end do
+              exit
+            end if
+          end do
+        end if
+      end do
+    end do
+
+!> ----------------------------------------------------------------------------
+!> MOLECULE CONSTRUCTION END
+!> ----------------------------------------------------------------------------
+
+    if (present(ncap)) then
+      call move_alloc(ncapped,ncap)
+    end if
+
+    if (present(position_mapping)) then
+      call move_alloc(pos_map,position_mapping)
+    end if
+
+    if (allocated(pos_map)) deallocate (pos_map)
+    if (allocated(ncapped)) deallocate (ncapped)
+    if (allocated(assign_to_mols)) deallocate (assign_to_mols)
+    if (allocated(capping_mapping)) deallocate (capping_mapping)
+    if (allocated(unassigned_fragments)) deallocate (unassigned_fragments)
+    if (allocated(number_of_neighbours)) deallocate (number_of_neighbours)
+    if (allocated(terminal_atom)) deallocate (terminal_atom)
+    if (allocated(connected_to_share)) deallocate (connected_to_share)
+    if (allocated(Anew)) deallocate (Anew)
+    if (allocated(frag)) deallocate (frag)
+  end subroutine binarysplit_onshared
 
 !=============================================================================!
   pure subroutine place_at_distance(ref,moving,dist,tol,ierr)
