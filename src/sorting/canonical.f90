@@ -21,7 +21,7 @@ module canonical_mod
   use strucrd
   use adjacency
   use geo
-  use utilities, only: nth_prime
+  use utilities,only:nth_prime
   implicit none
   private
 
@@ -51,6 +51,7 @@ module canonical_mod
     procedure :: deallocate => deallocate_canonical_sorter
     procedure :: shrink => shrink_canonical_sorter
     procedure :: init => init_canonical_sorter
+    procedure :: init_connect => init_canonical_sorter_connect
     procedure :: update_ranks
     procedure :: update_invariants
     procedure :: iterate
@@ -125,7 +126,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: counth,countb,countbo
     real(wp) :: countbo2
     real(wp),allocatable :: cn(:),Bmat(:,:)
-    integer :: i,j,k,l,ii,ati,atj,maxnei
+    integer :: i,j,k,l,ii,ati,maxnei
     integer,allocatable :: ichrgs(:),frag(:)
     character(len=:),allocatable :: myinvtype
     logical :: use_icharges,include_H,anyH
@@ -141,7 +142,7 @@ contains  !> MODULE PROCEDURES START HERE
     else
       include_H = .false.
     end if
-    anyH = any(mol%at(:).eq.1)
+    anyH = any(mol%at(:) .eq. 1)
 
 !>--- all atoms of the full mol. graph are nodes
     nodes = mol%nat
@@ -161,16 +162,19 @@ contains  !> MODULE PROCEDURES START HERE
     if (.not.allocated(self%rank)) allocate (self%rank(k),source=1)
     if (.not.allocated(self%hadjac)) allocate (self%hadjac(k,k),source=0)
 
+    if (present(wbo)) then
+!>--- get connectivity. Easiest is just via WBO (allocates Amat)
+      call wbo2adjacency(nodes,wbo,Amat,0.02_wp)
+    else
 !>--- determine number of subgraphs via CN
-    call mol%cn_to_bond(cn,Bmat,'cov')
-    call wbo2adjacency(nodes,Bmat,Amat,0.02_wp)
+      call mol%cn_to_bond(cn,Bmat,'cov')
+      call wbo2adjacency(nodes,Bmat,Amat,0.02_wp)
+      deallocate (Bmat,cn)
+    end if
     allocate (frag(nodes),source=0)
     call setup_fragments(nodes,Amat,frag)
     self%nfrag = maxval(frag(:),1)
-    deallocate (frag,cn,Bmat)
-
-!>--- get connectivity. Easiest is just via WBO (allocates Amat)
-!    call wbo2adjacency(nodes,wbo,Amat,0.02_wp)
+    deallocate (frag)
 
 !>--- documment neighbour list
     maxnei = 0
@@ -235,7 +239,7 @@ contains  !> MODULE PROCEDURES START HERE
         end do
         self%invariants0(i) = update_invariant0_apsp(self%invariants0(i),ati,counth)
       end do
-      self%invariants(:) = real(self%invariants0(:))
+      self%invariants(:) = int(self%invariants0(:))
 
     case default !> CANGEN
 
@@ -291,13 +295,38 @@ contains  !> MODULE PROCEDURES START HERE
     call self%iterate(mol) !> iterate recursively until ranking doesn't change
 
 !>--- finally, if required, add H atoms
-    if (include_H .and. anyH) then
+    if (include_H.and.anyH) then
       !> sinc H's will have been added with rank 1, shift all ranks
       self%rank(:) = self%rank(:)-1
       call self%add_h_ranks(mol)
     end if
 
   end subroutine init_canonical_sorter
+
+ subroutine init_canonical_sorter_connect(self,at,wbo,invtype,heavy)
+!*****************************************************************
+!* Initializes the canonical_sorter provided only atom types and
+!* connectivity. No CN calculation etc.
+!*****************************************************************
+    implicit none
+    !> IN-/OUTPUTS
+    class(canonical_sorter),intent(inout) :: self
+    integer,intent(in) :: at(:)
+    real(wp),intent(in) :: wbo(size(at,1),size(at,1))
+    character(len=*),intent(in),optional :: invtype
+    logical,intent(in),optional :: heavy
+    !> LOCAL
+    integer :: nat
+    type(coord) :: tmpmol
+
+    nat = size(at,1)
+    allocate(tmpmol%at(nat))
+    tmpmol%at(:) = at(:)
+    tmpmol%nat = nat
+
+    call self%init(tmpmol,wbo=wbo,invtype=invtype,heavy=heavy)
+end subroutine init_canonical_sorter_connect
+
 
 !========================================================================================!
 
@@ -310,7 +339,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: dist(:,:)
     real(wp),allocatable :: rinv(:),tmprinv(:)
     integer,allocatable  :: tmp(:,:)
-    integer :: i,j,k,l,maxdist,lpath
+    integer :: i,j,k,maxdist
     real(wp) :: maxrinv
     inv(:) = 1
 
@@ -398,7 +427,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>---update ranks and primes
     implicit none
     class(canonical_sorter) :: self
-    integer :: maxrank,i,j,k,ii
+    integer :: maxrank,i,j,ii
     integer :: newrank,ngroup
     integer(int64) :: mincurr
     maxrank = maxval(self%rank,1)
@@ -439,7 +468,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>---update invariants
     implicit none
     class(canonical_sorter) :: self
-    integer :: i,j,k,ii
+    integer :: i,j
     integer(int64) :: invprod
     do i = 1,self%hatms
       invprod = 1
@@ -484,7 +513,7 @@ contains  !> MODULE PROCEDURES START HERE
     class(canonical_sorter) :: self
     type(coord),intent(in) :: mol
     integer :: i,ii,zero,nei,j,jj,maxrank
-    integer :: k,l,rs
+    integer :: k,rs
     integer,allocatable :: neiranks(:,:)
     real(wp) :: coords(3,4)
     logical,allocatable :: isstereo(:)
@@ -542,9 +571,7 @@ contains  !> MODULE PROCEDURES START HERE
     class(canonical_sorter),intent(in) :: self
     type(coord),intent(in) :: mol
     integer :: i,ii,zero,nei,j,jj,maxrank
-    integer :: k,l,rs
     integer,allocatable :: neiranks(:,:)
-    real(wp) :: coords(3,4)
     logical,allocatable :: isstereo(:)
     allocate (isstereo(mol%nat),source=.false.)
     allocate (neiranks(4,mol%nat),source=0)
@@ -636,10 +663,8 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     class(canonical_sorter),intent(inout) :: self
     type(coord),intent(in) :: mol
-    integer,allocatable :: rankh(:)
     integer,allocatable :: rankmap(:)
-    integer :: i,ii,zero,nei,j,jj,maxrank,rr,maxrank2
-    logical :: hneigh
+    integer :: i,ii,jj,maxrank,rr
 !>--- self%rank must already have the correct dimension!
     if (size(self%rank,1) .ne. mol%nat) then
       stop 'wrong dimension for adding H to canonical ranks!'
@@ -654,6 +679,10 @@ contains  !> MODULE PROCEDURES START HERE
     do i = 1,self%hatms
       if (mol%at(i) .ne. 1) cycle
       ii = self%neigh(1,i)
+      if(ii < 1)then
+        !> Edge-case: "unbound"" hydrogens (H⁺,H2, etc.), skip those here
+        cycle
+      endif
       jj = self%rank(ii)
       rankmap(jj) = 1
     end do
@@ -663,9 +692,16 @@ contains  !> MODULE PROCEDURES START HERE
         rankmap(i) = maxrank+rr
       end if
     end do
+    !> new maxrank(+1)
+    maxrank = maxval(rankmap(:),1)
     do i = 1,self%hatms
       if (mol%at(i) .ne. 1) cycle
       ii = self%neigh(1,i)
+      if(ii < 1)then 
+        !> again, taking care of the "unbound" H edge-case --> separate maxrank+1 for all of them
+        self%rank(i) = maxrank
+        cycle
+      endif 
       jj = self%rank(ii)
       self%rank(i) = rankmap(jj)
     end do
@@ -679,7 +715,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(canonical_sorter) :: can
     type(coord)  :: mol
-    integer :: i,k,ii,ati
+    integer :: i,ii,ati
     write (stdout,'(a10,a5,a15,a10,a10)') 'heavy-atom','type','invariant','rank','prime'
     do i = 1,can%hatms
       ii = can%hmap(i)
@@ -692,7 +728,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     class(canonical_sorter) :: can
     type(coord)  :: mol
-    integer :: i,k,ii,ati
+    integer :: i,ii,ati
     write (stdout,'(a10,a10,a12,a10,2x,a)') 'heavy-atom','type','invariant0','rank','neighbours'
     do i = 1,can%hatms
       ii = can%hmap(i)
@@ -707,7 +743,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: neigh(:)
     character(len=:),allocatable :: btmp
     character(len=20) :: atmp
-    integer :: i,j,k
+    integer :: i
     btmp = ''
     if (neigh(1) == 0) then
       btmp = ' ---'
@@ -749,7 +785,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: coords(3,4)
     real(wp) :: theta
     real(wp) :: vec(3),uec(3)
-    integer :: k,l,m,n
+    integer :: k,l
 
     k = 4
     !> rotate the highest prio atom onto z axis (0,0,1)
