@@ -35,6 +35,8 @@ subroutine crest_queue_setup(env,iterate)
   integer,allocatable :: splitatms(:)
   integer :: parentlayer,parentnode
   character(len=1024) :: thispath
+  real(wp),allocatable :: qat(:)
+  integer,allocatable :: lq(:)
 
   iterate = .true.
 
@@ -54,6 +56,13 @@ subroutine crest_queue_setup(env,iterate)
     !> if the program sees no problem, set the global boolean
     env%substructure_queue = .true.
     splitlayers = size(env%splitqueue,1)
+
+    !> we may need to calculate charges to distribute them:
+    if (env%chrg .ne. 0) then
+      call calc_charges(env,qat)
+    else
+      allocate (qat(env%ref%nat),source=0.0_wp)
+    end if
 
     !> start constructing the splitheap
     env%splitheap%nlayer = splitlayers
@@ -91,6 +100,7 @@ subroutine crest_queue_setup(env,iterate)
         deallocate (splitatms)
         layer(ii)%nnodes = size(layer(ii)%node,1)
         call heap%map_origins_for_layer(ii)
+        call sum_charges_layer(env,heap,ii,qat,lq)
       end do
 
       call heap%setup_queue()
@@ -103,6 +113,7 @@ subroutine crest_queue_setup(env,iterate)
     iterate = .true.
   end if
 
+  stop
   return
 contains
   subroutine pick_parent(heap,current_layer,splitatms,parentlayer,parentnode)
@@ -157,6 +168,85 @@ contains
     end if
 
   end subroutine pick_parent
+  subroutine calc_charges(env,qat)
+    use tblite_api,only:tblite_quick_ceh_q
+    implicit none
+    type(systemdata),intent(inout) :: env
+    real(wp),intent(out),allocatable :: qat(:)
+    real(wp),allocatable :: qat0(:)
+    character(len=256) :: atmp
+    type(coord)  :: mol
+    integer :: ii
+    write (atmp,'(a)') 'Calculating atomic charges under consideration of molecular charge'
+    call underline(trim(atmp))
+    write(stdout,'(a,i0)') 'Molecular charge : ',env%chrg
+    call env%ref%to(mol)
+    call tblite_quick_ceh_q(mol,qat, &
+      & chrg=env%chrg,uhf=env%uhf,pr=.true.,prch=stdout)
+    !call tblite_quick_ceh_q(mol,qat0, &
+    !  & chrg=0,uhf=env%uhf,pr=.true.,prch=stdout)
+    write (stdout,'(a)') 'Obtained CEH charges for full structure:'
+    do ii = 1,mol%nat
+      write (stdout,'(3x,a3,2x,f10.6)') i2e(mol%at(ii)),qat(ii)!,qat0(ii),qat(ii)-qat0(ii)
+    end do
+
+    write(stdout,'(/,a)') 'NOTE: Total charge for each fragment will be selected automatically by'
+    write(stdout,'(a)') '      matching the best atomic charge MAE to these charges.'
+  end subroutine calc_charges
+  subroutine sum_charges_layer(env,heap,lay,qat,lq)
+    use tblite_api,only:tblite_quick_ceh_q
+    implicit none
+    type(systemdata) :: env
+    type(construct_heap) :: heap
+    integer,intent(in) :: lay
+    real(wp),intent(in) :: qat(:)
+    integer,intent(out),allocatable :: lq(:)
+    integer :: ii,jj,nat,nnodes,kk,nnat
+    real(wp) :: qtmp,qtmp0,qtmpc
+    real(wp),allocatable :: qattmp0(:),qattmpc(:),qattmpref(:)
+
+    nat = size(qat,1)
+    nnodes = heap%layer(lay)%nnodes
+    allocate (lq(nnodes),source=0)
+
+    if (env%chrg == 0) return
+
+    do ii = 1,nnodes
+      qtmp = 0.0_wp
+      qtmp0 = 0.0_wp
+      qtmpc = 0.0_wp
+      !write (*,*) 'layer',lay,'node',ii
+      nnat = heap%layer(lay)%node(ii)%nat
+      allocate (qattmpref(nnat),source=0.0_wp)
+
+      call tblite_quick_ceh_q(heap%layer(lay)%node(ii),qattmp0, &
+      & chrg=0,uhf=env%uhf,pr=.false.,prch=stdout)
+      call tblite_quick_ceh_q(heap%layer(lay)%node(ii),qattmpc, &
+      & chrg=env%chrg,uhf=env%uhf,pr=.false.,prch=stdout)
+
+      do jj = 1,nnat
+        kk = heap%layer(lay)%origin(ii)%map(jj)
+        if (kk > 0) then
+          qattmpref(jj) = qat(kk)
+          qtmp = qtmp+qat(kk)
+        else
+          qattmp0(jj) = 0.0_wp
+          qattmpc(jj) = 0.0_wp
+        end if
+        !write (*,*) jj,qattmpref(jj),qattmp0(jj),qattmpc(jj)
+        qtmp0 = qtmp0+abs(qattmp0(jj)-qattmpref(jj))
+        qtmpc = qtmpc+abs(qattmpc(jj)-qattmpref(jj))
+      end do
+
+      deallocate (qattmpc,qattmp0,qattmpref)
+      if (qtmpc < qtmp0) then
+        lq(ii) = env%chrg
+      else
+        lq(ii) = 0
+      end if
+      !write (*,*) 'sum charge on frag:',qtmp,qtmp0,qtmpc
+    end do
+  end subroutine sum_charges_layer
 end subroutine crest_queue_setup
 
 !=============================================================================!
@@ -304,7 +394,7 @@ subroutine crest_queue_reconstruct(env,tim)
   use strucrd
   use iomod
   use crest_calculator
-  use utilities, only: checkname_xyz
+  use utilities,only:checkname_xyz
   implicit none
   type(systemdata),intent(inout) ::  env
   type(timer),intent(inout) :: tim
