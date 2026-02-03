@@ -100,12 +100,18 @@ subroutine crest_queue_setup(env,iterate)
         deallocate (splitatms)
         layer(ii)%nnodes = size(layer(ii)%node,1)
         call heap%map_origins_for_layer(ii)
+        !> determening charges for fragments
         call sum_charges_layer(env,heap,ii,qat,lq)
+        do jj=1,layer(ii)%nnodes
+          layer(ii)%node(jj)%chrg = lq(jj)
+        enddo
       end do
 
       call heap%setup_queue()
       call getcwd(thispath)
+      !> some backups
       call env%ref%to(heap%originmol)
+      heap%originmol%chrg = env%chrg
       heap%origindir = trim(thispath)
       heap%origincalc => env%calc
 
@@ -113,7 +119,6 @@ subroutine crest_queue_setup(env,iterate)
     iterate = .true.
   end if
 
-  stop
   return
 contains
   subroutine pick_parent(heap,current_layer,splitatms,parentlayer,parentnode)
@@ -179,19 +184,17 @@ contains
     integer :: ii
     write (atmp,'(a)') 'Calculating atomic charges under consideration of molecular charge'
     call underline(trim(atmp))
-    write(stdout,'(a,i0)') 'Molecular charge : ',env%chrg
+    write (stdout,'(a,i0)') 'Molecular charge : ',env%chrg
     call env%ref%to(mol)
     call tblite_quick_ceh_q(mol,qat, &
       & chrg=env%chrg,uhf=env%uhf,pr=.true.,prch=stdout)
-    !call tblite_quick_ceh_q(mol,qat0, &
-    !  & chrg=0,uhf=env%uhf,pr=.true.,prch=stdout)
     write (stdout,'(a)') 'Obtained CEH charges for full structure:'
     do ii = 1,mol%nat
       write (stdout,'(3x,a3,2x,f10.6)') i2e(mol%at(ii)),qat(ii)!,qat0(ii),qat(ii)-qat0(ii)
     end do
 
-    write(stdout,'(/,a)') 'NOTE: Total charge for each fragment will be selected automatically by'
-    write(stdout,'(a)') '      matching the best atomic charge MAE to these charges.'
+    write (stdout,'(/,a)') 'NOTE: Total charge for each fragment will be selected automatically by'
+    write (stdout,'(a)') '      matching the best atomic charge MAE to these charges.'
   end subroutine calc_charges
   subroutine sum_charges_layer(env,heap,lay,qat,lq)
     use tblite_api,only:tblite_quick_ceh_q
@@ -201,51 +204,64 @@ contains
     integer,intent(in) :: lay
     real(wp),intent(in) :: qat(:)
     integer,intent(out),allocatable :: lq(:)
-    integer :: ii,jj,nat,nnodes,kk,nnat
-    real(wp) :: qtmp,qtmp0,qtmpc
-    real(wp),allocatable :: qattmp0(:),qattmpc(:),qattmpref(:)
+    integer :: ii,jj,nat,nnodes,kk,nnat,sign,cc,cc2,chrgs
+    integer,allocatable :: ichrgs(:)
+    real(wp) :: qtmp0,qtmpc
+    real(wp),allocatable :: qtmp(:)
+    real(wp),allocatable :: qattmp0(:),qattmpc(:),qattmpref(:),qdum(:)
+    real(wp),allocatable :: qattmp(:,:)
 
     nat = size(qat,1)
     nnodes = heap%layer(lay)%nnodes
-    allocate (lq(nnodes),source=0)
+    allocate (lq(nnodes),source=0) !> default chrg of 0
 
-    if (env%chrg == 0) return
+    if (env%chrg == 0) return !> return for neutral systems (may need some implementation for zwitter ions)
+
+    write(stdout,'(a,i0,a)') 'Calculating charges for fragments in layer ',lay,' ...'
+    sign = 1
+    if (env%chrg < 0) sign = -1
+    chrgs = abs(env%chrg)+1
+    allocate (qtmp(chrgs), source=0.0_wp)
+    allocate (ichrgs(chrgs),source=0)
+    cc2 = 0
+    do cc = 0,env%chrg,sign
+      cc2 = cc2+1
+      ichrgs(cc2) = cc
+    end do
 
     do ii = 1,nnodes
-      qtmp = 0.0_wp
+      qtmp(:) = 0.0_wp
       qtmp0 = 0.0_wp
       qtmpc = 0.0_wp
-      !write (*,*) 'layer',lay,'node',ii
       nnat = heap%layer(lay)%node(ii)%nat
       allocate (qattmpref(nnat),source=0.0_wp)
-
-      call tblite_quick_ceh_q(heap%layer(lay)%node(ii),qattmp0, &
-      & chrg=0,uhf=env%uhf,pr=.false.,prch=stdout)
-      call tblite_quick_ceh_q(heap%layer(lay)%node(ii),qattmpc, &
-      & chrg=env%chrg,uhf=env%uhf,pr=.false.,prch=stdout)
-
-      do jj = 1,nnat
-        kk = heap%layer(lay)%origin(ii)%map(jj)
-        if (kk > 0) then
-          qattmpref(jj) = qat(kk)
-          qtmp = qtmp+qat(kk)
-        else
-          qattmp0(jj) = 0.0_wp
-          qattmpc(jj) = 0.0_wp
-        end if
-        !write (*,*) jj,qattmpref(jj),qattmp0(jj),qattmpc(jj)
-        qtmp0 = qtmp0+abs(qattmp0(jj)-qattmpref(jj))
-        qtmpc = qtmpc+abs(qattmpc(jj)-qattmpref(jj))
+      allocate (qattmp(nnat,chrgs))
+      !> check different charge settings
+      cc2 = 0
+      do cc = 0,env%chrg,sign
+        cc2 = cc2+1
+        call tblite_quick_ceh_q(heap%layer(lay)%node(ii),qdum, &
+        & chrg=cc,uhf=env%uhf,pr=.false.,prch=stdout)
+        qattmp(:,cc2) = qdum(:)
+        do jj = 1,nnat
+          kk = heap%layer(lay)%origin(ii)%map(jj)
+          if (kk > 0) then
+            qattmpref(jj) = qat(kk)
+          else
+            qattmp(jj,cc2) = 0.0_wp
+          end if
+          qtmp(cc2) = qtmp(cc2)+abs(qattmp(jj,cc2)-qattmpref(jj))
+        end do
       end do
-
-      deallocate (qattmpc,qattmp0,qattmpref)
-      if (qtmpc < qtmp0) then
-        lq(ii) = env%chrg
-      else
-        lq(ii) = 0
-      end if
-      !write (*,*) 'sum charge on frag:',qtmp,qtmp0,qtmpc
+      !> select best charge
+      cc = minloc(qtmp,1)
+      lq(ii) = ichrgs(cc)
+      deallocate (qattmp,qattmpref)
+      !write (*,*) 'charge MAEs on frag:',qtmp
+      !write (*,*) 'selected charge:',lq(ii)
     end do
+    write(stdout,'(2x,a)',advance='no') 'determined charges:'
+    write(stdout,*) lq
   end subroutine sum_charges_layer
 end subroutine crest_queue_setup
 
@@ -314,15 +330,17 @@ subroutine crest_queue_iter(env,iterate)
       !> for constraints we must be careful and map them to the new order
       call update_constraints_queue(heap,jj,kk,env%calc,queue%calc)
 
-      call queue%calc%info(stdout)
 
       mol = env%splitheap%layer(jj)%node(kk)
       call env%ref%load(mol)
       call mol%write('coord')
+      call queue%calc%set_charge(mol%chrg) !> the nodes may have different charges saved
+      call queue%calc%info(stdout) 
 
       if (allocated(env%ref%wbo)) deallocate (env%ref%wbo)
       env%nat = mol%nat
       env%rednat = mol%nat
+      env%chrg = mol%chrg
       if (.not.env%user_mdtime) then
         env%mdtime = -1.0_wp
         env%mddat%length_ps = -1.0_wp
@@ -422,6 +440,7 @@ subroutine crest_queue_reconstruct(env,tim)
   call env%ref%load(mol)
   env%nat = mol%nat
   env%rednat = mol%nat
+  env%chrg = mol%chrg
   env%calc => env%splitheap%origincalc
   call chdir(env%splitheap%origindir)
 

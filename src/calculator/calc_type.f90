@@ -288,6 +288,7 @@ module calc_type
     generic,public :: set_freeze => calculation_set_freeze_range,calculation_set_freeze_bools
     procedure,private :: calculation_set_freeze_range,calculation_set_freeze_bools
     procedure :: freezegrad => calculation_freezegrad
+    procedure :: set_charge => calculation_set_charge
     procedure :: increase_charge => calculation_increase_charge
     procedure :: decrease_charge => calculation_decrease_charge
     procedure :: dealloc_params => calculation_deallocate_params
@@ -642,6 +643,24 @@ contains  !>--- Module routines start here
   end subroutine calculation_freezegrad
 
 !=========================================================================================!
+
+  subroutine calculation_set_charge(self,dchrg)
+!***********************************************************
+!* set the charge of all calculation_settings objects to 
+!* the specified dchrg
+!***********************************************************
+    implicit none
+    class(calcdata) :: self
+    integer,intent(in) :: dchrg
+    integer :: i,j
+    if (self%ncalculations > 0) then
+       j = dchrg
+      do i = 1,self%ncalculations
+        self%calcs(i)%chrg = j
+      end do
+    end if
+    return
+  end subroutine calculation_set_charge
 
   subroutine calculation_increase_charge(self,dchrg)
 !******************************************************************
