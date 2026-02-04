@@ -61,11 +61,11 @@ subroutine crest_playground(env,tim)
   write (*,*) "  \_/\_/ \___|_|\___\___/|_| |_| |_|\___|"
   write (*,*)
 !========================================================================================!
-!  call env%ref%to(mol)
-!  write (*,*)
-!  write (*,*) 'Input structure:'
-!  call mol%append(stdout)
-!  write (*,*)
+  call env%ref%to(mol)
+  write (*,*)
+  write (*,*) 'Input structure:'
+  call mol%append(stdout)
+  write (*,*)
 !!========================================================================================!
 !
 !  allocate (grad(3,mol%nat),source=0.0_wp)
@@ -76,9 +76,38 @@ subroutine crest_playground(env,tim)
 !  call engrad(mol,calc,energy,grad,io)
 !  call calculation_summary(calc,mol,energy,grad)
 !========================================================================================!
+  block
+    use modelhessian_module
+    use hessian_tools
+    type(mhparam) :: mh
+    real(wp),allocatable :: h(:),hess(:,:),freq(:)
+    integer :: ndim,n3
+    n3 = mol%nat*3
+    ndim = (mol%nat*3)*((mol%nat*3)+1)/2
+    allocate (h(ndim),source=0.0_wp)
+    call modhes(env%calc,mh,mol%nat,mol%xyz,mol%at,h,.true.)
+    allocate (hess(n3,n3),source=0.0_wp)
+    call dhtosq(n3,hess,h)
 
-  env%alkylize = .true.
-  call crest_proxy_nalkane(env,doreturn)
+    allocate (freq(n3),source=0.0_wp)
+
+    call print_hessian(hess,n3,'','modhess')
+
+    !>-- Projects and mass-weights the Hessian
+    call prj_mw_hess(mol%nat,mol%at,n3,mol%xyz,hess)
+
+    !>-- Computes the Frequencies
+    call frequencies(mol%nat,mol%at,mol%xyz,n3,env%calc,hess,freq,io)
+
+    call numhess_thermostat(env,mol,n3,hess,freq,0.0_wp)
+
+    call print_g98_fake(mol%nat,mol%at,n3,mol%xyz,freq,hess, &
+     &    '','g98.out')
+   call print_vib_spectrum(mol%nat,mol%at,n3,mol%xyz,freq, &
+          &    '','vibspectrum.modh')
+
+
+  end block
 
 !========================================================================================!
   call tim%stop(14)
