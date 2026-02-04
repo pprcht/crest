@@ -1367,26 +1367,6 @@ subroutine compare(n,nall,s1,s2,dist,athr,relat)
 
 end subroutine compare
 
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-
-logical function distcheck(n,xyz)
-      implicit none
-      real*8,allocatable :: rij(:)
-      integer :: n
-      real*8 :: xyz(3,n)
-      integer i,j
-      distcheck=.true.
-      allocate(rij(3))
-      do i=1,n-1
-         do j=i+1,n
-         rij=xyz(:,j)-xyz(:,i)
-         if(sum(rij*rij).lt.1.d-3) distcheck=.false.
-         enddo
-      enddo
-      deallocate(rij)
-      return
-end function distcheck
-
 
 !==========================================================!
 ! bactrack is used to find the element "val" of array "arr"

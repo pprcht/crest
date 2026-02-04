@@ -32,52 +32,6 @@
 !=========================================================================================!
 !=========================================================================================!
 
-module cregen_interface
-!*******************************************************
-!* module to load an interface to the newcregen routine
-!* mandatory to handle the optional input arguments
-!*******************************************************
-  use unionize_module
-  implicit none
-  interface
-    subroutine newcregen(env,quickset,infile)
-      use crest_parameters
-      use crest_data
-      use crest_restartlog
-      use strucrd
-      implicit none
-      type(systemdata),intent(inout) :: env
-      integer,intent(in),optional :: quickset
-      character(len=*),intent(in),optional :: infile
-    end subroutine newcregen
-
-    subroutine cregen_irmsd_all(nall,structures,printlvl,iinversion)
-      use strucrd
-      implicit none
-      !> INPUT
-      integer,intent(in) :: nall
-      type(coord),intent(inout),target :: structures(nall)
-      integer,intent(in),optional :: printlvl
-      integer,intent(in),optional :: iinversion
-    end subroutine cregen_irmsd_all
-
-    subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
-      use crest_data
-      use strucrd
-      implicit none
-      !> INPUT
-      type(systemdata),intent(inout) :: env
-      integer,intent(in) :: nall
-      type(coord),intent(inout),target :: structures(nall)
-      integer,intent(inout) :: groups(nall)
-      logical,intent(in),optional :: allcanon
-      integer,intent(in),optional :: printlvl
-    end subroutine cregen_irmsd_sort
-
-  end interface
-!>--- Additional Related RE-EXPORTS
-  public :: unionizeEnsembles
-end module cregen_interface
 
 subroutine newcregen(env,quickset,infile)
 !****************************
@@ -87,6 +41,7 @@ subroutine newcregen(env,quickset,infile)
   use crest_data
   use crest_restartlog
   use strucrd
+  use cregen_subroutines
   implicit none
   !> INPUT
   type(systemdata),intent(inout) :: env   !> MAIN STORAGE OS SYSTEM DATA
@@ -187,27 +142,22 @@ subroutine newcregen(env,quickset,infile)
   if (pr1) call cregen_pr1(prch,env,nat,nallref,rthr,bthr,pthr,ewin)
 
 !>--- allocate space and read in the ensemble
-  allocate (at(nat),comments(nallref),xyz(3,nat,nallref))
-  call rdensemble(fname,nat,nallref,at,xyz,comments)
-  !call rdensemble(fname,nallref,structures)
+  !allocate (at(nat),comments(nallref),xyz(3,nat,nallref))
+  !call rdensemble(fname,nat,nallref,at,xyz,comments)
+  call rdensemble(fname,nallref,structures)
   !allocate(references, source=structures)
 
 !>--- track ensemble for restart
-  call trackensemble(fname,nat,nallref,at,xyz,comments)
+  !call trackensemble(fname,nat,nallref,at,xyz,comments)
 
 !>--- check if the ensemble contains broken structures? i.e., fusion or dissociation
   if (checkbroken) then
-    call discardbroken(prch,env,topocheck,nat,nallref,at,xyz,comments,nall)
-!>--- if structures were discarded, resize xyz
-    if (nall .lt. nallref) then
-      xyzref = xyz(:,:,1:nall)
-      call move_alloc(xyzref,xyz)
-      comref = comments(1:nall)
-      call move_alloc(comref,comments)
-    end if
+    call discardbroken(prch,env,topocheck,structures,nall)
   else
     nall = nallref
   end if
+
+  stop
 
 !>--- compare neighbourlists to sort out chemically transformed structures
   if (topocheck) then
@@ -273,7 +223,7 @@ subroutine newcregen(env,quickset,infile)
     ng = nall
     if (ng > 0) then
       allocate (degen(3,ng))
-      do i = 1, ng
+      do i = 1,ng
         degen(1,i) = 1
         degen(2,i) = i
         degen(3,i) = i
@@ -638,13 +588,11 @@ subroutine cregen_groupinfo(nall,ng,group,degen)
 !* subroutine cregen_groupinfo
 !* get info about each conformer group and save it to "degen"
 !*************************************************************
-  use crest_parameters
   implicit none
   integer :: nall,ng
   integer :: group(0:nall)
   integer :: degen(3,ng)
-  integer :: i,j,k
-  integer :: a,b
+  integer :: i,j,k,a,b
   do i = 1,ng
     a = 0; b = 0; k = 0
     do j = 1,nall
@@ -667,7 +615,8 @@ end subroutine cregen_groupinfo
 !=========================================================================================!
 !=========================================================================================!
 
-subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
+!subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
+subroutine discardbroken(ch,env,topocheck,structures,newnall)
 !**************************************************
 !* subroutine discardbroken
 !* analyze an ensemble and track broken structures
@@ -676,122 +625,114 @@ subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
   use crest_parameters
   use crest_data
   use strucrd
-  use miscdata,only:rcov
-  use quicksort_interface
+  use adjacency
+  use cregen_utils
   implicit none
   !> INPUT
-  type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
+  type(systemdata),intent(in) :: env    ! MAIN STORAGE OS SYSTEM DATA
   integer,intent(in) :: ch ! printout channel
-  integer,intent(in) :: nat,nall
-  integer,intent(in) :: at(nat)
   logical,intent(in) :: topocheck
-  !> OUTPUT
-  real(wp),intent(inout) :: xyz(3,nat,nall)
-  character(len=*),intent(inout) :: comments(nall)
+  type(coord),intent(inout),allocatable,target :: structures(:)
   integer,intent(out) :: newnall
   !> LOCAL
-  integer :: llan
+  integer :: llan,nall
   integer,allocatable :: order(:),orderref(:)
   integer :: nat0
   real(wp),allocatable :: cref(:,:),c0(:,:),c1(:,:)
   integer,allocatable  :: at0(:),atdum(:)
   real(wp),allocatable :: cn(:),bond(:,:)
+  integer,allocatable :: ibond(:,:),ifrag(:)
   integer :: frag,frag0
   real(wp) :: erj
-  integer :: j
+  integer :: ii,jj
   logical :: substruc
-  logical :: distok,distcheck
   real(wp) :: cnorm
-  logical :: dissoc
+  logical :: dissoc,distok,distok2
+  logical,allocatable :: broke(:)
+  type(coord) :: mol0
+  type(coord),pointer :: mol
+  type(coord),allocatable :: tmpstructures(:)
+
+  logical,external :: distcheck
 
   !>--- if we don't wish to include all atoms:
-  substruc = (nat .ne. env%rednat.and.env%subRMSD)
-
-  !>--- read the reference structure
-  allocate (cref(3,nat),atdum(nat))
-  call rdcoord('coord',nat,atdum,cref)
-  !>--- check fragements
-  allocate (bond(nat,nat),cn(nat),source=0.0_wp)
-  call mreclm(frag0,nat,at,cref,atdum,bond,rcov,cn)
-  deallocate (bond,cn)
-
+  substruc = (structures(1)%nat .ne. env%rednat.and.env%subRMSD)
+  nall = size(structures,1)
+  !> Check fragments
+  call env%ref%to(mol0)
+  call cregen_calculate_fragments(mol0,nfrag=frag0)
   write (ch,'('' # fragment in coord            :'',i6)') frag0
-  deallocate (atdum)
-  if (substruc) then
-    nat0 = env%rednat
-    allocate (c0(3,nat0),at0(nat0),c1(3,nat0),atdum(nat0))
-    call maskedxyz(nat,nat0,cref,c0,at,at0,env%includeRMSD)
-  else
-    allocate (c0(3,nat),at0(nat),c1(3,nat),atdum(nat))
-    c0 = cref
-    at0 = at
-    nat0 = nat
-  end if
-  !>--- fragments for actual reference
-  allocate (bond(nat0,nat0),cn(nat0))
-  call mreclm(frag0,nat0,at0,c0,atdum,bond,rcov,cn)
 
-  allocate (order(nall),orderref(nall))
   !>--- loop over the structures
+  allocate (broke(nall),source=.false.)
   newnall = 0
   llan = nall
-  do j = 1,nall
-    erj = grepenergy(comments(j)) !> get energy of structure j
-    if (.not.substruc) then
-      c1(:,:) = xyz(:,:,j)/bohr
-    else
-      call maskedxyz(nat,nat0,xyz(:,:,j),c1,at,at0,env%includeRMSD)
-      c1 = c1/bohr
-    end if
-    distok = distcheck(nat0,c1) !> distance check
-    cnorm = sum(abs(c1))        !> clash check
+  do ii = 1,nall
+    mol => structures(ii)
+    erj = mol%energy
+    !if (substruc) then
+    !  !...
+    !end if
+
+    !>--- close contact checks
+    cnorm = sum(abs(mol%xyz))           !> clash check
+    distok = distcheck(mol%nat,mol%xyz) !> distance check
+    distok2 = (cnorm .gt. 1.0d-6)
 
     !>--- further checks: dissociation?
     dissoc = .false.
-    if (abs(erj) .gt. 1.0d-6.and.cnorm .gt. 1.0d-6 &
-    &   .and.distok.and.topocheck) then
-      dissoc = .false.
-      call mreclm(frag,nat0,at0,c1,atdum,bond,rcov,cn)
-      if (frag .gt. frag0) then
-        dissoc = .true.
-      end if
+    if (abs(erj) .gt. 1.0d-6.and. &
+    &   distok.and.distok2.and.topocheck) then
+      call cregen_calculate_fragments(mol,nfrag=frag)
+      dissoc = (frag .gt. frag0)
     end if
 
-    if (dissoc.or.(cnorm .lt. 1.0d-6).or.(.not.distok)) then
+    if (dissoc.or.(.not.distok).or.(.not.distok2)) then
       !>--- move broken structures to the end of the matrix
-      orderref(j) = llan
-      llan = llan-1
-      !write(ch,*) 'removing structure',j
+      broke(ii) = .true.
+      !write(ch,*) 'removing structure',ii
     else
       newnall = newnall+1
-      orderref(j) = newnall
     end if
   end do
 
   !>--- sort the xyz array (only if structures have been discarded)
   if (newnall .lt. nall) then
-    order = orderref
-    call xyzqsort(nat,nall,xyz,c0,order,1,nall)
-    order = orderref
-    !call stringqsort(nall,comments,1,nall,order)
-    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
-
+    allocate (tmpstructures(newnall))
+    jj = 0
+    do ii = 1,nall
+      if (.not.broke(ii)) then
+        jj = jj+1
+        tmpstructures(jj) = structures(ii)
+      end if
+    end do
+    call move_alloc(tmpstructures,structures)
     llan = nall-newnall
     write (ch,'('' number of removed clashes      :'',i6)') llan
   end if
   !>--- otherwise the ensemble is ok
-
-  if (allocated(orderref)) deallocate (orderref)
-  if (allocated(order)) deallocate (order)
-  if (allocated(cn)) deallocate (cn)
-  if (allocated(bond)) deallocate (bond)
-  if (allocated(atdum)) deallocate (atdum)
-  if (allocated(c1)) deallocate (c1)
-  if (allocated(at0)) deallocate (at0)
-  if (allocated(c0)) deallocate (c0)
-  if (allocated(cref)) deallocate (cref)
   return
 end subroutine discardbroken
+
+logical function distcheck(n,xyz)
+  use crest_parameters,only:wp
+  implicit none
+  integer,intent(in) :: n
+  real(wp),intent(in) :: xyz(3,n)
+  real(wp) :: rij(3)
+  integer :: i,j
+  distcheck = .true.
+  do i = 1,n-1
+    do j = i+1,n
+      rij = xyz(:,j)-xyz(:,i)
+      if (sum(rij*rij) .lt. 1.d-3) then
+        distcheck = .false.
+        return
+      end if
+    end do
+  end do
+  return
+end function distcheck
 
 !=========================================================================================!
 
@@ -1802,13 +1743,13 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
     write (stdout,'(2x,a,i9)') 'OpenMP threads        :',T
     write (stdout,'(2x,a,a9)') 'Individual atom IDs?  :',to_str(individual_IDs)
     write (stdout,'(2x,a)',advance='no') 'False rotamer check?  :'
-    select case(env%iinversion)
+    select case (env%iinversion)
     case (0)
-      write(stdout,'(a9)') 'auto'
+      write (stdout,'(a9)') 'auto'
     case (1)
-      write(stdout,'(a9)') 'on' 
+      write (stdout,'(a9)') 'on'
     case (2)
-      write(stdout,'(a9)') 'off' 
+      write (stdout,'(a9)') 'off'
     end select
     write (stdout,*)
   end if
@@ -2633,7 +2574,7 @@ subroutine cregen_conffile(env,cname,nat,nall,at,xyz,comments,ng,degen)
   open (newunit=ich,file=trim(cname))
   do i = 1,ng
     k = degen(2,i)
-    if (k <= 0 .or. k > nall) cycle
+    if (k <= 0.or.k > nall) cycle
     if (i .eq. 1.or.env%printscoords) then   !write a scoord.* for each conformer? scoord.1 is always written
       call getname1(i,newcomment)
       c0(:,:) = xyz(:,:,k)/bohr
