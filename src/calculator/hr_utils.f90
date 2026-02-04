@@ -14,7 +14,7 @@ contains
 
 subroutine initialize_hessian(calc,type,xyz,nat,at,hess,hguess,pr) !>Matrix is forced to be positive definite
   type(calcdata),intent(inout) :: calc
-  type(calcdata) :: newcalc
+  type(calcdata),allocatable :: newcalc
   type(calculation_settings) :: clevel
   type(mhparam) :: mhset
   integer :: k,i,j,idx,io, nat3
@@ -31,8 +31,13 @@ subroutine initialize_hessian(calc,type,xyz,nat,at,hess,hguess,pr) !>Matrix is f
     
     nat3 = 3*nat
 
+    !!$omp critical
+    !allocate (pmode(nat3,1)) ! dummy allocated
+    !!$omp end critical
+
     !$omp critical
-    allocate (pmode(nat3,1)) ! dummy allocated
+    allocate(newcalc)
+    allocate(hess_full(nat3,nat3),source=0.0_wp)
     !$omp end critical
 
     select case (type)
@@ -53,27 +58,31 @@ subroutine initialize_hessian(calc,type,xyz,nat,at,hess,hguess,pr) !>Matrix is f
             write(stdout,*) "No hguess provided"
         endif
     case(1)
-        allocate(hess_full(nat3,nat3),source=0.0_wp)
+        !$omp critical
         call clevel%create('gfnff', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
+        !$omp end critical
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)   
         call dsqtoh(nat3,hess_full(:,:),hess(:)) !>Pack Hessian
     case(2)
-        allocate(hess_full(nat3,nat3),source=0.0_wp)
+        !$omp critical
         call clevel%create('gfn0', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
+        !$omp end critical
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
         call dsqtoh(nat3,hess_full(:,:),hess(:))   
     case(3)
-        allocate(hess_full(nat3,nat3),source=0.0_wp)
+        !$omp critical
         call clevel%create('gfn1', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
+        !$omp end critical
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
         call dsqtoh(nat3,hess_full(:,:),hess(:))
     case(4)
-        allocate(hess_full(nat3,nat3),source=0.0_wp)
+        !$omp critical
         call clevel%create('gfn2', chrg=calc%calcs(1)%chrg, uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
         call newcalc%add(clevel)
+        !$omp end critical
         call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
         call dsqtoh(nat3,hess_full(:,:),hess(:))
     case(5)
