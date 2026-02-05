@@ -80,11 +80,39 @@ module cregen_subroutines
       use strucrd
       use cregen_utils
       implicit none
-      type(systemdata) :: env    
-      integer,intent(in) :: ch 
+      type(systemdata) :: env
+      integer,intent(in) :: ch
       logical,intent(in) :: checkez
       type(coord),intent(inout),allocatable,target :: structures(:)
       integer,intent(out) :: newnall
     end subroutine cregen_topocheck
+
+    subroutine cregen_esort(ch,structures,nallout,ewin)
+      use crest_parameters
+      use strucrd
+      use quicksort_interface
+      implicit none
+      integer,intent(in) :: ch
+      type(coord),intent(inout),allocatable :: structures(:)
+      integer,intent(out) :: nallout
+      real(wp),intent(in),optional :: ewin
+    end subroutine cregen_esort
+
+    subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
+    &                         printlvl,ch)
+      use crest_parameters
+      use crest_data
+      use strucrd
+      implicit none
+      type(systemdata),intent(inout) :: env
+      integer,intent(inout) :: nall
+      type(coord),intent(inout),allocatable,target :: structures(:)
+      integer,intent(out),allocatable :: groups(:)
+      real(wp),intent(in) :: RTHRESH
+      real(wp),intent(in) :: ETHR
+      real(wp),intent(in) :: BTHR
+      integer,intent(in),optional :: printlvl
+      integer,intent(in),optional :: ch
+    end subroutine cregen_CRE_new
   end interface
 end module cregen_subroutines

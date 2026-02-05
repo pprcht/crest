@@ -96,6 +96,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   use crest_parameters
   use strucrd
   use axis_module
+  use rotaniso_mod
   implicit none
   character(len=*) :: fname
   type(coord),allocatable :: structures(:)
@@ -106,11 +107,9 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   integer,allocatable :: at(:)
 
   real(wp),allocatable :: rot(:,:)
-  real(wp) :: rotaniso !function
   real(wp),allocatable :: anis(:)
   real(wp) :: evec(3,3),evecavg(3,3)
 
-  real(wp) :: bthrerf
   real(wp) :: bmin,bmax,bshift
   real(wp) :: thr
   real(wp) :: dum
@@ -135,7 +134,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   do i = 1,nall
     c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
     call axis(nat,at,c1,rot(1:3,i),dum,evec)
-    anis(i) = rotaniso(i,nall,rot)
+    anis(i) = rotaniso(rot(1:3,i))
     thr = bthrerf(bmin,anis(i),bmax,bshift)
     write (*,'(3f10.2,2x,f8.4,2x,f8.4)') rot(1:3,i),anis(i),thr
   end do
