@@ -32,7 +32,6 @@
 !=========================================================================================!
 !=========================================================================================!
 
-
 subroutine newcregen(env,quickset,infile)
 !****************************
 !* The main CREGEN routine
@@ -615,7 +614,6 @@ end subroutine cregen_groupinfo
 !=========================================================================================!
 !=========================================================================================!
 
-!subroutine discardbroken(ch,env,topocheck,nat,nall,at,xyz,comments,newnall)
 subroutine discardbroken(ch,env,topocheck,structures,newnall)
 !**************************************************
 !* subroutine discardbroken
@@ -635,25 +633,15 @@ subroutine discardbroken(ch,env,topocheck,structures,newnall)
   type(coord),intent(inout),allocatable,target :: structures(:)
   integer,intent(out) :: newnall
   !> LOCAL
-  integer :: llan,nall
-  integer,allocatable :: order(:),orderref(:)
-  integer :: nat0
-  real(wp),allocatable :: cref(:,:),c0(:,:),c1(:,:)
-  integer,allocatable  :: at0(:),atdum(:)
-  real(wp),allocatable :: cn(:),bond(:,:)
-  integer,allocatable :: ibond(:,:),ifrag(:)
-  integer :: frag,frag0
-  real(wp) :: erj
+  integer :: llan,nall,frag,frag0
+  real(wp) :: erj,cnorm
   integer :: ii,jj
   logical :: substruc
-  real(wp) :: cnorm
   logical :: dissoc,distok,distok2
   logical,allocatable :: broke(:)
   type(coord) :: mol0
   type(coord),pointer :: mol
   type(coord),allocatable :: tmpstructures(:)
-
-  logical,external :: distcheck
 
   !>--- if we don't wish to include all atoms:
   substruc = (structures(1)%nat .ne. env%rednat.and.env%subRMSD)
@@ -711,28 +699,9 @@ subroutine discardbroken(ch,env,topocheck,structures,newnall)
     write (ch,'('' number of removed clashes      :'',i6)') llan
   end if
   !>--- otherwise the ensemble is ok
+  if (allocated(broke)) deallocate (broke)
   return
 end subroutine discardbroken
-
-logical function distcheck(n,xyz)
-  use crest_parameters,only:wp
-  implicit none
-  integer,intent(in) :: n
-  real(wp),intent(in) :: xyz(3,n)
-  real(wp) :: rij(3)
-  integer :: i,j
-  distcheck = .true.
-  do i = 1,n-1
-    do j = i+1,n
-      rij = xyz(:,j)-xyz(:,i)
-      if (sum(rij*rij) .lt. 1.d-3) then
-        distcheck = .false.
-        return
-      end if
-    end do
-  end do
-  return
-end function distcheck
 
 !=========================================================================================!
 
@@ -749,6 +718,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   use utilities
   use crest_cn_module
   use quicksort_interface
+  use cregen_utils
   implicit none
   type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
   integer,intent(in) :: ch ! printout channel
@@ -789,7 +759,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   call calc_ncoord(nat,atdum,cref,rcov,cn,400.0_wp,bond)
 
   if (allocated(env%excludeTOPO)) then
-    call bondtotopo_excl(nat,at,bond,cn,ntopo,toporef,neighmat,env%excludeTOPO)
+    call bondtotopo(nat,at,bond,cn,ntopo,toporef,neighmat,excl=env%excludeTOPO)
   else
     call bondtotopo(nat,at,bond,cn,ntopo,toporef,neighmat)
   end if
@@ -826,7 +796,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
     bond = 0.0d0
     call calc_ncoord(nat,at,c1,rcov,cn,400.0_wp,bond)
     if (allocated(env%excludeTOPO)) then
-      call bondtotopo_excl(nat,at,bond,cn,ntopo,topo,neighmat,env%excludeTOPO)
+      call bondtotopo(nat,at,bond,cn,ntopo,topo,neighmat,excl=env%excludeTOPO)
     else
       call bondtotopo(nat,at,bond,cn,ntopo,topo,neighmat)
     end if
@@ -892,131 +862,6 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   deallocate (atdum)
   deallocate (cref)
   return
-
-contains
-  subroutine nezcc(nat,at,xyz,cn,ntopo,topo,ncc)
-    !***************************************************
-    !* Check how many (potential) C=C bonds are present
-    !***************************************************
-    use crest_parameters
-    integer,intent(in)  :: nat
-    integer,intent(in)  :: at(nat)
-    real(wp),intent(in) :: xyz(3,nat)
-    real(wp),intent(in) :: cn(nat)
-    integer,intent(in)  :: ntopo
-    integer,intent(in)  :: topo(ntopo)
-    integer,intent(out) :: ncc
-    real(wp) :: dist
-    integer :: l
-    integer :: ci,cj
-    real(wp),parameter :: distcc = 1.384_wp
-    ncc = 0
-    do ci = 1,nat
-      do cj = 1,ci-1
-        if (ci == cj) cycle
-        l = lin(ci,cj)
-        if (topo(l) == 0) cycle
-        if (at(ci) == 6.and.at(cj) == 6.and. &
-        &  nint(cn(ci)) == 3.and.nint(cn(cj)) == 3) then
-          dist = (xyz(1,ci)-xyz(1,cj))**2+ &
-          &    (xyz(2,ci)-xyz(2,cj))**2+ &
-          &    (xyz(3,ci)-xyz(3,cj))**2
-          dist = sqrt(dist)
-          if (dist < distcc) then
-            ncc = ncc+1
-          end if
-        end if
-      end do
-    end do
-    return
-  end subroutine nezcc
-  subroutine ezccat(nat,at,xyz,cn,ntopo,topo,ncc,ezat)
-    !********************************************************
-    !* Check which atoms can be used for C=C dihedral angles
-    !********************************************************
-    use crest_parameters
-    integer,intent(in)  :: nat
-    integer,intent(in)  :: at(nat)
-    real(wp),intent(in) :: xyz(3,nat)
-    real(wp),intent(in) :: cn(nat)
-    integer,intent(in)  :: ntopo
-    integer,intent(in)  :: topo(ntopo)
-    integer,intent(in)  :: ncc
-    integer,intent(out) :: ezat(4,ncc)
-    real(wp) :: dist
-    integer :: i,j,k,l
-    integer :: ci,cj
-    real(wp),parameter :: distcc = 1.384_wp
-    if (ncc < 1) return
-    k = 0
-    do ci = 1,nat
-      do cj = 1,ci-1
-        if (ci == cj) cycle
-        l = lin(ci,cj)
-        if (topo(l) == 0) cycle
-        if (at(ci) == 6.and.at(cj) == 6.and. &
-        &  nint(cn(ci)) == 3.and.nint(cn(cj)) == 3) then
-          dist = (xyz(1,ci)-xyz(1,cj))**2+ &
-          &    (xyz(2,ci)-xyz(2,cj))**2+ &
-          &    (xyz(3,ci)-xyz(3,cj))**2
-          dist = sqrt(dist)
-          if (dist < distcc) then
-            k = k+1
-            ezat(2,k) = ci
-            ezat(3,k) = cj
-            !>-- get a neighbour for ci
-            do i = 1,nat
-              if (i == cj.or.i == ci) cycle
-              l = lin(ci,i)
-              if (topo(l) == 1) then
-                ezat(1,k) = i
-                exit
-              end if
-            end do
-            !>-- get a neighbour for cj
-            do j = 1,nat
-              if (j == cj.or.j == ci) cycle
-              l = lin(cj,j)
-              if (topo(l) == 1) then
-                ezat(4,k) = j
-                exit
-              end if
-            end do
-          end if
-        end if
-      end do
-    end do
-    return
-  end subroutine ezccat
-  subroutine ezccdihed(nat,xyz,ncc,ezat,ezdihed)
-    !********************************************************
-    !* Check which atoms can be used for C=C dihedral angles
-    !********************************************************
-    use crest_parameters
-    integer,intent(in)  :: nat
-    real(wp),intent(in) :: xyz(3,nat)
-    integer,intent(in)  :: ncc
-    integer,intent(in) :: ezat(4,ncc)
-    real(wp),intent(out) :: ezdihed(ncc)
-    integer :: i,k
-    integer :: a,b,c,d
-    real(wp) :: winkel
-    if (ncc < 1) return
-    k = 0
-    do i = 1,ncc
-      a = ezat(1,i)
-      b = ezat(2,i)
-      c = ezat(3,i)
-      d = ezat(4,i)
-      call DIHED(xyz,a,b,c,d,winkel) !>-- from intmodes.f
-      winkel = abs(winkel*(180.0_wp/pi))
-      if (winkel > 180.0_wp) then
-        winkel = 360.0_wp-winkel
-      end if
-      ezdihed(i) = winkel
-    end do
-    return
-  end subroutine ezccdihed
 end subroutine cregen_topocheck
 
 !=========================================================================================!

@@ -123,6 +123,7 @@ subroutine simpletopo(n,at,xyz,zmol,verbose,getrings,wbofile)
   use zdata
   use miscdata,only:rcov
   use crest_cn_module
+  use cregen_utils,only:bondtotopo
   implicit none
   type(zmolecule)  :: zmol
   type(zmolecule)  :: zfrag
@@ -264,166 +265,27 @@ subroutine simpletopo(n,at,xyz,zmol,verbose,getrings,wbofile)
   return
 end subroutine simpletopo
 
-!===================================================!
-!> generate the topo array for a given structure
-!===================================================!
-subroutine bondtotopo(nat,at,bond,cn,ntopo,topo,neighbourmat)
-  use iso_fortran_env,only:wp => real64
-  use utilities
-  integer,intent(in)  :: nat
-  integer,intent(in) :: at(nat)
-  real(wp),intent(inout) :: bond(nat,nat)
-  real(wp),intent(in) :: cn(nat)
-  integer,intent(in)  :: ntopo
-  integer,intent(out) :: topo(ntopo)
-  real(wp),allocatable :: cn2(:)
-  logical,intent(inout) :: neighbourmat(nat,nat)
-  integer :: i,j,k,l
-  integer :: icn,rcn
-  allocate (cn2(nat),source=0.0_wp)
-  topo = 0
-  neighbourmat = .false.
-  !>--- some heuristic rules and CN array setup
-  do i = 1,nat
-    cn2(i) = cn(i)
-    rcn = floor(cn(i))
-    select case (at(i)) !additional empirical topology rules
-      ! case( 5 ) !B
-      !   if( nint(cn(i)) > 4) cn2(i)=4.0_wp
-      ! case( 9,17,35,53 ) !F,Cl,Br,I
-      !   cn2(i) = min(cn(i),1.0_wp)
-    case (6) !C
-      if ((cn(i)-rcn) < 0.7_wp) then
-        cn2(i) = rcn
-      end if
-    end select
-    !-- extreme CN cases
-    if (nint(cn(i)) > 8) cn2(i) = 8.0_wp
-    !empirical: rounding down up to .6 is better for topo setup
-    if ((cn(i)-rcn) < 0.6_wp) then
-      cn2(i) = rcn
-    end if
-  end do
-  !>--- build the topology
-  do i = 1,nat
-    icn = nint(cn2(i))
-    do k = 1,icn
-      j = maxloc(bond(:,i),1)
-      bond(j,i) = 0.0d0
-      if (i .eq. j) cycle
-      neighbourmat(i,j) = .true. !--important: not automatically (i,j)=(j,i)
-    end do
-  end do
-  do i = 1,nat
-    do j = 1,nat
-      if (i == j) cycle
-      l = lin(i,j)
-      !>-- only save matching topology --> prevent high CN failures
-      if (neighbourmat(i,j).and.neighbourmat(j,i)) then
-        topo(l) = 1
-      else
-        !> special case for carbon (because the carbon CN is typically correct)
-        !> this helps, e.g. with eta-coordination in ferrocene
-        !> (used, except if both are carbon)
-        if (.not. (at(i) == 6.and.at(j) == 6)) then
-          if (at(i) == 6.and.neighbourmat(i,j)) topo(l) = 1
-          if (at(j) == 6.and.neighbourmat(j,i)) topo(l) = 1
-        end if
-      end if
-    end do
-  end do
-  deallocate (cn2)
-  return
-end subroutine bondtotopo
-
-subroutine bondtotopo_excl(nat,at,bond,cn,ntopo,topo,neighbourmat,excl)
-  use iso_fortran_env,only:wp => real64
-  use utilities
-  integer,intent(in)  :: nat
-  integer,intent(in) :: at(nat)
-  real(wp),intent(inout) :: bond(nat,nat)
-  real(wp),intent(in) :: cn(nat)
-  integer,intent(in)  :: ntopo
-  integer,intent(out) :: topo(ntopo)
-  real(wp),allocatable :: cn2(:)
-  logical,intent(inout) :: neighbourmat(nat,nat)
-  logical,intent(in) :: excl(nat)
-  integer :: i,j,k,l
-  integer :: icn,rcn
-  allocate (cn2(nat),source=0.0_wp)
-  topo = 0
-  neighbourmat = .false.
-  !--- some heuristic rules and CN array setup
-  do i = 1,nat
-    cn2(i) = cn(i)
-    rcn = floor(cn(i))
-    select case (at(i)) !additional empirical topology rules
-      ! case( 5 ) !B
-      !   if( nint(cn(i)) > 4) cn2(i)=4.0_wp
-      ! case( 9,17,35,53 ) !F,Cl,Br,I
-      !   cn2(i) = min(cn(i),1.0_wp)
-    case (6) !C
-      if ((cn(i)-rcn) < 0.7_wp) then
-        cn2(i) = rcn
-      end if
-    end select
-    !-- extreme CN cases
-    if (nint(cn(i)) > 8) cn2(i) = 8.0_wp
-    !empirical: rounding down up to .6 is better for topo setup
-    if ((cn(i)-rcn) < 0.6_wp) then
-      cn2(i) = rcn
-    end if
-  end do
-  !--- build the topology
-  do i = 1,nat
-    icn = nint(cn2(i))
-    do k = 1,icn
-      j = maxloc(bond(:,i),1)
-      bond(j,i) = 0.0d0
-      if (i .eq. j) cycle
-      neighbourmat(i,j) = .true. !--important: not automatically (i,j)=(j,i)
-      if (excl(i).or.excl(j)) neighbourmat(i,j) = .false.
-    end do
-  end do
-  do i = 1,nat
-    do j = 1,nat
-      if (i == j) cycle
-      l = lin(i,j)
-      !-- only save matching topology --> prevent high CN failures
-      if (neighbourmat(i,j).and.neighbourmat(j,i)) then
-        topo(l) = 1
-      else
-        ! special case for carbon (because the carbon CN is typically correct)
-        ! this helps, e.g. with eta-coordination in ferrocene
-        ! (used, except if both are carbon)
-        if (.not. (at(i) == 6.and.at(j) == 6)) then
-          if (at(i) == 6.and.neighbourmat(i,j)) topo(l) = 1
-          if (at(j) == 6.and.neighbourmat(j,i)) topo(l) = 1
-        end if
-      end if
-    end do
-  end do
-  deallocate (cn2)
-  return
-end subroutine bondtotopo_excl
 subroutine quicktopo(nat,at,xyz,ntopo,topovec)
   use iso_fortran_env,only:wp => real64
   use miscdata,only:rcov
   use crest_cn_module
+  use cregen_utils,only:bondtotopo
   implicit none
   integer :: nat
   integer :: at(nat)
   real(wp) :: xyz(3,nat) !must be in Bohrs
   integer :: ntopo
-  integer :: topovec(ntopo)
+  integer,intent(inout) :: topovec(ntopo)
   real(wp),allocatable :: cn(:),bond(:,:)
   logical,allocatable :: neighmat(:,:)
+  integer,allocatable :: tmp(:)
   allocate (bond(nat,nat),cn(nat),source=0.0_wp)
   allocate (neighmat(nat,nat),source=.false.)
   cn = 0.0d0
   bond = 0.0d0
   call calc_ncoord(nat,at,xyz,rcov,cn,900.0_wp,bond)
-  call bondtotopo(nat,at,bond,cn,ntopo,topovec,neighmat)
+  call bondtotopo(nat,at,bond,cn,ntopo,tmp,neighmat)
+  topovec(:) = tmp(:)
   deallocate (neighmat,cn,bond)
   return
 end subroutine quicktopo

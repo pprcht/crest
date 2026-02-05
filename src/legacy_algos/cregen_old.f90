@@ -34,6 +34,7 @@ subroutine cregen2(env)
       use utilities
       use omp_lib
       use crest_cn_module
+      use cregen_utils, only: distcheck
       implicit none
       type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
 
@@ -81,7 +82,7 @@ subroutine cregen2(env)
       logical :: fail
       logical :: substruc
       logical :: ttag
-      logical, external :: distcheck,equalrot,equalrotall
+      logical, external :: equalrot,equalrotall
 
       settingNames: associate( crestver => env%crestver, confgo => env%confgo, &
       &             methautocorr => env%methautocorr, printscoords => env%printscoords,  &
