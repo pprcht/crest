@@ -151,35 +151,22 @@ subroutine newcregen(env,quickset,infile)
 
 !>--- check if the ensemble contains broken structures? i.e., fusion or dissociation
   if (checkbroken) then
-    call discardbroken(prch,env,topocheck,structures,nall)
+    call cregen_discardbroken(prch,env,topocheck,structures,nall)
   else
     nall = nallref
   end if
 
-  stop
-
 !>--- compare neighbourlists to sort out chemically transformed structures
   if (topocheck) then
-    call cregen_topocheck(prch,env,checkez,nat,nall,at,xyz,comments,nallnew)
+    call cregen_topocheck(prch,env,checkez,structures,nallnew)
+    nall = nallnew
 !>--- if structures were discarded, resize xyz
-    if (nallnew .lt. nall) then
-!>-- special fallback if all are discared
-      if (nallnew == 0) then
-        call rdcoord('coord',nat,at,xyz(:,:,1))
-        xyz = xyz*bohr
-        write (comments(1),'(f18.8)') env%elowest
-        nallnew = 1
-      end if
-      nall = nallnew
-      xyzref = xyz(:,:,1:nall)
-      call move_alloc(xyzref,xyz)
-      comref = comments(1:nall)
-      call move_alloc(comref,comments)
-    end if
   end if
   if (topocheck.or.checkbroken) then
     write (prch,'('' number of reliable points      :'',i6)') nall
   end if
+
+  stop
 
 !>--- sort the ensemble by its energies and make a cut (EWIN)
   if (sortE) then
@@ -614,9 +601,9 @@ end subroutine cregen_groupinfo
 !=========================================================================================!
 !=========================================================================================!
 
-subroutine discardbroken(ch,env,topocheck,structures,newnall)
+subroutine cregen_discardbroken(ch,env,topocheck,structures,newnall)
 !**************************************************
-!* subroutine discardbroken
+!* subroutine cregen_discardbroken
 !* analyze an ensemble and track broken structures
 !* to be discarded.
 !**************************************************
@@ -701,11 +688,11 @@ subroutine discardbroken(ch,env,topocheck,structures,newnall)
   !>--- otherwise the ensemble is ok
   if (allocated(broke)) deallocate (broke)
   return
-end subroutine discardbroken
+end subroutine cregen_discardbroken
 
 !=========================================================================================!
 
-subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
+subroutine cregen_topocheck(ch,env,checkez,structures,newnall)
 !*************************************************************
 !* subroutine cregen_topocheck
 !* analyze an ensemble and compare topology (neighbourlist)
@@ -723,11 +710,9 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   type(systemdata) :: env    ! MAIN STORAGE OS SYSTEM DATA
   integer,intent(in) :: ch ! printout channel
   logical,intent(in) :: checkez
-  integer,intent(in) :: nat,nall
-  integer,intent(in) :: at(nat)
-  real(wp),intent(inout) :: xyz(3,nat,nall)
-  character(len=*),intent(inout) :: comments(nall)
+  type(coord),intent(inout),allocatable,target :: structures(:)
   integer,intent(out) :: newnall
+  integer :: nat,nall
   integer :: llan
   integer,allocatable :: order(:),orderref(:)
   real(wp),allocatable :: cref(:,:),c1(:,:)
@@ -737,7 +722,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   integer,allocatable :: topo(:)
   logical,allocatable :: neighmat(:,:)
   integer :: nbonds
-  integer :: j,l
+  integer :: ii,jj,l
   integer :: ntopo,ncc,ccfail
   logical :: discard
   integer,allocatable :: ezat(:,:)
@@ -745,60 +730,54 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
   real(wp),allocatable :: ezdihed(:)
   real(wp) :: winkeldiff
 
+  type(coord)             :: mol0
+  type(coord),pointer     :: mol
+  type(coord),allocatable :: tmpstructures(:)
+  logical,allocatable :: broke(:)
+
   !>--- read the reference structure
-  allocate (cref(3,nat),atdum(nat))
-  call rdcoord('coord',nat,atdum,cref)
-
-  !>--- get the reference topology matrix (bonds)
-  ntopo = nat*(nat+1)/2
-  allocate (toporef(ntopo),topo(ntopo))
-  allocate (neighmat(nat,nat),source=.false.)
-  allocate (bond(nat,nat),cn(nat),source=0.0_wp)
-  cn = 0.0d0
-  bond = 0.0d0
-  call calc_ncoord(nat,atdum,cref,rcov,cn,400.0_wp,bond)
-
+  call env%ref%to(mol0)
+  nat = mol0%nat
+  nall = size(structures,1)
+  call mol0%cn_to_bond(cn,bond)
+  !>--- calculate reference "topology"
   if (allocated(env%excludeTOPO)) then
-    call bondtotopo(nat,at,bond,cn,ntopo,toporef,neighmat,excl=env%excludeTOPO)
+    call bondtotopo(nat,mol0%at,bond,cn,ntopo,toporef,neighmat,excl=env%excludeTOPO)
   else
-    call bondtotopo(nat,at,bond,cn,ntopo,toporef,neighmat)
+    call bondtotopo(nat,mol0%at,bond,cn,ntopo,toporef,neighmat)
   end if
 
   nbonds = sum(toporef)
   write (ch,'('' # bonds in reference structure :'',i6)') nbonds
   !>--- if required, check for C=C bonds (based only on structure!)
   if (checkez) then
-    cref = cref*bohr
-    call nezcc(nat,atdum,cref,cn,ntopo,toporef,ncc)
+    call nezcc(nat,mol0%at,mol0%xyz,cn,ntopo,toporef,ncc)
     if (ncc > 0) then
       write (ch,'(''   => # of C=C bonds :'',i6)') ncc
       allocate (ezat(4,ncc))
       allocate (ezdihedref(ncc),ezdihed(ncc),source=0.0d0)
-      call ezccat(nat,atdum,cref,cn,ntopo,toporef,ncc,ezat)
-      call ezccdihed(nat,cref,ncc,ezat,ezdihedref)
+      call ezccat(nat,mol0%at,mol0%xyz,cn,ntopo,toporef,ncc,ezat)
+      call ezccdihed(nat,mol0%xyz,ncc,ezat,ezdihedref)
       !do i=1,ncc
       !  write(*,'(1x,a,4i4,a,f6.2)') 'C=C bond atoms:',ezat(1:4,i)," angle: ",ezdihedref(i)
       !enddo
     end if
   end if
 
-  allocate (order(nall),orderref(nall))
-  allocate (c1(3,nat))
+  allocate (broke(nall),source=.false.)
   !>--- loop over the structures
   ccfail = 0
   newnall = 0
   llan = nall
-  do j = 1,nall
-    c1(1:3,1:nat) = xyz(1:3,1:nat,j)/bohr
+  do jj = 1,nall
     !>--- generate topo and compare
     discard = .false.
-    cn = 0.0d0
-    bond = 0.0d0
-    call calc_ncoord(nat,at,c1,rcov,cn,400.0_wp,bond)
+    mol => structures(jj)
+    call mol%cn_to_bond(cn,bond)
     if (allocated(env%excludeTOPO)) then
-      call bondtotopo(nat,at,bond,cn,ntopo,topo,neighmat,excl=env%excludeTOPO)
+      call bondtotopo(mol%nat,mol%at,bond,cn,ntopo,topo,neighmat,excl=env%excludeTOPO)
     else
-      call bondtotopo(nat,at,bond,cn,ntopo,topo,neighmat)
+      call bondtotopo(mol%nat,mol%at,bond,cn,ntopo,topo,neighmat)
     end if
     do l = 1,ntopo
       if (toporef(l) .ne. topo(l)) then
@@ -808,8 +787,7 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
     end do
     !>--- get E/Z info of C=C, discard isomers
     if (checkez.and..not.discard.and.ncc > 0) then
-      c1 = c1*bohr
-      call ezccdihed(nat,c1,ncc,ezat,ezdihed)
+      call ezccdihed(mol%nat,mol%xyz,ncc,ezat,ezdihed)
       do l = 1,ncc
         winkeldiff = ezdihedref(l)-ezdihed(l)
         winkeldiff = abs(winkeldiff)
@@ -822,23 +800,14 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
     end if
 
     if (discard) then
-      !>-- move broken structures to the end of the matrix
-      orderref(j) = llan
-      llan = llan-1
+      broke(jj) = .true.
     else
       newnall = newnall+1
-      orderref(j) = newnall
     end if
   end do
 
   !>--- sort the xyz array (only if structures have been discarded)
   if (newnall .lt. nall) then
-    order = orderref
-    call xyzqsort(nat,nall,xyz,c1,order,1,nall)
-    order = orderref
-    !call stringqsort(nall,comments,1,nall,order)
-    call stringqsort(nall,len(comments(1)),comments,1,nall,order)
-
     llan = nall-newnall
     write (ch,'('' number of topology mismatches  :'',i6)') llan
     !>--- report the removals during a run
@@ -848,19 +817,31 @@ subroutine cregen_topocheck(ch,env,checkez,nat,nall,at,xyz,comments,newnall)
     if (checkez.and.ccfail > 0) then
       write (ch,'(''  => discared due to E/Z isom.  :'',i6)') ccfail
     end if
+    if (newnall >= 1) then
+      allocate (tmpstructures(newnall))
+      jj = 0
+      do ii = 1,nall
+        if (.not.broke(ii)) then
+          jj = jj+1
+          tmpstructures(jj) = structures(ii)
+        end if
+      end do
+      call move_alloc(tmpstructures,structures)
+    else
+      if (ch .ne. stdout) then
+        write (stdout,'("CREGEN> ** WARNING ** Full removal of ensemble! Falling back to reference structure.")')
+      end if
+      allocate(tmpstructures(1), source=mol0)
+      call move_alloc(tmpstructures,structures)
+    end if
   end if
   !>--- otherwise the ensemble is ok
-
-  deallocate (c1)
-  deallocate (orderref,order)
   if (allocated(ezdihedref)) deallocate (ezdihedref)
   if (allocated(ezdihed)) deallocate (ezdihed)
   if (allocated(ezat)) deallocate (ezat)
   deallocate (cn,bond)
   deallocate (neighmat)
   deallocate (topo,toporef)
-  deallocate (atdum)
-  deallocate (cref)
   return
 end subroutine cregen_topocheck
 

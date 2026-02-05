@@ -1,9 +1,9 @@
 
-!=========================================================================================!  
-!=========================================================================================!  
+!=========================================================================================!
+!=========================================================================================!
 !> Interfaces for use CREGEN (and related)
-!=========================================================================================!  
-!=========================================================================================!  
+!=========================================================================================!
+!=========================================================================================!
 
 module cregen_interface
 !*******************************************************
@@ -52,11 +52,11 @@ module cregen_interface
   public :: unionizeEnsembles
 end module cregen_interface
 
-!=========================================================================================! 
-!=========================================================================================! 
+!=========================================================================================!
+!=========================================================================================!
 !> Interfaces for routines used WITHIN CREGEN
-!=========================================================================================! 
-!=========================================================================================! 
+!=========================================================================================!
+!=========================================================================================!
 
 module cregen_subroutines
 !*************************************
@@ -64,7 +64,7 @@ module cregen_subroutines
 !*************************************
   implicit none
   interface
-    subroutine discardbroken(ch,env,topocheck,structures,newnall)
+    subroutine cregen_discardbroken(ch,env,topocheck,structures,newnall)
       use crest_data
       use strucrd
       use cregen_utils
@@ -73,7 +73,18 @@ module cregen_subroutines
       logical,intent(in) :: topocheck
       type(coord),intent(inout),allocatable,target :: structures(:)
       integer,intent(out) :: newnall
-    end subroutine discardbroken
+    end subroutine cregen_discardbroken
 
+    subroutine cregen_topocheck(ch,env,checkez,structures,newnall)
+      use crest_data
+      use strucrd
+      use cregen_utils
+      implicit none
+      type(systemdata) :: env    
+      integer,intent(in) :: ch 
+      logical,intent(in) :: checkez
+      type(coord),intent(inout),allocatable,target :: structures(:)
+      integer,intent(out) :: newnall
+    end subroutine cregen_topocheck
   end interface
 end module cregen_subroutines

@@ -156,6 +156,7 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine nezcc(nat,at,xyz,cn,ntopo,topo,ncc)
     !***************************************************
     !* Check how many (potential) C=C bonds are present
+    !* Expecting xyz in BOHR
     !***************************************************
     integer,intent(in)  :: nat
     integer,intent(in)  :: at(nat)
@@ -167,7 +168,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: dist
     integer :: l
     integer :: ci,cj
-    real(wp),parameter :: distcc = 1.384_wp
+    real(wp),parameter :: distcc = 1.384_wp*aatoau
     ncc = 0
     do ci = 1,nat
       do cj = 1,ci-1
@@ -191,6 +192,7 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine ezccat(nat,at,xyz,cn,ntopo,topo,ncc,ezat)
     !********************************************************
     !* Check which atoms can be used for C=C dihedral angles
+    !* Expecting xyz in BOHR
     !********************************************************
     integer,intent(in)  :: nat
     integer,intent(in)  :: at(nat)
@@ -203,7 +205,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: dist
     integer :: i,j,k,l
     integer :: ci,cj
-    real(wp),parameter :: distcc = 1.384_wp
+    real(wp),parameter :: distcc = 1.384_wp*aatoau
     if (ncc < 1) return
     k = 0
     do ci = 1,nat
