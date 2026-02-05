@@ -122,6 +122,7 @@ contains  !> MODULE PROCEDURES START HERE
     hmax = calc%hmax_opt
     maxdispl = calc%maxdispl_opt
     s6 = mhset%s6 !> slightly better than 30 for various proteins
+    mhset%model=calc%mh_type
 
 !> initial number of steps in relax() routine before
 !> new ANC are made by model Hessian
@@ -351,13 +352,13 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: Uaug(:,:)
     real(wp),allocatable :: Aaug(:)
     real(wp),parameter :: r4dum = 1.e-8
-    real(wp), allocatable :: test_hess(:,:)
+    real(wp),allocatable :: test_hess(:,:)
     !> LAPACK & BLAS
     external :: dgemv
     real(wp),external :: ddot
     integer :: q,r,s,nat3 !> ONLY for testing!
     nat3 = 3*mol%nat
-    allocate(test_hess(nat3,nat3))
+    allocate (test_hess(nat3,nat3))
 
     iostatus = 0
 
@@ -475,7 +476,7 @@ contains  !> MODULE PROCEDURES START HERE
       !  alp = 3.0d0 ! 3
       !end if
 
-      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine)
+      alp = alp_generate(gnorm,calc%optlev,calc%opt_engine)
       !write(stdout,*) alp
 
 !>------------------------------------------------------------------------
@@ -517,7 +518,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- choose solver for the RF eigenvalue problem
       if (exact.or.nvar1 .lt. 50) then
-          call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
+        call solver_dspevx(nvar1,r4dum,Aaug,Uaug,eaug,fail)
       else
         !>--- steepest decent guess for displacement
         if (ii .eq. 1) then

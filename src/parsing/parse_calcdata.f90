@@ -610,8 +610,24 @@ contains !> MODULE PROCEDURES START HERE
           calc%initialize_hr_type = 3
       case('gfn2')
           calc%initialize_hr_type = 4
-      case('lindh')
+      case('modhess')
           calc%initialize_hr_type = 5
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%value_c
+        call creststop(status_config)
+      end select
+
+    case ('modhess_type','mh_type') !> here we set how the matrix for hessian reconstruction is initialized
+      select case (kv%value_c)      !>maybe need to add another keywort for crosstesting hr and geopt
+      case('lindh95')
+        calc%mh_type = 0
+      case('lindh')
+        calc%mh_type = 1
+      case('lindh07')
+          calc%mh_type = 2
+      case('swart')
+          calc%mh_type = 3
       case default
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) kv%value_c
@@ -630,13 +646,31 @@ contains !> MODULE PROCEDURES START HERE
           calc%hess_init = 3
         case('gfn2')
           calc%hess_init = 4
-        case('lindh')
+        case('modhess')
           calc%hess_init = 5
         case default
           !>--- keyword was recognized, but invalid argument supplied
           write (stdout,fmtura) kv%value_c
           call creststop(status_config)
         end select
+
+      case ('hr_hess_update','hr_hu_update')
+      select case (kv%value_c) !> Hessian updates in hessian reconstruction
+      case ('bfgs')
+        calc%hr_hu_type = 0
+      case ('powell')
+        calc%hr_hu_type = 1
+      case ('sr1')
+        calc%hr_hu_type = 2
+      case ('bofill')
+        calc%hr_hu_type = 3
+      case ('schlegel')
+        calc%hr_hu_type = 4
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%value_c
+        call creststop(status_config)
+      end select
 
     case ('freeze')
       call get_atlist(env%ref%nat,atlist,kv%value_c,env%ref%at)

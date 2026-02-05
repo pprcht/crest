@@ -20,28 +20,31 @@ module hessian_reconstruct
     real(wp) :: hguess = 0.02_wp
     real(wp),allocatable ::hess(:)
     logical :: track_step = .true.
-    integer :: initialize_type = 0
+    integer :: initialize_type != 0
+    integer :: hu_type != 0
 
   contains
 
     procedure :: alloc => cashed_hessian_allocate
     procedure :: dealloc => cashed_hessian_deallocate
     procedure :: update => update_cashed_hessian
-    procedure :: construct_hessian_bfgs
+    procedure :: construct_hessian
 
   end type cashed_hessian
 
 contains
 
-  subroutine cashed_hessian_allocate(self,N,steps,hguess,initialize_type) !> maybe make keywords optional later
-    integer,intent(in) :: N,steps, initialize_type
+  subroutine cashed_hessian_allocate(self,N,steps,hguess,initialize_type, hu_type) !> maybe make keywords optional later
+    integer,intent(in) :: N,steps, initialize_type, hu_type
     class(cashed_hessian),intent(inout) :: self
     real(wp),intent(in) :: hguess
+
 
     self%steps = steps
     self%hguess = hguess
     self%natm = N
     self%initialize_type = initialize_type
+    self%hu_type = hu_type
     allocate (self%gradient(steps,3,N))
     allocate (self%coords(steps,3,N))
     allocate (self%energy(steps))
@@ -77,7 +80,7 @@ contains
 
   end subroutine update_cashed_hessian
 
-  subroutine construct_hessian_bfgs(self)
+  subroutine construct_hessian(self)
     class(cashed_hessian),intent(inout) :: self
     integer :: i,j,k,nat3
     real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:),dx(:)
@@ -120,10 +123,10 @@ contains
         j = minloc(tmp,1) !> This only happens if made_iters>steps
         if (j == 1) then  !> => Not affected if too many steps requested
           dx = tmp_coords(j,:)-tmp_coords(self%steps,:)
-          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,self%hess(:))
+          call update_hessian(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,self%hess(:),self%hu_type)
         else
           dx = tmp_coords(j,:)-tmp_coords(j-1,:)
-          call bfgs(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,self%hess(:))
+          call update_hessian(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,self%hess(:),self%hu_type)
         end if
         tmp(j) = HUGE(tmp(j))
       end if
@@ -131,6 +134,35 @@ contains
 
     call dhtosq(nat3,self%H(:,:),self%hess(:)) !>B needs to be renamed eventually!
 
-  end subroutine construct_hessian_bfgs
+  end subroutine construct_hessian
+
+  subroutine update_hessian(nat3,gnorm,grd1,gold,dx,hess,hu_type)
+  !==============================================
+  !Wrapper for hessian update scheme selection
+  !==============================================
+    !class(cashed_hessian),intent(inout) :: self
+    integer,intent(in) :: nat3
+    real(wp),intent(in) :: dx(:), grd1(:),gold(:)
+    real(wp),intent(in) :: gnorm 
+    real(wp),intent(inout) :: hess(:)
+    integer,intent(in) :: hu_type
+  
+    select case (hu_type)
+    case (0)
+      call bfgs(nat3,gnorm,grd1,gold,dx,hess)
+    case (1)
+      call powell(nat3,gnorm,grd1,gold,dx,hess)
+    case (2)
+      call sr1(nat3,gnorm,grd1,gold,dx,hess)
+    case (3)
+      call bofill(nat3,gnorm,grd1,gold,dx,hess)
+    case (4)
+      call schlegel(nat3,gnorm,grd1,gold,dx,hess)
+    case default
+      write (*,*) 'invalid update selection for hessian reconstruction'
+      stop
+    end select
+
+  end subroutine update_hessian
 
 end module hessian_reconstruct
