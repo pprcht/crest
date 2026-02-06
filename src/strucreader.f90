@@ -2036,14 +2036,15 @@ contains  !> MODULE PROCEDURES START HERE
     class(coord) :: self
     integer :: io
     character(len=64) :: atmp
+    character(len=32) :: btmp
     self%xyz = self%xyz*bohr !to Angström
+    write(btmp,'(f22.10)') self%energy
+    write (atmp,'(a,a)') ' energy= ',adjustl(btmp)
     if (allocated(self%comment)) then
-      call wrxyz(io,self%nat,self%at,self%xyz,trim(self%comment))
-    else if (self%energy .ne. 0.0_wp) then
-      write (atmp,'(a,f22.10)') ' energy= ',self%energy
-      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
+      call wrxyz(io,self%nat,self%at,self%xyz, & 
+      &          trim(atmp)//' '//trim(self%comment))
     else
-      call wrxyz(io,self%nat,self%at,self%xyz)
+      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
     end if
     self%xyz = self%xyz/bohr !back
     return

@@ -123,5 +123,28 @@ module cregen_subroutines
       integer,intent(in) :: nall
       type(coord),intent(inout) :: structures(nall)
     end subroutine cregen_rmsdalign
+
+    subroutine cregen_file_wr(env,fname,structures)
+      use crest_parameters
+      use crest_data
+      use strucrd
+      use utilities,only:boltz
+      implicit none
+      type(systemdata),intent(inout) :: env
+      character(len=*),intent(in) :: fname
+      type(coord),intent(inout) :: structures(:)
+    end subroutine cregen_file_wr
+
+    subroutine cregen_conffile(env,cname,structures,ng,degen)
+      use crest_parameters
+      use crest_data
+      use strucrd
+      implicit none
+      type(systemdata),intent(inout) :: env
+      character(len=*),intent(in) :: cname
+      type(coord),intent(inout) :: structures(:)
+      integer,intent(in) :: ng
+      integer,intent(in) :: degen(3,ng)
+    end subroutine cregen_conffile
   end interface
 end module cregen_subroutines

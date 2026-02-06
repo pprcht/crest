@@ -227,23 +227,23 @@ subroutine newcregen(env,quickset,infile)
 !>--- align all structures to the first structure using the RMSD
   call cregen_rmsdalign(nall,structures)
 
-  stop
-
 !>--- write new file with ALL remaining structures
   if (newfile) then
-    call cregen_file_wr(env,oname,nat,nall,at,xyz,comments)
+    call cregen_file_wr(env,oname,structures)
 !>--- track ensemble for restart
-    call trackensemble(oname,nat,nall,at,xyz,comments)
+!    call trackensemble(oname,nat,nall,at,xyz,comments)
   end if
 !>--- write a file containing only conformers (no rotamers)
   if (conffile) then
-    call cregen_conffile(env,cname,nat,nall,at,xyz,comments,ng,degen)
+    call cregen_conffile(env,cname,structures,ng,degen)
   end if
   if (saveelow) then
-    env%elowest = grepenergy(comments(1))
+    env%elowest = structures(1)%energy
 !>-- and update reference geometry (in Bohr)
-    env%ref%xyz = xyz(:,:,1) / bohr
+    env%ref%xyz = structures(1)%xyz
   end if
+
+  stop
 
 !>--- additional files for entropy mode
   if (bonusfiles) then
@@ -2614,62 +2614,59 @@ end subroutine maskedxyz2
 
 !=========================================================================================!
 
-subroutine cregen_file_wr(env,fname,nat,nall,at,xyz,comments)
-!*********************************
-!* write the output ensemble file
-!*********************************
-  use crest_parameters,only:wp
+subroutine cregen_file_wr(env,fname,structures)
+!*********************************************************************
+!* write the output ensemble file with all structures (rotamer file)
+!*********************************************************************
+  use crest_parameters
   use crest_data
   use strucrd
   use utilities,only:boltz
   implicit none
-  type(systemdata) :: env
-  character(len=*) :: fname
+  type(systemdata),intent(inout) :: env
+  character(len=*),intent(in) :: fname
+  type(coord),intent(inout) :: structures(:)
   integer :: nat,nall
-  integer :: at(nat)
-  real(wp) :: xyz(3,nat,nall)
-  character(len=*) :: comments(nall)
   character(len=128) :: newcomment
 
-  integer :: ich,i
-  real(wp),allocatable :: c0(:,:),xdum(:)
+  integer :: ich,ii
   real(wp) :: eref,T
   real(wp),allocatable :: er(:),erel(:),p(:)
   character(len=40),allocatable :: origin(:)
-  real(wp),parameter :: autokcal = 627.509541_wp
 
-  allocate (er(nall),erel(nall),p(nall),origin(nall))
-  eref = grepenergy(comments(1))
-  do i = 1,nall
-    er(i) = grepenergy(comments(i))
-    erel(i) = (er(i) - eref) * autokcal
-    if (env%trackorigin) then
-      call getorigin(comments(i),origin(i))
-    end if
+  nall = size(structures,1)
+  allocate (er(nall),erel(nall),p(nall))!,origin(nall))
+  eref = structures(1)%energy
+  do ii = 1,nall
+    er(ii) = structures(ii)%energy
+    erel(ii) = (er(ii) - eref) * autokcal
+    !if (env%trackorigin) then
+    !  call getorigin(comments(i),origin(i))
+    !end if
   end do
   T = env%tboltz
   call boltz(nall,T,erel,p)
 
-  allocate (c0(3,nat),xdum(3))
   open (newunit=ich,file=fname)
-  do i = 1,nall
-    c0(:,:) = xyz(:,:,i)
-    if (env%trackorigin) then
-      write (newcomment,*) er(i),p(i),'!'//trim(origin(i))
-    else
-      write (newcomment,*) er(i),p(i)
-    end if
-    call wrxyz(ich,nat,at,c0,newcomment)
+  do ii = 1,nall
+    !if (env%trackorigin) then
+    !write (newcomment,'(a,f10.8,1x,a)') 'population=',p(ii),trim(origin(ii))
+    !else
+    write (newcomment,'(a,f10.8)') 'population=',p(ii)
+    !end if
+    structures(ii)%comment = trim(newcomment)
+    call structures(ii)%append(ich)
   end do
   close (ich)
-  deallocate (xdum,c0)
-  deallocate (origin,p,erel,er)
+  !deallocate (origin,p,erel,er)
+  if (allocated(origin)) deallocate (origin)
+  deallocate (p,erel,er)
   return
 end subroutine cregen_file_wr
 
 !=========================================================================================!
 
-subroutine cregen_conffile(env,cname,nat,nall,at,xyz,comments,ng,degen)
+subroutine cregen_conffile(env,cname,structures,ng,degen)
 !*********************************
 !* write the output ensemble file
 !*********************************
@@ -2679,50 +2676,39 @@ subroutine cregen_conffile(env,cname,nat,nall,at,xyz,comments,ng,degen)
   use iomod
   use utilities
   implicit none
-  type(systemdata) :: env
-  character(len=*) :: cname
+  type(systemdata),intent(inout) :: env
+  character(len=*),intent(in) :: cname
+  type(coord),intent(inout) :: structures(:)
+  integer,intent(in) :: ng
+  integer,intent(in) :: degen(3,ng)
   integer :: nat,nall
-  integer :: at(nat)
-  real(wp) :: xyz(3,nat,nall)
-  character(len=*) :: comments(nall)
-  integer :: ng
-  integer :: degen(3,ng)
-  character(len=128) :: newcomment
   integer :: ich,ich3,ichenso
-  integer :: i,k
-  real(wp),allocatable :: c0(:,:)
+  integer :: i,k,ii
   real(wp),allocatable :: er(:)
+
+  nall = size(structures,1)
   allocate (er(nall))
-  do i = 1,nall
-    er(i) = grepenergy(comments(i))
+  do ii = 1,nall
+    er(ii) = structures(ii)%energy
+    if (allocated(structures(ii)%comment)) &
+    &  deallocate (structures(ii)%comment)
   end do
-  allocate (c0(3,nat))
   if (env%enso) then
     open (newunit=ichenso,file='enso.tags')
   end if
-  c0(:,:) = xyz(:,:,1)
-  write (newcomment,'(2x,f18.8)') er(1)
-  call wrxyz('crest_best.xyz',nat,at,xyz(:,:,1),newcomment)
+  call structures(1)%write('crest_best.xyz')
   open (newunit=ich,file=trim(cname))
-  do i = 1,ng
-    k = degen(2,i)
+  do ii = 1,ng
+    k = degen(2,ii)
     if (k <= 0 .or. k > nall) cycle
-    if (i .eq. 1 .or. env%printscoords) then   !write a scoord.* for each conformer? scoord.1 is always written
-      call getname1(i,newcomment)
-      c0(:,:) = xyz(:,:,k) / bohr
-      call wrc0(newcomment,nat,at,c0)
-    end if
-    write (newcomment,'(2x,f18.8)') er(k)
-    call wrxyz(ich,nat,at,xyz(:,:,k),newcomment)
-    if (env%enso) write (ichenso,*) trim(comments(k))
+    call structures(k)%append(ich)
+    if (env%enso) write (ichenso,'(2x,f18.8)') er(k)
   end do
   close (ich)
-  deallocate (c0)
-  deallocate (er)
-
   if (env%enso) then
     close (ichenso)
   end if
+  deallocate (er)
 
   call remove('cre_members')
   open (newunit=ich3,file='cre_members')
@@ -2836,7 +2822,7 @@ subroutine cregen_pr1(ch,env,nat,nall,rthr,bthr,pthr,ewin)
   if (substruc) then
     write (ch,'(" atoms included in RMSD",t35,":",i10)') env%rednat
   end if
-  write (ch,'(" number of points on xyz files",t35,":",i10)') nall
+  write (ch,'(" number of points on xyz file",t35,":",i10)') nall
   !write (ch,'('' RMSD threshold                 :'',f9.4)') rthr
   !write (ch,'('' Bconst threshold               :'',f9.4)') bthr
   !write (ch,'('' population threshold           :'',f9.4)') pthr
