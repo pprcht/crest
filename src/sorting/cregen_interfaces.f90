@@ -114,5 +114,14 @@ module cregen_subroutines
       integer,intent(in),optional :: printlvl
       integer,intent(in),optional :: ch
     end subroutine cregen_CRE_new
+
+    subroutine cregen_rmsdalign(nall,structures)
+      use crest_parameters
+      use irmsd_module
+      use strucrd
+      implicit none
+      integer,intent(in) :: nall
+      type(coord),intent(inout) :: structures(nall)
+    end subroutine cregen_rmsdalign
   end interface
 end module cregen_subroutines

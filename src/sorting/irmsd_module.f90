@@ -14,6 +14,7 @@ module irmsd_module
   public :: rmsd
   public :: min_rmsd
 
+  public :: rmsd_align
   public :: checkranks,fallbackranks
   public :: molatomsort
 
@@ -249,7 +250,7 @@ contains  !> MODULE PROCEDURES START HERE
       k = 0
       do ic = 1,ref%nat
         if (mask(ic)) then
-          k = k+1
+          k = k + 1
           scratchptr(1:3,k,1) = mol%xyz(1:3,ic)
           scratchptr(1:3,k,2) = ref%xyz(1:3,ic)
         end if
@@ -266,7 +267,7 @@ contains  !> MODULE PROCEDURES START HERE
           if (mask(ic)) then
             grdptr(1:3,ic) = grdptr(1:3,k)
             grdptr(1:3,k) = 0.0_wp
-            k = k-1
+            k = k - 1
           end if
         end do
       end if
@@ -327,18 +328,18 @@ contains  !> MODULE PROCEDURES START HERE
       !> calculate the barycenters, centroidal coordinates, and the norms
       x_norm = 0.0_wp
       y_norm = 0.0_wp
-      rnat = 1.0_wp/real(nat,wp)
+      rnat = 1.0_wp / real(nat,wp)
       do i = 1,3
         xi(:nat) = x(i,1:nat)
         yi(:nat) = y(i,1:nat)
-        x_center(i) = sum(xi(1:nat))*rnat
-        y_center(i) = sum(yi(1:nat))*rnat
-        xi(1:nat) = xi(1:nat)-x_center(i)
-        yi(1:nat) = yi(1:nat)-y_center(i)
+        x_center(i) = sum(xi(1:nat)) * rnat
+        y_center(i) = sum(yi(1:nat)) * rnat
+        xi(1:nat) = xi(1:nat) - x_center(i)
+        yi(1:nat) = yi(1:nat) - y_center(i)
         x(i,1:nat) = xi(1:nat)
         y(i,1:nat) = yi(1:nat)
-        x_norm = x_norm+dot_product(xi,xi)
-        y_norm = y_norm+dot_product(yi,yi)
+        x_norm = x_norm + dot_product(xi,xi)
+        y_norm = y_norm + dot_product(yi,yi)
       end do
 
       !> calculate the R matrix
@@ -349,25 +350,25 @@ contains  !> MODULE PROCEDURES START HERE
       end do
 
       !> S matrix
-      S(1,1) = Rmatrix(1,1)+Rmatrix(2,2)+Rmatrix(3,3)
-      S(2,1) = Rmatrix(2,3)-Rmatrix(3,2)
-      S(3,1) = Rmatrix(3,1)-Rmatrix(1,3)
-      S(4,1) = Rmatrix(1,2)-Rmatrix(2,1)
+      S(1,1) = Rmatrix(1,1) + Rmatrix(2,2) + Rmatrix(3,3)
+      S(2,1) = Rmatrix(2,3) - Rmatrix(3,2)
+      S(3,1) = Rmatrix(3,1) - Rmatrix(1,3)
+      S(4,1) = Rmatrix(1,2) - Rmatrix(2,1)
 
       S(1,2) = S(2,1)
-      S(2,2) = Rmatrix(1,1)-Rmatrix(2,2)-Rmatrix(3,3)
-      S(3,2) = Rmatrix(1,2)+Rmatrix(2,1)
-      S(4,2) = Rmatrix(1,3)+Rmatrix(3,1)
+      S(2,2) = Rmatrix(1,1) - Rmatrix(2,2) - Rmatrix(3,3)
+      S(3,2) = Rmatrix(1,2) + Rmatrix(2,1)
+      S(4,2) = Rmatrix(1,3) + Rmatrix(3,1)
 
       S(1,3) = S(3,1)
       S(2,3) = S(3,2)
-      S(3,3) = -Rmatrix(1,1)+Rmatrix(2,2)-Rmatrix(3,3)
-      S(4,3) = Rmatrix(2,3)+Rmatrix(3,2)
+      S(3,3) = -Rmatrix(1,1) + Rmatrix(2,2) - Rmatrix(3,3)
+      S(4,3) = Rmatrix(2,3) + Rmatrix(3,2)
 
       S(1,4) = S(4,1)
       S(2,4) = S(4,2)
       S(3,4) = S(4,3)
-      S(4,4) = -Rmatrix(1,1)-Rmatrix(2,2)+Rmatrix(3,3)
+      S(4,4) = -Rmatrix(1,1) - Rmatrix(2,2) + Rmatrix(3,3)
 
       !> Calculate eigenvalues and eigenvectors, and
       !> take the maximum eigenvalue lambda and the corresponding eigenvector q.
@@ -385,20 +386,71 @@ contains  !> MODULE PROCEDURES START HERE
       end if
 
       !> RMS Deviation
-      error = sqrt(max(0.0_wp, ((x_norm+y_norm)-2.0_wp*lambda))*rnat)
+      error = sqrt(max(0.0_wp, ((x_norm + y_norm) - 2.0_wp * lambda)) * rnat)
 
       if (calc_g) then
         !> Gradient of the error of xyz1 w.r.t xyz2
         do i = 1,nat
           do j = 1,3
             tmp(:) = matmul(transpose(U(:,:)),y(:,i))
-            grad(j,i) = ((x(j,i)-tmp(j))/error)*rnat
+            grad(j,i) = ((x(j,i) - tmp(j)) / error) * rnat
           end do
         end do
       end if
 
     end associate
   end subroutine rmsd_core
+
+!========================================================================================!
+  subroutine rmsd_align(ref,mol,mask)
+    !********************************************************
+    !* Routine to align the structure "mol"
+    !* to a reference structure "ref"
+    !* via the quternion RMSD
+    !*  Input:
+    !*     ref - reference structure
+    !*    mask - (optional) only consider specific atoms
+    !*  In/Output:
+    !*     mol - structure to have it's coordinates aligned
+    !********************************************************
+
+    implicit none
+    type(coord),intent(in) :: ref
+    type(coord),intent(inout) :: mol
+    logical,intent(in),optional :: mask(:)
+
+    real(wp) :: Umat(3,3),tmp
+    real(wp) :: cref(3),cmol(3),shift(3)
+    integer :: ii,jj,nn
+
+    !> barycenter shift
+    cref(:) = 0.0_wp
+    cmol(:) = 0.0_wp
+    shift(:) = 0.0_wp
+    do ii = 1,ref%nat
+      if (present(mask)) then
+        if (mask(ii)) then
+          cref(:) = cref(:) + ref%xyz(:,ii)
+          cmol(:) = cmol(:) + mol%xyz(:,ii)
+        end if
+      else
+        cref(:) = cref(:) + ref%xyz(:,ii)
+        cmol(:) = cmol(:) + mol%xyz(:,ii)
+      end if
+    end do
+    nn = ref%nat
+    if (present(mask)) nn = count(mask)
+    shift = cref - cmol
+    do ii = 1,mol%nat
+      mol%xyz(:,ii) = mol%xyz(:,ii) + shift(:)
+    end do
+
+    Umat(:,:) = 0.0_wp
+    tmp = rmsd(ref,mol,mask=mask,rotmat=Umat)
+
+    mol%xyz = matmul(Umat,mol%xyz)
+
+  end subroutine rmsd_align
 
 !========================================================================================!
 
@@ -477,7 +529,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
 !>--- First sorting, to at least restore rank order (only if that's not the case!)
-    if (.not.all(cptr%rank(:,1) .eq. cptr%rank(:,2))) then
+    if (.not. all(cptr%rank(:,1) .eq. cptr%rank(:,2))) then
       call rank_2_order(ref%nat,cptr%rank(:,1),cptr%target_order)
       call rank_2_order(mol%nat,cptr%rank(:,2),cptr%current_order)
       if (debug) then
@@ -502,14 +554,14 @@ contains  !> MODULE PROCEDURES START HERE
       do ii = 1,ref%nat
         rnk = cptr%rank(ii,1)
         if (rnk > 0) then
-          cptr%ngroup(rnk) = cptr%ngroup(rnk)+1
+          cptr%ngroup(rnk) = cptr%ngroup(rnk) + 1
         end if
       end do
     end if
     !> assignment reset
     cptr%assigned(:) = .false.
     cptr%rassigned(:) = .false.
-    cptr%rassigned(cptr%nranks+1:) = .true. !> skip unneeded allocation space
+    cptr%rassigned(cptr%nranks + 1:) = .true. !> skip unneeded allocation space
     do ii = 1,ref%nat
       cptr%iwork(ii) = ii         !> also init iwork
       cptr%target_order(ii) = ii  !> also init target_order
@@ -551,9 +603,9 @@ contains  !> MODULE PROCEDURES START HERE
     !> The logic here is: if we have enough unique atoms
     !> we can align the molecule with them and identify
     !> symmetry equivalent atoms via LSAP in those thereafter
-    IF (nunique >= 3)then
+    IF (nunique >= 3) then
       !> mol still needs a first alignment and CMA shift
-       call CMAtrf(mol%nat,mol%nat,mol%at,mol%xyz)
+      call CMAtrf(mol%nat,mol%nat,mol%at,mol%xyz)
 
       tmprmsd_sym(:) = inf
       tmprmsd_sym(1) = rmsd(ref,mol,cptr%lwork, &
@@ -621,14 +673,14 @@ contains  !> MODULE PROCEDURES START HERE
         mol%xyz(3,:) = -mol%xyz(3,:)
         if (debug) write (*,*) 'inverting'
       end if
-      if ((ii > 4.and.ii < 9).or.(ii > 20.and.ii < 25)) then
+      if ((ii > 4 .and. ii < 9) .or. (ii > 20 .and. ii < 25)) then
         if (uniquenesscase == 1) mol%xyz = matmul(Rx90,mol%xyz)
         if (uniquenesscase == 2) mol%xyz = matmul(Rz90,mol%xyz)
         if (uniquenesscase == 3) mol%xyz = matmul(Rz90,mol%xyz)
         if (debug) write (*,*) '90° tilt'
-      else if ((ii > 8.and.ii < 13).or.(ii > 24.and.ii < 29)) then
+      else if ((ii > 8 .and. ii < 13) .or. (ii > 24 .and. ii < 29)) then
         mol%xyz = matmul(Ry90,mol%xyz)
-      else if ((ii > 12.and.ii < 17).or.(ii > 28)) then
+      else if ((ii > 12 .and. ii < 17) .or. (ii > 28)) then
         mol%xyz = matmul(Rx90,mol%xyz)
       end if
       select case (ii) !> 180° rotations
@@ -713,7 +765,7 @@ contains  !> MODULE PROCEDURES START HERE
 
       !> add up the total LSAP cost (of considered ranks)
       !> we need this if we have to decide on a mapping in case of false enantiomers
-      val = val+val0
+      val = val + val0
     end do
 
   end subroutine min_rmsd_iterate_through_groups
@@ -770,27 +822,27 @@ contains  !> MODULE PROCEDURES START HERE
 
     ALIGNLOOP: do ii = 1,4
       call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-      vals(1+4*(ii-1)) = dum
+      vals(1 + 4 * (ii - 1)) = dum
       if (debug) call mol%append(debugunit2)
-      cptr%order_bkup(:,1+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
+      cptr%order_bkup(:,1 + 4 * (ii - 1) + 16 * (step - 1)) = cptr%iwork(:)
 
       mol%xyz = matmul(Rx180,mol%xyz)
       call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-      vals(2+4*(ii-1)) = dum
+      vals(2 + 4 * (ii - 1)) = dum
       if (debug) call mol%append(debugunit2)
-      cptr%order_bkup(:,2+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
+      cptr%order_bkup(:,2 + 4 * (ii - 1) + 16 * (step - 1)) = cptr%iwork(:)
 
       mol%xyz = matmul(Ry180,mol%xyz)
       call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-      vals(3+4*(ii-1)) = dum
+      vals(3 + 4 * (ii - 1)) = dum
       if (debug) call mol%append(debugunit2)
-      cptr%order_bkup(:,3+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
+      cptr%order_bkup(:,3 + 4 * (ii - 1) + 16 * (step - 1)) = cptr%iwork(:)
 
       mol%xyz = matmul(Rx180,mol%xyz)
       call min_rmsd_iterate_through_groups(ref,mol,cptr,dum)
-      vals(4+4*(ii-1)) = dum
+      vals(4 + 4 * (ii - 1)) = dum
       if (debug) call mol%append(debugunit2)
-      cptr%order_bkup(:,4+4*(ii-1)+16*(step-1)) = cptr%iwork(:)
+      cptr%order_bkup(:,4 + 4 * (ii - 1) + 16 * (step - 1)) = cptr%iwork(:)
 
       mol%xyz = matmul(Ry180,mol%xyz) !> restore
 
@@ -833,7 +885,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     do ii = 1,16
-      values(ii+16*(step-1)) = vals(ii)
+      values(ii + 16 * (step - 1)) = vals(ii)
     end do
   end subroutine min_rmsd_rotcheck_permute
 
@@ -854,14 +906,14 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (typemap(nat),source=0)
     k = 0
     do ii = 1,ref%nat
-      if (.not.any(typemap(:) .eq. ref%at(ii))) then
-        k = k+1
+      if (.not. any(typemap(:) .eq. ref%at(ii))) then
+        k = k + 1
         typemap(k) = ref%at(ii)
       end if
     end do
     do ii = 1,mol%nat
-      if (.not.any(typemap(:) .eq. mol%at(ii))) then
-        k = k+1
+      if (.not. any(typemap(:) .eq. mol%at(ii))) then
+        k = k + 1
         typemap(k) = mol%at(ii)
       end if
     end do
@@ -933,14 +985,14 @@ contains  !> MODULE PROCEDURES START HERE
     ii = 0
     do i = 1,ref%nat
       if (ranks(i,1) .ne. targetrank) cycle
-      ii = ii+1
+      ii = ii + 1
       iwork2(ii,1) = i !> mapping using the first column of iwork2
       jj = 0
       do j = 1,mol%nat
         if (ranks(j,2) .ne. targetrank) cycle
-        jj = jj+1
-        dists(:) = real((ref%xyz(:,i)-mol%xyz(:,j))**2,sp) !> use i and j
-        aptr%Cost(jj+(ii-1)*rnknat) = sum(dists)
+        jj = jj + 1
+        dists(:) = real((ref%xyz(:,i) - mol%xyz(:,j))**2,sp) !> use i and j
+        aptr%Cost(jj + (ii - 1) * rnknat) = sum(dists)
       end do
     end do
 
@@ -960,8 +1012,8 @@ contains  !> MODULE PROCEDURES START HERE
       do i = 1,rnknat
         jj = aptr%a(i)
         ii = aptr%b(i)
-        if (ii == -1.or.jj == -1) cycle  !> cycle bad assignments
-        val0 = val0+aptr%Cost(jj+(ii-1)*rnknat)
+        if (ii == -1 .or. jj == -1) cycle  !> cycle bad assignments
+        val0 = val0 + aptr%Cost(jj + (ii - 1) * rnknat)
         iwork2(i,2) = iwork2(aptr%b(i),1)
       end do
     else
@@ -986,7 +1038,7 @@ contains  !> MODULE PROCEDURES START HERE
     do ii = 1,maxrank
       do jj = 1,nat
         if (rank(jj) == ii) then
-          k = k+1
+          k = k + 1
           order(jj) = k
         end if
       end do
@@ -1018,8 +1070,8 @@ contains  !> MODULE PROCEDURES START HERE
       count1 = 0
       count2 = 0
       do jj = 1,nat
-        if (ranks1(jj) .eq. ii) count1 = count1+1
-        if (ranks2(jj) .eq. ii) count2 = count2+1
+        if (ranks1(jj) .eq. ii) count1 = count1 + 1
+        if (ranks2(jj) .eq. ii) count2 = count2 + 1
       end do
       !> not the same amount of atoms in rank ii, return from function
       if (count1 .ne. count2) return
@@ -1129,7 +1181,7 @@ contains  !> MODULE PROCEDURES START HERE
     self%proxy_topo(:,1) = mol%at(:)
     self%proxy_topo(:,2) = self%rank(:,2)
     call qsortm(self%proxy_topo,2,self%iwork)
-    if (.not.all(self%proxy_topo .eq. self%proxy_topo_ref)) then
+    if (.not. all(self%proxy_topo .eq. self%proxy_topo_ref)) then
       io = 3
       return !> some difference in the sorting, return before setting passing to true
     end if
@@ -1146,15 +1198,15 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: l,r
     integer :: i,j,p,t,n
     if (l >= r) return
-    p = v(ix((l+r)/2))
+    p = v(ix((l + r) / 2))
     n = size(v,1)
     i = l; j = r
     do
-      do while (v(ix(i)) < p); i = i+1; end do
-      do while (v(ix(j)) > p); j = j-1; end do
+      do while (v(ix(i)) < p); i = i + 1; end do
+      do while (v(ix(j)) > p); j = j - 1; end do
       if (i <= j) then
         t = ix(i); ix(i) = ix(j); ix(j) = t
-        i = min(i+1,n); j = max(j-1,1)
+        i = min(i + 1,n); j = max(j - 1,1)
       else
         exit
       end if
