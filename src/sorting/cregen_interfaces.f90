@@ -13,7 +13,7 @@ module cregen_interface
   use unionize_module
   implicit none
   interface
-    subroutine newcregen(env,quickset,infile)
+    subroutine newcregen(env,quickset,infile,structurelist)
       use crest_parameters
       use crest_data
       use crest_restartlog
@@ -22,6 +22,7 @@ module cregen_interface
       type(systemdata),intent(inout) :: env
       integer,intent(in),optional :: quickset
       character(len=*),intent(in),optional :: infile
+      type(coord),allocatable,intent(inout),optional :: structurelist(:)
     end subroutine newcregen
 
     subroutine cregen_irmsd_all(nall,structures,printlvl,iinversion)
@@ -64,6 +65,20 @@ module cregen_subroutines
 !*************************************
   implicit none
   interface
+
+    subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,ensembleinput,iounit)
+      use crest_data
+      implicit none
+      type(systemdata),intent(inout) :: env
+      character(len=:),allocatable,intent(inout) :: fname
+      character(len=:),allocatable,intent(inout) :: oname
+      character(len=:),allocatable,intent(inout) :: cname
+      integer,intent(in) :: simpleset
+      logical,intent(in) :: userinput
+      logical,intent(in) :: ensembleinput
+      integer,intent(out) :: iounit
+    end subroutine cregen_files
+
     subroutine cregen_discardbroken(ch,env,topocheck,structures,newnall)
       use crest_data
       use strucrd

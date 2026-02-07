@@ -23,7 +23,7 @@
 !=========================================================================================!
 !=========================================================================================!
 
-subroutine newcregen(env,quickset,infile)
+subroutine newcregen(env,quickset,infile,structurelist)
 !****************************************************************************************
 !* The main CREGEN routine
 !*
@@ -48,25 +48,21 @@ subroutine newcregen(env,quickset,infile)
   type(systemdata),intent(inout) :: env   !> MAIN STORAGE OS SYSTEM DATA
   integer,intent(in),optional :: quickset !> quick access to predefined CREGEN modes
   character(len=*),intent(in),optional :: infile
+  type(coord),allocatable,intent(inout),optional :: structurelist(:)
   !> LOCAL
   integer :: simpleset
-  character(len=258) :: fname  !> input file
-  character(len=258) :: oname  !> sorted output file
-  character(len=258) :: cname  !> unique structure file
+  character(len=:),allocatable :: fname  !> input file
+  character(len=:),allocatable :: oname  !> sorted output file
+  character(len=:),allocatable :: cname  !> unique structure file
 !>--- ensemble arguments
   integer :: nat                      !> number of atoms
   integer :: nall                     !> number of structures
-  integer,allocatable :: at(:)       !> atom numbers
-  real(wp),allocatable :: xyz(:,:,:)  !> Cartesian coordinates
   character(len=128),allocatable :: comments(:)
-  character(len=128),allocatable :: comref(:)
   real(wp),allocatable :: er(:)       !> energies
   type(coord),allocatable :: structures(:)  !> a list of structures using the coord type
-  type(coord),allocatable :: references(:)  !> the reference structure list
 !>--- dummy ensemble arguments
   integer :: nallref
   integer :: nallnew
-  real(wp),allocatable :: xyzref(:,:,:)
 !>--- sorting arguments
   integer,allocatable :: gref(:),group(:)
   integer :: ng
@@ -78,6 +74,7 @@ subroutine newcregen(env,quickset,infile)
   real(wp) :: T,couthr
 
 !>--- boolean data
+  logical :: ensembleinput = .false.
   logical :: checkbroken
   logical :: topocheck
   logical :: checkez
@@ -108,6 +105,11 @@ subroutine newcregen(env,quickset,infile)
     simpleset = 0
   end if
 
+!>-- was an actual list of structures (rather than a file name) provided?
+  if (present(structurelist)) then
+    if (size(structurelist,1) > 0) ensembleinput = .true.
+  end if
+
 !>-- determine filenames and output channel
   if (present(infile)) then
     fname = trim(infile)
@@ -116,7 +118,7 @@ subroutine newcregen(env,quickset,infile)
     fname = trim(env%ensemblename)
     userinput = .false.
   end if
-  call cregen_files(env,fname,oname,cname,simpleset,userinput,prch)
+  call cregen_files(env,fname,oname,cname,simpleset,userinput,ensembleinput,prch)
 
 !>-- determine which printouts are required
   call cregen_prout(env,simpleset,pr1,pr2,pr3,pr4)
@@ -137,13 +139,22 @@ subroutine newcregen(env,quickset,infile)
 !=====================================================================!
 
 !>--- read in the ensemble parameters
-  call rdensembleparam(fname,nat,nallref)
+  if (.not. ensembleinput) then
+    call rdensembleparam(fname,nat,nallref)
+  else
+    nat = structurelist(1)%nat
+    nallref = size(structurelist,1)
+  end if
 
 !>--- print a summary about the ensemble and thresholds
   if (pr1) call cregen_pr1(prch,env,nat,nallref,rthr,bthr,pthr,ewin)
 
 !>--- allocate space and read in the ensemble
-  call rdensemble(fname,nallref,structures)
+  if (.not. ensembleinput) then
+    call rdensemble(fname,nallref,structures)
+  else
+    call move_alloc(structurelist,structures)
+  end if
 
 !>--- track ensemble for restart
   !call trackensemble(fname,nat,nallref,at,xyz,comments)
@@ -251,6 +262,11 @@ subroutine newcregen(env,quickset,infile)
     call cregen_EQUAL(prch,nall,structures,group,athr,.not. env%entropic)
   end if
 
+!>-- in case we had a structurelist given, move the (sorted) memory space back there
+  if (ensembleinput) then
+    call move_alloc(structures,structurelist)
+  end if
+
 !>--- deallocate data
   if (prch .ne. stdout) then
     close (prch)
@@ -267,7 +283,7 @@ end subroutine newcregen
 !=========================================================================================!
 !=========================================================================================!
 
-subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,iounit)
+subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,ensembleinput,iounit)
 !*************************************************************
 !* subroutine cregen_files
 !* handle all settings regarding input and output file names
@@ -278,12 +294,13 @@ subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,iounit)
   use iomod
   use utilities
   implicit none
-  type(systemdata) :: env    !> MAIN STORAGE OS SYSTEM DATA
-  character(len=*) :: fname  !> name of the ensemble to be read
-  character(len=*) :: oname  !> output ensemble name (including rotamers)
-  character(len=*) :: cname  !> output ensemble name (only conformers)
+  type(systemdata),intent(inout) :: env    !> MAIN STORAGE OS SYSTEM DATA
+  character(len=:),allocatable,intent(inout) :: fname  !> name of the ensemble to be read
+  character(len=:),allocatable,intent(inout) :: oname  !> output ensemble name (including rotamers)
+  character(len=:),allocatable,intent(inout) :: cname  !> output ensemble name (only conformers)
   integer,intent(in) :: simpleset
   logical,intent(in) :: userinput !> was an input file given via the optional subroutine arg?
+  logical,intent(in) :: ensembleinput !> was an structure list provided?
   integer,intent(out) :: iounit
   character(len=:),allocatable :: outfile
   logical :: ex
@@ -308,12 +325,12 @@ subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,iounit)
   end if
 
   if ((env%confgo .and. (index(trim(fname),'none selected') .eq. 0)) &
-  &    .OR. userinput) then
-    if (.not. userinput) then
+  &    .OR. userinput .OR. ensembleinput) then
+    if (.not. userinput .and. .not. ensembleinput) then
       fname = trim(env%ensemblename)
     end if
-    oname = trim(fname)//'.sorted'
     cname = 'crest_ensemble.xyz'
+    oname = trim(fname)//'.sorted'
     if (env%fullcre) then
       env%ensemblename = trim(oname)
     end if
@@ -336,17 +353,17 @@ subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,iounit)
     cname = trim(fname)//'.unique'
   end if
 
-  write (iounit,*) 'input  file name : ',trim(fname)
+  write (iounit,'(1x,a,a)') 'input  file name : ',trim(fname)
   select case (simpleset)
   case (9)
     continue
   case default
-    write (iounit,*) 'output file name : ',trim(oname)
+    write (iounit,'(1x,a,a)') 'output file name : ',trim(oname)
   end select
 
   inquire (file=fname,exist=ex)
-  if (.not. ex) then
-    write (0,*) 'Warning, file ',trim(fname),' does not exist!'
+  if (.not. ex .and. .not. ensembleinput) then
+    write (stdout,'(a)') 'CREGEN> **WARNING** file ',trim(fname),' does not exist!'
     error stop
   end if
 
@@ -877,11 +894,11 @@ subroutine cregen_esort(ch,structures,nallout,ewin)
           exit
         end if
       end do
-      frac = real(nall-nallout,wp)/real(nall,wp)
+      frac = real(nall - nallout,wp) / real(nall,wp)
       write (ch,'(" number of removed by energy",t32,":",3x,i10,a,f6.2,a)') &
-      &       (nall - nallout),' (',frac*100.d0,'%)'
+      &       (nall - nallout),' (',frac * 100.d0,'%)'
       write (ch,'(" number of remaining points",t32,":",3x,i10,a,f6.2,a)') &
-      &       nallout,' (',(1.0d0-frac)*100.d0,'%)'
+      &       nallout,' (', (1.0d0 - frac) * 100.d0,'%)'
 
       allocate (tmpstructures(nallout))
       do ii = 1,nallout
@@ -1208,14 +1225,14 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
   call move_alloc(tmpstructures,structures)
   if (prlvl > 0) then
     write (prch,'(a)') ' done.'
-    frac=real(nall-nallnew,wp)/real(nall,wp)
+    frac = real(nall - nallnew,wp) / real(nall,wp)
     write (prch,'(1x,a,t40,a,i10,a,f6.2,a)') &
-    &      "number of doubles removed by rot/RMSD",":",nall - nallnew,' (',frac*100.d0,'%)'
+    &      "number of doubles removed by rot/RMSD",":",nall - nallnew,' (',frac * 100.d0,'%)'
     write (prch,'(1x,a,t40,a,i10,a,f6.2,a)') &
-    &      "number of unique structures remaining",":",nallnew,' (',(1.0d0-frac)*100.d0,'%)'
-    frac = real(gcount,wp)/real(nallnew,wp)
+    &      "number of unique structures remaining",":",nallnew,' (', (1.0d0 - frac) * 100.d0,'%)'
+    frac = real(gcount,wp) / real(nallnew,wp)
     write (prch,'(1x,a,t40,a,i10,a,f6.2,a,i0,a)') &
-    &      "number of unique conformers identified",":",gcount,' (',(frac)*100.d0,'% of ',nallnew,')'
+    &      "number of unique conformers identified",":",gcount,' (', (frac) * 100.d0,'% of ',nallnew,')'
   end if
   nall = nallnew
 
