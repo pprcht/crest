@@ -1,7 +1,7 @@
 !===============================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2018-2024 Philipp Pracht
+! Copyright (C) 2018-2026 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -19,23 +19,25 @@
 
 !=========================================================================================!
 !=========================================================================================!
-!> CREGEN is the universal ensemble sorting routine of CREST.
-!> This is a rewrite of the original routines since the old ones
-!> got a bit messy over time.
-!> the quickset variable can be used for some special runtypes:
-!>   quickset:  2   - do symmetry analysis
-!>              3   - switch off equivalency analysis
-!>              6,7 - energy sorting only with (7) or without (6) ewin energy cut-off
-!>              9   - no sorting, only check groups
-!>             12   - no topology check, turn ewin to infty
-!>             13   - no topology check, ewin and rmsd checking (msreact settings)
+!> CREGEN - also see cregen_interfaces.f90 for importable interfaces
 !=========================================================================================!
 !=========================================================================================!
 
 subroutine newcregen(env,quickset,infile)
-!****************************
+!****************************************************************************************
 !* The main CREGEN routine
-!****************************
+!*
+!* CREGEN is the universal ensemble sorting routine of CREST.
+!* This is a rewrite of the original routines since the old ones
+!* got a bit messy over time.
+!* The quickset variable can be used for some special runtypes:
+!*   quickset:  2   - do symmetry analysis
+!*              3   - switch off equivalency analysis
+!*              6,7 - energy sorting only with (7) or without (6) ewin energy cut-off
+!*              9   - no sorting, only check groups
+!*             12   - no topology check, turn ewin to infty
+!*             13   - no topology check, ewin and rmsd checking (msreact settings)
+!****************************************************************************************
   use crest_parameters
   use crest_data
   use crest_restartlog
@@ -844,7 +846,7 @@ subroutine cregen_esort(ch,structures,nallout,ewin)
   real(wp),allocatable :: energies(:)
   type(coord),allocatable :: tmpstructures(:)
   integer :: ii,jj
-  real(wp) :: de,emax
+  real(wp) :: de,emax,frac
 
   nall = size(structures,1)
   nallout = nall
@@ -852,7 +854,7 @@ subroutine cregen_esort(ch,structures,nallout,ewin)
 
   !>-- determine cut-off of energies (optional)
   if (present(ewin)) then
-
+    write (ch,'(75("*"))')
     allocate (energies(nall))
     do ii = 1,nall
       energies(ii) = structures(ii)%energy
@@ -875,8 +877,11 @@ subroutine cregen_esort(ch,structures,nallout,ewin)
           exit
         end if
       end do
-      write (ch,'(" number of removed by energy",t32,":",3x,i0)') (nall - nallout)
-      write (ch,'(" number of remaining points",t32,":",3x,i0)') nallout
+      frac = real(nall-nallout,wp)/real(nall,wp)
+      write (ch,'(" number of removed by energy",t32,":",3x,i10,a,f6.2,a)') &
+      &       (nall - nallout),' (',frac*100.d0,'%)'
+      write (ch,'(" number of remaining points",t32,":",3x,i10,a,f6.2,a)') &
+      &       nallout,' (',(1.0d0-frac)*100.d0,'%)'
 
       allocate (tmpstructures(nallout))
       do ii = 1,nallout
@@ -948,7 +953,7 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
   type(coord),allocatable,target :: workmols(:)
   type(canonical_sorter),allocatable :: sorters(:)
   type(coord),pointer :: ref,mol
-  real(wp) :: rmsdval,RTHR,ediff,eii,avmom,rsq
+  real(wp) :: rmsdval,RTHR,ediff,eii,avmom,rsq,frac
   real(wp),allocatable :: rot(:,:)
   integer,allocatable :: prune_table(:)
   real(wp),allocatable :: enuc(:)
@@ -1203,8 +1208,14 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
   call move_alloc(tmpstructures,structures)
   if (prlvl > 0) then
     write (prch,'(a)') ' done.'
-    write (prch,'(1x,a,t40,a,i10)') "number of doubles removed by rot/RMSD",":",nall - nallnew
-    write (prch,'(1x,a,t40,a,i10)') "number of unique conformers remaining",":",gcount
+    frac=real(nall-nallnew,wp)/real(nall,wp)
+    write (prch,'(1x,a,t40,a,i10,a,f6.2,a)') &
+    &      "number of doubles removed by rot/RMSD",":",nall - nallnew,' (',frac*100.d0,'%)'
+    write (prch,'(1x,a,t40,a,i10,a,f6.2,a)') &
+    &      "number of unique structures remaining",":",nallnew,' (',(1.0d0-frac)*100.d0,'%)'
+    frac = real(gcount,wp)/real(nallnew,wp)
+    write (prch,'(1x,a,t40,a,i10,a,f6.2,a,i0,a)') &
+    &      "number of unique conformers identified",":",gcount,' (',(frac)*100.d0,'% of ',nallnew,')'
   end if
   nall = nallnew
 
@@ -1666,7 +1677,7 @@ subroutine cregen_EQUAL(ch,nall,structures,group,athr,rotfil)
 
 !>--- infer from structure list
   nat = structures(1)%nat
-  allocate(at(nat))
+  allocate (at(nat))
   at(:) = structures(1)%at(:)
 
 !>--- variable declarations
@@ -2414,6 +2425,7 @@ subroutine cregen_pr1(ch,env,nat,nall,rthr,bthr,pthr,ewin)
   real(wp) :: rthr,bthr,pthr,ewin
   logical :: substruc
   substruc = (nat .ne. env%rednat .and. env%subRMSD)
+  write (ch,'(75("*"))')
   write (ch,'(" number of atoms",t35,":",i10)') nat
   if (substruc) then
     write (ch,'(" atoms included in RMSD",t35,":",i10)') env%rednat
@@ -2641,8 +2653,7 @@ subroutine cregen_pr2(ch,env,nall,ng,degen,er)
   ss = -1000.0d0 * g / T
   env%emtd%sapprox = ss  !> save for entropy mode
 
-
-  write(och,'(75("*"))')
+  write (och,'(75("*"))')
 
   deallocate (paccu,pg)
   deallocate (p,erel,origin)
