@@ -320,6 +320,9 @@ program CREST
       continue
     end select
 
+    !> additional processing
+    call crest_queue_iter_resort(env,iterate)
+
   end do ITERATOR
 
   env%calc => calc_origin

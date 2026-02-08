@@ -762,6 +762,15 @@ contains !> MODULE PROCEDURES START HERE
     return
   end function filechecker
 
+  function file_exists(fin) result(have)
+    implicit none
+    logical :: have
+    character(len=*),intent(in) :: fin
+    have = .false.
+    inquire (file=fin,exist=have)
+    return
+  end function file_exists
+
 !=========================================================================================!
 !=========================================================================================!
 !=========================================================================================!

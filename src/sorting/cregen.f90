@@ -335,6 +335,8 @@ subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,ensembleinput,
       env%ensemblename = trim(oname)
     end if
   else !> internal mode for conformational search
+    fname = repeat(' ',256)  !> need initialization because checkname_xyz
+    oname = repeat(' ',256)  !> can't handle allocatable names 
     call checkname_xyz(crefile,fname,oname)
     cname = conformerfile
   end if

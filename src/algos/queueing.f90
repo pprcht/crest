@@ -102,9 +102,9 @@ subroutine crest_queue_setup(env,iterate)
         call heap%map_origins_for_layer(ii)
         !> determening charges for fragments
         call sum_charges_layer(env,heap,ii,qat,lq)
-        do jj=1,layer(ii)%nnodes
+        do jj = 1,layer(ii)%nnodes
           layer(ii)%node(jj)%chrg = lq(jj)
-        enddo
+        end do
       end do
 
       call heap%setup_queue()
@@ -217,11 +217,11 @@ contains
 
     if (env%chrg == 0) return !> return for neutral systems (may need some implementation for zwitter ions)
 
-    write(stdout,'(a,i0,a)') 'Calculating charges for fragments in layer ',lay,' ...'
+    write (stdout,'(a,i0,a)') 'Calculating charges for fragments in layer ',lay,' ...'
     sign = 1
     if (env%chrg < 0) sign = -1
     chrgs = abs(env%chrg)+1
-    allocate (qtmp(chrgs), source=0.0_wp)
+    allocate (qtmp(chrgs),source=0.0_wp)
     allocate (ichrgs(chrgs),source=0)
     cc2 = 0
     do cc = 0,env%chrg,sign
@@ -260,8 +260,8 @@ contains
       !write (*,*) 'charge MAEs on frag:',qtmp
       !write (*,*) 'selected charge:',lq(ii)
     end do
-    write(stdout,'(2x,a)',advance='no') 'determined charges:'
-    write(stdout,*) lq
+    write (stdout,'(2x,a)',advance='no') 'determined charges:'
+    write (stdout,*) lq
   end subroutine sum_charges_layer
 end subroutine crest_queue_setup
 
@@ -313,7 +313,7 @@ subroutine crest_queue_iter(env,iterate)
       !> selecting output file depending on runtype
       select case (env%crestver)
       case (crest_imtd,crest_imtd2)
-        queue%file = 'crest_conformers.xyz'
+        queue%file = 'crest_ensemble.xyz'
       case (crest_optimize)
         queue%file = 'crestopt.xyz'
       case (crest_moldyn)
@@ -330,12 +330,11 @@ subroutine crest_queue_iter(env,iterate)
       !> for constraints we must be careful and map them to the new order
       call update_constraints_queue(heap,jj,kk,env%calc,queue%calc)
 
-
       mol = env%splitheap%layer(jj)%node(kk)
       call env%ref%load(mol)
       call mol%write('coord')
       call queue%calc%set_charge(mol%chrg) !> the nodes may have different charges saved
-      call queue%calc%info(stdout) 
+      call queue%calc%info(stdout)
 
       if (allocated(env%ref%wbo)) deallocate (env%ref%wbo)
       env%nat = mol%nat
@@ -399,6 +398,49 @@ contains
     end if
   end subroutine update_constraints_queue
 end subroutine crest_queue_iter
+
+subroutine crest_queue_iter_resort(env,iterate)
+  use crest_parameters
+  use crest_data
+  use iomod
+  use cregen_interface
+  implicit none
+  type(systemdata),intent(inout) :: env
+  logical,intent(in) :: iterate
+
+  character(len=:),allocatable :: file
+  logical :: heavytmp,confgotmp,ex
+
+  if (.not. (allocated(env%splitqueue).and.env%splitheap%nqueue > 0)) return
+
+  select case (env%crestver)
+  case (crest_imtd,crest_imtd2)
+
+    write (stdout,'(/,75("*"))')
+    write (stdout,'(a,i0)') "***  CREGEN heavy-atom resorting for QUEUE iteration ",env%queue_iter
+    write (stdout,'(75("*"))') 
+    ex = .false.
+    if (file_exists(crefile//'.xyz')) then
+      ex = .true.
+      file = crefile//'.xyz'
+    else if (file_exists(conformerfile)) then
+      ex = .true.
+      file = conformerfile
+    end if
+    heavytmp = env%heavyrmsd
+    confgotmp = env%confgo
+    env%heavyrmsd = .true.
+    env%confgo = .true.
+    call newcregen(env,infile=file)
+    env%heavyrmsd = heavytmp
+    env%confgo = confgotmp
+    if(file_exists(file//'.sorted'))then
+      call rename(file//'.sorted',ensemblefile)
+    endif
+  case default
+  end select
+
+end subroutine crest_queue_iter_resort
 
 !=============================================================================!
 !#############################################################################!
