@@ -123,6 +123,16 @@ subroutine crest_optimization(env,tim)
   endif
 
 !========================================================================================!
+
+!========================================================================================!
+!>--- append numerical hessian calculation
+  if( io == 0) then !.and. calc%do_HR )then
+    call env%ref%load(molnew)      !> load the optimized geometry
+    call deform_opt_hess(calc,molnew) !> run the hessian reconstruction
+  endif
+
+!========================================================================================!
+
   return
 end subroutine crest_optimization
 

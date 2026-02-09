@@ -28,7 +28,7 @@ module bh_step_module
   logical,parameter :: debug = .true.
 !  logical,parameter :: debug = .false.
 
-  public :: takestep,steptypestr
+  public :: takestep,steptypestr,takestep_cart,take_fixed_stepsize_cart
 
 !========================================================================================!
 !========================================================================================!
@@ -91,6 +91,24 @@ contains  !> MODULE PROCEDURES START HERE
       newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize
     end do
   end subroutine takestep_cart
+
+  subroutine take_fixed_stepsize_cart(newmol,stepsize,calc)
+    implicit none
+    type(coord),intent(inout) :: newmol
+    real(wp),intent(in) :: stepsize
+    type(calcdata),intent(inout) :: calc
+    real(wp) :: r(3),len
+    integer :: i
+    do i = 1,newmol%nat
+      if (calc%nfreeze > 0) then
+        if (calc%freezelist(i)) cycle
+      end if
+      call random_number(r)
+      r(:) = (r(:)-0.5_wp)*2.0_wp
+      len=norm2(r)
+      newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize/len
+    end do
+  end subroutine take_fixed_stepsize_cart
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
