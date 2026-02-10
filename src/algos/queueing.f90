@@ -418,7 +418,7 @@ subroutine crest_queue_iter_resort(env,iterate)
 
     write (stdout,'(/,75("*"))')
     write (stdout,'(a,i0)') "***  CREGEN heavy-atom resorting for QUEUE iteration ",env%queue_iter
-    write (stdout,'(75("*"))') 
+    write (stdout,'(75("*"))')
     ex = .false.
     if (file_exists(crefile//'.xyz')) then
       ex = .true.
@@ -434,9 +434,9 @@ subroutine crest_queue_iter_resort(env,iterate)
     call newcregen(env,infile=file)
     env%heavyrmsd = heavytmp
     env%confgo = confgotmp
-    if(file_exists(file//'.sorted'))then
+    if (file_exists(file//'.sorted')) then
       call rename(file//'.sorted',ensemblefile)
-    endif
+    end if
   case default
   end select
 
@@ -529,6 +529,7 @@ subroutine crest_queue_reconstruct(env,tim)
 
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)
+    use irmsd_module,only:irmsd,rmsd,rmsd_cache,rmsd_core_cache
     implicit none
     type(systemdata),intent(inout) :: env
     type(construct_heap),intent(inout) :: heap
@@ -541,8 +542,12 @@ contains
     type(coord),allocatable :: structures_s(:)
     type(coord) :: mol
     integer :: nall_b,nall_s,id_b,id_s,nallsq,sss
-    integer :: iliml,ilimu,jliml,jlimu
-    logical :: ex,clash
+    integer :: iliml,ilimu,jliml,jlimu,rr,io
+    integer :: duplicates
+    logical :: ex,clash,duplicate
+    real(wp) :: RTHR,rmsval,ETHR,deltaE
+    type(rmsd_cache) :: rcache
+    type(rmsd_core_cache) :: ccache
 
     character(len=*),parameter :: subdir_tmp = 'crest_queue_'
     character(len=:),allocatable :: subdirfile
@@ -623,13 +628,23 @@ contains
 
       write (stdout,*)
       write (stdout,'(a,i0)') 'Reconstructing layer : ',targetlayer
-      write (stdout,'(2x,a,i0)') 'Base structures       : ',nall_b
-      write (stdout,'(2x,a,i0)') 'Side chain structures : ',nall_s
-      write (stdout,'(2x,a,i0)') 'Max. combinations     : ',nall_b*nall_s
+      write (stdout,'(2x,a,i0)') 'Base structures         : ',nall_b
+      write (stdout,'(2x,a,i0)') 'Side chain structures   : ',nall_s
+      write (stdout,'(2x,a,i0)') 'Max. combinations       : ',nall_b*nall_s
+      write (stdout,'(2x,a,f7.5,a)') 'Similarity threshold    : ',env%rthr,' Å'
+      write (stdout,'(2x,a,f7.5,a)') 'ΔE threshold (ETHR)     : ',env%ethr,' kcal/mol'
 
       layer%nmols = 0
       kk = min(nall_b*nall_s,env%queue_maxreconstruct)
       allocate (layer%mols(kk))
+      write (stdout,'(2x,a,i0)') 'Max. new structs stored : ',kk
+
+      RTHR = env%rthr*aatoau !> RMSD threshold in Bohr
+      ETHR = env%ethr/autokcal !> deltaE threshold in hartree
+      duplicates = 0
+      call ccache%allocate(layer%refmol%nat)
+      write (stdout,'(2x,a)',advance='no') 'Recombining under RMSD consideration (this may take a while) ... '
+      flush (stdout)
 
       !> NOTE:
       !> we want a balanced amount of combinations, sourcing
@@ -667,15 +682,33 @@ contains
               call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
               & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
               & clash=clash,reficn=layer%reficn)
+              !> proxy energy as sum of fragments
+              mol%energy = structures_b(ii)%energy+structures_s(jj)%energy
               if (.not.clash) then
-                layer%nmols = layer%nmols+1
-                layer%mols(layer%nmols) = mol
-                if (layer%nmols == kk) exit sssloop
+                !> check for duplicates
+                duplicate = .false.
+                rrloop: do rr = 2,layer%nmols
+                  deltaE = abs(mol%energy-layer%mols(rr)%energy)
+                  if (deltaE < ETHR) then
+!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache,topocheck=.false.,allcanon=.true.)
+                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache)
+                    if (rmsval < RTHR) then
+                      duplicate = .true.
+                      duplicates = duplicates+1
+                      exit rrloop
+                    end if
+                  end if
+                end do rrloop
+                if (.not.duplicate) then
+                  layer%nmols = layer%nmols+1
+                  layer%mols(layer%nmols) = mol
+                  if (layer%nmols == kk) exit sssloop
+                end if
               end if
             end do jjloop
           end do iiloop
         end do sssloop
-      else
+      else ! i.e., nall_b <= nall_s
         sssloop2: do sss = 1,3
 
           select case (sss)
@@ -702,16 +735,38 @@ contains
               call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
               & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
               & clash=clash,reficn=layer%reficn)
+              !> proxy energy as sum of fragments
+              mol%energy = structures_b(ii)%energy+structures_s(jj)%energy
               if (.not.clash) then
-                layer%nmols = layer%nmols+1
-                layer%mols(layer%nmols) = mol
-                if (layer%nmols == kk) exit sssloop2
+                !> check for duplicates
+                duplicate = .false.
+                rrloop2: do rr = 2,layer%nmols
+                  deltaE = abs(mol%energy-layer%mols(rr)%energy)
+                  if (deltaE < ETHR) then
+!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache,topocheck=.false.,allcanon=.true.)
+                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache)
+                    if (rmsval < RTHR) then
+                      duplicate = .true.
+                      duplicates = duplicates+1
+                      exit rrloop2
+                    end if
+                  end if
+                end do rrloop2
+                if (.not.duplicate) then
+                  layer%nmols = layer%nmols+1
+                  layer%mols(layer%nmols) = mol
+                  if (layer%nmols == kk) exit sssloop2
+                end if
               end if
             end do iiloop2
           end do jjloop2
         end do sssloop2
       end if
-      write (stdout,'(2x,a,i0)') 'Successful combinations : ',layer%nmols
+      write (stdout,'(a)') 'done.'
+      if (duplicates > 0) then
+        write (stdout,'(2x,a,i0)') 'Avoided duplicates       : ',duplicates
+      end if
+      write (stdout,'(2x,a,i0)') 'Successful combinations  : ',layer%nmols
 
     end associate
   end subroutine recusrive_construct

@@ -467,7 +467,7 @@ module crest_data
     type(split_atms),allocatable :: splitqueue(:)
     type(construct_heap) :: splitheap
     integer :: queue_iter = 0
-    integer :: queue_maxreconstruct = 10000
+    integer :: queue_maxreconstruct = 7500
 
     !>--- QCG data
     integer :: qcg_runtype = 0      !> Default is grow, 1= ensemble & opt, 2= e_solv, 3= g_solv
