@@ -301,8 +301,9 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- Hessian Reconstruct
 !**********************************************
 
-    if (calc%do_HR .and. allocated(calc%chess)) then
+    if (calc%do_HR .and. allocated(calc%chess) .and. calc%chess%track_step) then
       call calc%chess%update(gradient,energy,mol%xyz)
+      write(stdout,*) "HESSIAN CASH UPDATED"
     end if
 
     return
@@ -551,6 +552,8 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (gradr(3,mol%nat),source=0.0_wp) !dummy
     allocate (gradl(3,mol%nat),source=0.0_wp) !dummy
 
+    if (allocated(calc%chess)) calc%chess%track_step = .false.
+
     do i = 1,mol%nat
       do j = 1,3
         ii = (i-1)*3+j
@@ -584,6 +587,8 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
     call engrad(mol,calc,el,gradl,io) !>- to get the gradient of the non-displaced structure
+
+    if (allocated(calc%chess)) calc%chess%track_step = .true.
 
     deallocate (gradl,gradr)
     call mol%deallocate()

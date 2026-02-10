@@ -84,16 +84,16 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     !> Check if Hessian Reconstruct is called and initialize the type
-    if (calc%do_HR) then
+    if (calc%do_HR .or. calc%deform_opt_hess) then
       allocate (calc%chess)
       allocate (H_init(nat3,nat3))
       call calc%chess%alloc(mol%nat,calc%hu_steps,calc%hguess,calc%initialize_hr_type, calc%hr_hu_type)
     end if
 
     !> initial singlepoint
-    if (calc%do_HR) calc%chess%track_step = .false. !this is not tracked to avoid duplicate
+    if (calc%do_HR .or. calc%deform_opt_hess) calc%chess%track_step = .false. !this is not tracked to avoid duplicate
     call engrad(molnew,calc,etot,grd,iostatus)
-    if (calc%do_HR) calc%chess%track_step = .true.
+    if (calc%do_HR .or. calc%deform_opt_hess) calc%chess%track_step = .true.
     !> optimization
     select case (calc%opt_engine)
     case (0)
@@ -117,7 +117,7 @@ contains  !> MODULE PROCEDURES START HERE
     end select
     molnew%energy = etot
 
-    if (calc%do_HR .and. iostatus .eq. 0) then !> Hessian reconstruction and post-processing happen here, only do it if geometry relaxation successful
+    if (calc%do_HR  .and. iostatus .eq. 0) then !> Hessian reconstruction and post-processing happen here, only do it if geometry relaxation successful
       if (calc%full_HR) then
 
         write (stdout,*)

@@ -536,6 +536,9 @@ contains !> MODULE PROCEDURES START HERE
     case('scaling')
       calc%scaling = kv%value_f
 
+    case('doh_stepsize')
+      calc%doh_stepsize = kv%value_f
+
 !>--- integers
     case ('maxcycle')
       calc%maxcycle = kv%value_i  !> optimization max cycles
@@ -689,6 +692,9 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('full_chess') !> Do Hessian Reconstruct with all optimization steps
       calc%full_HR = kv%value_b
+    
+    case ('deform_opt_hess')
+      calc%deform_opt_hess = kv%value_b
 
     case default
       rd = .false.

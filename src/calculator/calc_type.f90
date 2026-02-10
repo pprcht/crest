@@ -283,6 +283,8 @@ module calc_type
     integer :: initialize_hr_type !> case defining initialization
     integer :: mh_type = 0
     integer :: hr_hu_type = 0
+    logical :: deform_opt_hess = .false.
+    real(wp) :: doh_stepsize = 0.10_wp !>stepsize for the deformation/reoptimization hessian generation
 
 !>--- Parameters for smooth function within optimizer
     real(wp) :: L = 1.50_wp
