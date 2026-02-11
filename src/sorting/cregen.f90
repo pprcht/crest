@@ -253,7 +253,7 @@ subroutine newcregen(env,quickset,infile,structurelist)
   if (pr3) then !> alternative to pr2
     call cregen_pr3(prch,oname,nall,er)
   end if
-  if (pr4) then !> group dara printout
+  if (pr4) then !> group data printout
     call cregen_pr4(prch,fname,nall,group)
   end if
 
@@ -267,12 +267,12 @@ subroutine newcregen(env,quickset,infile,structurelist)
     call move_alloc(structures,structurelist)
   end if
 
-  if(newfile)then
-    write(prch,'(a,a)') 'Full ensemble file written to:    ',trim(oname)
-  endif
-  if(conffile)then
-    write(prch,'(a,a)') 'Unique-structure file written to: ',trim(cname)
-  endif
+  if (newfile) then
+    write (prch,'(a,a)') 'Full ensemble file written to:    ',trim(oname)
+  end if
+  if (conffile) then
+    write (prch,'(a,a)') 'Unique-structure file written to: ',trim(cname)
+  end if
 
 !>--- deallocate data
   if (prch .ne. stdout) then
@@ -1460,7 +1460,7 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
   integer,intent(in),optional :: printlvl
 
   !> LOCAL
-  integer :: i,j,ii,jj,T,Tn,nallpairs,cc,nat
+  integer :: i,j,ii,jj,T,Tn,nallpairs,cc,nat,k
   integer :: gcount
   integer :: prlvl,iunit
   type(rmsd_cache),allocatable :: rcaches(:)
@@ -1472,8 +1472,12 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
   real(wp) :: rmsdval,runtime,RTHR
   logical :: stereocheck,individual_IDs
   type(timer) :: profiler
+  integer :: ng
+  integer,allocatable :: group(:),degen(:,:)
+  real(wp),allocatable :: er(:)
+  type(coord),allocatable :: structures_new(:)
 
-  logical,parameter :: debug = .true.
+  logical,parameter :: debug = .false.
 
 !>--- handle optional arguments
   if (present(allcanon)) then
@@ -1592,7 +1596,7 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
 
 !>--- run the checks
   if (prlvl > 0) then
-    write (stdout,'(a)',advance='no') 'CREGEN> Running all pair RMSDs ... '
+    write (stdout,'(a)',advance='no') 'CREGEN> Running all-pair iRMSDs ... '
     flush (stdout)
     call profiler%start(2)
   end if
@@ -1640,6 +1644,39 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
     do ii = 1,maxval(groups(:))
       write (*,*) ii,count(groups(:) == ii)
     end do
+  end if
+
+  allocate (group(0:nall),source=0)
+  allocate (structures_new(nall))
+  ng = maxval(groups(:))
+  k = 0
+  do ii = 1,ng
+    do jj = 1,nall
+      if (groups(jj) == ii) then
+        k = k+1
+        group(k) = ii
+        structures_new(k) = structures(jj)
+      end if
+    end do
+  end do
+  group(0) = maxval(groups(:))
+  allocate (degen(3,ng))
+  call cregen_groupinfo(nall,ng,group,degen)
+  allocate (er(nall))
+  do ii = 1,nall
+    er(ii) = structures_new(ii)%energy
+    structures(ii) = structures_new(ii)
+  end do
+  if (prlvl > 0) then
+    call cregen_pr2(stdout,env,nall,ng,degen,er)
+    call cregen_econf_list(stdout,nall,er,ng,degen)
+  end if
+  if (prlvl > 1) then
+    write (stdout,'(a,a)') 'Unique-structure file written to: ',ensemblefile
+    block
+      use cregen_subroutines,only:cregen_conffile
+      call cregen_conffile(env,ensemblefile,structures,ng,degen)
+    end block
   end if
 
 end subroutine cregen_irmsd_sort
@@ -2458,7 +2495,7 @@ subroutine cregen_pr2(ch,env,nall,ng,degen,er)
   write (och,'(80("*"))')
   write (och,'("Statistics for *THIS* ensemble:")')
   write (och,'(35("-"))')
-  write (och,'(" Number of groups & total",t42,":",2x, i9,", ",i0)') ng,nall 
+  write (och,'(" Number of groups & total",t42,":",2x, i9,", ",i0)') ng,nall
   write (och,'(" Temperature used for populations",t42,":",2x,F9.2," K")') T
   write (och,'(" Energy of lowest structure",t42,":",2x,es14.6)') eref
   !>---- elow printout in between routines

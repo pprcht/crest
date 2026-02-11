@@ -29,6 +29,7 @@ module irmsd_module
     real(wp),allocatable :: y(:,:)
     real(wp),allocatable :: xi(:)
     real(wp),allocatable :: yi(:)
+    real(wp),allocatable :: xyzscratch(:,:,:)
   contains
     procedure :: allocate => allocate_rmsd_core_cache
   end type rmsd_core_cache
@@ -114,10 +115,11 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine allocate_rmsd_core_cache(self,nat)
+  subroutine allocate_rmsd_core_cache(self,nat,scratch)
     implicit none
     class(rmsd_core_cache),intent(inout) :: self
     integer,intent(in) :: nat
+    logical,intent(in),optional :: scratch
     if (allocated(self%x)) deallocate (self%x)
     if (allocated(self%y)) deallocate (self%y)
     if (allocated(self%xi)) deallocate (self%xi)
@@ -126,6 +128,12 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (self%yi(nat),source=0.0_wp)
     allocate (self%x(3,nat),source=0.0_wp)
     allocate (self%y(3,nat),source=0.0_wp)
+    if(present(scratch))then
+      if(scratch)then
+        if(allocated(self%xyzscratch)) deallocate(self%xyzscratch)
+        allocate(self%xyzscratch(3,nat,2),source=0.0_wp)
+      endif
+    endif
   end subroutine allocate_rmsd_core_cache
 
   subroutine allocate_rmsd_cache(self,nat)
@@ -255,6 +263,8 @@ contains  !> MODULE PROCEDURES START HERE
       !> scratch workspace to use?
       if (present(scratch)) then
         scratchptr => scratch
+      else if(allocated(ccptr%xyzscratch))then
+        scratchptr => ccptr%xyzscratch
       else
         allocate (tmpscratch(3,nat,2))
         scratchptr => tmpscratch

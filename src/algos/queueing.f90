@@ -530,6 +530,7 @@ subroutine crest_queue_reconstruct(env,tim)
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)
     use irmsd_module,only:irmsd,rmsd,rmsd_cache,rmsd_core_cache
+    use omp_lib
     implicit none
     type(systemdata),intent(inout) :: env
     type(construct_heap),intent(inout) :: heap
@@ -547,7 +548,10 @@ contains
     logical :: ex,clash,duplicate
     real(wp) :: RTHR,rmsval,ETHR,deltaE
     type(rmsd_cache) :: rcache
-    type(rmsd_core_cache) :: ccache
+    type(rmsd_core_cache),allocatable :: ccache(:)
+    real(wp),allocatable :: xyzscratch(:,:,:,:)
+    logical,allocatable :: mask(:)
+    integer :: T,Tn,tt
 
     character(len=*),parameter :: subdir_tmp = 'crest_queue_'
     character(len=:),allocatable :: subdirfile
@@ -642,8 +646,18 @@ contains
       RTHR = env%rthr*aatoau !> RMSD threshold in Bohr
       ETHR = env%ethr/autokcal !> deltaE threshold in hartree
       duplicates = 0
-      call ccache%allocate(layer%refmol%nat)
-      write (stdout,'(2x,a)',advance='no') 'Recombining under RMSD consideration (this may take a while) ... '
+      T = 1
+      call new_ompautoset(env,'max',kk,T,Tn)
+      write (stdout,'(2x,a,i0)') 'OpenMP threads          : ',T
+      allocate (ccache(T))
+      allocate (mask(layer%refmol%nat),source=.true.)
+      do tt = 1,T
+        call ccache(tt)%allocate(layer%refmol%nat,scratch=.true.)
+      end do
+      do ii = 1,layer%refmol%nat
+        if (layer%refmol%at(ii) == 1) mask(ii) = .false.
+      end do
+      write (stdout,'(2x,a)',advance='no') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
       flush (stdout)
 
       !> NOTE:
@@ -687,18 +701,30 @@ contains
               if (.not.clash) then
                 !> check for duplicates
                 duplicate = .false.
+
+                !$omp parallel &
+                !$omp shared(duplicate,duplicates,mol,ccache,mask,ETHR) &
+                !$omp private(rr,tt,deltaE,rmsval)
+                !$omp do schedule(dynamic)
                 rrloop: do rr = 2,layer%nmols
+                  if (duplicate) cycle
+                  tt = omp_get_thread_num()+1
                   deltaE = abs(mol%energy-layer%mols(rr)%energy)
                   if (deltaE < ETHR) then
 !                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache,topocheck=.false.,allcanon=.true.)
-                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache)
-                    if (rmsval < RTHR) then
+                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
+                    !$omp critical
+                    if (rmsval < RTHR.and..not.duplicate) then
                       duplicate = .true.
                       duplicates = duplicates+1
-                      exit rrloop
+                      !exit rrloop
                     end if
+                    !$omp end critical
                   end if
                 end do rrloop
+                !$omp end do
+                !$omp end parallel
+
                 if (.not.duplicate) then
                   layer%nmols = layer%nmols+1
                   layer%mols(layer%nmols) = mol
@@ -740,18 +766,29 @@ contains
               if (.not.clash) then
                 !> check for duplicates
                 duplicate = .false.
+
+                !$omp parallel &
+                !$omp shared(duplicate,duplicates,mol,ccache,mask,ETHR) &
+                !$omp private(rr,tt,deltaE,rmsval)
+                !$omp do schedule(dynamic)
                 rrloop2: do rr = 2,layer%nmols
+                  if (duplicate) cycle
+                  tt = omp_get_thread_num()+1
                   deltaE = abs(mol%energy-layer%mols(rr)%energy)
                   if (deltaE < ETHR) then
 !                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache,topocheck=.false.,allcanon=.true.)
-                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache)
+                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
+                    !$omp critical
                     if (rmsval < RTHR) then
                       duplicate = .true.
                       duplicates = duplicates+1
-                      exit rrloop2
+                      !exit rrloop2
                     end if
+                    !$omp end critical
                   end if
                 end do rrloop2
+                !$omp end do
+                !$omp end parallel
                 if (.not.duplicate) then
                   layer%nmols = layer%nmols+1
                   layer%mols(layer%nmols) = mol
