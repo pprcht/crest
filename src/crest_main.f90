@@ -105,7 +105,7 @@ program CREST
 !>--- only CREGEN routine
   case (p_cregen)
     call tim%start(1,'CREGEN')
-    write (*,*) 'Using only the cregen sorting routine.'
+    write (*,*) 'Using only the CREGEN sorting routine.'
     env%cgf(6) = .true.   !write confg output to file <tmp>
     if (env%doNMR) then
       env%cgf(3) = .true.

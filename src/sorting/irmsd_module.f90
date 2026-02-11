@@ -455,6 +455,7 @@ contains  !> MODULE PROCEDURES START HERE
     nn = ref%nat
     if (present(mask)) nn = count(mask)
     shift = cref-cmol
+    shift = shift/nn
     do ii = 1,mol%nat
       mol%xyz(:,ii) = mol%xyz(:,ii)+shift(:)
     end do
