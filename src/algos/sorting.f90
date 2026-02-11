@@ -59,6 +59,7 @@ subroutine crest_sort(env,tim)
   end select
   write (stdout,*)
 
+  env%confgo = .true.
 !========================================================================================!
   call tim%start(11,'Sorting')
 
@@ -93,7 +94,6 @@ subroutine crest_sort(env,tim)
 
   case ('cregen')
 !>--- the original CREGEN procedure (fallback, needs nicer implementations)
-    env%confgo = .true.
     call newcregen(env,structurelist=structures)
     call catdel('cregen.out.tmp')
 

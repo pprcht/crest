@@ -1449,6 +1449,7 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
   use canonical_mod
   use irmsd_module
   use utilities,only:lin
+  use quicksort_interface
   use omp_lib
   implicit none
   !> INPUT
@@ -1518,6 +1519,12 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
     end select
     write (stdout,*)
   end if
+
+!>--- sorting by energy
+  write (stdout,'(a)',advance='no') 'CREGEN> Sorting ensemble by energy ... '
+  flush (stdout)
+  call ensemble_qsort(nall,structures,1,nall)
+  write (stdout,'(a)') 'done.'
 
 !>--- Set up atom identities (either for all, or just the first structure)
   if (individual_IDs) then
