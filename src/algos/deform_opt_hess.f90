@@ -53,8 +53,10 @@ subroutine deform_opt_hess(calc,mol)
     
         idx = minloc(calc%chess%order,1)
         if (minval(calc%chess%order) .eq. 0) idx = 1
+
+        write(stdout,*)calc%chess%coords(idx,:,:) - molnew%xyz(:,:)
         
-        call initialize_hessian(calc,calc%chess%initialize_type,calc%chess%coords(idx,:,:),mol_reopt%nat,mol_reopt%at,calc%chess%hess(:),calc%chess%hguess,pr)  !> This hguess is set through the hguess variable of the optimizer and needs to be hardcoded/set explicitly before initialization for benchmarking!!
+        call initialize_hessian(calc,calc%chess%initialize_type,molnew%xyz,molnew%nat,molnew%at,calc%chess%hess(:),calc%chess%hguess,pr)  !> This hguess is set through the hguess variable of the optimizer and needs to be hardcoded/set explicitly before initialization for benchmarking!!
         call dhtosq(nat3,H_init,calc%chess%hess) !> maybe this should all be inside the construct bfgs function later? -> cannot due to circular import!!!
         write(stdout,*)                                                                                                   !> Hessian type (gfnff,mod,identity) is set through input file and is already encoded into the calc object
         write(stdout,*)"THERMO FROM INITIALIZED HESSIAN:"
