@@ -327,17 +327,19 @@ contains  !> MODULE PROCEDURES START HERE
     call BETTER_XYZINT(molc%nat,molc%xyz,molc%bond, &
     &    molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%zmat)
 
+    allocate (molc%ztod(molc%nat),source=0)
+    call rigidconf_count_fallback(molc%nat, &
+   & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3), &
+   & molc%bond,molc%ndieder,molc%ztod)
     if (present(natural)) then
       if (natural) then
-        allocate (molc%ztod(molc%nat),source=0)
-        call rigidconf_count_fallback(molc%nat, &
-       & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3), &
-       & molc%bond,molc%ndieder,molc%ztod)
+        call prune_zmat_dihedrals(molc,molc%zmat, &
+        & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%ztod, &
+        hpyrad=.true., bond=molc%bond)
+        !call molc%print_zmat(stdout)
+        call coord_classify_hatsort_restore(molc)
+        deallocate (molc%hatsort)
       end if
-      !call molc%print_zmat(stdout)
-      call prune_zmat_dihedrals(molc,molc%zmat, &
-      & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%ztod)
-      call coord_classify_hatsort_restore(molc)
     end if
 
   end subroutine coord_classify_calculate_zmat
@@ -355,6 +357,10 @@ contains  !> MODULE PROCEDURES START HERE
       &              molc%xyz,        &
       &  molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3))
 
+    !if (allocated(molc%hatsort)) then
+    !  call coord_classify_hatsort_restore(molc)
+    !  deallocate (molc%hatsort)
+    !end if
     if (present(mol)) then
       mol = molc%as_coord()
     end if

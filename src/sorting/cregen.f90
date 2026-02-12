@@ -2502,7 +2502,7 @@ subroutine cregen_pr2(ch,env,nall,ng,degen,er)
   write (och,'(80("*"))')
   write (och,'("Statistics for *THIS* ensemble:")')
   write (och,'(35("-"))')
-  write (och,'(" Number of groups & total",t42,":",2x, i9,", ",i0)') ng,nall
+  write (och,'(" Number of groups & total",t42,":",2x, i0,", ",i0)') ng,nall
   write (och,'(" Temperature used for populations",t42,":",2x,F9.2," K")') T
   write (och,'(" Energy of lowest structure",t42,":",2x,es14.6)') eref
   !>---- elow printout in between routines

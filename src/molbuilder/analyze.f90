@@ -142,7 +142,7 @@ contains !> MODULE PROCEDURES START HERE
   end subroutine rigidconf_count_fallback
 
 !========================================================================================!
-  subroutine prune_zmat_dihedrals(mol,zmat,na,nb,nc,ztod)
+  subroutine prune_zmat_dihedrals(mol,zmat,na,nb,nc,ztod,hpyrad,bond)
 !********************************************************
 !* Remove zmat entries that correspond
 !* to the same bond and replace them with internal
@@ -154,6 +154,8 @@ contains !> MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: zmat(3,mol%nat)
     integer,intent(inout)  :: na(mol%nat),nb(mol%nat),nc(mol%nat)
     integer,intent(inout)  :: ztod(mol%nat)
+    logical,intent(in),optional :: hpyrad
+    integer,intent(in),optional :: bond(mol%nat,mol%nat)
     integer :: i,j,k,l
     integer :: maxgroup,nmembers,refi
 
@@ -186,6 +188,28 @@ contains !> MODULE PROCEDURES START HERE
           end if
         end do
       end do
+      if (present(hpyrad).and.present(bond)) then
+        if (hpyrad) then
+          k = maxgroup
+          iloop : do i=1,nat
+             !> select H entries with full zmat entries (to avoid collaps)
+             if(at(i) .eq. 1 .and.nc(i).ne.0)then
+               refi=na(i)
+               do j=1,nat
+                 if(at(j).eq.1) cycle
+                 !> search to replace the dihedral with a pyramidal angle
+                 if(bond(j,refi) > 0 .and. .not.(nb(i)==j))then
+                    nc(i) = j
+                    call DIHED2(xyz,i,na(i),nb(i),nc(i),zmat(3,i))
+                    k = k + 1
+                    ztod(i) = k
+                    cycle iloop
+                 endif
+               enddo
+             endif
+          enddo iloop
+        end if
+      end if
     end associate
   end subroutine prune_zmat_dihedrals
 

@@ -496,7 +496,7 @@ subroutine crest_queue_reconstruct(env,tim)
   deallocate (env%splitheap%layer)
   deallocate (env%splitheap%queue)
 
-  write (stdout,'(/,1x,a)') 'Wrting reconstructed structures to: "'//recfile//'"'
+  write (stdout,'(/,1x,a)') 'Writing reconstructed structures to: "'//recfile//'"'
   call wrensemble(recfile,nall,structures)
   write (stdout,*)
 
@@ -552,10 +552,12 @@ contains
     real(wp),allocatable :: xyzscratch(:,:,:,:)
     logical,allocatable :: mask(:)
     integer :: T,Tn,tt
+    type(timer) :: profiler
 
     character(len=*),parameter :: subdir_tmp = 'crest_queue_'
     character(len=:),allocatable :: subdirfile
     character(len=10) :: atmp
+    character(len=60) :: btmp
 
     associate (layer => heap%layer(targetlayer))
       if (layer%nnodes > 2) then
@@ -634,12 +636,12 @@ contains
       write (stdout,'(a,i0)') 'Reconstructing layer : ',targetlayer
       write (stdout,'(2x,a,i0)') 'Base structures         : ',nall_b
       write (stdout,'(2x,a,i0)') 'Side chain structures   : ',nall_s
-      write (stdout,'(2x,a,i0)') 'Max. combinations       : ',nall_b*nall_s
+      write (stdout,'(2x,a,es9.2)') 'Max. combinations       : ',real(nall_b,wp)*real(nall_s,wp)
       write (stdout,'(2x,a,f7.5,a)') 'Similarity threshold    : ',env%rthr,' Å'
       write (stdout,'(2x,a,f7.5,a)') 'ΔE threshold (ETHR)     : ',env%ethr,' kcal/mol'
 
       layer%nmols = 0
-      kk = min(nall_b*nall_s,env%queue_maxreconstruct)
+      kk = nint(min(real(nall_b,wp)*real(nall_s,wp),real(env%queue_maxreconstruct,wp)))
       allocate (layer%mols(kk))
       write (stdout,'(2x,a,i0)') 'Max. new structs stored : ',kk
 
@@ -657,8 +659,11 @@ contains
       do ii = 1,layer%refmol%nat
         if (layer%refmol%at(ii) == 1) mask(ii) = .false.
       end do
-      write (stdout,'(2x,a)',advance='no') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
-      flush (stdout)
+      write (stdout,'(2x,a)') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
+      call crest_oloop_pr_progress(env,kk,0)
+
+      call profiler%init(1)
+      call profiler%start(1)
 
       !> NOTE:
       !> we want a balanced amount of combinations, sourcing
@@ -728,6 +733,7 @@ contains
                 if (.not.duplicate) then
                   layer%nmols = layer%nmols+1
                   layer%mols(layer%nmols) = mol
+                  call crest_oloop_pr_progress(env,kk,layer%nmols)
                   if (layer%nmols == kk) exit sssloop
                 end if
               end if
@@ -792,6 +798,7 @@ contains
                 if (.not.duplicate) then
                   layer%nmols = layer%nmols+1
                   layer%mols(layer%nmols) = mol
+                  call crest_oloop_pr_progress(env,kk,layer%nmols)
                   if (layer%nmols == kk) exit sssloop2
                 end if
               end if
@@ -799,11 +806,19 @@ contains
           end do jjloop2
         end do sssloop2
       end if
-      write (stdout,'(a)') 'done.'
+      if (layer%nmols < kk) then
+        call crest_oloop_pr_progress(env,1,1)
+      end if
+      !call crest_oloop_pr_progress(env,kk,-1)
+      write (stdout,'(2x,a)') 'done!'
       if (duplicates > 0) then
         write (stdout,'(2x,a,i0)') 'Avoided duplicates       : ',duplicates
       end if
       write (stdout,'(2x,a,i0)') 'Successful combinations  : ',layer%nmols
+      call profiler%stop(1)
+      write (btmp,'(2x,a)') 'Total runtime for recombination step:'
+      call profiler%write_timing(stdout,1,trim(btmp),.true.)
+      write (stdout,*)
 
     end associate
   end subroutine recusrive_construct
