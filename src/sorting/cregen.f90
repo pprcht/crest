@@ -2524,6 +2524,11 @@ subroutine cregen_pr2(ch,env,nall,ng,degen,er)
   write (och,'(" Accum.population of lowest 10 groups",t42,":",2x,F9.3," %")') paccu(i)*100.d0
   do i = 1,ng
     j = degen(3,i)
+    if (paccu(j) >= 0.5_wp) exit
+  end do
+  write (och,'(" 50% accum.population for groups",t42,":",6x,"1 - ",i0)') i
+  do i = 1,ng
+    j = degen(3,i)
     if (paccu(j) >= 0.95_wp) exit
   end do
   write (och,'(" 95% accum.population for groups",t42,":",6x,"1 - ",i0)') i
