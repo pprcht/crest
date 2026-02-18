@@ -282,14 +282,15 @@ subroutine parseflags(env,arg,nra)
 !>--- options for principal component analysis (PCA) and clustering
   env%pcmeasure = 'dihedral'
 
-!>--- thermo options
+!>--- Standard THERMO options
   env%thermo%trange(1) = 278.15d0  !> T start
   env%thermo%trange(2) = 380.0d0   !> T stop (approx.)
   env%thermo%trange(3) = 10.0d0    !> T step
-  env%thermo%ptot = 0.9d0   !> for hessians take x% conformers
-  env%thermo%pcap = 50000   !> limit number of structures
-  env%thermo%sthr = 25.0d0  !> rotor cutoff
-  env%thermo%fscal = 1.0d0   !> frequency scaling factor
+  env%thermo%ptot = 0.9d0          !> for hessians take x% conformers
+  env%thermo%pcap = 50000          !> limit number of structures
+  env%thermo%sthr = 25.0d0         !> rotor cutoff
+  env%thermo%fscal = 1.0d0         !> frequency scaling factor
+  env%thermo%emodel = 'grimme'     !> Svib treatment
 
 !>--- other things
   env%crest_ohess = .false.

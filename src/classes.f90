@@ -292,6 +292,7 @@ module crest_data
     logical :: avbhess = .false.   !> use bhess in the msRRHO average calc. for all structures (expensive!)
     logical :: constrhess = .false. !> apply constraints in rrhoav?
     logical :: printpop = .false. !> print a file with populations at different T
+    character(len=:),allocatable :: emodel
   contains
     procedure :: get_temps => thermo_get_temps
     procedure :: read_temps => thermo_read_temps

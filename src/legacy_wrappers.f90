@@ -197,6 +197,21 @@ subroutine env2calc_modify(env)
     call env%calc%ONIOMexpand()
   end if
 
+!>--- pass on thermo data to the calculator
+  if (.not.allocated(env%calc%temperatures)) then
+    if (.not.allocated(env%thermo%temps)) then
+      call env%thermo%get_temps()
+    end if
+    env%calc%nt = env%thermo%ntemps
+    allocate (env%calc%temperatures(env%calc%nt),source=0.0_wp)
+
+    env%calc%temperatures = env%thermo%temps
+    env%calc%ithr = env%thermo%ithr
+    env%calc%sthr = env%thermo%sthr
+    env%calc%fscal = env%thermo%fscal
+    env%calc%emodel = env%thermo%emodel
+  end if
+
 end subroutine env2calc_modify
 
 !================================================================================!

@@ -283,6 +283,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   real(wp),intent(in) :: etot
   !> LOCAL
   real(wp) :: ithr,fscal,sthr
+  character(len=:),allocatable :: emodel
   integer :: nt,nfreq,nrt
   real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
   real(wp) :: zpve
@@ -294,8 +295,10 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   ithr = env%thermo%ithr
   !> frequency scaling factor
   fscal = env%thermo%fscal
-  !> RR-HO interpolation
+  !> RR-HO interpolation (or cut-off)
   sthr = env%thermo%sthr
+  !> Svib model
+  emodel = env%thermo%emodel
 
   if (.not.allocated(env%thermo%temps)) then
     call env%thermo%get_temps()
@@ -310,7 +313,7 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
 
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot) !> THIS HAS IUNIT IN IT!!!!
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,emodel=emodel) !> THIS HAS IUNIT IN IT!!!!
 
   !> printoutgeometr
   zpve = et(nrt)-ht(nrt)
@@ -351,6 +354,7 @@ subroutine thermo_standalone(env)
   real(wp),allocatable :: freq(:)
   real(wp) :: etot
   real(wp) :: ithr,fscal,sthr
+  character(len=:),allocatable :: emodel
   integer :: nt,nfreq,nrt
   real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
   real(wp) :: zpve
@@ -400,8 +404,10 @@ subroutine thermo_standalone(env)
   ithr = env%thermo%ithr
   !> frequency scaling factor
   fscal = env%thermo%fscal
-  !> RR-HO interpolation
+  !> RR-HO interpolation (or cut-off)
   sthr = env%thermo%sthr
+  !> Svib model
+  emodel = env%thermo%emodel
 
   if (.not.allocated(env%thermo%temps)) then
     call env%thermo%get_temps()
@@ -416,7 +422,7 @@ subroutine thermo_standalone(env)
 
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,iunit)
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,iunit,emodel=emodel)
 
   !> printout
   zpve = et(nrt)-ht(nrt)

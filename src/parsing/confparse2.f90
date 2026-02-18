@@ -223,18 +223,18 @@ subroutine env_calcdat_specialcases(env)
     end do
   end if
 
-  if (.not.allocated(env%calc%temperatures)) then
-    if (.not.allocated(env%thermo%temps)) then
-      call env%thermo%get_temps()
-    end if
-    env%calc%nt = env%thermo%ntemps
-    allocate (env%calc%temperatures(env%calc%nt),source=0.0_wp)
 
-    env%calc%temperatures = env%thermo%temps
-    env%calc%ithr = env%thermo%ithr
-    env%calc%sthr = env%thermo%sthr
-    env%calc%fscal = env%thermo%fscal
-  end if
+
+
+
+
+
+
+
+
+
+
+
 
 end subroutine env_calcdat_specialcases
 

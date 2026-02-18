@@ -60,7 +60,7 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
   integer :: nfreq
   real(wp),allocatable :: freq(:)
   real(wp) :: ithr,fscal,sthr
-
+  type(coord) :: mol
   integer :: TID,OMP_GET_THREAD_NUM
 
 !!$OMP PARALLEL PRIVATE(TID)
@@ -137,9 +137,10 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
   end if
 
 !$omp critical
-  call rdxmol(trim(optpath)//'xtbopt.xyz',nat,at,xyz,atmp)
+  !call rdxmol(trim(optpath)//'xtbopt.xyz',nat,at,xyz,atmp)
+  call mol%open(trim(optpath)//'xtbopt.xyz')
   etot = grepenergy(atmp)
-  nfreq = 3*nat
+  nfreq = 3*mol%nat
 
   allocate (freq(nfreq))
   call rdfreq(trim(optpath)//'vibspectrum',nfreq,freq)
@@ -147,8 +148,8 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
   ithr = env%thermo%ithr
   fscal = env%thermo%fscal
   sthr = env%thermo%sthr
-  call calcthermo(nat,at,xyz,freq,pr,ithr,fscal,sthr, &
-  &    nt,temps,et,ht,gt,stot,stdout)
+  call calcthermo(mol%nat,mol%at,mol%xyz,freq,pr,ithr,fscal,sthr, &
+  &    nt,temps,et,ht,gt,stot,stdout,emodel=env%thermo%emodel)
   deallocate (freq)
 !$omp end critical
   call initsignal()
@@ -316,8 +317,8 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   ithr = env%thermo%ithr
   fscal = env%thermo%fscal
   sthr = env%thermo%sthr
-  call calcthermo(nat,at,xyz,freq,pr,ithr,fscal,sthr, &
-  &    nt,temps,et,ht,gt,stot,stdout)
+  call calcthermo(mol%nat,mol%at,mol%xyz,freq,pr,ithr,fscal,sthr, &
+  &    nt,temps,et,ht,gt,stot,stdout,emodel=env%thermo%emodel)
   deallocate (hess,freq)
 !$omp end critical
   call initsignal()

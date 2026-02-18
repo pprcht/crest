@@ -272,7 +272,7 @@ module calc_type
     integer,allocatable :: ONIOMmap(:) !> map ONIOM fragments to calculation_settings
     integer,allocatable :: ONIOMrevmap(:) !> map calculation settings to ONIOM frags (or zero)
 
-!>--- Hessian Reconstructor
+!>--- Hessian Reconstructor and Thermo data
     type(cashed_hessian),allocatable :: chess
     logical :: do_HR = .false.
     logical :: full_HR = .false. !> Keyword for HR with all opt steps
@@ -281,6 +281,7 @@ module calc_type
     real(wp),allocatable :: temperatures(:)
     real(wp),allocatable :: et(:),ht(:),gt(:),stot(:)
     real(wp) :: ithr,fscal,sthr
+    character(len=:),allocatable :: emodel
     integer :: initialize_hr_type !> case defining initialization
     integer :: mh_type = 0
     integer :: hr_hu_type = 0

@@ -10,7 +10,9 @@ module thermochem_module
 
   public calcthermo,calc_thermo_from_hess
 
-contains
+!==============================================================================!
+contains  !> MODULE PROCEDURES STARTE HERE
+!==============================================================================!
 
   subroutine prepthermo(nat,at,xyz,pr,molmass,rabc,avmom,symnum,symchar,iunit)
 !***********************************************************************
@@ -102,7 +104,7 @@ contains
   end subroutine prepthermo
 
   subroutine calcthermo(nat,at,xyz,freq,pr,ithr,fscal,sthr,nt,temps, &
-      &      et,ht,gt,stot,iunit_in)
+      &      et,ht,gt,stot,iunit_in,emodel)
 !**************************************************************
 !* Calculate thermodynamic contributions for a given structure
 !* from it's frequencies (from second derivatives/the Hessian)
@@ -124,6 +126,7 @@ contains
     integer,intent(in)  :: nt
     real(wp),intent(in) :: temps(nt)
     integer,intent(in),optional     :: iunit_in
+    character(len=*),intent(in),optional :: emodel
     real(wp) :: et(nt)          !< enthalpy in Eh
     real(wp) :: ht(nt)          !< enthalpy in Eh
     real(wp) :: gt(nt)          !< free energy in Eh
@@ -143,7 +146,7 @@ contains
     real(wp) :: vibthr
     real(wp),allocatable :: vibs(:)
 
-    integer :: i,j,iunit
+    integer :: i,j,iunit,emodelunit
     integer :: n3,rt
     real(wp) :: adum(nt)
     character(len=64) :: atmp
@@ -151,22 +154,35 @@ contains
     character(len=*),parameter :: outfmt = &
     &  '(9x,"::",1x,a,f24.12,1x,a,1x,"::")'
     character(len=*),parameter :: dblfmt = &
-    &  '(10x,":",2x,a,f24.7,1x,a,1x,":")'
+    &  '(10x,":",2x,a,f24.7,1x,a,t63,":")'
     character(len=*),parameter :: intfmt = &
-    &  '(10x,":",2x,a,i24,       6x,":")'
+    &  '(10x,":",2x,a,i24,       t63,":")'
     character(len=*),parameter :: chrfmt = &
-    &  '(10x,":",2x,a,a24,       6x,":")'
+    &  '(10x,":",2x,a,a24,       t63,":")'
 
     real(wp),parameter :: autorcm = 219474.63067_wp
     real(wp),parameter :: rcmtoau = 1.0_wp/autorcm
     real(wp),parameter :: autocal = 627.50947428_wp*1000.0_wp
 
-    xyz = xyz*autoaa
+    xyz = xyz*autoaa  !> NOTE: FROM HERE ON WE WORK IN ANGSTRÖM
 
     if (present(iunit_in)) then
       iunit = iunit_in
     else
       iunit = stdout
+    end if
+
+    if (present(emodel)) then
+      select case (emodel)
+      case ('grimme')
+        emodelunit = 1
+      case ('truhlar')
+        emodelunit = 2
+      case default
+        emodelunit = 1
+      end select
+    else
+      emodelunit = 1
     end if
 
     call prepthermo(nat,at,xyz,pr,molmass,rabc,avmom,sym,symchar,iunit)
@@ -213,9 +229,9 @@ contains
 
     if (pr) then
       write (iunit,'(a)')
-      write (iunit,'(10x,51("."))')
-      write (iunit,'(10x,":",22x,a,22x,":")') "SETUP"
-      write (iunit,'(10x,":",49("."),":")')
+      write (iunit,'(10x,53("."))')
+      write (iunit,'(10x,":",23x,a,23x,":")') "SETUP"
+      write (iunit,'(10x,":",51("."),":")')
       write (iunit,intfmt) "# frequencies    ",nvib
       write (iunit,intfmt) "# imaginary freq.",nimag
       write (atmp,*) linear
@@ -223,9 +239,17 @@ contains
       write (iunit,chrfmt) "symmetry         ",adjustr(symchar)
       write (iunit,intfmt) "rotational number",nint(sym)
       write (iunit,dblfmt) "scaling factor   ",fscal,"    "
-      write (iunit,dblfmt) "rotor cutoff     ",sthr,"cm⁻¹"
-      write (iunit,dblfmt) "imag. cutoff     ",ithr,"cm⁻¹"
-      write (iunit,'(10x,":",49("."),":")')
+      select case (emodelunit)
+      case (1)
+        write (iunit,chrfmt) "vib.entropy model      ","Grimme (2012)"
+        write (iunit,dblfmt) "rotor cutoff     ",sthr,"cm^-1"
+      case (2)
+        write (iunit,chrfmt) "vib.entropy model      ","Truhlar (2011)"
+        write (iunit,dblfmt) "frequency cutoff ",sthr,"cm^-1" 
+      end select
+
+      write (iunit,dblfmt) "imag. cutoff     ",ithr,"cm^-1"
+      write (iunit,'(10x,":",51("."),":")')
     end if
 
     vibs = vibs*rcmtoau   ! thermodyn needs vibs and zp in Eh
@@ -240,10 +264,15 @@ contains
         pr2 = .false.
       end if
       if (pr2) then
-        call print_thermo_sthr_ts(iunit,nvib,vibs,avmom,sthr,temps(j))
+        select case (emodelunit)
+        case (1)
+          call print_thermo_sthr_ts(iunit,nvib,vibs,avmom,sthr,temps(j))
+        case (2)
+          call print_thermo_sthr_cut(iunit,nvib,vibs,sthr,temps(j))
+        end select
       end if
       call thermodyn(iunit,a,b,c,avmom,linear,atom,sym,molmass,vibs,nvib, &
-      & temps(j),sthr,et(j),ht(j),gt(j),ts(j),zp,pr2)
+      & temps(j),sthr,et(j),ht(j),gt(j),ts(j),zp,pr2,emodel=emodelunit)
       stot(j) = (ts(j)/temps(j))*autocal
     end do
 
@@ -271,14 +300,14 @@ contains
       write (iunit,'(3x,72("-"))')
     end if
 
-    xyz = xyz*aatoau
+    xyz = xyz*aatoau !> NOTE: BACK TO BOHRS
 
     deallocate (vibs)
     return
   end subroutine calcthermo
 
   subroutine calc_thermo_from_hess(mol,hess,pr,nt,temps,ithr,&
-  & fscal,sthr,et,ht,gt,stot, etot)
+  & fscal,sthr,et,ht,gt,stot,etot)
     type(coord),intent(inout) :: mol
     integer :: nat3
     integer :: io,iunit
@@ -289,7 +318,7 @@ contains
     real(wp),allocatable,intent(out) :: et(:),ht(:),gt(:),stot(:)
     real(wp),intent(inout) :: hess(:,:)
     real(wp),allocatable :: freq(:)
-    real(wp), intent(in) :: etot
+    real(wp),intent(in) :: etot
     real(wp) :: zpve
     integer :: nrt
     real(wp),allocatable :: int_temps(:)
@@ -316,20 +345,19 @@ contains
 
     zpve = et(nrt)-ht(nrt)
     if (pr) then
-    write (stdout,*)
-    write (stdout,'(10x,a)') repeat(':',50)
-    write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
-    write (stdout,'(10x,a)') repeat(':',50)
-    write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
-    write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
-    write (stdout,outfmt) 'total energy     ',etot,'Eh'
-    write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
-    write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
-    write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
-    write (stdout,'(10x,a)') repeat(':',50)
-    endif
+      write (stdout,*)
+      write (stdout,'(10x,a)') repeat(':',50)
+      write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
+      write (stdout,'(10x,a)') repeat(':',50)
+      write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
+      write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
+      write (stdout,outfmt) 'total energy     ',etot,'Eh'
+      write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
+      write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
+      write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
+      write (stdout,'(10x,a)') repeat(':',50)
+    end if
 
   end subroutine calc_thermo_from_hess
-
 
 end module thermochem_module

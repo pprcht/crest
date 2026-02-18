@@ -1297,6 +1297,7 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
   integer :: n3,io,ich
 
   real(wp) :: ithr,fscal,sthr
+  character(len=:),allocatable :: emodel
   integer :: nt,nfreq,nrt
   real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
   real(wp) :: zpve
@@ -1342,6 +1343,8 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
   fscal = env%thermo%fscal
   !> RR-HO interpolation
   sthr = env%thermo%sthr
+  !> Svib model
+  emodel = env%thermo%emodel
 
   !> we just need one temperature
   nt = 1
@@ -1380,7 +1383,7 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
     open (newunit=ich,file="xtb_freq.out")
     !> calcthermo wants input in Bohr
     call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-    & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,ich)
+    & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,ich,emodel=emodel)
     close (ich)
 
     deallocate (freq,hess,tmpgrd)

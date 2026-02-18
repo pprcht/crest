@@ -463,6 +463,19 @@ contains   !> MODULE PROCEDURES START HERE
       case ('freq_input','vibs','hessian')
         env%thermo%vibfile = kv%value_c
         if (allocated(env%thermo%coords)) env%properties = p_thermo
+
+      case ('entropy_model','svib_model')
+        select case (kv%value_c)
+        case ('grimme')
+          env%thermo%emodel = kv%value_c
+        case ('truhlar') 
+          env%thermo%emodel = kv%value_c 
+          env%thermo%sthr = 100.0_wp
+        case default
+          write (stdout,fmtura) trim(kv%rawvalue)
+          call creststop(status_config)
+        end select
+
       case default
         !>--- unrecognized keyword
         istat = istat+1
