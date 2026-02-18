@@ -306,11 +306,12 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   nested = env%omp_allow_nested
 
 !>--- prepare objects for parallelization
-  allocate (calculations(T),source=mycalc)
+  allocate (calculations(T))!,source=mycalc)
   allocate (mols(T),molsnew(T))
   do i = 1,T
+    call calculations(i)%copy(mycalc)
     do j = 1,mycalc%ncalculations
-      calculations(i)%calcs(j) = mycalc%calcs(j)
+      !calculations(i)%calcs(j) = mycalc%calcs(j)
       !>--- directories and io preparation
       ex = directory_exist(mycalc%calcs(j)%calcspace)
       if (.not.ex) then

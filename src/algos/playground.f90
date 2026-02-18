@@ -31,7 +31,6 @@ subroutine crest_playground(env,tim)
   use crest_data
   use crest_calculator
   use strucrd
-  use canonical_mod
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -46,12 +45,11 @@ subroutine crest_playground(env,tim)
   integer,allocatable :: A(:,:)
   logical,allocatable :: rings(:,:)
   integer,allocatable :: tmp(:)
-  logical :: connected,fail
+  logical :: connected,fail,doreturn
 
   real(wp) :: energy
   real(wp),allocatable :: grad(:,:),geo(:,:),csv(:,:),q(:)
 
-  type(canonical_sorter) ::  can
 !========================================================================================!
   call tim%start(14,'Test implementation')
 !========================================================================================!
@@ -68,15 +66,17 @@ subroutine crest_playground(env,tim)
   write (*,*) 'Input structure:'
   call mol%append(stdout)
   write (*,*)
+!!========================================================================================!
+!
+!  allocate (grad(3,mol%nat),source=0.0_wp)
+!  call env2calc(env,calc,mol)
+!  calc%calcs(1)%rdwbo = .true.
+!  call calc%info(stdout)
+!
+!  call engrad(mol,calc,energy,grad,io)
+!  call calculation_summary(calc,mol,energy,grad)
 !========================================================================================!
 
-  allocate (grad(3,mol%nat),source=0.0_wp)
-  call env2calc(env,calc,mol)
-  calc%calcs(1)%rdwbo = .true.
-  call calc%info(stdout)
-
-  call engrad(mol,calc,energy,grad,io)
-  call calculation_summary(calc,mol,energy,grad)
 
 !========================================================================================!
   call tim%stop(14)

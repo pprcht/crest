@@ -14,9 +14,24 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
-srcs += files(
-  'rigidconf.f90',
-  'tree.f90',
-  'analyze.f90',
-  'reconstruct.f90',
+set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
+
+list(APPEND srcs
+  "${dir}/rigidconf.f90"
+  "${dir}/tree.f90"
+  "${dir}/analyze.f90"
+  "${dir}/reconstruct.f90"
+  "${dir}/construct.f90"
+  "${dir}/construct_list.f90"
+  "${dir}/classify.f90"
+  "${dir}/classify_type.f90" 
+  "${dir}/classify_func.f90" 
 )
+
+set(srcs ${srcs} PARENT_SCOPE)
+
+
+
+
+
+

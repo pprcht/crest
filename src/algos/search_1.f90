@@ -43,7 +43,7 @@ subroutine crest_search_1(env,tim)
   real(wp),allocatable :: eread(:)
   real(wp),allocatable :: xyz(:,:,:)
   integer,allocatable  :: at(:)
-  logical :: dump
+  logical :: dump,doreturn
 
 !===========================================================!
 !>--- printout header
@@ -61,10 +61,8 @@ subroutine crest_search_1(env,tim)
   write (stdout,*)
 
 !>--- saftey termination
-  if(mol%nat .le. 2)then
-     call catchdiatomic(env)
-    return
-  endif
+  call crest_sampling_skip(env,doreturn)
+  if (doreturn) return
 
 !===========================================================!
 !>--- Dynamics

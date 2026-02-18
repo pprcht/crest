@@ -1171,6 +1171,7 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('length','length_ps')
       mddat%length_ps = kv%value_f
+      env%user_mdtime = .true.
     case ('dump')
       mddat%dumpstep = kv%value_f
     case ('hmass')

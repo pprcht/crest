@@ -349,13 +349,18 @@ contains  !> MODULE PROCEDURES START HERE
 !* <base>_<X>.xyz as <fname>
 !* and <base>_<X+1>.xyz as <checkname>
 !************************************************
-    character(len=*) :: base,fname,checkname
+    character(len=*),intent(in) :: base
+    character(len=*),intent(inout) :: fname,checkname
+    character(len=256) :: atmp,btmp
     integer :: i,j
     logical :: ex
     i = 0
+    !write(*,*) trim(fname)
+    !write(*,*) trim(base)
     do
-      write (checkname,'(a,''_'',i0,''.xyz'')') trim(base),i
-      inquire (file=trim(checkname),exist=ex)
+      write (atmp,'(a,''_'',i0,''.xyz'')') trim(base),i
+      inquire (file=trim(atmp),exist=ex)
+      checkname = trim(atmp)
       if (ex) then
         i = i+1
       else
@@ -363,7 +368,8 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end do
     j = max(0,i-1)
-    write (fname,'(a,''_'',i0,''.xyz'')') trim(base),j
+    write (btmp,'(a,''_'',i0,''.xyz'')') trim(base),j
+    fname = trim(btmp)
   end subroutine checkname_xyz
 
 !========================================================================================!

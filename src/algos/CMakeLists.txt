@@ -36,6 +36,8 @@ list(APPEND srcs
   "${dir}/search_entropy.f90"
   "${dir}/parallel.f90"
   "${dir}/deform_opt_hess.f90"
+  "${dir}/queueing.f90"
+  "${dir}/alkylize.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

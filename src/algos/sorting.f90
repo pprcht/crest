@@ -59,6 +59,7 @@ subroutine crest_sort(env,tim)
   end select
   write (stdout,*)
 
+  env%confgo = .true.
 !========================================================================================!
   call tim%start(11,'Sorting')
 
@@ -93,13 +94,12 @@ subroutine crest_sort(env,tim)
 
   case ('cregen')
 !>--- the original CREGEN procedure (fallback, needs nicer implementations)
-    if (allocated(structures)) deallocate (structures)
-    call newcregen(env,infile=env%ensemblename)
+    call newcregen(env,structurelist=structures)
     call catdel('cregen.out.tmp')
 
   case default
 !>--- all unique pairs of the ensemble (only suitable for small ensembles)
-    call cregen_irmsd_all(nall,structures,printlvl=2,iinversion=env%iinversion)
+    call cregen_irmsd_sort(env,nall,structures,groups,allcanon=.true.,printlvl=2)
   end select
 
 !========================================================================================!

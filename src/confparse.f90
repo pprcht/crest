@@ -1147,7 +1147,9 @@ subroutine parseflags(env,arg,nra)
       case ('-keepdir','-keeptmp')     !> Do not delete temporary directories at the end
         env%keepModef = .true.
       case ('-opt','-optlev')             !> settings for optimization level of GFN-xTB
-        env%optlev = optlevnum(arg(i+1))
+        if (nra >= i+1) then
+          env%optlev = optlevnum(arg(i+1))
+        end if
         write (*,'(2x,a,1x,a)') trim(arg(i)),optlevflag(env%optlev)
       case ('-gfn','-gfn1','-gfn2','-gfn0','-gff','-gfnff')
         ctmp = argument
@@ -1533,6 +1535,20 @@ subroutine parseflags(env,arg,nra)
         env%wallsetup = .true.
         env%potscal = 2.0_wp
         write (*,'(2x,a,1x,a)') '--wall-xxl:','requesting setup of wall potential (x2.0 size)'
+
+      case ('-alkylize')
+        write (*,'(2x,a,1x)',advance='no') '--alkylize'
+        env%alkylize = .true.
+        if (nra >= i+1) then
+          ctmp = trim(arg(i+1))
+          select case (ctmp)
+          case ('full','sample')
+            env%alkylizeskip = .false.
+            write (*,'(a,1x)',advance='no') ctmp
+          end select
+        end if
+        write (*,'(a)') ': automatic alkyl group dispatch'
+
 !========================================================================================!
 !------ flags for parallelization / disk space
 !========================================================================================!
@@ -2161,7 +2177,7 @@ subroutine parseflags(env,arg,nra)
   end if
 
 !>--- avoid 0 potscal
-  if(env%potscal < 1.0d-5) env%potscal = 1.0_wp
+  if (env%potscal < 1.0d-5) env%potscal = 1.0_wp
 
 !>--- automatic wall potential for the LEGACY version
   if ((env%NCI.or.env%wallsetup).and.env%legacy) then

@@ -96,6 +96,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   use crest_parameters
   use strucrd
   use axis_module
+  use rotaniso_mod
   implicit none
   character(len=*) :: fname
   type(coord),allocatable :: structures(:)
@@ -106,11 +107,9 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   integer,allocatable :: at(:)
 
   real(wp),allocatable :: rot(:,:)
-  real(wp) :: rotaniso !function
   real(wp),allocatable :: anis(:)
   real(wp) :: evec(3,3),evecavg(3,3)
 
-  real(wp) :: bthrerf
   real(wp) :: bmin,bmax,bshift
   real(wp) :: thr
   real(wp) :: dum
@@ -135,7 +134,7 @@ subroutine printaniso(fname,bmin,bmax,bshift)
   do i = 1,nall
     c1(1:3,:) = structures(i)%xyz(1:3,:)*autoaa
     call axis(nat,at,c1,rot(1:3,i),dum,evec)
-    anis(i) = rotaniso(i,nall,rot)
+    anis(i) = rotaniso(rot(1:3,i))
     thr = bthrerf(bmin,anis(i),bmax,bshift)
     write (*,'(3f10.2,2x,f8.4,2x,f8.4)') rot(1:3,i),anis(i),thr
   end do
@@ -395,14 +394,15 @@ subroutine testtopo(fname,env,tmode)
   use atmasses
   use zdata
   use strucrd
+  use molbuilder_classify
   implicit none
   type(systemdata) :: env
   character(len=*) :: fname
   character(len=:),allocatable :: wbofile
   character(len=*) :: tmode
-  character(len=40) :: sumform
   type(zmolecule) :: zmol
   type(coord) :: mol
+  type(coord_classify) :: molc
   real(wp),allocatable :: xyz(:,:)
   real(wp) :: dum
   integer,allocatable :: inc(:)
@@ -475,7 +475,6 @@ subroutine testtopo(fname,env,tmode)
     if (.not.env%legacy.and.env%calc%ncalculations == 0) then
       call env2calc_setup(env)
     end if
-
     call thermo_wrap(env,.true.,zmol%nat,zmol%at,xyz,'', &
     &    nt,temps,et,ht,gt,stot,.false.)
     deallocate (stot,gt,ht,et,temps)
@@ -505,39 +504,19 @@ subroutine testtopo(fname,env,tmode)
     end do
     close (ich)
 
+  case ('func')
+    call setup_classify(mol,molc)
+    call functional_group_classify(molc)
+    call molc%print_funcgroups(stdout)
+
+
   end select
   deallocate (xyz)
   write (*,*)
-  stop
+  call creststop(status_normal)
 end subroutine testtopo
 
 !========================================================================================!
-
-character(len=40) function sumform(nat,at)
-!************************************************
-!* get sumformula as a string from the AT array
-!************************************************
-  use strucrd,only:i2e
-  implicit none
-  integer :: nat
-  integer :: at(nat)
-  integer :: sumat(94)
-  integer :: i
-  character(len=6) :: str
-  sumform = ''
-  sumat = 0
-  do i = 1,nat
-    sumat(at(i)) = sumat(at(i))+1
-  end do
-  do i = 1,94
-    if (sumat(i) .lt. 1) cycle
-    write (str,'(a,i0)') trim(adjustl(i2e(i,'nc'))),sumat(i)
-    sumform = trim(sumform)//trim(str)
-  end do
-  return
-end function sumform
-
-!=========================================================================================!
 
 subroutine ensemble_analsym(fname,pr)
 !*****************************************************************

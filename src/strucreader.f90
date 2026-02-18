@@ -139,6 +139,7 @@ module strucrd
   public :: mollist
   public :: coordline
   public :: get_atlist
+  public :: sumform
 
 !=========================================================================================!
   !coord class. contains a single structure in the PDB format.
@@ -216,6 +217,7 @@ module strucrd
     procedure :: get_z => coord_get_z           !> calculate nuclear charge
     procedure :: cn_to_bond => coord_cn_to_bond !> generate neighbour matrix from CN
     procedure :: swap => atswp                  !> swap two atoms coordinates and their at() entries
+    procedure :: sumform => coord_sumform       !> generate a string with the sum formula
   end type coord
 !=========================================================================================!
   !> ensemble class. contains all structures of an ensemble
@@ -794,7 +796,7 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     else
       call rdensemble_coord_type(fname,self%nall,self%structures)
-      allocate(self%er(nall),source=0.0_wp)
+      allocate (self%er(nall),source=0.0_wp)
       self%er(:) = self%structures(:)%energy
     end if
 
@@ -1533,6 +1535,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (newnat == self%nat) then
       molout = self
     else
+      molout%nat = newnat
       allocate (molout%at(newnat),source=0)
       allocate (molout%xyz(3,newnat),source=0.0_wp)
       k = 0
@@ -2033,14 +2036,15 @@ contains  !> MODULE PROCEDURES START HERE
     class(coord) :: self
     integer :: io
     character(len=64) :: atmp
+    character(len=32) :: btmp
     self%xyz = self%xyz*bohr !to Angström
+    write(btmp,'(f22.10)') self%energy
+    write (atmp,'(a,a)') ' energy= ',adjustl(btmp)
     if (allocated(self%comment)) then
-      call wrxyz(io,self%nat,self%at,self%xyz,trim(self%comment))
-    else if (self%energy .ne. 0.0_wp) then
-      write (atmp,'(a,f22.10)') ' energy= ',self%energy
-      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
+      call wrxyz(io,self%nat,self%at,self%xyz, & 
+      &          trim(atmp)//' '//trim(self%comment))
     else
-      call wrxyz(io,self%nat,self%at,self%xyz)
+      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
     end if
     self%xyz = self%xyz/bohr !back
     return
@@ -2463,6 +2467,61 @@ contains  !> MODULE PROCEDURES START HERE
     self%xyz(1:3,atj) = xyztmp(1:3)
     self%at(atj) = attmp
   end subroutine atswp
+
+!=========================================================================================!
+  function sumform(nat,at) result(sumformula)
+!************************************************
+!* get sumformula as a string from the AT array
+!************************************************
+    implicit none
+    integer,intent(in) :: nat
+    integer,intent(in) :: at(nat)
+    character(len=:),allocatable :: sumformula
+    integer :: sumat(118)
+    integer :: i
+    character(len=6) :: str
+    sumformula = ''
+    sumat = 0
+    do i = 1,nat
+      sumat(at(i)) = sumat(at(i))+1
+    end do
+    !> carbon always first
+    if (sumat(6) > 0) then
+      if (sumat(6) > 1) then
+        write (str,'(a,i0)') trim(adjustl(i2e(6,'nc'))),sumat(6)
+      else
+        str = 'C'
+      end if
+      sumformula = trim(sumformula)//trim(str)
+    end if
+    do i = 2,118
+      if (i == 6) cycle
+      if (sumat(i) .lt. 1) cycle
+      if (sumat(i) > 1) then
+        write (str,'(a,i0)') trim(adjustl(i2e(i,'nc'))),sumat(i)
+      else
+        str = trim(i2e(i,'nc'))
+      end if
+      sumformula = trim(sumformula)//trim(str)
+    end do
+    !> hydrogen always last
+    if (sumat(1) > 0) then
+      if (sumat(1) > 1) then
+        write (str,'(a,i0)') trim(adjustl(i2e(1,'nc'))),sumat(1)
+      else
+        str = 'H'
+      end if
+      sumformula = trim(sumformula)//trim(str)
+    end if
+    return
+  end function sumform
+
+  function coord_sumform(self) result(sumformula)
+    implicit none
+    class(coord) :: self
+    character(len=:),allocatable :: sumformula
+    sumformula = sumform(self%nat,self%at)
+  end function coord_sumform
 
 !=========================================================================================!
 !=========================================================================================!

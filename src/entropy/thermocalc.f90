@@ -16,6 +16,7 @@
 ! You should have received a copy of the GNU Lesser General Public License
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
+
 subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
         &  nt,temps,et,ht,gt,stot,bhess)
 !**********************************************
@@ -121,9 +122,9 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
 
   if (subdir) then
     jobcall2 = 'cd '//trim(dirname)//' && '//trim(jobcall)
-    call command( jobcall2, io )
+    call command(jobcall2,io)
   else
-    call command( jobcall, io )
+    call command(jobcall,io)
   end if
 
   et = 0.0_wp

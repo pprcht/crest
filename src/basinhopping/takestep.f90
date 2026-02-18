@@ -97,7 +97,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(coord),intent(inout) :: newmol
     real(wp),intent(in) :: stepsize
     type(calcdata),intent(inout) :: calc
-    real(wp) :: r(3),len
+    real(wp) :: r(3),length
     integer :: i
     do i = 1,newmol%nat
       if (calc%nfreeze > 0) then
@@ -105,8 +105,8 @@ contains  !> MODULE PROCEDURES START HERE
       end if
       call random_number(r)
       r(:) = (r(:)-0.5_wp)*2.0_wp
-      len=norm2(r)
-      newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize/len
+      length=norm2(r)
+      newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize/length
     end do
   end subroutine take_fixed_stepsize_cart
 

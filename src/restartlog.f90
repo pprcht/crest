@@ -78,6 +78,8 @@ contains !> MODULE PROCEDURES START HERE
     logical :: skip
     type(systemdata),intent(in),optional :: env
     skip = .false.
+    return 
+
     restart_tracker = restart_tracker+1
     if (debug) write (stdout,*) '%%% RESTART_TRACKER =',restart_tracker
 

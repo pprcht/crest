@@ -37,7 +37,7 @@ subroutine crest_search_entropy(env,tim)
   type(timer),intent(inout)      :: tim
   type(coord) :: mol,molnew
   integer :: i,j,k,l,io,ich,m
-  logical :: pr,wr
+  logical :: pr,wr,doreturn
 !===========================================================!
   type(calcdata) :: calc
   type(mddata) :: mddat
@@ -80,11 +80,9 @@ subroutine crest_search_entropy(env,tim)
   call mol%append(stdout)
   write (stdout,*)
 
-!>--- saftey termination
-  if(mol%nat .le. 2)then
-     call catchdiatomic(env)
-    return
-  endif
+!>--- saftey terminations 
+  call crest_sampling_skip(env,doreturn)
+  if (doreturn) return
 
 !>--- sets the MD length according to a flexibility measure
   call md_length_setup(env)

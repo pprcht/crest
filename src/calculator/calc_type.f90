@@ -189,6 +189,7 @@ module calc_type
     procedure :: create => create_calclevel_shortcut
     procedure :: norestarts => calculation_settings_norestarts
     procedure :: dumpdipgrad => calculation_dump_dipgrad
+    procedure :: copy => calculation_settings_copy
   end type calculation_settings
 
 !=========================================================================================!
@@ -312,6 +313,7 @@ module calc_type
     generic,public :: set_freeze => calculation_set_freeze_range,calculation_set_freeze_bools
     procedure,private :: calculation_set_freeze_range,calculation_set_freeze_bools
     procedure :: freezegrad => calculation_freezegrad
+    procedure :: set_charge => calculation_set_charge
     procedure :: increase_charge => calculation_increase_charge
     procedure :: decrease_charge => calculation_decrease_charge
     procedure :: dealloc_params => calculation_deallocate_params
@@ -562,43 +564,62 @@ contains  !>--- Module routines start here
 
 !=========================================================================================!
 !> copy a calcdata object from src to self
-  subroutine calculation_copy(self,src)
+  subroutine calculation_copy(self,src,ignore_constraints)
     class(calcdata) :: self
-    type(calcdata) :: src
+    type(calcdata),intent(in) :: src
+    logical,intent(in),optional :: ignore_constraints
+    type(calculation_settings) :: newset
+    type(constraint) :: newcons
     integer :: i
+    logical :: igno
+
+    call self%reset()
 
     self%id = src%id
 
-    self%ncalculations = src%ncalculations
     if (allocated(self%calcs)) deallocate (self%calcs)
-    !self%calcs = src%calcs
-    do i = 1,self%ncalculations
-      call self%add(src%calcs(i))
+    self%ncalculations = 0
+    do i = 1,src%ncalculations
+      call newset%copy(src%calcs(i))
+      call self%add(newset)
     end do
 
-    self%nconstraints = src%nconstraints
+    igno = .false.
+    if(present(ignore_constraints)) igno = ignore_constraints
     if (allocated(self%cons)) deallocate (self%cons)
-    !self%cons = src%cons
-    do i = 1,self%nconstraints
-      call self%add(src%cons(i))
+    self%nconstraints = 0
+    if(.not.igno)then
+    do i = 1,src%nconstraints
+      call newcons%copy(src%cons(i)) 
+      call self%add(newcons)
     end do
+  endif
 
-    self%optlev = src%optlev
-    self%micro_opt = src%micro_opt
-    self%maxcycle = src%maxcycle
-    self%maxdispl_opt = src%maxdispl_opt
-    self%hlow_opt = src%hlow_opt
-    self%hmax_opt = src%hmax_opt
-    self%acc_opt = src%acc_opt
-    self%exact_rf = src%exact_rf
-    self%average_conv = src%average_conv
-    self%tsopt = src%tsopt
-    self%iupdat = src%iupdat
+!&>
+    self%optnewinit     = src%optnewinit
+    self%anopt          = src%anopt
+    self%optlev         = src%optlev 
+    self%micro_opt      = src%micro_opt
+    self%maxcycle       = src%maxcycle 
+    self%maxdispl_opt   = src%maxdispl_opt
+    self%ethr_opt       = src%ethr_opt 
+    self%gthr_opt       = src%gthr_opt 
+    self%hlow_opt       = src%hlow_opt 
+    self%hmax_opt       = src%hmax_opt 
+    self%acc_opt        = src%acc_opt 
+    self%maxerise       = src%maxerise 
+    self%hguess         = src%hguess 
+    self%exact_rf       = src%exact_rf 
+    self%average_conv   = src%average_conv 
+    self%tsopt          = src%tsopt 
+    self%iupdat         = src%iupdat 
+    self%opt_engine     = src%opt_engine 
+    self%lbfgs_histsize = src%lbfgs_histsize
 
-    self%pr_energies = src%pr_energies
-    self%eout_unit = src%eout_unit
-    self%elog = src%elog
-
+    self%pr_energies    = src%pr_energies
+    self%eout_unit      = src%eout_unit
+    self%elog           = src%elog
+!&<
     return
   end subroutine calculation_copy
 
@@ -647,6 +668,24 @@ contains  !>--- Module routines start here
   end subroutine calculation_freezegrad
 
 !=========================================================================================!
+
+  subroutine calculation_set_charge(self,dchrg)
+!***********************************************************
+!* set the charge of all calculation_settings objects to 
+!* the specified dchrg
+!***********************************************************
+    implicit none
+    class(calcdata) :: self
+    integer,intent(in) :: dchrg
+    integer :: i,j
+    if (self%ncalculations > 0) then
+       j = dchrg
+      do i = 1,self%ncalculations
+        self%calcs(i)%chrg = j
+      end do
+    end if
+    return
+  end subroutine calculation_set_charge
 
   subroutine calculation_increase_charge(self,dchrg)
 !******************************************************************
@@ -897,11 +936,13 @@ contains  !>--- Module routines start here
       write (iunit,'("> ",a)') 'User-defined constraints:'
       if (self%nconstraints <= 20) then
         do i = 1,self%nconstraints
+          if (.not.self%cons(i)%active) cycle
           call self%cons(i)%print(iunit)
         end do
       else
         constraintype(:) = 0
         do i = 1,self%nconstraints
+          if (.not.self%cons(i)%active) cycle
           j = self%cons(i)%type
           if (j > 0.and.j < 9) then
             constraintype(j) = constraintype(j)+1
@@ -1004,6 +1045,53 @@ contains  !>--- Module routines start here
     self%ONIOM_id = 0
     return
   end subroutine calculation_settings_deallocate
+
+  subroutine calculation_settings_copy(self,src)
+    implicit none
+    class(calculation_settings),intent(out) :: self
+    type(calculation_settings) :: src
+
+!&>    
+    if (allocated(src%calcspace))   self%calcspace = src%calcspace
+    if (allocated(src%calcfile))    self%calcfile = src%calcfile
+    if (allocated(src%gradfile))    self%gradfile = src%gradfile
+    if (allocated(src%path))        self%path = src%path
+    if (allocated(src%other))       self%other = src%other
+    if (allocated(src%binary))      self%binary = src%binary
+    if (allocated(src%systemcall))  self%systemcall = src%systemcall
+    if (allocated(src%description)) self%description = src%description
+    if (allocated(src%gradkey))     self%gradkey = src%gradkey
+    if (allocated(src%efile))       self%efile = src%efile
+    if (allocated(src%solvmodel))   self%solvmodel = src%solvmodel
+    if (allocated(src%solvent))     self%solvent = src%solvent
+
+    self%id         = src%id
+    self%prch       = src%prch
+    self%chrg       = src%chrg
+    self%uhf        = src%uhf
+
+    self%rdwbo      = src%rdwbo
+    self%rddip      = src%rddip
+    self%rddipgrad  = src%rddipgrad
+    self%gradtype   = src%gradtype
+    self%gradfmt    = src%gradfmt
+
+    self%tblitelvl  = src%tblitelvl
+    self%etemp      = src%etemp
+    self%accuracy   = src%accuracy
+    self%apiclean   = src%apiclean
+    self%maxscc     = src%maxscc
+    self%saveint    = src%saveint
+
+    self%ngrid      = src%ngrid
+    self%extpressure = src%extpressure
+    self%proberad   = src%proberad
+
+    self%ONIOM_highlowroot = src%ONIOM_highlowroot
+    self%ONIOM_id   = src%ONIOM_id
+!&<
+    return
+  end subroutine calculation_settings_copy
 
 !=========================================================================================!
 

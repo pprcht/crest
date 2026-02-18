@@ -237,7 +237,6 @@ contains  !> MODULE PROCEDURES START HERE
     & ethr,' Eh,',gthr,' Eh/a0'
 
     write (ich,'(a,a,i0)') ttag,'maximum optimization steps: ',calc%maxcycle
-
   end subroutine print_opt_data
 
 !========================================================================================!

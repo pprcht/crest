@@ -7,6 +7,7 @@ set(
   "gfn0occ"
   "CN"
   "optimization"
+  "molecular_dynamics"
 )
 set(
   test-srcs
