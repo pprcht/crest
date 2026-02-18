@@ -476,7 +476,7 @@ contains  !> MODULE PROCEDURES START HERE
       !  alp = 3.0d0 ! 3
       !end if
 
-      alp = alp_generate(gnorm,calc%optlev,calc%opt_engine)
+      alp = alp_generate(gnorm,calc%optlev,calc%opt_engine, calc%hess_init)
       !write(stdout,*) alp
 
 !>------------------------------------------------------------------------

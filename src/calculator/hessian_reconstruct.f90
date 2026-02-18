@@ -85,10 +85,9 @@ contains
     integer :: i,j,k,nat3
     real(wp),allocatable :: tmp(:),tmp_coords(:,:),tmp_grads(:,:),dx(:)
     real(wp) :: gnorm
-    integer :: unit,iter,made_iters,update_iteration
+    integer :: unit,iter,made_iters
 
     nat3 = 3*self%natm
-    update_iteration = 0
 
     allocate (tmp_coords(self%steps,nat3))
     allocate (tmp_grads(self%steps,nat3))
@@ -124,10 +123,10 @@ contains
         j = minloc(tmp,1) !> This only happens if made_iters>steps
         if (j == 1) then  !> => Not affected if too many steps requested
           dx = tmp_coords(j,:)-tmp_coords(self%steps,:)
-          call update_hessian(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,self%hess(:),self%hu_type,update_iteration)
+          call update_hessian(nat3,gnorm,tmp_grads(j,:),tmp_grads(self%steps,:),dx,self%hess(:),self%hu_type)
         else
           dx = tmp_coords(j,:)-tmp_coords(j-1,:)
-          call update_hessian(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,self%hess(:),self%hu_type,update_iteration)
+          call update_hessian(nat3,gnorm,tmp_grads(j,:),tmp_grads(j-1,:),dx,self%hess(:),self%hu_type)
         end if
         tmp(j) = HUGE(tmp(j))
       end if
@@ -137,7 +136,7 @@ contains
 
   end subroutine construct_hessian
 
-  subroutine update_hessian(nat3,gnorm,grd1,gold,dx,hess,hu_type,iter)
+  subroutine update_hessian(nat3,gnorm,grd1,gold,dx,hess,hu_type)
   !==============================================
   !Wrapper for hessian update scheme selection
   !==============================================
@@ -146,13 +145,8 @@ contains
     real(wp),intent(in) :: dx(:), grd1(:),gold(:)
     real(wp),intent(in) :: gnorm 
     real(wp),intent(inout) :: hess(:)
-    integer,intent(inout) :: iter
     integer,intent(in) :: hu_type
 
-    iter = iter +1
-    
-    write(stdout,*) "Hessian updated", iter
-  
     select case (hu_type)
     case (0)
       call bfgs(nat3,gnorm,grd1,gold,dx,hess)

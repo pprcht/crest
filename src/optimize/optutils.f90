@@ -455,13 +455,13 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  function alp_generate(gnorm,optlev,optimizer) result(alp)
+  function alp_generate(gnorm,optlev,optimizer, hessian_init) result(alp)
 !****************************************************
 !* Computes stepsize scaling factor depending on optimizer
 !* and optlev
 !****************************************************
-    integer, intent(in) :: optlev, optimizer
     real(wp), intent(in) :: gnorm
+    integer, intent(in) :: optlev, optimizer, hessian_init  
     real(wp) :: alp, shift, l, k
 
     alp = 1.0_wp
@@ -534,9 +534,10 @@ contains  !> MODULE PROCEDURES START HERE
         shift=0.0003_wp
       end select
     end select
-
     
     alp = L/(1+euler**(k*(gnorm-shift)))+1
+
+    if (hessian_init .eq. 0) alp = 1.0_wp
 
   end function alp_generate
 

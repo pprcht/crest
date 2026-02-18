@@ -303,7 +303,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     if ((calc%do_HR .or. calc%deform_opt_hess) .and. allocated(calc%chess) .and. calc%chess%track_step) then
       call calc%chess%update(gradient,energy,mol%xyz)
-      write(stdout,*) "HESSIAN CASH UPDATED"
+      !write(stdout,*) "HESSIAN CASH UPDATED"
     end if
 
     return

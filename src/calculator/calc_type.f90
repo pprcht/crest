@@ -285,6 +285,8 @@ module calc_type
     integer :: hr_hu_type = 0
     logical :: deform_opt_hess = .false.
     real(wp) :: doh_stepsize = 0.10_wp !>stepsize for the deformation/reoptimization hessian generation
+    real(wp) :: chess_id_guess = 0.1_wp
+    logical :: g_sampling = .false. !>Do sampling on free energy surface as approximated using the lindh95 hessian
 
 !>--- Parameters for smooth function within optimizer
     real(wp) :: L = 1.50_wp

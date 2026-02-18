@@ -211,7 +211,7 @@ contains  !> MODULE PROCEDURES START HERE
     !  end do
     !end do
 
-    call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,OPT%hess(:),calc%hguess,pr) !>Need to add printout about how hessian is initialized! Potentially also force positive definiteness by eigenvalue shifting!
+    call initialize_hessian(calc,calc%hess_init,mol%xyz,mol%nat,mol%at,OPT%hess(:),calc%hguess,pr) !>Need to add printout about how hessian is initialized!
 
 !>--- backup coordinates, and starting energy
     molopt%nat = mol%nat
@@ -328,7 +328,7 @@ contains  !> MODULE PROCEDURES START HERE
       !end if
 
       
-      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine)
+      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine, calc%hess_init)
       !write(stdout,*) alp
       
 

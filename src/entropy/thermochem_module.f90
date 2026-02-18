@@ -315,6 +315,7 @@ contains
         &      et,ht,gt,stot)
 
     zpve = et(nrt)-ht(nrt)
+    if (pr) then
     write (stdout,*)
     write (stdout,'(10x,a)') repeat(':',50)
     write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
@@ -326,6 +327,7 @@ contains
     write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
     write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
     write (stdout,'(10x,a)') repeat(':',50)
+    endif
 
   end subroutine calc_thermo_from_hess
 

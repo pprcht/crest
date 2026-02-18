@@ -539,6 +539,9 @@ contains !> MODULE PROCEDURES START HERE
     case('doh_stepsize')
       calc%doh_stepsize = kv%value_f
 
+    case('chess_id_guess')
+      calc%chess_id_guess = kv%value_f
+
 !>--- integers
     case ('maxcycle')
       calc%maxcycle = kv%value_i  !> optimization max cycles
@@ -622,7 +625,7 @@ contains !> MODULE PROCEDURES START HERE
       end select
 
     case ('modhess_type','mh_type') !> here we set how the matrix for hessian reconstruction is initialized
-      select case (kv%value_c)      !>maybe need to add another keywort for crosstesting hr and geopt
+      select case (kv%value_c)      !>maybe need to add another keywort for crosstesting hr and geopt -> No,
       case('lindh95')
         calc%mh_type = 0
       case('lindh')
@@ -695,6 +698,9 @@ contains !> MODULE PROCEDURES START HERE
     
     case ('deform_opt_hess')
       calc%deform_opt_hess = kv%value_b
+
+    case("g_sampling") !> Do sampling on free energy surface as approximated by lindh95 hessian
+      calc%g_sampling = kv%value_b
 
     case default
       rd = .false.

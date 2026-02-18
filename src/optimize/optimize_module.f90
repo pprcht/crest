@@ -63,8 +63,9 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
     real(wp),allocatable :: H_init(:,:),freq(:)
-    integer :: nat3,io,idx
-    real(wp),allocatable :: hess(:)
+    integer :: nat3,io,idx,nrt
+    real(wp),allocatable :: hess(:),g_hess(:), g_hess_full(:,:), int_temps(:)
+    logical :: pr2
 
 
     iostatus = -1
@@ -87,7 +88,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (calc%do_HR .or. calc%deform_opt_hess) then
       allocate (calc%chess)
       allocate (H_init(nat3,nat3))
-      call calc%chess%alloc(mol%nat,calc%hu_steps,calc%hguess,calc%initialize_hr_type, calc%hr_hu_type)
+      call calc%chess%alloc(mol%nat,calc%hu_steps,calc%chess_id_guess,calc%initialize_hr_type, calc%hr_hu_type)
     end if
 
     !> initial singlepoint
@@ -133,9 +134,9 @@ contains  !> MODULE PROCEDURES START HERE
         idx = minloc(calc%chess%order,1)
         if (minval(calc%chess%order) .eq. 0) idx = 1
         
-        call initialize_hessian(calc,calc%chess%initialize_type,calc%chess%coords(idx,:,:),molnew%nat,molnew%at,calc%chess%hess(:),calc%chess%hguess,pr)  !> This hguess is set through the hguess variable of the optimizer and needs to be hardcoded/set explicitly before initialization for benchmarking!!
-        call dhtosq(nat3,H_init,calc%chess%hess) !> maybe this should all be inside the construct bfgs function later? -> cannot due to circular import!!!
-        write(stdout,*)                                                                                                   !> Hessian type (gfnff,mod,identity) is set through input file and is already encoded into the calc object
+        call initialize_hessian(calc,calc%chess%initialize_type,calc%chess%coords(idx,:,:),molnew%nat,molnew%at,calc%chess%hess(:),calc%chess%hguess,pr)
+        call dhtosq(nat3,H_init,calc%chess%hess) 
+        write(stdout,*)                                                                              
         write(stdout,*)"THERMO FROM INITIALIZED HESSIAN:"
         write(stdout,*) 
         call calc_thermo_from_hess(molnew,H_init,pr, &
@@ -156,6 +157,25 @@ contains  !> MODULE PROCEDURES START HERE
       call calc%chess%dealloc()
       deallocate (calc%chess)
     end if
+
+    if (calc%g_sampling) then 
+      pr2 = .false.
+      !write(stdout,*) "Energy pre correction", etot
+      allocate(g_hess(nat3*(nat3+1)/2),g_hess_full(nat3,nat3))
+      call initialize_hessian(calc,5,molnew%xyz,molnew%nat,molnew%at,g_hess,calc%chess%hguess,pr2)
+      call dhtosq(nat3,g_hess_full,g_hess)
+      call calc_thermo_from_hess(molnew,g_hess_full,pr2, &
+      & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
+      & calc%ht,calc%gt,calc%stot,etot)
+
+
+      allocate (int_temps(calc%nt))
+
+      int_temps = abs(calc%temperatures-298.15_wp)
+      nrt = minloc(int_temps(:),1)
+      etot = etot+calc%gt(nrt)
+      !write(stdout,*) "Energy post correction", etot
+    endif
 
     return
   end subroutine optimize_geometry

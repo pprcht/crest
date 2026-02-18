@@ -20,7 +20,7 @@
 ! under the Open-source software LGPL-3.0 Licencse.
 !================================================================================!
 
-!> This module implements a standard RFO algorithm (in Cart. coords)
+!> This module implements a standard NR algorithm (in Cart. coords)
 
 module newton_raphson_module
   use iso_fortran_env,only:wp => real64,sp => real32
@@ -310,7 +310,7 @@ contains  !> MODULE PROCEDURES START HERE
       !end if
 
       
-      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine)
+      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine, calc%hess_init)
       !write(stdout,*) alp
 
 !>------------------------------------------------------------------------
