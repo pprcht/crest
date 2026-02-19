@@ -465,7 +465,7 @@ contains  !> MODULE PROCEDURES START HERE
         end if
       end if
 
-      !alp = 1.0d0
+      alp = 1.0d0
       !if (gnorm .lt. 0.002) then ! 0.002
       !  alp = 1.5d0 ! 1.5
       !end if
@@ -476,7 +476,7 @@ contains  !> MODULE PROCEDURES START HERE
       !  alp = 3.0d0 ! 3
       !end if
 
-      alp = alp_generate(gnorm)
+      !alp = alp_generate(gnorm)
       !write(stdout,*) alp
 
 !>------------------------------------------------------------------------
