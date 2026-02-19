@@ -310,7 +310,8 @@ contains  !> MODULE PROCEDURES START HERE
       !end if
 
       
-      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine, calc%hess_init)
+      !alp = alp_generate(gnorm, calc%optlev,calc%opt_engine, calc%hess_init)
+      alp = 1.0_wp
       !write(stdout,*) alp
 
 !>------------------------------------------------------------------------

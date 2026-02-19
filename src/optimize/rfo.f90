@@ -328,8 +328,9 @@ contains  !> MODULE PROCEDURES START HERE
       !end if
 
       
-      alp = alp_generate(gnorm, calc%optlev,calc%opt_engine, calc%hess_init)
+      !alp = alp_generate(gnorm, calc%optlev,calc%opt_engine, calc%hess_init)
       !write(stdout,*) alp
+      alp = 1.0_wp !The whole thing should be removed before merging!! Same for NR!
       
 
 !>------------------------------------------------------------------------

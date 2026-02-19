@@ -256,7 +256,7 @@ module calc_type
     integer  :: iupdat = 0  !> 0=BFGS, 1=Powell, 2=SR1, 3=Bofill, 4=Schlegel
     integer  :: opt_engine = 0 !> default: ANCOPT
     integer  :: lbfgs_histsize = 20  !> L-BFGS history size
-    integer  :: hess_init = 0 !> Initialization of the hessian, standard is scaled identity (with hguess)
+    integer  :: hess_init = 5 !> Initialization of the hessian, standard modhess lindh95
 
 !>--- GFN0* data, needed for special MECP application
     type(gfn0_data),allocatable  :: g0calc

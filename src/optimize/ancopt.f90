@@ -476,7 +476,7 @@ contains  !> MODULE PROCEDURES START HERE
       !  alp = 3.0d0 ! 3
       !end if
 
-      alp = alp_generate(gnorm,calc%optlev,calc%opt_engine, calc%hess_init)
+      alp = alp_generate(gnorm)
       !write(stdout,*) alp
 
 !>------------------------------------------------------------------------
@@ -639,5 +639,21 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine trfp2xyz
 
 !========================================================================================!
+
+  function alp_generate(gnorm) result(alp)
+!****************************************************
+!* Computes stepsize scaling factor
+!****************************************************
+    real(wp), intent(in) :: gnorm  
+    real(wp) :: alp, shift, l, k
+
+    l=2.0_wp
+    k=2000.0
+    shift=0.0005
+
+    alp = L/(1+euler**(k*(gnorm-shift)))+1
+
+  end function alp_generate
+
 !========================================================================================!
 end module ancopt_module
