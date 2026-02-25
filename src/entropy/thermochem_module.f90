@@ -6,6 +6,7 @@ module thermochem_module
   use iomod,only:to_lower,directory_exist
   use axis_module
   use strucrd
+  use crest_thermo
   implicit none
   private
 
@@ -44,6 +45,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
     !>LAPCK
     external :: dsyevd
 
+    io = 0
     nat3 = nat*3
 
     !Parameters for diagonalization
@@ -54,7 +56,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     !Diagonalization
     call dsyevd('V','U',nat3,prj_mw_hess,nat3,freq,work,lwork,iwork,liwork,info)
-
+    io = info
     deallocate (work,iwork)
 
     !Convert eigenvalues to frequencies
@@ -111,7 +113,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
 !=========================================================================================!
 
-  subroutine prj_mw_hess(nat,at,nat3,xyz,hess)
+  subroutine prj_mw_hess(nat,at,nat3,xyz,hess,phess_ut)
 !***************************************************************
 !* Projection of the translational and rotational DOF out of
 !* the numerical Hessian plus the mass-weighting of the Hessian
@@ -119,29 +121,36 @@ contains  !> MODULE PROCEDURES STARTE HERE
     implicit none
 
     integer,intent(in) :: nat,nat3
-    integer :: at(nat)
+    integer,intent(in) :: at(nat)
     real(wp),intent(inout) :: hess(nat3,nat3)
-    real(wp) ::  xyz(3,nat)
+    real(wp),intent(in) ::  xyz(3,nat)
+    real(wp),intent(in),optional,target :: phess_ut(:)
     !real(wp) ::  hess_ut(nat3*(nat3+1)/2),pmode(nat3,1)
-    real(wp),allocatable ::  hess_ut(:),pmode(:,:)
+    real(wp),allocatable,target :: hess_ut(:)
+    real(wp),allocatable :: pmode(:,:)
+    real(wp),pointer :: phess(:)
     integer :: i
 
-    allocate (hess_ut(nat3*(nat3+1)/2),source=0.0_wp)
+    if (present(phess_ut)) then
+      phess => phess_ut
+    else
+      allocate (hess_ut(nat3*(nat3+1)/2),source=0.0_wp)
+      phess => hess_ut
+    end if
     allocate (pmode(nat3,1),source=0.0_wp)
 
     !> Transforms matrix of the upper triangle vector
-    call dsqtoh(nat3,hess,hess_ut)
+    call dsqtoh(nat3,hess,phess)
 
     !> Projection
-    call trproj(nat,nat3,xyz,hess_ut,.false.,0,pmode,1)
+    call trproj(nat,nat3,xyz,phess,.false.,0,pmode,1)
 
     !> Transforms vector of the upper triangle into matrix
-    call dhtosq(nat3,hess,hess_ut)
+    call dhtosq(nat3,hess,phess)
 
     !> Mass weighting
     call mass_weight_hess(nat,at,nat3,hess)
 
-    deallocate (pmode,hess_ut)
   end subroutine prj_mw_hess
 
   !============================================================================!
@@ -245,10 +254,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
 !* from it's frequencies (from second derivatives/the Hessian)
 !* Based on xtb's "print_thermo" routine
 !**************************************************************
-    !use crest_parameters,only:wp,bohr,stdout
-    use crest_thermo
-    !use atmasses,only:molweight
-    !use iomod,only:to_lower
+
     implicit none
     integer,intent(in)     :: nat
     integer,intent(in)     :: at(nat)

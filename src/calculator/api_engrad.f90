@@ -35,6 +35,7 @@ module api_engrad
   use gfnff_api
   use libpvol_api
   use lj
+  use approxg_module
   implicit none
 !>--- private module variables and parameters
   private
@@ -43,7 +44,8 @@ module api_engrad
   public :: gfn0_engrad,gfn0occ_engrad
   public :: gfnff_engrad
   public :: libpvol_engrad
-  public :: lj_engrad !> RE-EXPORT
+  public :: lj_engrad   !> RE-EXPORT
+  public :: modelhessian_engrad
 
 !=========================================================================================!
 !=========================================================================================!
@@ -258,9 +260,9 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- populate parameters and neighbourlists
     if (loadnew) then
       if (calc%ceh_guess) then
-        if(pr)then
-           write(calc%prch,'(/,a)') 'Initializing (fragement) charges from CEH model'
-        endif
+        if (pr) then
+          write (calc%prch,'(/,a)') 'Initializing (fragement) charges from CEH model'
+        end if
         !> A bit hacky and additional I/O, but would need adjusting submodule code otherwise
         call tblite_quick_ceh_q(mol,q,calc%chrg,pr=pr,prch=calc%prch)
         tmpchrgs = dump_array_to_tmp(q)
@@ -348,5 +350,71 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine libpvol_engrad
 
 !========================================================================================!
+
+  subroutine modelhessian_engrad(mol,calc,energy,grad,iostatus)
+!***************************************************************
+!* Interface singlepoint call between CREST and XHC force field
+!***************************************************************
+    implicit none
+    type(coord) :: mol
+    type(calculation_settings) :: calc
+
+    real(wp),intent(inout) :: energy
+    real(wp),intent(inout) :: grad(3,mol%nat)
+    integer,intent(out) :: iostatus
+
+    logical :: loadnew,pr
+    integer :: i,j,k,l,ich,och,io,n3
+    logical :: ex
+    iostatus = 0
+    pr = .false.
+!>--- setup system call information
+    !$omp critical
+!>--- printout handling
+    call api_handle_output(calc,'modh.out',mol,pr)
+!>--- populate parameters
+    n3 = mol%nat*3
+    if (calc%ag%dim .ne. mol%nat) then
+      calc%ag%pr = calc%prstdout .and. .not.calc%numgrad
+
+      if (allocated(calc%ag%hess)) deallocate (calc%ag%hess)
+      allocate (calc%ag%hess(n3,n3),source=0.0_wp)
+
+      if (allocated(calc%ag%h)) deallocate (calc%ag%h)
+      allocate (calc%ag%h(n3*(n3+1)/2),source=0.0_wp)
+
+      if (allocated(calc%ag%freq)) deallocate (calc%ag%freq)
+      allocate (calc%ag%freq(n3),source=0.0_wp)
+
+      if (allocated(calc%ag%xyz)) deallocate (calc%ag%xyz)
+      allocate (calc%ag%xyz(3,mol%nat),source=0.0_wp)
+
+      calc%ag%dim = mol%nat
+    else
+      calc%ag%hess(:,:) = 0.0_wp
+      calc%ag%h(:) = 0.0_wp
+    end if
+    !$omp end critical
+    if (iostatus /= 0) return
+
+!>--- do the engrad call
+    call initsignal()
+    call modh_engrad(mol,calc%ag,energy,grad,iostatus)
+    if (iostatus /= 0) return
+
+!>--- printout
+    if (pr) then
+      !> the libpvol_sp call includes the printout within libpvol-lib
+      if (.not.calc%prstdout) &
+      & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
+    end if
+
+!>--- postprocessing, getting other data
+
+    return
+  end subroutine modelhessian_engrad
+
+!========================================================================================!
+!########################################################################################!
 !========================================================================================!
 end module api_engrad

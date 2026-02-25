@@ -262,6 +262,8 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
         job%id = jobtype%lj
+      case ('modh')
+        job%id = jobtype%approxg
       case default
         job%id = jobtype%unknown
         !>--- keyword was recognized, but invalid argument supplied

@@ -21,12 +21,26 @@
 
 module approxg_module
   use crest_parameters
-  use calc_type
   use modelhessian_core
   use thermochem_module
   use strucrd
+  use optimize_maths,only:dhtosq
   implicit none
   private
+
+  public :: approxg_params
+  type :: approxg_params
+     integer :: dim = 0
+     logical :: pr = .false.
+     real(wp) :: T = 298.15_wp
+     real(wp),allocatable :: hess(:,:)
+     real(wp),allocatable :: h(:)
+     real(wp),allocatable :: freq(:)
+     real(wp),allocatable :: xyz(:,:)
+     real(wp) :: fscal = 1.0_wp
+     real(wp) :: ithr = -50.0_wp
+     real(wp) :: sthr = 50.0_wp
+  end type approxg_params
 
   public :: modh_engrad
 
@@ -36,38 +50,42 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine modh_engrad(mol,calc,dg,dggrad)
+  subroutine modh_engrad(mol,ag,dg,dggrad,iostatus)
     type(coord),intent(in) :: mol
-    type(calculation_settings),intent(inout) :: calc
+    type(approxg_params),intent(inout) :: ag
     real(wp),intent(out) :: dg
-    real(wp),intent(out) :: dggrad(:)
-    integer :: n3
+    real(wp),intent(out) :: dggrad(:,:)
+    integer,intent(out) :: iostatus
+    integer :: n3,io
+    integer,parameter :: nt = 1
+    real(wp) :: temps(nt),et(nt),ht(nt),gt(nt),stot(nt)
 
     type(mhparam) :: mhset
 
+    iostatus = 0
     dg = 0.0_wp
-    dggrad(:) = 0.0_wp
+    dggrad(:,:) = 0.0_wp
+    temps(1) = ag%T
 
     !> setup
     n3 = mol%nat*3
-    if (calc%approxg_dim .ne. mol%nat) then
-      !$omp critical
-      if (allocated(calc%approxg_hess)) deallocate (calc%approxg_hess)
-      allocate (calc%approxg_hess(n3,n3),source=0.0_wp)
+    call ddvopt(mol%xyz,mol%nat,ag%h,mol%at,mhset)
 
-      if (allocated(calc%approxg_h)) deallocate (calc%approxg_h) 
-      allocate (calc%approxg_h(n3*(n3+1)/2),source=0.0_wp)
+    call dhtosq(n3,ag%hess,ag%h)
+    ag%h(:) = 0.0_wp
 
+    call prj_mw_hess(mol%nat,mol%at,n3,mol%xyz, &
+      &  ag%hess,ag%h)
 
-      calc%approxg_dim = mol%nat
-      !$omp end critical
-    else 
-      calc%approxg_hess(:,:) = 0.0_wp
-      calc%approxg_h(:) = 0.0_wp
-    end if
+    call frequencies(mol%nat,mol%at,mol%xyz,n3,ag%hess,ag%freq,io)
+    iostatus = io
+    if (iostatus .ne. 0) return
 
-    call ddvopt(mol%xyz,mol%nat,calc%approxg_h,mol%at,mhset)
+    ag%xyz(:,:) = mol%xyz(:,:)
+    call calcthermo(mol%nat,mol%at,ag%xyz,ag%freq,ag%pr, &
+                    ag%ithr,ag%fscal,ag%sthr,nt,temps,et,ht,gt,stot)
 
+    dg = gt(1)
   end subroutine modh_engrad
 
 !========================================================================================!

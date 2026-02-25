@@ -301,9 +301,11 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- Hessian Reconstruct
 !**********************************************
 
-    if ((calc%do_HR .or. calc%deform_opt_hess) .and. allocated(calc%chess) .and. calc%chess%track_step) then
-      call calc%chess%update(gradient,energy,mol%xyz)
-      !write(stdout,*) "HESSIAN CASH UPDATED"
+    if ((calc%do_HR.or.calc%deform_opt_hess).and.allocated(calc%chess)) then
+      if (calc%chess%track_step) then
+        call calc%chess%update(gradient,energy,mol%xyz)
+        !write(stdout,*) "HESSIAN CASH UPDATED"
+      end if
     end if
 
     return
@@ -386,6 +388,9 @@ contains  !> MODULE PROCEDURES START HERE
       call lj_engrad(molptr%nat,molptr%xyz*autoaa,dum1,dum2, &
       &              calc%etmp(id),calc%grdtmp(:,1:pnat,id))
       calc%grdtmp(:,:,id) = calc%grdtmp(:,:,id)*autoaa
+
+    case (jobtype%approxg)
+      call modelhessian_engrad(molptr,calc%calcs(id),calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus)
 
     case default
       calc%etmp(id) = 0.0_wp

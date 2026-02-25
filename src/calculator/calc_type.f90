@@ -30,6 +30,7 @@ module calc_type
   use orca_type
   use lwoniom_module
   use hessian_reconstruct
+  use approxg_module, only: approxg_params
   implicit none
 
   character(len=*),public,parameter :: sep = '/'
@@ -175,11 +176,13 @@ module calc_type
     type(libpvol_calculator),allocatable :: libpvol
 
 !>--- approxg data
-    integer :: approxg_dim = 0
-    real(wp) :: approxg_T = 298.15_wp
-    real(wp),allocatable :: approxg_hess(:,:)
-    real(wp),allocatable :: approxg_h(:)
-    real(wp),allocatable :: approxg_freq(:)
+!    integer :: approxg_dim = 0
+!    real(wp) :: approxg_T = 298.15_wp
+!    real(wp),allocatable :: approxg_hess(:,:)
+!    real(wp),allocatable :: approxg_h(:)
+!    real(wp),allocatable :: approxg_freq(:)
+!    real(wp),allocatable :: approxg_xyz(:,:)
+    type(approxg_params) :: ag
 
     !> ONIOM fragment IDs
     integer :: ONIOM_highlowroot = 0
@@ -1100,11 +1103,7 @@ contains  !>--- Module routines start here
     self%ONIOM_highlowroot = src%ONIOM_highlowroot
     self%ONIOM_id   = src%ONIOM_id
 
-    self%approxg_dim = src%approxg_dim
-    self%approxg_T = src%approxg_T
-    if(allocated(src%approxg_hess)) self%approxg_hess = src%approxg_hess
-    if(allocated(src%approxg_h))    self%approxg_h = src%approxg_h 
-    if(allocated(src%approxg_freq)) self%approxg_freq = src%approxg_freq 
+    self%ag = src%ag
 !&<
     return
   end subroutine calculation_settings_copy
