@@ -41,6 +41,8 @@ list(APPEND srcs
   "${dir}/subprocess_engrad.f90"
   "${dir}/hessian_reconstruct.f90"
   "${dir}/hr_utils.f90"
+  "${dir}/modelhessians.f90"
+  "${dir}/approxg.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

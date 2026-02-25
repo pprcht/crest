@@ -36,4 +36,7 @@ srcs += files(
   'generic_sc.f90',
   'turbom_sc.f90',
   'subprocess_engrad.f90',
+  'hr_utils.f90',
+  'modelhessians.f90',
+  'approxg.f90',
 )

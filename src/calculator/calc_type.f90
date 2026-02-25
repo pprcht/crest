@@ -50,10 +50,11 @@ module calc_type
     integer :: gfnff     = 9
     integer :: libpvol   = 10
     integer :: lj        = 11
+    integer :: approxg   = 12
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(12) = [ &
+  character(len=45),parameter,private :: jobdescription(13) = [ &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -65,7 +66,8 @@ module calc_type
      & 'GFN0*-xTB calculation via GFN0 lib          ', &
      & 'GFN-FF calculation via GFNFF lib            ', &
      & 'external pressure calculation via libpvol   ', &
-     & 'Lennard-Jones potential calculation         ' ]
+     & 'Lennard-Jones potential calculation         ', &
+     & 'Approximate free energy computation         ' ]
 !&>
 
 !=========================================================================================!
@@ -171,6 +173,13 @@ module calc_type
     integer  :: vdwset = 0             !> Type of VDW radii -> 0 (default) D3, 1 -> Bondi
     real(wp) :: pvradscal = 1.0_wp     !> Scaling factor for SAS radii
     type(libpvol_calculator),allocatable :: libpvol
+
+!>--- approxg data
+    integer :: approxg_dim = 0
+    real(wp) :: approxg_T = 298.15_wp
+    real(wp),allocatable :: approxg_hess(:,:)
+    real(wp),allocatable :: approxg_h(:)
+    real(wp),allocatable :: approxg_freq(:)
 
     !> ONIOM fragment IDs
     integer :: ONIOM_highlowroot = 0
@@ -1090,6 +1099,12 @@ contains  !>--- Module routines start here
 
     self%ONIOM_highlowroot = src%ONIOM_highlowroot
     self%ONIOM_id   = src%ONIOM_id
+
+    self%approxg_dim = src%approxg_dim
+    self%approxg_T = src%approxg_T
+    if(allocated(src%approxg_hess)) self%approxg_hess = src%approxg_hess
+    if(allocated(src%approxg_h))    self%approxg_h = src%approxg_h 
+    if(allocated(src%approxg_freq)) self%approxg_freq = src%approxg_freq 
 !&<
     return
   end subroutine calculation_settings_copy

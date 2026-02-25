@@ -30,7 +30,6 @@ module crest_calculator
   use constraints
   use nonadiabatic_module
   use lwoniom_module
-  use thermochem_module
 !$ use omp_lib
   implicit none
 !=========================================================================================!
