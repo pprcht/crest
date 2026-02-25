@@ -32,7 +32,7 @@ subroutine crest_numhess(env,tim)
   use crest_calculator
   use strucrd
   use optimize_module
-  use hessian_tools
+  use thermochem_module
   use gradreader_module
   use xtb_sc
   use oniom_hessian

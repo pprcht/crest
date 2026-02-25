@@ -14,10 +14,10 @@ module crest_parameters
   real(wp),parameter,public :: autoaa = bohr
   real(wp),parameter,public :: aatoau = angstrom
 
-  real(wp),parameter,public :: pi  = acos(0.0_wp)*2.0_wp
-  real(wp),parameter,public :: radtodeg = 180.0_wp / pi
+  real(wp),parameter,public :: pi = acos(0.0_wp)*2.0_wp
+  real(wp),parameter,public :: radtodeg = 180.0_wp/pi
   real(wp),parameter,public :: euler = 2.718281828459045_wp
-  real(wp),parameter,public :: degtorad = 1.0_wp / radtodeg
+  real(wp),parameter,public :: degtorad = 1.0_wp/radtodeg
 
   real(wp),parameter,public :: amutokg = 1.660539040e-27_wp
   real(wp),parameter,public :: autokj = 2625.49964038_wp
@@ -31,6 +31,7 @@ module crest_parameters
   real(wp),parameter,public :: kgtome = 1.0_wp/metokg
 
   real(wp),parameter,public :: c_vacuum = 299792458e0_wp
+  real(wp),parameter,public :: mhztorcm = 1.0_wp/(c_vacuum*10e-05_wp)
   !> Coulomb to atomic charge units (electrons)
   real(wp),public,parameter :: autoc = 1.6021766208e-19_wp
   real(wp),parameter,public :: ctoau = 1.0_wp/autoc

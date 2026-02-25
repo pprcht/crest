@@ -379,7 +379,10 @@ contains  !> MODULE PROCEDURES START HERE
       end if
       ! Head-Gordon weighting
       fswitch = 1.0_wp-chg_switching(omega,sthr)
-      if (omega > maxfreq*rcmtoau) exit
+      if (omega > maxfreq*rcmtoau) then
+        if (i == 1) write (iunit,'(a8,4x,a,10x,a,21x,a,20x,a)') 'none','-','-','-','-'
+        exit
+      end if
       write (iunit,'(i8,f10.2,2(f12.5,1x,"(",f6.2,"%)"),f12.5)') &
         i,omega*autorcm,-RT*s_v, (1.0_wp-fswitch)*100, &
         -RT*s_r,fswitch*100,-RT*((1.0_wp-fswitch)*s_v+fswitch*s_r)
@@ -414,7 +417,10 @@ contains  !> MODULE PROCEDURES START HERE
     do i = 1,nvib
       ! frequency is Eh
       omega = vibs(i)
-      if (omega > maxfreq*rcmtoau) exit
+      if (omega > maxfreq*rcmtoau) then
+        if (i == 1) write (iunit,'(a8,4x,a,10x,a,20x,a,25x,a)') 'none','-','-','-','-'
+        exit
+      end if
       omega_cut = maxfreq*rcmtoau
       ! omega in Eh, beta in 1/Eh
       ewj = exp(-omega*beta)

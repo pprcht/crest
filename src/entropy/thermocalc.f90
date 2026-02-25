@@ -220,7 +220,6 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   use crest_calculator
   use iomod
   use strucrd
-  use hessian_tools
   use thermochem_module
   implicit none
   !> INPUT

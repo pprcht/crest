@@ -1270,7 +1270,6 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
   use crest_data
   use strucrd
   use crest_calculator
-  use hessian_tools
   use thermochem_module
   use optimize_module
   implicit none

@@ -37,7 +37,6 @@ module optimize_module
   use hessian_reconstruct
   use newton_raphson_module
   use hr_utils
-  !use hessian_tools
   implicit none
   private
 
