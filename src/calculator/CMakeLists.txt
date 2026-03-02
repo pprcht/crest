@@ -43,6 +43,7 @@ list(APPEND srcs
   "${dir}/hr_utils.f90"
   "${dir}/modelhessians.f90"
   "${dir}/approxg.f90"
+  "${dir}/penalty.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

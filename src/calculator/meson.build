@@ -39,4 +39,5 @@ srcs += files(
   'hr_utils.f90',
   'modelhessians.f90',
   'approxg.f90',
+  'penalty.f90',
 )
