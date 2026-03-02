@@ -1082,6 +1082,7 @@ contains  !>--- Module routines start here
     self%prch       = src%prch
     self%chrg       = src%chrg
     self%uhf        = src%uhf
+    self%refine_lvl = src%refine_lvl
 
     self%rdwbo      = src%rdwbo
     self%rddip      = src%rddip
