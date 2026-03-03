@@ -31,6 +31,7 @@ module calc_type
   use lwoniom_module
   use hessian_reconstruct
   use approxg_module, only: approxg_params
+  use penalty_module, only: penalty_params
   implicit none
 
   character(len=*),public,parameter :: sep = '/'
@@ -52,10 +53,11 @@ module calc_type
     integer :: libpvol   = 10
     integer :: lj        = 11
     integer :: approxg   = 12
+    integer :: penalty   = 13
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(13) = [ &
+  character(len=45),parameter,private :: jobdescription(14) = [ &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -68,7 +70,8 @@ module calc_type
      & 'GFN-FF calculation via GFNFF lib            ', &
      & 'external pressure calculation via libpvol   ', &
      & 'Lennard-Jones potential calculation         ', &
-     & 'Approximate free energy computation         ' ]
+     & 'Approximate free energy computation         ', &
+     & 'Empirical penalty function                  ' ]
 !&>
 
 !=========================================================================================!
@@ -176,13 +179,10 @@ module calc_type
     type(libpvol_calculator),allocatable :: libpvol
 
 !>--- approxg data
-!    integer :: approxg_dim = 0
-!    real(wp) :: approxg_T = 298.15_wp
-!    real(wp),allocatable :: approxg_hess(:,:)
-!    real(wp),allocatable :: approxg_h(:)
-!    real(wp),allocatable :: approxg_freq(:)
-!    real(wp),allocatable :: approxg_xyz(:,:)
     type(approxg_params) :: ag
+
+!>--- penalty params
+    type(penalty_params) :: penalty
 
     !> ONIOM fragment IDs
     integer :: ONIOM_highlowroot = 0
@@ -1105,6 +1105,7 @@ contains  !>--- Module routines start here
     self%ONIOM_id   = src%ONIOM_id
 
     self%ag = src%ag
+    self%penalty = src%penalty
 !&<
     return
   end subroutine calculation_settings_copy

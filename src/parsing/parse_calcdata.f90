@@ -264,6 +264,9 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%lj
       case ('modh')
         job%id = jobtype%approxg
+      case ('rmsdbias','penalty')
+        job%id = jobtype%penalty
+        nullify(job%penalty%biaslist)
       case default
         job%id = jobtype%unknown
         !>--- keyword was recognized, but invalid argument supplied
@@ -388,6 +391,21 @@ contains !> MODULE PROCEDURES START HERE
         write (stderr,'(a,a,a)') 'specified reference geometry file ',kv%value_c,' does not exist'
         call creststop(status_input)
       end if
+
+    case ('biasfile')
+      inquire (file=kv%value_c,exist=ex)
+      if (ex) then
+        job%penalty%biasfile = kv%value_c
+      else
+        write (stderr,'(a,a,a)') 'specified bias file ',kv%value_c,' does not exist'
+        call creststop(status_input)
+      end if
+
+    case ('penalty_kpush')
+      job%penalty%kpush = kv%value_f
+
+    case ('penalty_alpha')
+      job%penalty%alpha = kv%value_f
 
     case ('parametrisation')
       inquire (file=kv%value_c,exist=ex)
@@ -525,23 +543,23 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('hguess')
       calc%hguess = kv%value_f  !> guess for the initial hessian
-    
+
     case ('opt_lval')
       calc%L = kv%value_f !> Parameters for smooth function for stepsize control within optimizer
-    
-    case('opt_k')
+
+    case ('opt_k')
       calc%k = kv%value_f
-    
-    case('opt_shift')
+
+    case ('opt_shift')
       calc%shift = kv%value_f
 
-    case('scaling')
+    case ('scaling')
       calc%scaling = kv%value_f
 
-    case('doh_stepsize')
+    case ('doh_stepsize')
       calc%doh_stepsize = kv%value_f
 
-    case('chess_id_guess')
+    case ('chess_id_guess')
       calc%chess_id_guess = kv%value_f
 
 !>--- integers
@@ -596,7 +614,7 @@ contains !> MODULE PROCEDURES START HERE
         calc%opt_engine = 1
       case ('rfo','rfo-cart')
         calc%opt_engine = 2
-      case('newton','nr')
+      case ('newton','nr')
         calc%opt_engine = 3
       case ('gd','gradient descent')
         calc%opt_engine = -1
@@ -608,18 +626,18 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('hr_init','hr_initialization') !> here we set how the matrix for hessian reconstruction is initialized
       select case (kv%value_c)
-      case('identity')
+      case ('identity')
         calc%initialize_hr_type = 0
-      case('gfnff', 'gfn-ff')
+      case ('gfnff','gfn-ff')
         calc%initialize_hr_type = 1
-      case('gfn0')
-          calc%initialize_hr_type = 2
-      case('gfn1')
-          calc%initialize_hr_type = 3
-      case('gfn2')
-          calc%initialize_hr_type = 4
-      case('modhess')
-          calc%initialize_hr_type = 5
+      case ('gfn0')
+        calc%initialize_hr_type = 2
+      case ('gfn1')
+        calc%initialize_hr_type = 3
+      case ('gfn2')
+        calc%initialize_hr_type = 4
+      case ('modhess')
+        calc%initialize_hr_type = 5
       case default
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) kv%value_c
@@ -628,41 +646,41 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('modhess_type','mh_type') !> here we set how the matrix for hessian reconstruction is initialized
       select case (kv%value_c)      !>maybe need to add another keywort for crosstesting hr and geopt -> No,
-      case('lindh95')
+      case ('lindh95')
         calc%mh_type = 0
-      case('lindh')
+      case ('lindh')
         calc%mh_type = 1
-      case('lindh07')
-          calc%mh_type = 2
-      case('swart')
-          calc%mh_type = 3
+      case ('lindh07')
+        calc%mh_type = 2
+      case ('swart')
+        calc%mh_type = 3
       case default
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) kv%value_c
         call creststop(status_config)
       end select
 
-      case ('hess_init','hess_initialization') !> here we set how the hessian for optimization
-        select case (kv%value_c)
-        case('identity')
-          calc%hess_init = 0
-        case('gfnff', 'gfn-ff')
-          calc%hess_init = 1
-        case('gfn0')
-          calc%hess_init = 2
-        case('gfn1')
-          calc%hess_init = 3
-        case('gfn2')
-          calc%hess_init = 4
-        case('modhess')
-          calc%hess_init = 5
-        case default
-          !>--- keyword was recognized, but invalid argument supplied
-          write (stdout,fmtura) kv%value_c
-          call creststop(status_config)
-        end select
+    case ('hess_init','hess_initialization') !> here we set how the hessian for optimization
+      select case (kv%value_c)
+      case ('identity')
+        calc%hess_init = 0
+      case ('gfnff','gfn-ff')
+        calc%hess_init = 1
+      case ('gfn0')
+        calc%hess_init = 2
+      case ('gfn1')
+        calc%hess_init = 3
+      case ('gfn2')
+        calc%hess_init = 4
+      case ('modhess')
+        calc%hess_init = 5
+      case default
+        !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%value_c
+        call creststop(status_config)
+      end select
 
-      case ('hr_hess_update','hr_hu_update')
+    case ('hr_hess_update','hr_hu_update')
       select case (kv%value_c) !> Hessian updates in hessian reconstruction
       case ('bfgs')
         calc%hr_hu_type = 0
@@ -697,11 +715,11 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('full_chess') !> Do Hessian Reconstruct with all optimization steps
       calc%full_HR = kv%value_b
-    
+
     case ('deform_opt_hess')
       calc%deform_opt_hess = kv%value_b
 
-    case("g_sampling") !> Do sampling on free energy surface as approximated by lindh95 hessian
+    case ("g_sampling") !> Do sampling on free energy surface as approximated by lindh95 hessian
       calc%g_sampling = kv%value_b
 
     case default

@@ -29,14 +29,18 @@ module penalty_module
   public :: penalty_params
   type :: penalty_params
     type(coord),pointer  :: biaslist(:)
+
     real(wp) :: alpha = 1.0_wp
-    real(wp) :: kpush = 0.01_wp
+    real(wp) :: kpush = 0.002_wp
     real(wp),allocatable :: ramp(:)
     real(wp),allocatable :: gradtmp(:,:)
     type(rmsd_core_cache) :: ccache
+
+    character(len=:),allocatable :: biasfile
+    type(coord),allocatable :: biastmp(:)
   end type penalty_params
 
-  public :: rmsd_engrad
+  public :: rmsd_penalty_engrad
 
 !========================================================================================!
 !========================================================================================!
@@ -44,33 +48,46 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine rmsd_engrad(mol,ppars,energy,grad,iostatus)
+  subroutine rmsd_penalty_engrad(mol,ppars,energy,grad,iostatus)
     type(coord),intent(in) :: mol
     type(penalty_params),intent(inout) :: ppars
     real(wp),intent(out) :: energy
     real(wp),intent(out) :: grad(:,:)
     integer,intent(out) :: iostatus
     integer :: nall,io,ii
-    real(wp) :: etmp,rmsdval,dEdr
+    real(wp) :: etmp,rmsdval,dEdr,knat
+    real(wp),parameter :: thr = sqrt(epsilon(thr))
 
     iostatus = 0
     energy = 0.0_wp
     grad(:,:) = 0.0_wp
     rmsdval = 0.0_wp
     nall = size(ppars%biaslist,1)
+    knat = ppars%kpush*mol%nat
 
     do ii = 1,nall
 
       rmsdval = rmsd(mol,ppars%biaslist(ii),gradient=ppars%gradtmp,ccache=ppars%ccache)
 
-      etmp = ppars%kpush*(-ppars%alpha*rmsdval**2)
-      dEdr = -2.0_wp*ppars%alpha*etmp*rmsdval
-
+      !> energy contribution
+      call penalty_potential_gauss(knat,ppars%alpha,rmsdval,etmp,dEdr)
       energy = energy+etmp
+      !> fallback: exactly matching structures will produce NaN gradients!
+      if (rmsdval < thr) cycle
+      !> gradient contribution
       grad(:,:) = grad(:,:)+dEdr*ppars%gradtmp(:,:)
     end do
 
-  end subroutine rmsd_engrad
+  end subroutine rmsd_penalty_engrad
+
+!========================================================================================!
+
+  subroutine penalty_potential_gauss(k,a,r,etmp,dEdr)
+    real(wp),intent(in) :: k,a,r
+    real(wp),intent(out) :: etmp,dEdr
+    etmp = k*exp(-a*r**2)
+    dEdr = -2.0_wp*a*etmp*r
+  end subroutine penalty_potential_gauss
 
 !========================================================================================!
 !========================================================================================!

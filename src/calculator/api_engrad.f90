@@ -36,6 +36,7 @@ module api_engrad
   use libpvol_api
   use lj
   use approxg_module
+  use penalty_module
   implicit none
 !>--- private module variables and parameters
   private
@@ -46,6 +47,7 @@ module api_engrad
   public :: libpvol_engrad
   public :: lj_engrad   !> RE-EXPORT
   public :: modelhessian_engrad
+  public :: rmsd_engrad
 
 !=========================================================================================!
 !=========================================================================================!
@@ -375,7 +377,7 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- populate parameters
     n3 = mol%nat*3
     if (calc%ag%dim .ne. mol%nat) then
-      calc%ag%pr = calc%prstdout .and. .not.calc%numgrad
+      calc%ag%pr = calc%prstdout.and..not.calc%numgrad
 
       if (allocated(calc%ag%hess)) deallocate (calc%ag%hess)
       allocate (calc%ag%hess(n3,n3),source=0.0_wp)
@@ -413,6 +415,67 @@ contains    !> MODULE PROCEDURES START HERE
 
     return
   end subroutine modelhessian_engrad
+
+!========================================================================================!
+
+  subroutine rmsd_engrad(mol,calc,energy,grad,iostatus)
+!**************************************************************************
+!* Interface singlepoint to add RMSD penalty function (as in metadynamics)
+!**************************************************************************
+    implicit none
+    type(coord) :: mol
+    type(calculation_settings),target :: calc
+
+    real(wp),intent(inout) :: energy
+    real(wp),intent(inout) :: grad(3,mol%nat)
+    integer,intent(out) :: iostatus
+
+    logical :: loadnew,pr
+    integer :: i,j,k,l,ich,och,io,nall
+    logical :: ex
+    iostatus = 0
+    pr = .false.
+!>--- setup system call information
+   
+    if (.not.associated(calc%penalty%biaslist))then
+      if(allocated(calc%penalty%biasfile))then
+        !$omp critical
+        call rdensemble(calc%penalty%biasfile,nall,calc%penalty%biastmp)
+        calc%penalty%biaslist => calc%penalty%biastmp
+        !$omp end critical
+      else
+        return
+      endif
+    endif
+    !$omp critical 
+!>--- printout handling
+    call api_handle_output(calc,'rmsd_penalty.out',mol,pr)
+!>--- populate parameters
+    if (.not.allocated(calc%penalty%gradtmp)) then
+      allocate(calc%penalty%gradtmp(3,mol%nat), source=0.0_wp)
+      call calc%penalty%ccache%allocate(mol%nat)
+    else
+      calc%penalty%gradtmp(:,:) = 0.0_wp
+    end if
+    !$omp end critical
+    if (iostatus /= 0) return
+
+!>--- do the engrad call
+    call initsignal()
+    call rmsd_penalty_engrad(mol,calc%penalty,energy,grad,iostatus)
+    if (iostatus /= 0) return
+
+!>--- printout
+    if (pr) then
+      !> the libpvol_sp call includes the printout within libpvol-lib
+      if (.not.calc%prstdout) &
+      & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
+    end if
+
+!>--- postprocessing, getting other data
+
+    return
+  end subroutine rmsd_engrad
 
 !========================================================================================!
 !########################################################################################!

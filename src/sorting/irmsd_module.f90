@@ -282,7 +282,7 @@ contains  !> MODULE PROCEDURES START HERE
 
       !> calculate
       call rmsd_core(nat,scratchptr(1:3,1:nat,1),scratchptr(1:3,1:nat,2), &
-      &          calc_u,Udum,rmsdval,getgrad,grdptr,ccptr)
+      &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr)
 
       !> go backwards through gradient (if necessary) to restore atom order
       if (getgrad) then
@@ -302,7 +302,7 @@ contains  !> MODULE PROCEDURES START HERE
     else
 !>--- standard calculation (quaternion algorithm, no mask)
       call rmsd_core(ref%nat,mol%xyz,ref%xyz, &
-      &          calc_u,Udum,rmsdval,getgrad,grdptr,ccptr)
+      &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr)
     end if
 
     !> pass on rotation matrix if asked for
@@ -402,7 +402,7 @@ contains  !> MODULE PROCEDURES START HERE
         return
       end if
 
-      if (calc_u) then
+      if (calc_u.or.calc_g) then
         !> reset
         U(:,:) = Imat(:,:)
         !> convert quaternion q to rotation matrix U
