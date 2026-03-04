@@ -257,6 +257,11 @@ contains   !> MODULE PROCEDURES START HERE
         env%properties = p_tautomerize
         env%crestver = crest_tautomerize
 
+      case ('thermo') 
+        env%properties = p_thermo
+        env%crestver = crest_none
+        env%preopt = .false.
+
       case default
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) val

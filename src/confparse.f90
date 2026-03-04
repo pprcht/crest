@@ -61,10 +61,13 @@ subroutine parseflags(env,arg,nra)
   integer :: ctype
   logical :: ex,bondconst
   character(len=:),allocatable :: argument
+  logical,allocatable :: processedarg(:)
 
   allocate (xx(10),floats(3),strings(3))
   ctmp = ''
   dtmp = ''
+
+  allocate (processedarg(nra),source=.false.)
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
 !> Set the defaults
@@ -93,6 +96,7 @@ subroutine parseflags(env,arg,nra)
 !=========================================================================================!
 !>--- check if help is requested or citations shall be diplayed
   do i = 1,nra
+    if (processedarg(i)) cycle
     if (any((/character(6)::'-h','-H','--h','--H','--help'/) == trim(arg(i)))) then
       if (nra > i) then
         ctmp = trim(arg(i+1))
@@ -107,12 +111,15 @@ subroutine parseflags(env,arg,nra)
     end if
     if (index(arg(i),'-newversion') .ne. 0) then !> as in CREST version >= 3.0
       env%legacy = .false.
+      processedarg(i) = .true.
     end if
     if (index(arg(i),'-legacy') .ne. 0) then  !> as in CREST version <3.0
       env%legacy = .true.
+      processedarg(i) = .true.
     end if
     if (index(arg(i),'-dry') .ne. 0) then   !> "dry" run to print settings
       env%dryrun = .true.
+      processedarg(i) = .true.
     end if
   end do
 
@@ -335,10 +342,12 @@ subroutine parseflags(env,arg,nra)
   call find_input_file(arg,nra,idum)
   if (idum .ne. 0) then
     call parseinputfile(env,trim(arg(idum)))
+    processedarg(idum) = .true.
   end if
 
 !>--- first arg loop
   do i = 1,nra
+    if (processedarg(i)) cycle
     argument = trim(arg(i))
     if (argument(1:2) == '--') then
       argument = argument(2:)
@@ -347,6 +356,7 @@ subroutine parseflags(env,arg,nra)
       select case (argument) !> RUNTYPES
 
       case ('-v1') !> confscript version 1 (MF-MD-GC)
+        processedarg(i) = .true.
         env%crestver = crest_mfmdgc
         write (*,'(2x,a,'' : MF-MD-GC'')') trim(arg(i))
         env%mdtime = 40.0d0       !> simulation length of the MD, 40ps total (2*20ps)(default for QMDFF would be 500)
@@ -357,6 +367,7 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-v2') !> confscript version 2 (MTD-GC)
+        processedarg(i) = .true.
         env%crestver = crest_imtd
         write (*,'(2x,a,'' : MTD-GC'')') trim(arg(i))
         env%iterativeV2 = .false.  !> iterative crest V2 version
@@ -364,12 +375,14 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-v3','-v2i') !> confscript version 2 but iterativ (iMTD-GC)
+        processedarg(i) = .true.
         env%crestver = crest_imtd
         env%iterativeV2 = .true.
         write (*,'(2x,a,'' : iMTD-GC'')') trim(arg(i))
         exit
 
       case ('-v4') !> sMTD-iMTD (same as entropy mode)
+        processedarg(i) = .true.
         env%crestver = crest_imtd2
         env%iterativeV2 = .true.
         env%entropymd = .true.
@@ -380,28 +393,32 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-mdopt','-purge') !> MDOPT
+        processedarg(i) = .true.
         env%crestver = crest_mdopt
         atmp = ''
         env%preopt = .false.
         env%ensemblename = 'none selected'
         if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
         if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
+          processedarg(i+1) = .true.
           env%ensemblename = trim(atmp)
+          call xyz2coord(env%ensemblename,'coord') !> write coord from lowest structure
+          env%inputcoords = env%ensemblename !> just for a printout
         end if
-        call xyz2coord(env%ensemblename,'coord') !> write coord from lowest structure
-        env%inputcoords = env%ensemblename !> just for a printout
         exit
 
       case ('-screen')  !> SCREEN
+        processedarg(i) = .true.
         env%crestver = crest_screen
         atmp = ''
         env%ensemblename = 'none selected'
         if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
         if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
+          processedarg(i+1) = .true.
           env%ensemblename = trim(atmp)
+          call xyz2coord(env%ensemblename,'coord') !write coord from lowest structure
+          env%inputcoords = env%ensemblename !just for a printout
         end if
-        call xyz2coord(env%ensemblename,'coord') !write coord from lowest structure
-        env%inputcoords = env%ensemblename !just for a printout
         exit
 
       case ('-mdsp','-ensemblesp') !> Singlepoints along ensemble
@@ -411,13 +428,15 @@ subroutine parseflags(env,arg,nra)
         env%ensemblename = 'none selected'
         if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
         if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
+          processedarg(i+1) = .true.
           env%ensemblename = trim(atmp)
+          call xyz2coord(env%ensemblename,'coord') !> write coord from lowest structure
+          env%inputcoords = env%ensemblename !> just for a printout
         end if
-        call xyz2coord(env%ensemblename,'coord') !> write coord from lowest structure
-        env%inputcoords = env%ensemblename !> just for a printout
         exit
 
       case ('-pka','-pKa')  !> pKa calculation script
+        processedarg(i) = .true.
         env%crestver = crest_pka
         env%runver = 33
         !env%relax=.true.
@@ -432,6 +451,7 @@ subroutine parseflags(env,arg,nra)
         if (env%protb%h_acidic == -2) env%protb%pka_baseinp = trim(arg(i+1))
 
       case ('-compare')   !> flag for comparing two ensembles, analysis tool
+        processedarg(i) = .true.
         env%compareens = .true.
         env%crestver = 5
         env%properties = p_compare
@@ -449,11 +469,14 @@ subroutine parseflags(env,arg,nra)
         &  (btmp(1:1) /= '-').and.(len_trim(btmp) .ge. 1)) then
           env%ensemblename = trim(atmp)
           env%ensemblename2 = trim(btmp)
+          processedarg(i+1) = .true.
+          processedarg(i+2) = .true.
         end if
         write (*,'(1x,a,1x,a,1x,a)') trim(arg(i)),trim(env%ensemblename),trim(env%ensemblename2)
         exit
 
       case ('-protonate') !> protonation tool
+        processedarg(i) = .true.
         env%properties = p_protonate
         env%crestver = crest_protonate
         env%legacy = .true. !> TODO, set active at later version
@@ -461,6 +484,7 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-deprotonate') !> deprotonation tool
+        processedarg(i) = .true.
         env%properties = p_deprotonate
         env%crestver = crest_deprotonate
         env%legacy = .true. !> TODO, set active at later version
@@ -468,6 +492,7 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-tautomerize') !> tautomerization tool
+        processedarg(i) = .true.
         env%properties = p_tautomerize
         env%crestver = crest_tautomerize
         env%legacy = .true. !> TODO, set active at later version
@@ -475,18 +500,21 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-isomerize','-stereomers') !> isomerization tool
+        processedarg(i) = .true.
         env%properties = p_isomerize
         write (*,'(2x,a,'' : automated stereoisomerization script'')') trim(arg(i))
         write (*,'(2x,''Note: Use of GFN-FF required for stereoisomer generation.'')')
         exit
 
       case ('-forall','-for') !> property mode with ensemble as input
+        processedarg(i) = .true.
         env%properties = p_propcalc
         atmp = ''
         env%ensemblename = 'none selected'
         if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
         if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
           env%ensemblename = trim(atmp)
+          processedarg(i+1) = .true.
         end if
         inquire (file=env%ensemblename,exist=ex)
         if (.not.ex) then
@@ -501,12 +529,14 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-rrhoav')  !> Hessians along given ensemble and average
+        processedarg(i) = .true.
         env%properties = p_rrhoaverage
         atmp = ''
         env%ensemblename = 'none selected'
         if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
         if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
           env%ensemblename = trim(atmp)
+          processedarg(i+1) = .true.
         end if
         inquire (file=env%ensemblename,exist=ex)
         if (.not.ex) then
@@ -516,16 +546,30 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-reactor')  !> xtb nanoreactor workarounds
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_nano
         exit
 
       case ('-solvtool','-qcg')
+        processedarg(i) = .true.
         !> Set solute file if present
-        if (i == 2) env%solu_file = trim(arg(i-1))
+        if (i == 2) then
+          env%solu_file = trim(arg(i-1))
+          inquire (file=env%solu_file,exist=ex)
+          if (ex) then
+            processedarg(i-1) = .true.
+          end if
+        end if
         !> Set solvent file if prensent
         !> If it is another argument, it doesent matter as solvent file is checke in solvtool
-        if (nra >= i+1) env%solv_file = trim(arg(i+1))
+        if (nra >= i+1) then
+          env%solv_file = trim(arg(i+1))
+          inquire (file=env%solv_file,exist=ex)
+          if (ex) then
+            processedarg(i+1) = .true.
+          end if
+        end if
         !> Set QCG defaults
         env%preopt = .false.
         env%crestver = crest_solv
@@ -541,6 +585,7 @@ subroutine parseflags(env,arg,nra)
         env%legacy = .true. !> force legacy routines for now
 
       case ('-compress')
+        processedarg(i) = .true.
         env%crestver = crest_compr
         env%runver = 77
         env%mdstep = 2.5d0
@@ -549,87 +594,109 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-msreact')
+        processedarg(i) = .true.
         env%crestver = crest_msreac
         env%preopt = .false.
         env%presp = .true.
         env%ewin = 200.0d0 !> 200 kcal for msreact
 
       case ('-splitfile')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
+        processedarg(i+1) = .true.
         k = huge(j)
         l = 1
         if (nra >= i+2) then
           read (arg(i+2),*,iostat=io) j
           if (io == 0) then
             k = j
+            processedarg(i+2) = .true.
           end if
         end if
         if (nra >= i+3) then
           read (arg(i+3),*,iostat=io) j
           if (io == 0) then
             l = j
+            processedarg(i+3) = .true.
           end if
         end if
         call splitfile(ctmp,k,l)
         stop
 
       case ('-printaniso')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
         if (ex) then
+          processedarg(i+1) = .true.
           call printaniso(ctmp,0.01_wp,0.025_wp,0.5_wp)
         end if
         stop
 
       case ('-rotalign')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
         if (ex) then
+          processedarg(i+1) = .true.
           call rotalign_tool(ctmp)
         end if
         stop
 
       case ('-printboltz')
+        processedarg(i) = .true.
         if (nra >= i+2) then
           ctmp = trim(arg(i+1))
           dtmp = trim(arg(i+2))
           call prbweight(ctmp,dtmp)
+          processedarg(i+1) = .true.
+          processedarg(i+2) = .true.
         else
           ctmp = trim(arg(i+1))
           call prbweight(ctmp,'')
+          processedarg(i+1) = .true.
         end if
 
       case ('-wbotopo','-usewbo')  !> try to use a WBO file in topology analysis
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         if (ctmp(1:1) .ne. '-'.and.(nra >= i+1)) then
           env%wbofile = trim(ctmp)
+          processedarg(i+1) = .true.
         else
           env%wbofile = 'wbo'
         end if
         env%wbotopo = .true.
 
       case ('-testtopo')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
         if (i+2 .le. nra) then
           dtmp = trim(arg(i+2))
           if (dtmp(1:1) == '-') then
             dtmp = 'default'
+          else
+            processedarg(i+2) = .true.
           end if
         end if
         if (ex) then
+          processedarg(i+1) = .true.
           call testtopo(ctmp,env,dtmp)
         end if
 
       case ('-resortensemble')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
         if (ex) then
+          processedarg(i+1) = .true.
           call resort_ensemble(ctmp)
         end if
         stop
 
       case ('-thermo','-thermotool')
+        processedarg(i) = .true.
         env%properties = p_thermo
         ctmp = trim(arg(1))  ! first argument to read the structure
         if (ctmp(1:1) .ne. '-') then
@@ -638,10 +705,12 @@ subroutine parseflags(env,arg,nra)
         end if
         ctmp = trim(arg(i+1)) ! second argument to read the vibspectrum
         if (ctmp(1:1) .ne. '-') then
+          processedarg(i+1) = .true.
           env%thermo%vibfile = trim(ctmp)
         end if
 
       case ('-rmsd','-rmsdheavy','-hrmsd')
+        processedarg(i) = .true.
         if ((argument == '-rmsdheavy').or.(argument == '-hrmsd')) then
           env%sortmode = 'hrmsd'
         else
@@ -655,13 +724,16 @@ subroutine parseflags(env,arg,nra)
         if (ex) then
           env%inputcoords = ctmp
           env%ensemblename = ctmp
+          processedarg(i+1) = .true.
         end if
         inquire (file=dtmp,exist=ex)
         if (ex) then
           env%ensemblename2 = dtmp
+          processedarg(i+2) = .true.
         end if
 
       case ('-irmsd','-irmsd_noinv')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
         env%preopt = .false.
@@ -671,16 +743,19 @@ subroutine parseflags(env,arg,nra)
         if (ex) then
           env%inputcoords = ctmp
           env%ensemblename = ctmp
+          processedarg(i+1) = .true.
         end if
         inquire (file=dtmp,exist=ex)
         if (ex) then
           env%ensemblename2 = dtmp
+          processedarg(i+2) = .true.
         end if
         if (index(argument,'_noinv') .ne. 0) then
           env%iinversion = 2
         end if
 
       case ('-hungarian','-hungarianheavy','-hhungarian','-lsap','-hlsap','-lsapheavy')
+        processedarg(i:i+2) = .true.
         ctmp = trim(arg(i+1))
         dtmp = trim(arg(i+2))
         if ((argument == '-hungarianheavy').or.(argument == '-hhungarian').or. &
@@ -692,29 +767,36 @@ subroutine parseflags(env,arg,nra)
         stop
 
       case ('-symmetries')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
         if (ex) then
+          processedarg(i+1) = .true.
           call ensemble_analsym(trim(ctmp),.true.)
         end if
         stop
 
       case ('-exlig','-exligand','-exchligand')
+        processedarg(i) = .true.
         env%properties = p_ligand
         env%protb%infile = trim(arg(1))
         ctmp = trim(arg(i+1))
+        processedarg(i+1) = .true.
         env%protb%newligand = trim(ctmp)
         read (arg(i+2),*,iostat=io) j
         if (io == 0) then
           env%protb%centeratom = j
+          processedarg(i+2) = .true.
         end if
         read (arg(i+3),*,iostat=io) j
         if (io == 0) then
           env%protb%ligand = j
+          processedarg(i+3) = .true.
         end if
         exit
 
       case ("-acidbase","-ab",'-abprep','-pkaprep','-gdissprep')  !-- acid base correction
+        processedarg(i) = .true.
         !> crest --ab <acid.xyz> <base.xyz> --chrg <acidchrg>
         env%properties = p_acidbase
         if (index(arg(i),'prep') .ne. 0) then
@@ -723,12 +805,14 @@ subroutine parseflags(env,arg,nra)
           ctmp = trim(arg(i+1))
           inquire (file=ctmp,exist=ex)
           if (ex) then
+            processedarg(i+1) = .true.
             env%protb%pka_acidensemble = trim(ctmp)
             write (*,'(1x,a,a)') 'File used for the acid: ',trim(ctmp)
           end if
           ctmp = trim(arg(i+2))
           inquire (file=ctmp,exist=ex)
           if (ex) then
+            processedarg(i+2) = .true.
             env%protb%pka_baseensemble = trim(ctmp)
             write (*,'(1x,a,a)') 'File used for the base: ',trim(ctmp)
           end if
@@ -737,9 +821,12 @@ subroutine parseflags(env,arg,nra)
         env%gfnver = '--gfn2'
 
       case ('-redoextrapol')
+        processedarg(i) = .true.
         ctmp = trim(arg(i+1))
+        processedarg(i+1) = .true.
         read (arg(i+2),*,iostat=io) j
         if (io == 0) then
+          processedarg(i+2) = .true.
           call redo_extrapol(ctmp,j)
         else
           call redo_extrapol(ctmp,0)
@@ -747,12 +834,14 @@ subroutine parseflags(env,arg,nra)
         stop
 
       case ('-sp') !> singlepoint calculation (uses new calculator routines)
+        processedarg(i) = .true.
         env%crestver = crest_sp
         env%preopt = .false.
         env%legacy = .false.
         exit
 
       case ('-opt','-optimize','-ancopt','-ohess') !> ANCOPT structure optimization (uses new calculator routines)
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_optimize
         env%legacy = .false.
@@ -760,45 +849,56 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-hess','-numhess') !> Numerical hessian
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_numhessian
         env%legacy = .false.
         exit
 
       case ('-trialopt')  !> test optimization with topocheck
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_trialopt
         exit
 
       case ('-dynamics','-dyn') !> molecular dynamics (uses new calculator routines)
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_moldyn
         env%legacy = .false.
         exit
 
       case ('-sort')
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_sorting
         ctmp = trim(arg(i+1))
         inquire (file=ctmp,exist=ex)
         if (ex) then
+          processedarg(i+1) = .true.
           env%inputcoords = ctmp
           env%ensemblename = ctmp
         end if
         if (nra >= i+2) then
           ctmp = trim(arg(i+2))
-          if (ctmp(1:1) .ne. '-') env%sortmode = trim(ctmp)
+          if (ctmp(1:1) .ne. '-')then
+            processedarg(i+2) = .true.
+            env%sortmode = trim(ctmp)
+          endif
         end if
 
       case ('-bh','-GMIN')
+        processedarg(i) = .true.
         env%crestver = crest_bh
         exit
 
       case ('-SANDBOX')
+        processedarg(i) = .true.
         !>--- IMPLEMENT HERE WHATEVER YOU LIKE, FOR TESTING
         !>-----
         stop
       case ('-PLAYGROUND','-TEST')
+        processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_test
         exit
@@ -847,6 +947,7 @@ subroutine parseflags(env,arg,nra)
     call inputcoords(env,env%inputcoords)
   else
     call inputcoords(env,trim(arg(1)))
+    processedarg(1) = .true.
   end if
 
 !========================================================================================!

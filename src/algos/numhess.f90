@@ -363,12 +363,12 @@ subroutine thermo_standalone(env)
   &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
 
   !> header
-  write (stdout,*) " _   _                               "
-  write (stdout,*) "| |_| |__   ___ _ __ _ __ ___   ___  "
-  write (stdout,*) "| __| '_ \ / _ \ '__| '_ ` _ \ / _ \ "
-  write (stdout,*) "| |_| | | |  __/ |  | | | | | | (_) |"
-  write (stdout,*) " \__|_| |_|\___|_|  |_| |_| |_|\___/ "
-  write (stdout,*) "                                     "
+  write (stdout,'(t10,a)') " _   _                               "
+  write (stdout,'(t10,a)') "| |_| |__   ___ _ __ _ __ ___   ___  "
+  write (stdout,'(t10,a)') "| __| '_ \ / _ \ '__| '_ ` _ \ / _ \ "
+  write (stdout,'(t10,a)') "| |_| | | |  __/ |  | | | | | | (_) |"
+  write (stdout,'(t10,a)') " \__|_| |_|\___|_|  |_| |_| |_|\___/ "
+  write (stdout,'(t10,a)') "                                     "
   write (stdout,*) "Molecular thermodynamics from the modified and scaled"
   write (stdout,*) "rigid-rotor harmonic-oscillator approximation (msRRHO)"
   write (stdout,*) "See:"
@@ -377,21 +377,21 @@ subroutine thermo_standalone(env)
   write (stdout,*)
 
   !> input coords
-  write (stdout,'(1x,a)',advance='no') 'Reading input coords: '
+  write (stdout,'(1x,a,t30)',advance='no') 'Reading input coords:'
   if (allocated(env%thermo%coords)) then
     call mol%open(env%thermo%coords)
-    write (stdout,'(1x,a)') trim(env%thermo%coords)
+    write (stdout,'(a)') trim(env%thermo%coords)
   else
     call mol%open(env%inputcoords)
-    write (stdout,'(1x,a)') trim(env%inputcoords)
+    write (stdout,'(a)') trim(env%inputcoords)
   end if
   nat3 = mol%nat*3
-  allocate (hess(nat3,nat3),freq(nat3),source=0.0_wp)
+  allocate (freq(nat3),source=0.0_wp)
 
   !> input frequencies or hessian
   if (allocated(env%thermo%vibfile)) then
-    write (stdout,'(1x,a,a)') 'Reading frequencies from:  ',trim(env%thermo%vibfile)
-    call rdfreq(env%thermo%vibfile,nat3,freq)
+    write (stdout,'(1x,a,t30,a)') 'Reading frequencies from:',trim(env%thermo%vibfile)
+    call rdfreq(mol,env%thermo%vibfile,nat3,freq)
   else
     write (stdout,'(1x,a)') 'No Hessian or vibspectrum file allocated for thermo routine!'
     call creststop(status_input)
@@ -422,7 +422,7 @@ subroutine thermo_standalone(env)
 
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,iunit,emodel=emodel)
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,stdout,emodel=emodel)
 
   !> printout
   zpve = et(nrt)-ht(nrt)

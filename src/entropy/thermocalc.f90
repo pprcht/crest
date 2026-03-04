@@ -143,7 +143,7 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
   nfreq = 3*mol%nat
 
   allocate (freq(nfreq))
-  call rdfreq(trim(optpath)//'vibspectrum',nfreq,freq)
+  call rdfreq(mol,trim(optpath)//'vibspectrum',nfreq,freq)
 
   ithr = env%thermo%ithr
   fscal = env%thermo%fscal
@@ -157,7 +157,49 @@ subroutine thermo_wrap_legacy(env,pr,nat,at,xyz,dirname, &
 end subroutine thermo_wrap_legacy
 
 !=========================================================================================!
-subroutine rdfreq(fname,nmodes,freq)
+
+subroutine rdfreq(mol,fname,nmodes,freq)
+!**************************************
+!* read vibspectrum file in TM format
+!**************************************
+  use crest_parameters,only:wp
+  use crest_data
+  use iomod
+  use strucrd
+  implicit none
+  type(coord),intent(in) :: mol
+  character(len=*),intent(in) :: fname
+  integer,intent(in)   :: nmodes
+  real(wp),intent(out) :: freq(nmodes)    !frequencies
+
+  logical :: ex,ex2,ex3
+  type(coord) :: moltmp
+  freq(:) = 0.0_wp
+
+  inquire (file=fname,exist=ex)
+  if (.not.ex) return
+
+  call minigrep(fname,'$vibrational spectrum',ex)
+  if (ex) then
+    !> TURBOMOLE "vibspectrum"-style file
+    call rdfreq_vibspectrum_file(fname,nmodes,freq)
+  end if
+  call minigrep(fname,'$orca_hessian_file',ex)
+  call minigrep(fname,'$hessian',ex2)
+  call minigrep(fname,'$ir_spectrum',ex3)
+  !if (ex.and.ex3) then
+  !  !> ORCA ".hess" file --> frequencies directly
+  !  call rdfreq_orca_ir_spectrum(fname,nmodes,freq)
+  !else if (ex.and.ex2) then
+  if(ex.and.ex2)then
+    !> ORCA ".hess" file --> from Hessian
+    moltmp = mol
+    call rdfreq_orca_hess(moltmp,fname,nmodes,freq)
+  end if
+
+end subroutine rdfreq
+
+subroutine rdfreq_vibspectrum_file(fname,nmodes,freq)
 !**************************************
 !* read vibspectrum file in TM format
 !**************************************
@@ -173,12 +215,6 @@ subroutine rdfreq(fname,nmodes,freq)
   real(wp) :: floats(10)
   logical :: ex
   integer :: TID,OMP_GET_THREAD_NUM
-
-!!$OMP PARALLEL PRIVATE(TID)
-  TID = OMP_GET_THREAD_NUM()
-!      write(*,*) '---->',TID
-!!$OMP END PARALLEL
-  ich = (TID+1)*1000   ! generate CPU dependent file channel number
 
   freq = 0.0_wp
   inquire (file=fname,exist=ex)
@@ -202,7 +238,141 @@ subroutine rdfreq(fname,nmodes,freq)
   end do rdfile
   close (ich)
   return
-end subroutine rdfreq
+end subroutine rdfreq_vibspectrum_file
+
+subroutine rdfreq_orca_ir_spectrum(fname,nmodes,freq)
+!**************************************
+!* read vibspectrum file in TM format
+!**************************************
+  use crest_parameters,only:wp,stdout
+  use crest_data
+  use iomod
+  implicit none
+  character(len=*),intent(in) :: fname
+  integer,intent(in)   :: nmodes
+  real(wp),intent(out) :: freq(nmodes)    !frequencies
+  integer :: k,ich,io,n,nref
+  character(len=256) :: atmp
+  real(wp) :: floats(10)
+  logical :: ex
+
+  freq = 0.0_wp
+  k = 1 !modes
+  open (file=fname,unit=ich)
+  rdfile: do
+    read (ich,'(a)',iostat=io) atmp
+    if (io < 0) exit
+    if (index(atmp,'$ir_spectrum') .ne. 0) then
+      read (ich,'(a)',iostat=io) atmp
+      if (io < 0) exit rdfile
+      read (atmp,*,iostat=io) nref
+      if (io .ne. 0) exit rdfile
+      if (nref .ne. nmodes) exit rdfile
+      rdblock: do
+        read (ich,'(a)',iostat=io) atmp
+        if (io < 0) exit rdfile
+        if (index(atmp,'$end') .ne. 0) exit rdfile
+        if (index(atmp,'#') .ne. 0) cycle rdblock !skip comment lines
+        call readl(atmp,floats,n)
+        freq(k) = floats(1)
+        if (k == nref) exit rdfile
+        k = k+1
+      end do rdblock
+    end if
+  end do rdfile
+  if (k .ne. nmodes) then
+    write (stdout,*) '** WARNING ** error while reading '//trim(fname)
+  end if
+  close (ich)
+  return
+end subroutine rdfreq_orca_ir_spectrum
+
+subroutine rdfreq_orca_hess(mol,fname,nmodes,freq)
+!**************************************
+!* read vibspectrum file in TM format
+!**************************************
+  use crest_parameters,only:wp,stdout
+  use crest_data
+  use iomod
+  use strucrd
+  use thermochem_module
+  implicit none
+  type(coord),intent(inout) :: mol
+  character(len=*),intent(in) :: fname
+  integer,intent(in)   :: nmodes
+  real(wp),intent(out) :: freq(nmodes)    !frequencies
+  integer :: k,ich,io,n,nref
+  integer :: ii,jj,kk,iblocks,jblocks,ll
+  character(len=256) :: atmp
+  real(wp) :: floats(10)
+  logical :: ex
+  real(wp),allocatable :: hess(:,:)
+
+  freq = 0.0_wp
+  allocate (hess(nmodes,nmodes),source=0.0_wp)
+  k = 1 !modes
+  open (file=fname,unit=ich)
+  rdfile: do
+    read (ich,'(a)',iostat=io) atmp
+    if (io < 0) exit
+    if (index(atmp,'$hessian') .ne. 0) then
+      read (ich,'(a)',iostat=io) atmp
+      if (io < 0) exit rdfile
+      read (atmp,*,iostat=io) nref
+      if (io .ne. 0) exit rdfile
+      if (nref .ne. nmodes) exit rdfile
+      iblocks = (floor(real(nref,wp)/5.0_wp))
+      jblocks = nref-(iblocks*5)
+      rdblock1: do ii = 1,iblocks
+        do jj = 0,nref
+          read (ich,'(a)',iostat=io) atmp
+          if (io < 0) exit rdfile
+          if (index(atmp,'$end') .ne. 0) exit rdfile
+          if (index(atmp,'#') .ne. 0) cycle rdblock1 !skip comment lines
+          call readl(atmp,floats,n)
+          if (jj > 0) then
+            kk = (ii-1)*5
+            do ll = 1,5
+              hess(kk+ll,jj) = floats(1+ll)
+            end do
+          end if
+        end do
+      end do rdblock1
+      if (jblocks > 0) then
+        do jj = 0,nref
+          read (ich,'(a)',iostat=io) atmp
+          if (io < 0) exit rdfile
+          if (index(atmp,'$end') .ne. 0) exit rdfile
+          if (index(atmp,'#') .ne. 0) cycle
+          call readl(atmp,floats,n)
+          if (jj > 0) then
+            kk = (ii-1)*5
+            do ll = 1,jblocks
+              hess(kk+ll,jj) = floats(1+ll)
+            end do
+          end if
+        end do
+      end if
+    end if
+  end do rdfile
+  if (nref .ne. nmodes) then
+    write (stdout,*) '** WARNING ** error while reading '//trim(fname)
+  end if
+  close (ich)
+
+  write(stdout,'(a)',advance='no') ' Processing (raw) Hessian read from ORCA '//trim(fname)//' ... '
+  flush(stdout)
+  !$omp critical
+  !>-- Projects and mass-weights the Hessian
+  call prj_mw_hess(mol%nat,mol%at,nmodes,mol%xyz,hess)
+  !>-- Computes the Frequencies
+  call frequencies(mol%nat,mol%at,mol%xyz,nmodes,hess,freq,io)
+  !$omp end critical
+  write(stdout,'(a)') 'done.'
+
+  deallocate (hess)
+  return
+end subroutine rdfreq_orca_hess
 
 !=========================================================================================!
 
