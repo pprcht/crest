@@ -1005,7 +1005,7 @@ contains  !> MODULE PROCEDURES START HERE
     call checkcoordtype(fname,ftype)
 
     select case (ftype)
-    case (tmcoord)  !-- TM coord file, is already in Bohr
+    case (tmcoord)  !-- TM coord file, always retruns coords in Bohr
       call rdtmcoord(fname,nat,at,xyz)
     case (xmol)     !-- XYZ file, is Angström, needs conversion
       if (present(energy)) then
@@ -1051,6 +1051,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: xyz(3,nat)
     character(len=6) :: sym
     integer :: ich,io,i
+    real(wp) :: convert
     character(len=256) :: atmp
     open (newunit=ich,file=fname)
     do
@@ -1059,6 +1060,12 @@ contains  !> MODULE PROCEDURES START HERE
       atmp = adjustl(atmp)
       if (index(atmp,"$coord") .eq. 1) exit
     end do
+    if(index(atmp,'ang').ne.0)then
+      !> coord files allow explicit specification in Angström 
+      convert = aatoau 
+    else
+      convert = 1.0_wp
+    endif
     do i = 1,nat
       read (ich,'(a)',iostat=io) atmp
       if (io < 0) exit
@@ -1072,6 +1079,7 @@ contains  !> MODULE PROCEDURES START HERE
       at(i) = e2i(sym)
     end do
     close (ich)
+    xyz = xyz*convert
     return
   end subroutine rdtmcoord
 
