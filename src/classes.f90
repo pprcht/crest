@@ -969,27 +969,31 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end function optlevflag
 
-  function optlevnum(flag) result(optlev)
+  function optlevnum(flag,iostat) result(optlev)
     implicit none
     real(wp) :: optlev
-    character(len=*):: flag
+    character(len=*),intent(in) :: flag
+    integer,intent(out),optional :: iostat
+    if(present(iostat)) iostat = 0
     optlev = 0.0_wp
-    if (index(flag,'crude') .ne. 0) optlev = -3.0d0
-    if (index(flag,'loose') .ne. 0) optlev = -1.0d0
-    if (index(flag,'vloose') .ne. 0) optlev = -2.0d0
-    if (index(flag,'sloppy') .ne. 0) optlev = -2.0d0
-    if (index(flag,'normal') .ne. 0) optlev = 0.0d0
-    if (index(flag,'tight') .ne. 0) optlev = 1.0d0
-    if (index(flag,'verytight') .ne. 0) optlev = 2.0d0
-    if (index(flag,'vtight') .ne. 0) optlev = 2.0d0
-    if (index(flag,'extreme') .ne. 0) optlev = 3.0d0
-    if (index(flag,'3') .ne. 0) optlev = 3.0d0
-    if (index(flag,'2') .ne. 0) optlev = 2.0d0
-    if (index(flag,'1') .ne. 0) optlev = 1.0d0
-    if (index(flag,'0') .ne. 0) optlev = 0.0d0
-    if (index(flag,'-3') .ne. 0) optlev = -3.0d0
-    if (index(flag,'-2') .ne. 0) optlev = -2.0d0
-    if (index(flag,'-1') .ne. 0) optlev = -1.0d0
+    select case (trim(adjustl(flag)))
+    case ('crude','-3')
+      optlev = -3.0_wp
+    case ('vloose','sloppy','-2')
+      optlev = -2.0_wp
+    case ('loose','-1')
+      optlev = -1.0_wp
+    case ('normal','0')
+      optlev = 0.0_wp
+    case ('tight','1')
+      optlev = 1.0_wp
+    case ('verytight','vtight','2')
+      optlev = 2.0_wp
+    case ('extreme','3')
+      optlev = 3.0_wp
+    case default
+      if(present(iostat)) iostat = 1
+    end select
     return
   end function optlevnum
 

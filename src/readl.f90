@@ -22,7 +22,16 @@ subroutine readl(a1,x,n)
   use iso_fortran_env,only:wp => real64
   implicit real(wp) (a-h,o-z)
   character(*) a1
+  integer :: la1,io
   dimension x(*)
+  la1=len(a1)
+  if(la1 == 0)then
+    return
+  else if(la1==1)then
+    read(la1,*,iostat=io) x(1)
+    n = 1 
+    return
+  endif
   i = 0
   is = 1
 10 i = i+1

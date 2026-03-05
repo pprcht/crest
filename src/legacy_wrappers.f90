@@ -425,7 +425,8 @@ subroutine trialOPT(env)
 !>-- if we reach this point in the standalone trialopt the geometry is ok!
     write (stdout,*)
     write (stdout,*) 'Geometry ok!'
-    stop
+    write (stdout,*)
+    call creststop(status_normal)
   end if
 end subroutine trialOPT
 

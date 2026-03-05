@@ -316,7 +316,7 @@ subroutine trialOPT_calculator(env)
   tmpcalc%optlev = -1 !> set loose convergence thresholds
 
 !>--- perform geometry optimization
-  pr = .false. !> stdout printout
+  pr = env%crestver == crest_trialopt
   wr = .true.  !> write crestopt.log.xyz
   if (wr) then
     call remove('crestopt.log.xyz')
