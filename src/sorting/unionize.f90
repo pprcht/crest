@@ -85,7 +85,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- allocate mapping
     allocate (similarto(nmerge),source=0)
 
-!>--- we can skip the soring is "inputs" is empty
+    !>--- we can skip the sorting if "inputs" is empty
     if (nin .ne. 0) then
 !>--- Prepare comparison data storage
       if (debug) write (*,*)

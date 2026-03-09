@@ -53,7 +53,7 @@ subroutine crest_basinhopping(env,tim)
   use crest_data
   use crest_calculator
   use strucrd
-  use cregen_interface,only:unionizeEnsembles
+  use cregen_interface,only:unionizeEnsembles,cregen_irmsd_sort
   use optimize_module
   use bh_module
   use bh_algo_interface
@@ -70,6 +70,7 @@ subroutine crest_basinhopping(env,tim)
   real(wp),allocatable :: grad(:,:)
   integer :: nall
   type(coord),allocatable :: structuredump(:)
+  integer,allocatable :: groups(:)
   logical :: parallel
   character(len=80) :: atmp
   character(len=*),parameter :: trjf = 'crest_quenched.xyz'
@@ -131,9 +132,15 @@ subroutine crest_basinhopping(env,tim)
     write (stdout,*) 'WARNING: BH run terminated ABNORMALLY'
     env%iostatus_meta = status_failed
   end if
-
   call tim%stop(14)
 
+  write(stdout,*)
+  call smallhead('Final Ensemble Sorting (iRMSD)')
+  allocate(groups(nall),source=0)
+  env%confgo=.true.
+  call cregen_irmsd_sort(env,nall,structuredump,groups,allcanon=.false.,printlvl=2)
+
+  if (allocated(groups)) deallocate(groups)
   if (allocated(structuredump)) deallocate (structuredump)
   return
 end subroutine crest_basinhopping
@@ -170,7 +177,7 @@ subroutine single_basinhopping_core(env,mol,calc,structuredump)
 
   nall = 0
   do mciter = 1,bh%maxiter
-    if (bh%maxiter > 1) call printiter2(mciter)
+    if (bh%maxiter > 1) call printiter3('Basin-Hopping Epoch',mciter)
     call bh%newiter()
     call mc(calc,mol,bh,verbosity=2)
 
@@ -210,6 +217,7 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
   type(coord),allocatable    :: mols(:)
   real(wp) :: energy
   integer :: nall
+  character(len=128) :: tag
   type(mollist),allocatable :: dumplist(:)
 
   call new_ompautoset(env,'auto',0,T,Tn)
@@ -240,7 +248,8 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
   do K = 1,T
     do mciter = 1,bhp(K)%maxiter
       !$omp critical
-      if (bhp(K)%maxiter > 1) call printiter2(mciter)
+      write(tag,'(a,i0,a)') 'Runner [',K,']: Basin-Hopping Epoch'
+      if (bhp(K)%maxiter > 1) call printiter3(trim(tag),mciter)
       !$omp end critical
       call bhp(K)%newiter()
       call mc(calcp(K),mols(K),bhp(K),verbosity=2)

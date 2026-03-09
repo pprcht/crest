@@ -95,30 +95,30 @@ subroutine box3(version,date,commit,author)
   !write (logo(8),'(''║          based on the xTB methods          ║'')')
   !write (logo(9),'(''║                                            ║'')')
   !write (logo(10),'("╚════════════════════════════════════════════╝")')
- 
-  write (logo(1), '(''╔════════════════════════════════════════════════╗'')') 
-  write (logo(2), '(''║                                                ║'')') 
-  write (logo(3), '(''║     ██████╗██████╗ ███████╗███████╗████████╗   ║'')') 
-  write (logo(4), '(''║    ██╔════╝██╔══██╗██╔════╝██╔════╝╚══██╔══╝   ║'')') 
-  write (logo(5), '(''║    ██║     ██████╔╝█████╗  ███████╗   ██║      ║'')') 
-  write (logo(6), '(''║    ██║     ██╔══██╗██╔══╝  ╚════██║   ██║      ║'')') 
-  write (logo(7), '(''║    ╚██████╗██║  ██║███████╗███████║   ██║      ║'')')
-  write (logo(8), '(''║     ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝      ║'')')
-  write (logo(9), '(''║                                                ║'')') 
-  write (logo(10),'(''║    Conformer-Rotamer Ensemble Sampling Tool    ║'')') 
-  write (logo(11),'(''║            based on the xTB methods            ║'')') 
-  write (logo(12),'(''║                                                ║'')') 
-  write (logo(13),'(''╚════════════════════════════════════════════════╝'')')  
+
+  write (logo(1),'(''╔════════════════════════════════════════════════╗'')')
+  write (logo(2),'(''║                                                ║'')')
+  write (logo(3),'(''║     ██████╗██████╗ ███████╗███████╗████████╗   ║'')')
+  write (logo(4),'(''║    ██╔════╝██╔══██╗██╔════╝██╔════╝╚══██╔══╝   ║'')')
+  write (logo(5),'(''║    ██║     ██████╔╝█████╗  ███████╗   ██║      ║'')')
+  write (logo(6),'(''║    ██║     ██╔══██╗██╔══╝  ╚════██║   ██║      ║'')')
+  write (logo(7),'(''║    ╚██████╗██║  ██║███████╗███████║   ██║      ║'')')
+  write (logo(8),'(''║     ╚═════╝╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝      ║'')')
+  write (logo(9),'(''║                                                ║'')')
+  write (logo(10),'(''║    Conformer-Rotamer Ensemble Sampling Tool    ║'')')
+  write (logo(11),'(''║            based on the xTB methods            ║'')')
+  write (logo(12),'(''║                                                ║'')')
+  write (logo(13),'(''╚════════════════════════════════════════════════╝'')')
 
   do i = 1,13
-  write (*,'(a,a)') repeat(" ",pad_left),trim(logo(i))
+    write (*,'(a,a)') repeat(" ",pad_left),trim(logo(i))
   end do
   write (*,'(a,'' Version '',a,'', '',a)') repeat(" ",pad_left),trim(version),trim(date)
-  if(author(1:2).eq."'@")then
-   write (*,'(a," commit (",a,") compiled by ",a)') repeat(" ",pad_left),commit,"'usr"//author(2:)
+  if (author(1:2) .eq. "'@") then
+    write (*,'(a," commit (",a,") compiled by ",a)') repeat(" ",pad_left),commit,"'usr"//author(2:)
   else
-  write (*,'(a," commit (",a,") compiled by ",a)') repeat(" ",pad_left),commit,author
-  endif
+    write (*,'(a," commit (",a,") compiled by ",a)') repeat(" ",pad_left),commit,author
+  end if
 end subroutine box3
 
 subroutine disclaimer
@@ -540,7 +540,6 @@ end subroutine zsortwarning2
 
 !========================================================================================!
 
-
 subroutine msreact_head()
   implicit none
   write (*,*)
@@ -660,6 +659,14 @@ subroutine printiter2(i)
   write (*,'("**",21x,"I T E R A T I O N    C Y C L E    ",i3,18x,"**")') i
   write (*,'(80("*"))')
 end subroutine printiter2
+subroutine printiter3(text,i)
+  implicit none
+  character(len=*),intent(in) :: text
+  integer,intent(in) :: i
+  character(len=128) :: atmp
+  write (atmp,'(a,1x,i0)') trim(text),i
+  call largehead(trim(atmp))
+end subroutine printiter3
 
 !========================================================================================!
 
@@ -688,7 +695,7 @@ subroutine construct_large_headline(symb,str)
   character(len=128) :: str2
   character(len=128) :: str3
   strlen = len_trim(str)
-  str2 = repeat(symb,90)
+  str2 = repeat(symb,80)
   strlen2 = len_trim(str2)
   if (strlen .ge. strlen2) then
     str2 = ''
@@ -1086,7 +1093,7 @@ end subroutine printprogbar
 
 subroutine gxtb_dev_warning
   use crest_parameters
-  use crest_data, only: status_ioerr
+  use crest_data,only:status_ioerr
   write (stdout,*)
   write (stdout,'(a)') "!!! WARNING !!!"
   write (stdout,'(a)') "You have selected g-xTB for your calculations, but currently only the"
@@ -1095,10 +1102,10 @@ subroutine gxtb_dev_warning
   write (stdout,'(a)') "NUMERICAL gradients which are SLOW and NOISY."
   write (stdout,*)
   write (stdout,'(a)') 'The cmd argument "--gxtb" will be disabled until an implementation'
-  write(stdout,'(a)')  'with analytical gradients is available'
-  write(stdout,*)
+  write (stdout,'(a)') 'with analytical gradients is available'
+  write (stdout,*)
   write (stdout,'(a)') 'Please use "--gxtb_dev" in the mean time.'
   write (stdout,'(a)') "Make sure you have the dev version gxtb installed (https://github.com/grimme-lab/g-xtb)"
-  write(stdout,*)
+  write (stdout,*)
   call creststop(status_ioerr)
 end subroutine gxtb_dev_warning

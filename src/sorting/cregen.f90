@@ -1499,7 +1499,7 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
   real(wp),allocatable :: rmsds(:)
   type(coord),pointer :: ref,mol
   type(coord) :: molloc
-  real(wp) :: rmsdval,runtime,RTHR
+  real(wp) :: rmsdval,runtime,RTHR,ETHR,ediff
   logical :: stereocheck,individual_IDs
   type(timer) :: profiler
   integer :: ng
@@ -1511,7 +1511,7 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
 
 !>--- handle optional arguments
   if (present(allcanon)) then
-    individual_IDs = allcanon
+    individual_IDs = .not.allcanon
   else
     individual_IDs = .false.
   end if
@@ -1529,22 +1529,24 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
 
 !>--- set up parameters (note we are working with BOHR internally)
   RTHR = env%rthr*aatoau
+  ETHR = env%ethr/autokcal
 
 !>--- print some sorting data
   if (prlvl > 0) then
     write (stdout,'(a)') 'CREGEN> Info for iRMSD sorting:'
-    write (stdout,'(2x,a,i9)') 'number of structures  :',nall
-    write (stdout,'(2x,a,f9.5,a)') 'RTHR (RMSD threshold) :',RTHR*autoaa,' Å'
-    write (stdout,'(2x,a,i9)') 'OpenMP threads        :',T
-    write (stdout,'(2x,a,a9)') 'Individual atom IDs?  :',to_str(individual_IDs)
-    write (stdout,'(2x,a)',advance='no') 'False rotamer check?  :'
+    write (stdout,'(2x,a,t32,a,i10)') 'number of structures',':',nall
+    write (stdout,'(2x,a,t32,a,f10.5,a)') 'RTHR (RMSD threshold)',':',RTHR*autoaa,' Å'
+    write (stdout,'(2x,a,t32,a,es10.2,a)') 'ETHR (energy threshold)',':',ETHR,' Ha'
+    write (stdout,'(2x,a,t32,a,i10)') 'OpenMP threads',':',T
+    write (stdout,'(2x,a,t32,a,a10)') 'Individual atom IDs?',':',to_str(individual_IDs)
+    write (stdout,'(2x,a,t32,a)',advance='no') 'False rotamer check?',':'
     select case (env%iinversion)
     case (0)
-      write (stdout,'(a9)') 'auto'
+      write (stdout,'(a10)') 'auto'
     case (1)
-      write (stdout,'(a9)') 'on'
+      write (stdout,'(a10)') 'on'
     case (2)
-      write (stdout,'(a9)') 'off'
+      write (stdout,'(a10)') 'off'
     end select
     write (stdout,*)
   end if
@@ -1646,12 +1648,14 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
 !>--- Then, cross-check all other unassigned conformers
     !$omp parallel &
     !$omp shared(nall, nat, groups, individual_IDs, sorters, rcaches) &
-    !$omp shared(workmols, structures, ii) &
-    !$omp private(jj,rmsdval,cc)
+    !$omp shared(workmols, structures, ii, ETHR) &
+    !$omp private(jj,rmsdval,cc,ediff)
     !$omp do schedule(dynamic)
     do jj = ii+1,nall
       cc = omp_get_thread_num()+1
       if (groups(jj) .ne. 0) cycle
+      ediff = abs(structures(ii)%energy-structures(jj)%energy)
+      if(ediff > ETHR) cycle
       if (individual_IDs) then
         rcaches(cc)%rank(1:nat,1) = sorters(ii)%rank(1:nat)
         rcaches(cc)%rank(1:nat,2) = sorters(jj)%rank(1:nat)

@@ -119,7 +119,7 @@ contains  !> MODULE PROCEDURES START HERE
           !$omp critical
           write (stdout,'(a,1x,a,es17.8,a,es17.8,a)') trim(tag),'Quench E=',etot, &
           &  ' Eh, Markov E=',bh%emin,' Eh'
-          !$omp end critical 
+          !$omp end critical
         end if
 
         accept = mcaccept(optmol,bh)
@@ -128,13 +128,14 @@ contains  !> MODULE PROCEDURES START HERE
 
           call axis(optmol%nat,optmol%at,optmol%xyz)
 
+          !> check duplicates here
+          call mcduplicate(mol,bh,dupe,broken)
+
           if (printlvl > 1) then
             write (stdout,'(a)',advance='no') repeat(' ',len_trim(tag)+1)// &
             & "Quench "//colorify('ACCEPTED','green')
           end if
 
-          !> check duplicates here
-          call mcduplicate(mol,bh,dupe,broken)
           if (broken) then
             broke = broke+1
             if (printlvl > 1) write (stdout,'(a)',advance='no') &
@@ -143,6 +144,9 @@ contains  !> MODULE PROCEDURES START HERE
             discarded = discarded+1
             if (printlvl > 1) write (stdout,'(a)',advance='no') &
             & ', but '//colorify('NOT SAVED','yellow')//' due to duplicate detection!'
+          else if (printlvl == 1) then
+            write(stdout,'(a,1x,a,a,es17.8,a)') trim(tag),"Quench "//colorify('ACCEPTED','green'), &
+              & ', NEW Markov E=',bh%emin,' Eh'
           end if
 
           if (printlvl > 1) write (stdout,'(/)')
@@ -218,7 +222,6 @@ contains  !> MODULE PROCEDURES START HERE
       write (stdout,'(a)',advance='no') repeat(' ',n)
       write (stdout,'("|")')
     end if
-
 
     write (stdout,'(a,1x)',advance='no') '|'
     write (stdout,'(a,a,2x)',advance='no') 'step type: ',steptypestr(bh%steptype)
@@ -379,23 +382,21 @@ contains  !> MODULE PROCEDURES START HERE
     !$omp end critical
   end subroutine mcduplicate
 
- !========================================================================================!
- 
- subroutine mcquench(calc,bh,tmpmol,optmol,iostat)
+  !========================================================================================!
+
+  subroutine mcquench(calc,bh,tmpmol,optmol,iostat)
     implicit none
     !> Input
-    type(calcdata),intent(inout) :: calc  !> potential settings 
-    type(bh_class),intent(inout) :: bh    !> BH settings        
-    type(coord),intent(in)       :: tmpmol   !> molecular system    
+    type(calcdata),intent(inout) :: calc  !> potential settings
+    type(bh_class),intent(inout) :: bh    !> BH settings
+    type(coord),intent(in)       :: tmpmol   !> molecular system
     !> Output
     type(coord),intent(out)      :: optmol   !> molecular system output
     integer,intent(out)          :: iostat
 
     iostat = 1
 
-
- end subroutine mcquench
-
+  end subroutine mcquench
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
