@@ -106,8 +106,10 @@ contains  !> MODULE PROCEDURES START HERE
       dupe = .false.
 
 !>--- Take the step (mol --> tmpmol)
+      !!$omp critical
       call takestep(mol,calc,bh,tmpmol)
-
+      !!$omp end critical 
+      
 !>--- Quench it (tmpmol --> optmol)
       call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
       &                      .false.,.false.,iostatus)
@@ -198,42 +200,43 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=80) :: atmp
     integer :: n
 
-    write (stdout,'(a)') '+'//repeat('-',63)//'+'
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a)') '┌'//repeat('─',63)//'┐'
+    write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,3x)',advance='no') 'Starting Basin-Hopping Global Optimization'
     write (stdout,'(a,i3,a)',advance='no') '[Thread/ID ',bh%id,']'
-    write (stdout,'(2x,"|")')
+    write (stdout,'(2x,"│")')
+    write (stdout,'(t8,a)') '╞'//repeat('═',63)//'╡' 
 
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,f20.10,a)',advance='no') 'Initial energy:',bh%emin,' Eh'
-    write (stdout,'(24x,"|")')
+    write (stdout,'(24x,"│")')
 
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,es9.3,3x)',advance='no') 'T/K: ',bh%temp
     write (stdout,'(a,i5,3x)',advance='no') 'steps: ',bh%maxsteps
     write (stdout,'(a,i5,3x)',advance='no') 'max save: ',bh%maxsave
-    write (stdout,'(12x,"|")')
+    write (stdout,'(12x,"│")')
 
     if (allocated(bh%seed)) then
-      write (stdout,'(a,1x)',advance='no') '|'
+      write (stdout,'(t8,a,1x)',advance='no') '│'
       write (atmp,'(a,i0)') 'Random number generation (reference) seed: ',bh%seed
       write (stdout,'(a,1x)',advance='no') trim(atmp)
       n = 61-len_trim(atmp)
       write (stdout,'(a)',advance='no') repeat(' ',n)
-      write (stdout,'("|")')
+      write (stdout,'("│")')
     end if
 
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,a,2x)',advance='no') 'step type: ',steptypestr(bh%steptype)
     write (stdout,'(a,3f9.5)',advance='no') 'step size:',bh%stepsize(1:3)
-    write (stdout,'(3x,"|")')
+    write (stdout,'(3x,"│")')
 
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,f9.5,a)',advance='no') 'Thresholds   ΔRMSD:',bh%rthr,' Å,  '
     write (stdout,'(a,es10.4,a)',advance='no') 'ΔE: ',bh%ethr,' kcal/mol'
-    write (stdout,'(6x,"|")')
+    write (stdout,'(6x,"│")')
 
-    write (stdout,'(a)') '+'//repeat('-',63)//'+'
+    write (stdout,'(t8,a)') '└'//repeat('─',63)//'┘'
   end subroutine mcheader
 
   subroutine mcstats(bh,accepted,discarded,broke)
@@ -242,26 +245,26 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: accepted,discarded,broke
     real(wp) :: ratio
 
-    write (stdout,'(a)') '+'//repeat('~',63)//'+'
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a)') colorify('┌'//repeat('─',63)//'┐','green')
+    write (stdout,'(t8,a,1x)',advance='no') colorify("│","green")
     write (stdout,'(a,21x)',advance='no') 'Basin-Hopping Statistics'
     write (stdout,'(a,i3,a)',advance='no') '[Thread/ID ',bh%id,']'
-    write (stdout,'(2x,"|")')
+    write (stdout,'(2x,a)') colorify("│","green")
 
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a,1x)',advance='no') colorify("│","green")
     ratio = real(accepted,wp)/real(bh%maxsteps,wp)
     write (stdout,'(a,f6.2,a)',advance='no') 'MC acceptance ratio ',ratio*100.0_wp,' %, '
     ratio = real(discarded,wp)/real(accepted,wp)
     write (stdout,'(a,f6.2,a)',advance='no') 'similarity rejection  ',ratio*100.0_wp,' %'
-    write (stdout,'(2x,"|")')
+    write (stdout,'(2x,a)') colorify("│","green")
 
-    write (stdout,'(a,1x)',advance='no') '|'
+    write (stdout,'(t8,a,1x)',advance='no') colorify("│","green")
     ratio = real(broke,wp)/real(accepted,wp)
     write (stdout,'(a,f6.2,a)',advance='no') 'topology rejection  ',ratio*100.0_wp,' %, '
     ratio = real(accepted-discarded-broke,wp)/real(bh%maxsteps,wp)
     write (stdout,'(a,f6.2,a)',advance='no') 'TOTAL ACCEPT ratio    ',ratio*100.0_wp,' %'
-    write (stdout,'(2x,"|")')
-    write (stdout,'(a)') '+'//repeat('~',63)//'+'
+    write (stdout,'(2x,a)') colorify("│","green")
+    write (stdout,'(t8,a)') colorify('└'//repeat('─',63)//'┘',"green" )
   end subroutine mcstats
 
 !=========================================================================================!

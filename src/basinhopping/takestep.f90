@@ -53,6 +53,7 @@ contains  !> MODULE PROCEDURES START HERE
   end function steptypestr
 
 !=========================================================================================!
+!=========================================================================================!
 
   subroutine takestep(mol,calc,bh,newmol)
     implicit none
@@ -64,15 +65,19 @@ contains  !> MODULE PROCEDURES START HERE
     !> LOCAL
 
     select case (bh%steptype)
-    case(0) !> Cartesian
+    case (0) !> Cartesian
       newmol = mol
       call takestep_cart(newmol,bh%stepsize(1),calc)
+    case (2) !> dihedral only
+      newmol = mol
+      call takestep_dihedral(newmol,bh%molc,bh%stepsize(3),calc)
     case default
       error stop 'Steptype not implemented yet'
     end select
 
   end subroutine takestep
 
+!=========================================================================================!
 !=========================================================================================!
 
   subroutine takestep_cart(newmol,stepsize,calc)
@@ -105,10 +110,46 @@ contains  !> MODULE PROCEDURES START HERE
       end if
       call random_number(r)
       r(:) = (r(:)-0.5_wp)*2.0_wp
-      length=norm2(r)
+      length = norm2(r)
       newmol%xyz(:,i) = newmol%xyz(:,i)+r(:)*stepsize/length
     end do
   end subroutine take_fixed_stepsize_cart
+
+!=========================================================================================!
+
+  subroutine takestep_dihedral(newmol,molc,stepsize,calc)
+    use molbuilder_classify_type, only: dtypes
+    implicit none
+    type(coord),intent(inout) :: newmol
+    type(coord_classify),intent(inout) :: molc
+    real(wp),intent(in) :: stepsize
+    type(calcdata),intent(inout) :: calc
+    real(wp) :: r(1)
+    integer :: i,k
+    logical :: smartstep
+    call molc%update_zmat(newmol)
+    smartstep = allocated(molc%dtype)
+    if (smartstep) then
+      !> fallback: we need at least one valid dihdral if smartstep is true
+      !> otherwise we should turn it off again
+      k = count(molc%dtype(:) == dtypes%single)
+      if (k == 0) smartstep = .false.
+    end if
+
+    do i = 1,newmol%nat
+      if (molc%zmap(i,3) .ne. 0) then
+        if (smartstep) then
+          if (molc%dtype(i) .ne. dtypes%single) cycle
+        end if
+        call random_number(r)
+        r(:) = (r(:)-0.5_wp)*2.0_wp
+
+        molc%zmat(3,i) = molc%zmat(3,i)+r(1)*stepsize
+      end if
+    end do
+    !call molc%print_zmat(stdout)
+    call molc%from_zmat(newmol)
+  end subroutine takestep_dihedral
 
 !=========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

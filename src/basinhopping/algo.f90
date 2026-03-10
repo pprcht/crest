@@ -134,13 +134,13 @@ subroutine crest_basinhopping(env,tim)
   end if
   call tim%stop(14)
 
-  write(stdout,*)
+  write (stdout,*)
   call smallhead('Final Ensemble Sorting (iRMSD)')
-  allocate(groups(nall),source=0)
-  env%confgo=.true.
+  allocate (groups(nall),source=0)
+  env%confgo = .true.
   call cregen_irmsd_sort(env,nall,structuredump,groups,allcanon=.false.,printlvl=2)
 
-  if (allocated(groups)) deallocate(groups)
+  if (allocated(groups)) deallocate (groups)
   if (allocated(structuredump)) deallocate (structuredump)
   return
 end subroutine crest_basinhopping
@@ -152,6 +152,7 @@ subroutine single_basinhopping_core(env,mol,calc,structuredump)
   use strucrd
   use cregen_interface,only:unionizeEnsembles
   use optimize_module
+  use molbuilder_classify
   use bh_module
   implicit none
   type(systemdata),intent(inout) :: env
@@ -174,6 +175,16 @@ subroutine single_basinhopping_core(env,mol,calc,structuredump)
     call bh%init(300.0_wp,200,20)
     bh%stepsize(1) = 1.0_wp
   end if
+  select case (bh%steptype)
+  case (1,2) !> internals, dihedral only
+    write (stdout,'(a)') '> Setting up internal coordinates for input molecule:'
+    call setup_classify(mol,bh%molc)
+    call functional_group_classify(bh%molc)
+    call bh%molc%get_zmat(.true.)
+    call bh%molc%print_zmat(stdout)
+    write (stdout,*)
+    call bh%molc%check_dihedrals()
+  end select
 
   nall = 0
   do mciter = 1,bh%maxiter
@@ -202,6 +213,8 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
   use cregen_interface,only:unionizeEnsembles
   use optimize_module
   use bh_module
+  use iomod,only:is_terminal
+  use molbuilder_classify
   implicit none
   !> INPUT/OUTPUT
   type(systemdata),intent(inout) :: env
@@ -216,7 +229,7 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
   type(bh_class),allocatable :: bhp(:)
   type(coord),allocatable    :: mols(:)
   real(wp) :: energy
-  integer :: nall
+  integer :: nall,verbose
   character(len=128) :: tag
   type(mollist),allocatable :: dumplist(:)
 
@@ -242,17 +255,29 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
   end if
   do K = 1,T
     bhp(K)%id = K-1
+    !$omp critical
+    select case (bhp(K)%steptype)
+    case (1,2) !> internals, dihedral only
+      if (K == 1) write (stdout,'(a)') '> Setting up internal coordinates for input molecule:'
+      call setup_classify(mol,bhp(K)%molc)
+      call functional_group_classify(bhp(K)%molc)
+      call bhp(K)%molc%get_zmat(.true.)
+      if (K == 1) call bhp(K)%molc%print_zmat(stdout)
+      if (K == 1) write (stdout,*)
+      call bhp(K)%molc%check_dihedrals() 
+    end select
+    !$omp end critical
   end do
 
   !$omp parallel do default(shared) private(K, mciter) schedule(dynamic)
   do K = 1,T
     do mciter = 1,bhp(K)%maxiter
       !$omp critical
-      write(tag,'(a,i0,a)') 'Runner [',K,']: Basin-Hopping Epoch'
+      write (tag,'(a,i0,a)') 'Runner [',K-1,']: Basin-Hopping Epoch'
       if (bhp(K)%maxiter > 1) call printiter3(trim(tag),mciter)
       !$omp end critical
       call bhp(K)%newiter()
-      call mc(calcp(K),mols(K),bhp(K),verbosity=2)
+      call mc(calcp(K),mols(K),bhp(K),verbosity=1)
 
       write (stdout,'(a)') 'New structures will be appended to memory ...'
       call unionizeEnsembles(dumplist(K)%nall,dumplist(K)%structure, &

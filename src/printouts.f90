@@ -665,7 +665,8 @@ subroutine printiter3(text,i)
   integer,intent(in) :: i
   character(len=128) :: atmp
   write (atmp,'(a,1x,i0)') trim(text),i
-  call largehead(trim(atmp))
+  !call largehead(trim(atmp))
+  call construct_boxed_headline(trim(atmp),80,.true.)
 end subroutine printiter3
 
 !========================================================================================!
@@ -715,6 +716,38 @@ subroutine construct_large_headline(symb,str)
   write (*,'(a)') trim(str2)
   return
 end subroutine construct_large_headline
+subroutine construct_boxed_headline(str,width,bold)
+  use crest_parameters,only:stdout
+  implicit none
+  character(len=*),intent(in) :: str
+  integer,intent(in) :: width
+  logical,intent(in) :: bold
+  integer :: strlen,strlen2
+  integer :: k,i,j,jj
+  integer :: wid
+  wid = max(width,len_trim(str)+4)-2
+  wid = width-2
+  strlen = len_trim(str)
+  if (strlen > wid) wid = strlen
+  write (stdout,*)
+  if (bold) then
+    write (stdout,'(a)') "┏"//repeat("━",wid)//"┓"
+  else
+    write (stdout,'(a)') "┌"//repeat("─",wid)//"┐"
+  end if
+  strlen2 = wid+2
+  k = strlen2-strlen
+  j = k/2
+  jj = k-j-2 
+  if (bold) then
+    write (stdout,'(a)') "┃"//repeat(" ",j)//trim(str)//repeat(" ",jj)//"┃"
+    write (stdout,'(a)') "┗"//repeat("━",wid)//"┛"
+  else
+    write (stdout,'(a)') "│"//repeat(" ",j)//trim(str)//repeat(" ",jj)//"│"
+    write (stdout,'(a)') "└"//repeat("─",wid)//"┘"
+  end if
+  return
+end subroutine construct_boxed_headline
 
 !========================================================================================!
 

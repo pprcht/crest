@@ -22,6 +22,7 @@ module bh_class_module
   use strucrd,only:coord
   use canonical_mod
   use irmsd_module
+  use molbuilder_classify
   implicit none
 
 !=========================================================================================!
@@ -65,12 +66,15 @@ module bh_class_module
 
 !>--- temporary storage
     integer,allocatable  :: amat(:,:)        !> adjacency matrix
-    real(wp),allocatable :: zmat(:,:)        !> internal coordinates (to cache the memory)
     type(rmsd_cache),allocatable :: rcache   !> similarity check cache (iRMSD)
     logical :: stereocheck = .false.         !> check for false-rotamers?
     type(canonical_sorter),allocatable :: sorters(:) !> canonical atom ID storage
     logical :: topocheck = .true.            !> check for correct connectivity
     type(canonical_sorter),allocatable :: refsort  !> use same reference connectivity for all
+
+!> internal coordinates (stored via coord_classify)
+   type(coord_classify) :: molc
+   
 
 !>--- Type procedures
   contains
@@ -128,7 +132,6 @@ contains  !> MODULE PROCEDURES START HERE
     class(bh_class) :: self
     if (allocated(self%structures)) deallocate (self%structures)
     if (allocated(self%amat)) deallocate (self%amat)
-    if (allocated(self%zmat)) deallocate (self%zmat)
     if (allocated(self%sorters)) deallocate (self%sorters)
     if (allocated(self%rcache)) deallocate (self%rcache)
     if (allocated(self%refsort)) deallocate (self%refsort)

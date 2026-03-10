@@ -181,6 +181,7 @@ contains !> MODULE PROCEDURES START HERE
         end if
         do j = 1,nat
           if (j == refi) cycle
+          if (j == nc(refi)) cycle
           if (ztod(j) == i) then
             nc(j) = refi
             call DIHED2(xyz,j,na(j),nb(j),nc(j),zmat(3,j))

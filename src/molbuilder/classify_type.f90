@@ -38,6 +38,15 @@ module molbuilder_classify_type
     procedure :: copy => copy_func_group
   end type functional_group
 
+  type,private:: dihedral_types
+    integer :: unknown = 0
+    integer :: single = 1
+    integer :: improper = 2
+    integer :: stiff = 3
+    integer :: macrocycle = 4
+  end type dihedral_types
+  type(dihedral_types),parameter,public :: dtypes = dihedral_types()
+
   type,extends(coord) :: coord_classify
     !> new components that are added to the coord type:
     !integer,allocatable :: A(:,:)  !> molecular graph/adjacency matrix
@@ -62,6 +71,7 @@ module molbuilder_classify_type
     integer,allocatable  :: zmap(:,:) !> na,nb,nc
     integer,allocatable  :: ztod(:)
     integer,allocatable  :: hatsort(:,:)
+    integer,allocatable  :: dtype(:)
 
     !> utility storage
     logical,allocatable :: lwork(:)
@@ -74,6 +84,8 @@ module molbuilder_classify_type
     procedure,private :: coord_classify_add_fg
     procedure :: get_zmat => coord_classify_calculate_zmat
     procedure :: from_zmat => coord_classify_reconstruct_from_zmat
+    procedure :: update_zmat => coord_classify_update_zmat
+    procedure :: check_dihedrals => coord_classify_check_dihedrals
     procedure :: print_funcgroups => coord_classify_print_functional
     procedure :: print_zmat => coord_classify_print_zmat
   end type coord_classify
@@ -317,7 +329,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     if (present(natural)) then
       if (natural) then
-        write (stdout,'(/,a)') 'NOTE: atom order will temporarily be changed!'
+        !write (stdout,'(/,a)') 'NOTE: atom order will temporarily be changed!'
         call coord_classify_hatsort(molc)
       end if
     end if
@@ -335,7 +347,7 @@ contains  !> MODULE PROCEDURES START HERE
       if (natural) then
         call prune_zmat_dihedrals(molc,molc%zmat, &
         & molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3),molc%ztod, &
-        hpyrad=.true., bond=molc%bond)
+        hpyrad=.true.,bond=molc%bond)
         !call molc%print_zmat(stdout)
         call coord_classify_hatsort_restore(molc)
         deallocate (molc%hatsort)
@@ -357,14 +369,87 @@ contains  !> MODULE PROCEDURES START HERE
       &              molc%xyz,        &
       &  molc%zmap(:,1),molc%zmap(:,2),molc%zmap(:,3))
 
-    !if (allocated(molc%hatsort)) then
-    !  call coord_classify_hatsort_restore(molc)
-    !  deallocate (molc%hatsort)
-    !end if
     if (present(mol)) then
       mol = molc%as_coord()
     end if
   end subroutine coord_classify_reconstruct_from_zmat
+
+  subroutine coord_classify_update_zmat(molc,mol)
+    !************************************************************
+    !* Update the Z-matrix with fresh coords from Cartesian ones
+    !* (The mapping must exist at this point)
+    !************************************************************
+    implicit none
+    class(coord_classify),intent(inout) :: molc
+    type(coord),intent(in),optional :: mol
+    integer :: ii,jj,a,b,c,d
+
+    if (.not.allocated(molc%zmat)) then
+      write (stdout,*) '** ERROR ** in coord_classify_update_zmat(): zmat not allocated!'
+      return
+    end if
+    if (.not.allocated(molc%zmap)) then
+      write (stdout,*) '** ERROR ** in coord_classify_update_zmat(): zmapping not allocated!'
+      return
+    end if
+    if (present(mol)) then
+      if (.not.all(mol%at .eq. molc%at)) then
+        write (stdout,*) '** ERROR ** in coord_classify_update_zmat(): mismatch in atom order'
+        return
+      end if
+      molc%xyz = mol%xyz
+    end if
+    do a = 1,molc%nat
+      b = molc%zmap(a,1)
+      if (b == 0) cycle
+      molc%zmat(1,a) = molc%dist(a,b)
+      c = molc%zmap(a,2)
+      if (c == 0) cycle
+      molc%zmat(2,a) = molc%angle(a,b,c)
+      d = molc%zmap(a,3)
+      if (d == 0) cycle
+      molc%zmat(3,a) = molc%dihedral(a,b,c,d)
+    end do
+  end subroutine coord_classify_update_zmat
+
+  subroutine coord_classify_check_dihedrals(molc)
+    !************************************************************
+    !* Attempt to assign dihedral angles to a type of dihedral
+    !************************************************************
+    implicit none
+    class(coord_classify),intent(inout) :: molc
+    integer :: ii,jj,a,b,c,d
+
+    if (.not.allocated(molc%zmap)) then
+      write (stdout,*) '** ERROR ** in coord_classify_update_zmat(): zmapping not allocated!'
+      return
+    end if
+
+    if (allocated(molc%dtype)) deallocate (molc%dtype)
+    allocate (molc%dtype(molc%nat),source=dtypes%unknown)
+
+    do ii = 1,molc%nat
+      if (molc%zmap(3,ii) .eq. 0) cycle
+      a = ii
+      b = molc%zmap(ii,1)
+      c = molc%zmap(ii,2)
+      d = molc%zmap(ii,3)
+
+      if (molc%bond(a,b) > 0.and. &
+      &  molc%bond(b,c) > 0.and. &
+      &  molc%bond(c,d) > 0) then
+        molc%dtype(ii) = dtypes%single
+      else if(molc%bond(a,b) > 0.and. & 
+      &       molc%bond(b,c) > 0.and. &  
+      &       molc%bond(b,d) > 0) then   
+        molc%dtype(ii) = dtypes%improper
+      end if
+      !write(*,*) ii, molc%dtype(ii)
+    end do
+
+  end subroutine coord_classify_check_dihedrals
+
+!=============================================================================!
 
   subroutine coord_classify_hatsort(molc)
     !**************************************************************
