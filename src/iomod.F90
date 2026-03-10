@@ -865,6 +865,116 @@ contains !> MODULE PROCEDURES START HERE
   end function colorify
 
 !=========================================================================================!
+
+  subroutine drawbox(prch,str,width,charset,padl,padr,ltab,procedual,color)
+    implicit none
+    integer,intent(in) :: prch
+    character(len=*),intent(in) :: str
+    integer,intent(in),optional :: charset
+    integer,intent(in),optional :: width,padl,padr,ltab
+    integer,intent(in),optional :: procedual
+    character(len=*),intent(in),optional :: color
+
+    integer :: strlen,padd,wid,ltabb,procc,paddl,paddr
+    character(len=*),parameter :: set1 = '******'
+    character(len=*),parameter :: set2 = '+-+|++'
+    character(len=*),parameter :: set3 = '=== =='
+    character(len=*),parameter :: set4 = '┌─┐│└┘'
+    character(len=*),parameter :: set5 = '┏━┓┃┗┛'
+    character(len=*),parameter :: set6 = '╔═╗║╚╝'
+    character(len=*),parameter :: set7 = '┍━┑│┕┙'
+
+    integer :: ul,ho,ur,ve,ll,lr,d
+    character(len=:),allocatable ::  boxchars
+
+    ul = 1; ho = 2; ur = 3; ve = 4; ll = 5; lr = 6; d = 0
+    if (present(charset)) then
+      if (charset >= 4) then
+        !> technically, utf-8 chars are wider ...
+        ul = 1; ho = 4; ur = 7; ve = 10; ll = 13; lr = 16; d = 2
+      end if
+      select case (charset)
+      case (2)
+        boxchars = set2
+      case (3)
+        boxchars = set3
+      case (4)
+        boxchars = set4
+      case (5)
+        boxchars = set5
+      case (6)
+        boxchars = set6
+      case (7)
+        boxchars = set7
+      case default
+        boxchars = set1
+      end select
+    else
+      boxchars = set1
+    end if
+
+    strlen = len(str)
+    if (present(padl)) then
+      paddl = max(padl,0)
+    else
+      paddl = 1
+    end if
+    if (present(padr)) then
+      paddr = max(padr,0)
+    else
+      paddr = 1
+    end if
+    if (present(width)) then
+      wid = width-2
+      if (.not.present(padl)) then
+        paddl = (wid-strlen)/2
+      end if
+      paddr = wid-strlen-paddl
+    else
+      wid = (strlen+paddl+paddr)
+    end if
+
+    if (present(ltab)) then
+      ltabb = ltab
+    else
+      ltabb = 0
+    end if
+
+    procc = -1
+    if (present(procedual)) procc = procedual
+
+    if (procc == -1.or.procc == 0) then
+      write (prch,'(a)',advance='no') repeat(' ',ltabb)
+      if (present(color)) then
+        write (prch,'(a)') colorify(boxchars(ul:ul+d)//repeat(boxchars(ho:ho+d),wid)//boxchars(ur:ur+d),color)
+      else
+        write (prch,'(a)') boxchars(ul:ul+d)//repeat(boxchars(ho:ho+d),wid)//boxchars(ur:ur+d)
+      end if
+    end if
+
+    if (procc == -1.or.procc == 1) then
+      write (prch,'(a)',advance="no") repeat(' ',ltabb)
+      if (present(color)) then
+        write (prch,'(a)') colorify(boxchars(ve:ve+d),color)// &
+          & repeat(' ',paddl)//str//repeat(' ',paddr)// &
+          & colorify(boxchars(ve:ve+d),color)
+      else
+        write (prch,'(a)') boxchars(ve:ve+d)//repeat(' ',paddl)//str//repeat(' ',paddr)//boxchars(ve:ve+d)
+      end if
+    end if
+
+    if (procc == -1.or.procc == 2) then
+      write (prch,'(a)',advance='no') repeat(' ',ltabb)
+      if (present(color)) then
+        write (prch,'(a)') colorify(boxchars(ll:ll+d)//repeat(boxchars(ho:ho+d),wid)//boxchars(lr:lr+d),color)
+      else
+        write (prch,'(a)') boxchars(ll:ll+d)//repeat(boxchars(ho:ho+d),wid)//boxchars(lr:lr+d)
+      end if
+    end if
+
+  end subroutine drawbox
+
+!=========================================================================================!
 !=========================================================================================!
 !=========================================================================================!
 !> type conversion routines
