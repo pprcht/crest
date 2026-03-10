@@ -106,13 +106,10 @@ contains  !> MODULE PROCEDURES START HERE
       dupe = .false.
 
 !>--- Take the step (mol --> tmpmol)
-      !!$omp critical
       call takestep(mol,calc,bh,tmpmol)
-      !!$omp end critical 
-      
+
 !>--- Quench it (tmpmol --> optmol)
-      call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
-      &                      .false.,.false.,iostatus)
+      call mcquench(calc,bh,tmpmol,optmol,etot,grd,iostatus)
 
 !>--- Accept/reject
       if (iostatus == 0) then  !> successfull optimization
@@ -147,7 +144,7 @@ contains  !> MODULE PROCEDURES START HERE
             if (printlvl > 1) write (stdout,'(a)',advance='no') &
             & ', but '//colorify('NOT SAVED','yellow')//' due to duplicate detection!'
           else if (printlvl == 1) then
-            write(stdout,'(a,1x,a,a,es17.8,a)') trim(tag),"Quench "//colorify('ACCEPTED','green'), &
+            write (stdout,'(a,1x,a,a,es17.8,a)') trim(tag),"Quench "//colorify('ACCEPTED','green'), &
               & ', NEW Markov E=',bh%emin,' Eh'
           end if
 
@@ -205,7 +202,7 @@ contains  !> MODULE PROCEDURES START HERE
     write (stdout,'(a,3x)',advance='no') 'Starting Basin-Hopping Global Optimization'
     write (stdout,'(a,i3,a)',advance='no') '[Thread/ID ',bh%id,']'
     write (stdout,'(2x,"│")')
-    write (stdout,'(t8,a)') '╞'//repeat('═',63)//'╡' 
+    write (stdout,'(t8,a)') '╞'//repeat('═',63)//'╡'
 
     write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,f20.10,a)',advance='no') 'Initial energy:',bh%emin,' Eh'
@@ -252,6 +249,10 @@ contains  !> MODULE PROCEDURES START HERE
     write (stdout,'(2x,a)') colorify("│","green")
 
     write (stdout,'(t8,a,1x)',advance='no') colorify("│","green")
+    write (stdout,'(a,12x,f17.8,a)',advance='no') 'Latest Markov chain energy: ',bh%emin,' Eh'
+    write (stdout,'(2x,a)') colorify("│","green")
+
+    write (stdout,'(t8,a,1x)',advance='no') colorify("│","green")
     ratio = real(accepted,wp)/real(bh%maxsteps,wp)
     write (stdout,'(a,f6.2,a)',advance='no') 'MC acceptance ratio ',ratio*100.0_wp,' %, '
     ratio = real(discarded,wp)/real(accepted,wp)
@@ -264,7 +265,7 @@ contains  !> MODULE PROCEDURES START HERE
     ratio = real(accepted-discarded-broke,wp)/real(bh%maxsteps,wp)
     write (stdout,'(a,f6.2,a)',advance='no') 'TOTAL ACCEPT ratio    ',ratio*100.0_wp,' %'
     write (stdout,'(2x,a)') colorify("│","green")
-    write (stdout,'(t8,a)') colorify('└'//repeat('─',63)//'┘',"green" )
+    write (stdout,'(t8,a)') colorify('└'//repeat('─',63)//'┘',"green")
   end subroutine mcstats
 
 !=========================================================================================!
@@ -387,17 +388,22 @@ contains  !> MODULE PROCEDURES START HERE
 
   !========================================================================================!
 
-  subroutine mcquench(calc,bh,tmpmol,optmol,iostat)
+  subroutine mcquench(calc,bh,tmpmol,optmol,etot,grd,iostat)
     implicit none
     !> Input
     type(calcdata),intent(inout) :: calc  !> potential settings
     type(bh_class),intent(inout) :: bh    !> BH settings
     type(coord),intent(in)       :: tmpmol   !> molecular system
+    real(wp),intent(inout)       :: etot
+    real(wp),intent(inout)       :: grd(:,:)
     !> Output
     type(coord),intent(out)      :: optmol   !> molecular system output
     integer,intent(out)          :: iostat
 
     iostat = 1
+
+    call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
+     &                      .false.,.false.,iostat)
 
   end subroutine mcquench
 

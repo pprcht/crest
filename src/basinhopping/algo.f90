@@ -264,18 +264,21 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
       call bhp(K)%molc%get_zmat(.true.)
       if (K == 1) call bhp(K)%molc%print_zmat(stdout)
       if (K == 1) write (stdout,*)
-      call bhp(K)%molc%check_dihedrals() 
+      call bhp(K)%molc%check_dihedrals()
     end select
     !$omp end critical
   end do
 
-  !$omp parallel do default(shared) private(K, mciter) schedule(dynamic)
-  do K = 1,T
-    do mciter = 1,bhp(K)%maxiter
-      !$omp critical
-      write (tag,'(a,i0,a)') 'Runner [',K-1,']: Basin-Hopping Epoch'
-      if (bhp(K)%maxiter > 1) call printiter3(trim(tag),mciter)
-      !$omp end critical
+  write (stdout,'(a)') '> Starting parallel Basin-Hopping execution'
+  write (stdout,*)
+
+  do mciter = 1,bhp(1)%maxiter
+    !$omp critical
+    write (tag,'(a,i0,a)') 'Basin-Hopping Epoch'
+    if (bhp(1)%maxiter > 1) call printiter3(trim(tag),mciter)
+    !$omp end critical
+    !$omp parallel do default(shared) private(K, mciter) schedule(dynamic)
+    do K = 1,T
       call bhp(K)%newiter()
       call mc(calcp(K),mols(K),bhp(K),verbosity=1)
 
@@ -286,8 +289,10 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
       write (stdout,'(a,i0,a,i0,a)') 'Currently ',dumplist(K)%nall, &
       &      ' structures saved (BH[',bhp(K)%id,'])!'
     end do
+    !$omp end parallel do
+    
+    !> Do things here (?)
   end do
-  !$omp end parallel do
 
   write (stdout,*)
   write (stdout,'(a)') 'Parallel BH runs done!'
