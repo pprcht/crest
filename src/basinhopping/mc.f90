@@ -62,9 +62,9 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: grd(:,:)
     logical :: accept,dupe,broken
     integer :: printlvl,first,last,dynamicseed
-    character(len=10) :: tag
+    character(len=20) :: tag
 
-    write (tag,'("BH[",i0,"]>")') bh%id
+    write (tag,'("BH[Runner ",i0,"]>")') bh%id
 
     if (present(verbosity)) then
       printlvl = verbosity
@@ -72,7 +72,23 @@ contains  !> MODULE PROCEDURES START HERE
       printlvl = 0
     end if
 
-!>--- Add input energy to Markov chain
+!>--- Add input energy to Markov chain after an initial quench
+    !$omp critical
+    allocate (grd(3,mol%nat),source=0.0_wp)
+    !$omp end critical
+
+    if (printlvl > 0) then
+      write (stdout,'(a,1x,a)') trim(tag),'Performing '//colorify('initial quench','gold')//"."
+    end if
+
+    tmpmol = mol
+    call mcquench(calc,bh,tmpmol,optmol,etot,grd,iostatus)
+    if(iostatus .ne. 0)then
+      write(stdout,'(a,1x,a)') trim(tag),colorify('** WARNING **','red')// &
+        & ' initial quench failed. Returning.'
+      return
+    endif
+    mol = optmol
     bh%emin = mol%energy
     call bh%add(mol)
 
@@ -93,9 +109,6 @@ contains  !> MODULE PROCEDURES START HERE
       call RNG_seed(bh%seed)
     end if
 
-    !$omp critical
-    allocate (grd(3,mol%nat),source=0.0_wp)
-    !$omp end critical
 !=======================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
     accepted = 0
@@ -391,19 +404,55 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine mcquench(calc,bh,tmpmol,optmol,etot,grd,iostat)
     implicit none
     !> Input
-    type(calcdata),intent(inout) :: calc  !> potential settings
-    type(bh_class),intent(inout) :: bh    !> BH settings
-    type(coord),intent(in)       :: tmpmol   !> molecular system
-    real(wp),intent(inout)       :: etot
-    real(wp),intent(inout)       :: grd(:,:)
+    type(calcdata),intent(inout) :: calc      !> potential settings
+    type(bh_class),intent(inout) :: bh        !> BH settings
+    type(coord),intent(inout)    :: tmpmol    !> molecular system
+    real(wp),intent(inout)       :: etot      !> quenechd energy
+    real(wp),intent(inout)       :: grd(:,:)  !> gradient (temp storage)
     !> Output
-    type(coord),intent(out)      :: optmol   !> molecular system output
-    integer,intent(out)          :: iostat
+    type(coord),intent(out)      :: optmol    !> molecular system output
+    integer,intent(out)          :: iostat    !> return status
 
+    integer :: nrefine,ii
+    real(wp) :: etmp
     iostat = 1
 
+    !> initial proper quench (refine_lvl = 0)
     call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
      &                      .false.,.false.,iostat)
+
+    !> Special Post-processing via refinement queue
+    if (allocated(bh%refine_queue).and.iostat == 0) then
+
+      nrefine = size(bh%refine_queue,1)
+
+      do ii = 1,nrefine
+        if (iostat .ne. 0) exit
+        calc%refine_stage = bh%refine_queue(ii)
+        select case (calc%refine_stage)
+        case (1) !> singlepoint (rerank)
+          call engrad(optmol,calc,etot,grd,iostat)
+
+        case (2) !> singlepoint (add)
+          call engrad(optmol,calc,etmp,grd,iostat)
+          etot = etot+etmp
+
+        case (3) !> geometry opt (requench)
+          tmpmol = optmol
+          call optimize_geometry(tmpmol,optmol,calc,etot,grd, &
+          &                      .false.,.false.,iostat)
+
+        case default
+          continue
+        end select
+      end do
+
+      !> RESET refine level for next quench
+      calc%refine_stage = 0
+
+      !> Important: last energy must be stored in the optmol
+      optmol%energy = etot
+    end if
 
   end subroutine mcquench
 

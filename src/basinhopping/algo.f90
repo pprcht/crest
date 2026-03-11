@@ -185,6 +185,10 @@ subroutine single_basinhopping_core(env,mol,calc,structuredump)
     write (stdout,*)
     call bh%molc%check_dihedrals()
   end select
+  bh%id = 0
+  if (allocated(env%refine_queue)) then
+    bh%refine_queue = env%refine_queue
+  end if
 
   nall = 0
   do mciter = 1,bh%maxiter
@@ -266,6 +270,9 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
       if (K == 1) write (stdout,*)
       call bhp(K)%molc%check_dihedrals()
     end select
+    if (allocated(env%refine_queue)) then
+      bhp(K)%refine_queue = env%refine_queue
+    end if
     !$omp end critical
   end do
 
@@ -290,7 +297,7 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
       &      ' structures saved (BH[',bhp(K)%id,'])!'
     end do
     !$omp end parallel do
-    
+
     !> Do things here (?)
   end do
 

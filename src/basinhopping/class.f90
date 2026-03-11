@@ -56,6 +56,7 @@ module bh_class_module
     integer :: maxsave = 100       !> maximum number of quenches saved
     real(wp),allocatable :: etarget  !> target energy to be hit (useful in benchmarks)
 
+    integer,allocatable :: refine_queue(:)
 
 !>--- results/properties
     real(wp) :: emin = 0.0_wp  !> current ref energy of markov chain
