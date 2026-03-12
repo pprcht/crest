@@ -23,6 +23,9 @@ subroutine creststop(io)
   implicit none
   integer,intent(in) :: io
 
+
+  call graceful_shutdowns()
+
   select case(io)
   case (status_normal)
     write (stdout,*) 'CREST terminated normally.'
@@ -113,4 +116,13 @@ subroutine initsignal()
   call signal(15,wSIGTERM)
   call signal(69,wSIGINT)
 end subroutine initsignal
+
+
+!=============================================================!
+subroutine graceful_shutdowns()
+  use mlip_sc
+  implicit none
+  call mlips_shutdown()
+end subroutine graceful_shutdowns
+
 

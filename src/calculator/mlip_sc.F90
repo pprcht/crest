@@ -23,10 +23,10 @@
 
 !=========================================================================================!
 module mlip_sc
-  use iso_fortran_env,only:wp => real64
+  use crest_parameters
   use strucrd
   use calc_type
-  use iomod,only:makedir,directory_exist,remove,command
+  use iomod
 #ifdef WITH_FORTBRIDGE
   use fortbridge_client
 #endif
@@ -34,8 +34,26 @@ module mlip_sc
   !>--- private module variables and parameters
   private
 
+  character(len=*),parameter :: basebin = 'fortbridge-server'
 
-  public :: mlip_engrad
+  public :: mlip_settings
+  type :: mlip_settings
+    integer :: BASE_PORT = 54320
+    integer :: TIMEOUT_SEC = 120
+    character(len=:),allocatable :: backend
+    character(len=:),allocatable :: modelpath
+    character(len=:),allocatable :: modelsize
+    integer :: iid = 0
+  end type mlip_settings
+
+  public :: mlip_engrad_core,fortbridge_init,mlips_shutdown
+
+  integer,parameter  :: nopbc(3) = (/0,0,0/)
+  integer,parameter  :: allpbc(3) = (/1,1,1/)
+  real(wp),parameter :: bigcell(3,3) = reshape( &
+    & (/10000.0_wp,0.0_wp,0.0_wp, &
+    &    0.0_wp,10000.0_wp,0.0_wp, &
+    &    0.0_wp,0.0_wp,10000.0_wp/), [3,3])
 
 !========================================================================================!
 !========================================================================================!
@@ -43,17 +61,104 @@ contains  !>--- Module routines start here
 !========================================================================================!
 !========================================================================================!
 
-  subroutine mlip_engrad(mol,energy,gradient,iostatus)
+  subroutine fortbridge_init(MSET,iid)
+    type(mlip_settings),intent(inout) :: MSET
+    integer,intent(in) :: iid
+    integer :: io,tmpport
+    character(len=256) :: cmd,cmd_0
+#ifdef WITH_FORTBRIDGE
+    if (.not.allocated(MSET%backend)) then
+      write (stdout,*) '** ERROR ** No model backend selected for MLIP'
+      write (stdout,*)
+      error stop
+    end if
+    if (allocated(MSET%modelpath)) then
+      if (.not.file_exists(MSET%modelpath)) then
+        write (stdout,*) '** ERROR ** model path allocated but can not find '//trim(MSET%modelpath)
+        write (stdout,*)
+        error stop
+      end if
+    end if
+
+    call checkprog_silent(basebin,verbose=.false.,iostat=io)
+    if (io .ne. 0) then
+      write (stdout,*) '** ERROR ** can not find socket server for MLIPs '//basebin
+      write (stdout,*) ' Make sure you install it from the fortbridge subproject via pip'
+      write (stdout,*)
+      error stop
+    end if
+
+    !> check for already running instances that may need reinitialization
+    !> or rather, shutdown first
+    if (MSET%iid .ne. 0) then
+      call mlip_finalize(MSET%iid,io)
+    end if
+
+    tmpport = MSET%BASE_PORT+iid
+    select case (MSET%backend)
+    case default
+      write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a))') basebin,'--port',tmpport,'--backend', &
+        & trim(MSET%backend),'--model',trim(MSET%modelpath)
+    end select
+
+    call mlip_init(iid,tmpport,trim(cmd),MSET%TIMEOUT_SEC,io)
+    if (io /= MLIP_OK) then
+      write (stdout,*) '** ERROR ** failed to initialize MLIP server'
+      write (stdout,*)
+      error stop
+    end if
+    !> Test it
+    call mlip_ping(iid,io)
+    if (io /= MLIP_OK) then
+      write (stdout,*) '** ERROR ** failed to ping MLIP server'
+      write (stdout,*)
+      error stop
+    end if
+
+    MSET%iid = iid
+
+#else /* WITH_FORTBRIDGE */
+    write (stdout,*) 'Error: Compiled without fortbridge support!'
+    write (stdout,*) 'Use -DWITH_FORTBRIDGE=true in the setup to enable this function'
+    error stop
+#endif
+  end subroutine fortbridge_init
+
+  subroutine mlip_engrad_core(mol,MSET,energy,gradient,iostatus)
     type(coord),intent(in) :: mol
+    type(mlip_settings)    :: MSET
     real(wp),intent(out)   :: energy
     real(wp),intent(out)   :: gradient(3,mol%nat)
     integer,intent(out)    :: iostatus
+
+    real(wp) :: stress(3,3)
 
     energy = 0.0_wp
     gradient(:,:) = 0.0_wp
     iostatus = 1
 
-  end subroutine mlip_engrad
+    if (allocated(mol%lat)) then
+      call mlip_compute(MSET%iid,mol%nat,mol%at,mol%xyz*autoaa,mol%lat,allpbc,0, &
+      &                 energy,gradient,stress,iostatus)
+    else
+      call mlip_compute(MSET%iid,mol%nat,mol%at,mol%xyz*autoaa,bigcell,nopbc,0, &
+      &                 energy,gradient,stress,iostatus)
+    end if
+
+    !> CREST always works with atomic units, convert from eV and Angstroem:
+    energy = energy/autoev
+    gradient(:,:) = gradient(:,:)*(1.0_wp/(autoev*aatoau))
+
+  end subroutine mlip_engrad_core
+
+!========================================================================================!
+
+  subroutine mlips_shutdown()
+    integer :: io
+#ifdef WITH_FORTBRIDGE
+    call mlip_finalize_all(io)
+#endif
+  end subroutine mlips_shutdown
 
 !========================================================================================!
 end module mlip_sc
