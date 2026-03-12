@@ -40,4 +40,5 @@ srcs += files(
   'modelhessians.f90',
   'approxg.f90',
   'penalty.f90',
+  'mlip_sc.F90',
 )

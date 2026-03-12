@@ -119,6 +119,11 @@ if(NOT TARGET "lwoniom::lwoniom" AND WITH_LWONIOM)
    add_compile_definitions(WITH_LWONIOM)
 endif()
 
+if(NOT TARGET "fortbridge:fortbridge" AND WITH_FORTBRIDGE)
+  find_package("fortbridge" REQUIRED)
+  add_compile_definitions(WITH_FORTBRIDGE)
+endif()
+
 # Sources: initialize program sources (prog) and library sources (srcs) empty
 set(prog)
 set(srcs)
@@ -158,6 +163,7 @@ if(WITH_OBJECT AND NOT STATICBUILD)
       $<$<BOOL:${WITH_LIBPVOL}>:pvol::pvol>
       $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
       $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
+      $<$<BOOL:${WITH_FORTBRIDGE}>:fortbridge::fortbridge> 
       $<$<BOOL:${WITH_OpenMP}>:OpenMP::OpenMP_Fortran>
    )
 
@@ -209,6 +215,7 @@ target_link_libraries(
    $<$<BOOL:${WITH_LIBPVOL}>:pvol::pvol>
    $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
    $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
+   $<$<BOOL:${WITH_FORTBRIDGE}>:fortbridge::fortbridge> 
    $<$<BOOL:${STATICBUILD}>:-static>
 )
 
@@ -254,6 +261,7 @@ if (WITH_OBJECT AND NOT STATICBUILD)
       $<$<BOOL:${WITH_LIBPVOL}>:pvol::pvol>
       $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
       $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
+      $<$<BOOL:${WITH_FORTBRIDGE}>:fortbridge::fortbridge> 
    )
 
    set_target_properties(
