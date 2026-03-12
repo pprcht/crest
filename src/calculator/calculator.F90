@@ -395,6 +395,8 @@ contains  !> MODULE PROCEDURES START HERE
     case (jobtype%penalty)
       call rmsd_engrad(molptr,calc%calcs(id),calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus)
 
+    case (jobtype%mlip)
+      call mlip_engrad(molptr,calc%calcs(id),calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus)
     case default
       calc%etmp(id) = 0.0_wp
       calc%grdtmp(:,:,id) = 0.0_wp

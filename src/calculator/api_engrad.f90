@@ -28,6 +28,7 @@ module api_engrad
   use strucrd
   use calc_type
   use iomod,only:makedir,directory_exist,remove,dump_array_to_tmp
+  use omp_lib
   !> API modules
   use api_helpers
   use tblite_api
@@ -37,6 +38,7 @@ module api_engrad
   use lj
   use approxg_module
   use penalty_module
+  use mlip_sc
   implicit none
 !>--- private module variables and parameters
   private
@@ -48,6 +50,7 @@ module api_engrad
   public :: lj_engrad   !> RE-EXPORT
   public :: modelhessian_engrad
   public :: rmsd_engrad
+  public :: mlip_engrad
 
 !=========================================================================================!
 !=========================================================================================!
@@ -436,23 +439,23 @@ contains    !> MODULE PROCEDURES START HERE
     iostatus = 0
     pr = .false.
 !>--- setup system call information
-   
-    if (.not.associated(calc%penalty%biaslist))then
-      if(allocated(calc%penalty%biasfile))then
+
+    if (.not.associated(calc%penalty%biaslist)) then
+      if (allocated(calc%penalty%biasfile)) then
         !$omp critical
         call rdensemble(calc%penalty%biasfile,nall,calc%penalty%biastmp)
         calc%penalty%biaslist => calc%penalty%biastmp
         !$omp end critical
       else
         return
-      endif
-    endif
-    !$omp critical 
+      end if
+    end if
+    !$omp critical
 !>--- printout handling
     call api_handle_output(calc,'rmsd_penalty.out',mol,pr)
 !>--- populate parameters
     if (.not.allocated(calc%penalty%gradtmp)) then
-      allocate(calc%penalty%gradtmp(3,mol%nat), source=0.0_wp)
+      allocate (calc%penalty%gradtmp(3,mol%nat),source=0.0_wp)
       call calc%penalty%ccache%allocate(mol%nat)
     else
       calc%penalty%gradtmp(:,:) = 0.0_wp
@@ -476,6 +479,54 @@ contains    !> MODULE PROCEDURES START HERE
 
     return
   end subroutine rmsd_engrad
+
+!========================================================================================!
+
+  subroutine mlip_engrad(mol,calc,energy,grad,iostatus)
+!**************************************************************************
+!* MLIP singlepoint through persistent python socket
+!**************************************************************************
+    implicit none
+    type(coord) :: mol
+    type(calculation_settings),target :: calc
+
+    real(wp),intent(inout) :: energy
+    real(wp),intent(inout) :: grad(3,mol%nat)
+    integer,intent(out) :: iostatus
+
+    logical :: loadnew,pr
+    integer :: i,j,k,l,ich,och,io,iid
+    logical :: ex
+    iostatus = 0
+    pr = .false.
+    !$omp critical 
+!>--- setup system call information
+    if (calc%MPAR%iid == 0) then
+      iid = OMP_GET_THREAD_NUM()+1
+      call fortbridge_init(calc%MPAR,iid)
+    end if
+!>--- printout handling
+    call api_handle_output(calc,'mlip.out',mol,pr)
+!>--- populate parameters
+    !$omp end critical
+    if (iostatus /= 0) return
+
+!>--- do the engrad call
+    call initsignal()
+    call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus)
+    if (iostatus /= 0) return
+
+!>--- printout
+    if (pr) then
+      !> the libpvol_sp call includes the printout within libpvol-lib
+      if (.not.calc%prstdout) &
+      & call api_print_e_grd(pr,calc%prch,mol,energy,grad)
+    end if
+
+!>--- postprocessing, getting other data
+
+    return
+  end subroutine mlip_engrad
 
 !========================================================================================!
 !########################################################################################!

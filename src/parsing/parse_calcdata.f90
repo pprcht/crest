@@ -267,6 +267,8 @@ contains !> MODULE PROCEDURES START HERE
       case ('rmsdbias','penalty')
         job%id = jobtype%penalty
         nullify(job%penalty%biaslist)
+      case ('mlip','fortbridge')
+        job%id = jobtype%mlip
       case default
         job%id = jobtype%unknown
         !>--- keyword was recognized, but invalid argument supplied
@@ -339,11 +341,20 @@ contains !> MODULE PROCEDURES START HERE
         !>--- keyword was recognized, but invalid argument supplied
         write (stdout,fmtura) kv%value_c
         call creststop(status_config)
-
       end select
+
     case ('tblite_param')
       job%tbliteparam = kv%value_c
       job%tblitelvl = xtblvl%param
+
+    case ('mlip_backend')
+      job%MPAR%backend = kv%value_c
+
+    case ('mlip_modelpath')
+      job%MPAR%modelpath = kv%value_c
+
+    case ('mlip_modelsize')
+      job%MPAR%modelsize = kv%value_c
 
     case ('orca_cmd')
       job%id = jobtype%orca

@@ -32,6 +32,7 @@ module calc_type
   use hessian_reconstruct
   use approxg_module, only: approxg_params
   use penalty_module, only: penalty_params
+  use mlip_sc, only: mlip_params
   implicit none
 
   character(len=*),public,parameter :: sep = '/'
@@ -54,10 +55,11 @@ module calc_type
     integer :: lj        = 11
     integer :: approxg   = 12
     integer :: penalty   = 13
+    integer :: mlip      = 14
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(14) = [ &
+  character(len=45),parameter,private :: jobdescription(15) = [ &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -71,7 +73,8 @@ module calc_type
      & 'external pressure calculation via libpvol   ', &
      & 'Lennard-Jones potential calculation         ', &
      & 'Approximate free energy computation         ', &
-     & 'Empirical penalty function                  ' ]
+     & 'Empirical penalty function                  ', &
+     & 'MLIP via persistent python socket           ']
 !&>
 
 !=========================================================================================!
@@ -188,8 +191,11 @@ module calc_type
     integer :: ONIOM_highlowroot = 0
     integer :: ONIOM_id = 0
 
-    !> ORCA job template
+!>--- ORCA job template
     type(orca_input) :: ORCA
+
+!>--- MLIP settings
+    type(mlip_params) :: MPAR
 
 !>--- Type procedures
   contains
@@ -1106,6 +1112,8 @@ contains  !>--- Module routines start here
 
     self%ag = src%ag
     self%penalty = src%penalty
+
+    self%MPAR = src%MPAR
 !&<
     return
   end subroutine calculation_settings_copy
