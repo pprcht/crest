@@ -1,11 +1,11 @@
-set(_lib "fortbridge")
-set(_pkg "FORTBRIDGE")
-set(_url "https://github.com/pprcht/fortbridge")
+set(_lib "fmlip_relay")
+set(_pkg "FMLIP_RELAY")
+set(_url "https://github.com/pprcht/fmlip-relay")
 
 # Discovery method order can be overridden by the parent project, e.g.:
-#   set(FORTBRIDGE_FIND_METHOD "subproject" "cmake")
+#   set(FMLIP_RELAY_FIND_METHOD "subproject" "cmake")
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
-  set("${_pkg}_FIND_METHOD" "cmake" "subproject" "fetch" "pkgconf")
+  set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
 endif()
 
 # Reuse whichever utils macro your main project already provides.
@@ -15,10 +15,10 @@ include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}")
 
 set(found FALSE)
-if(TARGET "fortbridge::fortbridge")
+if(TARGET "fmlip_relay::fmlip_relay")
   set(found TRUE)
 endif()
-message(STATUS "Found fortbridge: ${found}")
+message(STATUS "Found fmlip-relay: ${found}")
 
 unset(_lib)
 unset(_pkg)

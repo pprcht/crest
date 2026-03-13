@@ -119,9 +119,9 @@ if(NOT TARGET "lwoniom::lwoniom" AND WITH_LWONIOM)
    add_compile_definitions(WITH_LWONIOM)
 endif()
 
-if(NOT TARGET "fortbridge:fortbridge" AND WITH_FORTBRIDGE)
-  find_package("fortbridge" REQUIRED)
-  add_compile_definitions(WITH_FORTBRIDGE)
+if(NOT TARGET "fmlip_relay:fmlip_relay" AND WITH_FMLIP_RELAY)
+  find_package("fmlip_relay" REQUIRED)
+  add_compile_definitions(WITH_FMLIP_RELAY)
 endif()
 
 # Sources: initialize program sources (prog) and library sources (srcs) empty
@@ -163,7 +163,7 @@ if(WITH_OBJECT AND NOT STATICBUILD)
       $<$<BOOL:${WITH_LIBPVOL}>:pvol::pvol>
       $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
       $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
-      $<$<BOOL:${WITH_FORTBRIDGE}>:fortbridge::fortbridge> 
+      $<$<BOOL:${WITH_FMLIP_RELAY}>:fmlip_relay::fmlip_relay> 
       $<$<BOOL:${WITH_OpenMP}>:OpenMP::OpenMP_Fortran>
    )
 
@@ -215,7 +215,7 @@ target_link_libraries(
    $<$<BOOL:${WITH_LIBPVOL}>:pvol::pvol>
    $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
    $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
-   $<$<BOOL:${WITH_FORTBRIDGE}>:fortbridge::fortbridge> 
+   $<$<BOOL:${WITH_FMLIP_RELAY}>:fmlip_relay::fmlip_relay> 
    $<$<BOOL:${STATICBUILD}>:-static>
 )
 
@@ -261,7 +261,7 @@ if (WITH_OBJECT AND NOT STATICBUILD)
       $<$<BOOL:${WITH_LIBPVOL}>:pvol::pvol>
       $<$<BOOL:${WITH_TOMLF}>:toml-f::toml-f>
       $<$<BOOL:${WITH_LWONIOM}>:lwoniom::lwoniom>
-      $<$<BOOL:${WITH_FORTBRIDGE}>:fortbridge::fortbridge> 
+      $<$<BOOL:${WITH_FMLIP_RELAY}>:fmlip_relay::fmlip_relay> 
    )
 
    set_target_properties(

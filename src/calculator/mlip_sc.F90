@@ -19,21 +19,21 @@
 
 !> module mlip_sc
 !> A module containing routines for calling MLIPs though persistent python instances
-!> enabled through the fortbridge submodule
+!> enabled through the fmlip_relay submodule
 
 !=========================================================================================!
 module mlip_sc
   use crest_parameters
   use strucrd
   use iomod
-#ifdef WITH_FORTBRIDGE
-  use fortbridge_client
+#ifdef WITH_FMLIP_RELAY
+  use fmlip_relay_client
 #endif
   implicit none
   !>--- private module variables and parameters
   private
 
-  character(len=*),parameter :: basebin = 'fortbridge-server'
+  character(len=*),parameter :: basebin = 'fmlip-relay-server'
 
   public :: mlip_params
   type :: mlip_params
@@ -45,7 +45,7 @@ module mlip_sc
     integer :: iid = 0
   end type mlip_params
 
-  public :: mlip_engrad_core,fortbridge_init,mlips_shutdown
+  public :: mlip_engrad_core,fmlip_relay_init,mlips_shutdown
 
   integer,parameter  :: nopbc(3) = (/0,0,0/)
   integer,parameter  :: allpbc(3) = (/1,1,1/)
@@ -61,12 +61,12 @@ contains  !>--- Module routines start here
 !========================================================================================!
 !========================================================================================!
 
-  subroutine fortbridge_init(MPAR,iid)
+  subroutine fmlip_relay_init(MPAR,iid)
     type(mlip_params),intent(inout) :: MPAR
     integer,intent(in) :: iid
     integer :: io,tmpport
     character(len=256) :: cmd,cmd_0,cmd_1
-#ifdef WITH_FORTBRIDGE
+#ifdef WITH_FMLIP_RELAY
     if (.not.allocated(MPAR%backend)) then
       write (stdout,*)
       write (stdout,*) '** ERROR ** No model backend selected for MLIP'
@@ -78,7 +78,7 @@ contains  !>--- Module routines start here
     if (io .ne. 0) then
       write (stdout,*)
       write (stdout,*) '** ERROR ** can not find socket server for MLIPs '//basebin
-      write (stdout,*) ' Make sure you install it from the fortbridge subproject via pip'
+      write (stdout,*) ' Make sure you install it from the fmlip_relay subproject via pip'
       write (stdout,*)
       call creststop(20)
     end if
@@ -144,13 +144,13 @@ contains  !>--- Module routines start here
 
     MPAR%iid = iid
 
-#else /* WITH_FORTBRIDGE */
-    write (stdout,*) 'Error: Compiled without fortbridge support!'
-    write (stdout,*) 'Use -DWITH_FORTBRIDGE=true in the setup to enable this function'
+#else /* WITH_FMLIP_RELAY */
+    write (stdout,*) 'Error: Compiled without fmlip-relay support!'
+    write (stdout,*) 'Use -DWITH_FMLIP_RELAY=true in the setup to enable this function'
     write (stdout,*)
     call creststop(20)
 #endif
-  end subroutine fortbridge_init
+  end subroutine fmlip_relay_init
 
   subroutine mlip_engrad_core(mol,MPAR,energy,gradient,iostatus)
     type(coord),intent(in) :: mol
@@ -165,7 +165,7 @@ contains  !>--- Module routines start here
     gradient(:,:) = 0.0_wp
     iostatus = 1
 
-#ifdef WITH_FORTBRIDGE
+#ifdef WITH_FMLIP_RELAY
     if (allocated(mol%lat)) then
       call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,mol%lat,allpbc,0, &
       &                 energy,gradient,stress,iostatus)
@@ -184,7 +184,7 @@ contains  !>--- Module routines start here
 
   subroutine mlips_shutdown()
     integer :: io
-#ifdef WITH_FORTBRIDGE
+#ifdef WITH_FMLIP_RELAY
     call mlip_finalize_all(io)
 #endif
   end subroutine mlips_shutdown

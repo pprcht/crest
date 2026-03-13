@@ -24,6 +24,6 @@
 [submodule "subprojects/pvol"]
 	path = subprojects/pvol
 	url = https://github.com/neudecker-group/libpvol.git
-[submodule "subprojects/fortbridge"]
-	path = subprojects/fortbridge
-	url = git@github.com:pprcht/fortbridge.git
+[submodule "subprojects/fmlip-relay"]
+	path = subprojects/fmlip-relay
+	url = git@github.com:pprcht/fmlip-relay.git

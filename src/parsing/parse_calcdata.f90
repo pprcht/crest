@@ -267,7 +267,7 @@ contains !> MODULE PROCEDURES START HERE
       case ('rmsdbias','penalty')
         job%id = jobtype%penalty
         nullify(job%penalty%biaslist)
-      case ('mlip','fortbridge')
+      case ('mlip','fmlip_relay')
         job%id = jobtype%mlip
       case default
         job%id = jobtype%unknown

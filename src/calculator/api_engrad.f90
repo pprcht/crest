@@ -503,7 +503,7 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- setup system call information
     if (calc%MPAR%iid == 0) then
       iid = OMP_GET_THREAD_NUM()+1
-      call fortbridge_init(calc%MPAR,iid)
+      call fmlip_relay_init(calc%MPAR,iid)
     end if
 !>--- printout handling
     call api_handle_output(calc,'mlip.out',mol,pr)
