@@ -353,7 +353,7 @@ contains !> MODULE PROCEDURES START HERE
     case ('mlip_modelpath')
       job%MPAR%modelpath = kv%value_c
 
-    case ('mlip_modelsize')
+    case ('mlip_modelsize','mlip_modelname')
       job%MPAR%modelsize = kv%value_c
 
     case ('orca_cmd')
