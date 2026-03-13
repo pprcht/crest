@@ -39,3 +39,6 @@
 [submodule "subprojects/multicharge"]
 	path = subprojects/multicharge
 	url = https://github.com/grimme-lab/multicharge
+[submodule "subprojects/s-dftd3"]
+	path = subprojects/s-dftd3
+	url = https://github.com/dftd3/simple-dftd3
