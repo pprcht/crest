@@ -1,6 +1,5 @@
 /*/
 json-fortran-8.2.5.wrap
-multicharge.wrap
 s-dftd3.wrap
 xhcff
 lammps*
@@ -16,6 +15,7 @@ lammps*
 !dftd4
 !mctc-lib
 !mstore
+!multicharge
 
 !packagefiles
 !packagefiles/tblite

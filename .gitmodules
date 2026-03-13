@@ -36,3 +36,6 @@
 [submodule "subprojects/mstore"]
 	path = subprojects/mstore
 	url = https://github.com/grimme-lab/mstore
+[submodule "subprojects/multicharge"]
+	path = subprojects/multicharge
+	url = https://github.com/grimme-lab/multicharge
