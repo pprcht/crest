@@ -91,6 +91,7 @@ endif()
 
 # tblite
 if(NOT TARGET "tblite::tblite" AND WITH_TBLITE)
+   find_package("mctc-lib" REQUIRED)
    find_package("dftd4" REQUIRED)
    find_package("tblite" REQUIRED)
    add_compile_definitions(WITH_TBLITE)

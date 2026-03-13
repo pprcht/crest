@@ -30,3 +30,6 @@
 [submodule "subprojects/dftd4"]
 	path = subprojects/dftd4
 	url = https://github.com/dftd4/dftd4
+[submodule "subprojects/mctc-lib"]
+	path = subprojects/mctc-lib
+	url = https://github.com/grimme-lab/mctc-lib.git
