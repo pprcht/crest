@@ -24,6 +24,6 @@
 [submodule "subprojects/pvol"]
 	path = subprojects/pvol
 	url = https://github.com/neudecker-group/libpvol.git
-[submodule "subprojects/fmlip-relay"]
-	path = subprojects/fmlip-relay
+[submodule "subprojects/fmlip_relay"]
+	path = subprojects/fmlip_relay
 	url = git@github.com:pprcht/fmlip-relay.git

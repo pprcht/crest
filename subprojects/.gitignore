@@ -15,7 +15,7 @@ lammps*
 !tblite
 !test-drive
 !pvol
-!fmlip-relay
+!fmlip_relay
 
 !packagefiles
 !packagefiles/tblite

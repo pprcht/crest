@@ -18,7 +18,7 @@ set(found FALSE)
 if(TARGET "fmlip_relay::fmlip_relay")
   set(found TRUE)
 endif()
-message(STATUS "Found fmlip-relay: ${found}")
+message(STATUS "Found fmlip_relay: ${found}")
 
 unset(_lib)
 unset(_pkg)
