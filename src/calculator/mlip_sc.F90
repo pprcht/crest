@@ -165,25 +165,34 @@ contains  !>--- Module routines start here
 #endif
   end subroutine fmlip_relay_init
 
-  subroutine mlip_engrad_core(mol,MPAR,energy,gradient,iostatus)
+  subroutine mlip_engrad_core(mol,MPAR,energy,gradient,iostatus, &
+      &                       charge,spin)
     type(coord),intent(in) :: mol
-    type(mlip_params)    :: MPAR
+    type(mlip_params),intent(in)    :: MPAR
+    integer,intent(in),optional :: charge
+    integer,intent(in),optional :: spin
     real(wp),intent(out)   :: energy
     real(wp),intent(out)   :: gradient(3,mol%nat)
     integer,intent(out)    :: iostatus
 
+    integer :: chrg,spn
     real(wp) :: stress(3,3)
 
     energy = 0.0_wp
     gradient(:,:) = 0.0_wp
     iostatus = 1
 
+    chrg = 0
+    spn = 1
+    if (present(charge)) chrg = chrg
+    if (present(spin)) spn = spin
+
 #ifdef WITH_FMLIP_RELAY
     if (allocated(mol%lat)) then
-      call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,mol%lat,allpbc,0, &
+      call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,mol%lat,allpbc,0,chrg,spn, &
       &                 energy,gradient,stress,iostatus)
     else
-      call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,bigcell,nopbc,0, &
+      call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,bigcell,nopbc,0,chrg,spn, &
       &                 energy,gradient,stress,iostatus)
     end if
 

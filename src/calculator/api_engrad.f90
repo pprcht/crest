@@ -513,7 +513,8 @@ contains    !> MODULE PROCEDURES START HERE
 
 !>--- do the engrad call
     call initsignal()
-    call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus)
+    call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus, & 
+      &                   charge=calc%chrg,spin=calc%uhf)
     if (iostatus /= 0) return
 
 !>--- printout

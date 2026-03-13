@@ -638,6 +638,7 @@ contains  !>--- Module routines start here
     self%pr_energies    = src%pr_energies
     self%eout_unit      = src%eout_unit
     self%elog           = src%elog
+
 !&<
     return
   end subroutine calculation_copy
