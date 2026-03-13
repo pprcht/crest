@@ -91,7 +91,7 @@ contains  !>--- Module routines start here
 
     !> options prepping
     tmpport = MPAR%BASE_PORT+iid
-    write(cmd_1,'("--dtype float64")')
+    write (cmd_1,'("--dtype float64")')
 
     select case (MPAR%backend)
     case ('mace_off','mace_mp')
@@ -100,7 +100,7 @@ contains  !>--- Module routines start here
         if (.not.file_exists(MPAR%modelpath)) then
           write (stdout,*)
           write (stdout,*) '** ERROR ** model path allocated but can not find '//trim(MPAR%modelpath)
-          write (stdout,*) 
+          write (stdout,*)
           call creststop(20)
         end if
         write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a),1x,a)') basebin,'--port',tmpport,'--backend', &
@@ -127,12 +127,16 @@ contains  !>--- Module routines start here
         & trim(MPAR%backend),'--model',trim(MPAR%modelpath),trim(cmd_1)
     end select
 
-    call mlip_init(iid,tmpport,trim(cmd)//' 2>/dev/null',MPAR%TIMEOUT_SEC,io)
+    !> check if this particular server is already running by pinging it
+    call mlip_ping(iid,io)
     if (io /= MLIP_OK) then
-      write (stdout,*)
-      write (stdout,*) '** ERROR ** failed to initialize MLIP server'
-      write (stdout,*)
-      call creststop(1)
+      call mlip_init(iid,tmpport,trim(cmd)//' 2>/dev/null',MPAR%TIMEOUT_SEC,io)
+      if (io /= MLIP_OK) then
+        write (stdout,*)
+        write (stdout,*) '** ERROR ** failed to initialize MLIP server'
+        write (stdout,*)
+        call creststop(1)
+      end if
     end if
     !> Test it
     call mlip_ping(iid,io)
