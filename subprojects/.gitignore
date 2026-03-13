@@ -1,10 +1,7 @@
 /*/
 json-fortran-8.2.5.wrap
-!dftd4.wrap
-mstore.wrap
 multicharge.wrap
 s-dftd3.wrap
-!mctc-lib.wrap
 xhcff
 lammps*
 
@@ -18,6 +15,7 @@ lammps*
 !fmlip_relay
 !dftd4
 !mctc-lib
+!mstore
 
 !packagefiles
 !packagefiles/tblite

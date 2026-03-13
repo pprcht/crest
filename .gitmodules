@@ -33,3 +33,6 @@
 [submodule "subprojects/mctc-lib"]
 	path = subprojects/mctc-lib
 	url = https://github.com/grimme-lab/mctc-lib.git
+[submodule "subprojects/mstore"]
+	path = subprojects/mstore
+	url = https://github.com/grimme-lab/mstore
