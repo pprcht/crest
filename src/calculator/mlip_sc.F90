@@ -89,6 +89,15 @@ contains  !>--- Module routines start here
       call mlip_finalize(MPAR%iid,io)
     end if
 
+    !> check if we have limitations for parallelity
+    if (iid > MLIP_MAX_INSTANCES) then
+      write (stdout,*)
+      write (stdout,*) '** ERROR ** exeeding the max number of parallel socket servers for MLIPs '
+      write (stdout,*) ' Please request fewer than '//to_str(MLIP_MAX_INSTANCES)
+      write (stdout,*)
+      call creststop(20)
+    end if
+
     !> options prepping
     tmpport = MPAR%BASE_PORT+iid
     write (cmd_1,'("--dtype float64")')
