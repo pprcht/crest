@@ -289,6 +289,7 @@ module calc_type
     real(wp) :: doh_stepsize = 0.10_wp !>stepsize for the deformation/reoptimization hessian generation
     real(wp) :: chess_id_guess = 0.1_wp
     logical :: g_sampling = .false. !>Do sampling on free energy surface as approximated using the lindh95 hessian
+    integer :: gs_hess_type = 5
 
 !>--- Parameters for smooth function within optimizer
     real(wp) :: L = 1.50_wp
@@ -620,6 +621,18 @@ contains  !>--- Module routines start here
     self%pr_energies    = src%pr_energies
     self%eout_unit      = src%eout_unit
     self%elog           = src%elog
+    self%g_sampling     = src%g_sampling
+    self%gs_hess_type   = src%gs_hess_type
+    self%nt             = src%nt
+    self%temperatures   = src%temperatures
+    !self%et             = src%et  
+    !self%ht             = src%ht  
+    !self%gt             = src%gt  
+    !self%stot           = src%stot  
+    self%ithr           = src%ithr  
+    self%fscal          = src%fscal
+    self%sthr           = src%sthr
+    self%emodel         = src%emodel
 !&<
     return
   end subroutine calculation_copy
@@ -1044,6 +1057,7 @@ contains  !>--- Module routines start here
 
     self%ONIOM_highlowroot = 0
     self%ONIOM_id = 0
+
     return
   end subroutine calculation_settings_deallocate
 

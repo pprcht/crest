@@ -63,7 +63,7 @@ contains
       end if
     case (1)
       !$omp critical
-        write(stdout,*) calc%calcs(1)%chrg
+      !write(stdout,*) calc%calcs(1)%chrg
       call clevel%create('gfnff',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
       call newcalc%add(clevel)
       !$omp end critical
