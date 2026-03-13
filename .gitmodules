@@ -27,3 +27,6 @@
 [submodule "subprojects/fmlip_relay"]
 	path = subprojects/fmlip_relay
 	url = git@github.com:pprcht/fmlip-relay.git
+[submodule "subprojects/dftd4"]
+	path = subprojects/dftd4
+	url = https://github.com/dftd4/dftd4

@@ -14,10 +14,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
-set(_lib "tblite")
-set(_pkg "TBLITE")
-set(_url "https://github.com/tblite/tblite")
-set(_branch "HEAD")
+set(_lib "dftd4")
+set(_pkg "DFTD4")
+set(_url "https://github.com/dftd4/dftd4")
+set(_branch "v3.7.0")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
@@ -26,15 +26,15 @@ endif()
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
 set(temp_with_tests ${WITH_TESTS}) # Save the current value of WITH_TESTS
-set(WITH_TESTS FALSE CACHE BOOL "Temporarily disable tests for the tblite subproject" FORCE)
+set(WITH_TESTS FALSE CACHE BOOL "Temporarily disable tests for the dftd4 subproject" FORCE)
 set(WITH_API FALSE)
 crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 set(found FALSE)
-if(TARGET "tblite::tblite")
+if(TARGET "dftd4::dftd4")
   set (found TRUE)
 endif()
-message(STATUS "Found tblite: ${found}")
+message(STATUS "Found dftd4: ${found}")
 
 set(WITH_TESTS ${temp_with_tests} CACHE BOOL "Enable tests for the main project" FORCE)
 
