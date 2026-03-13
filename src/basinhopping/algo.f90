@@ -258,6 +258,7 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
     end do
   end if
   do K = 1,T
+    call calcp(K)%copy(calc)
     bhp(K)%id = K-1
     !$omp critical
     select case (bhp(K)%steptype)

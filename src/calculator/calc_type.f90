@@ -1114,6 +1114,7 @@ contains  !>--- Module routines start here
     self%penalty = src%penalty
 
     self%MPAR = src%MPAR
+    self%MPAR%iid = 0 !> important for parallelization
 !&<
     return
   end subroutine calculation_settings_copy
