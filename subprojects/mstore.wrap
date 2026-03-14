@@ -1,3 +1,7 @@
 [wrap-git]
-directory = mstore
 url = https://github.com/grimme-lab/mstore
+revision = head
+clone-recursive = true
+
+[provide]
+mstore = mstore_dep

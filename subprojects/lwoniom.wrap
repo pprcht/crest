@@ -1,4 +1,7 @@
 [wrap-git]
-directory = lwoniom
-url = https://github.com/crest-lab/lwoniom
+url = https://github.com/grimme-lab/lwoniom
 revision = head
+clone-recursive = true
+
+[provide]
+lwoniom = lwoniom_dep

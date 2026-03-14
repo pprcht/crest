@@ -12,4 +12,5 @@ _dist*
 src/crest
 bin/
 subprojects/.wraplock
-subprojects/test-drive.wrap
+meson_build/
+meson_build_*

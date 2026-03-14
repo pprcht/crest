@@ -1,4 +1,7 @@
 [wrap-git]
-directory = gfnff
-url = https://github.com/pprcht/gfnff
+url = https://github.com/grimme-lab/gfnff
 revision = head
+clone-recursive = true
+
+[provide]
+gfnff = gfnff_dep

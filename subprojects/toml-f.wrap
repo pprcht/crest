@@ -1,4 +1,7 @@
 [wrap-git]
-directory = toml-f
 url = https://github.com/toml-f/toml-f
 revision = head
+clone-recursive = true
+
+[provide]
+toml-f = toml_f_dep

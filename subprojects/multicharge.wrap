@@ -1,0 +1,7 @@
+[wrap-git]
+url = https://github.com/grimme-lab/multicharge
+revision = head
+clone-recursive = true
+
+[provide]
+multicharge = multicharge_dep
