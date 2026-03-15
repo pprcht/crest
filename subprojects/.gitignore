@@ -2,6 +2,7 @@
 json-fortran-8.2.5.wrap
 xhcff
 lammps*
+jonquil.wrap
 
 !lwoniom
 !gfn0
