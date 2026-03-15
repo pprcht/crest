@@ -23,7 +23,8 @@
   branch = main
 [submodule "subprojects/pvol"]
 	path = subprojects/pvol
-	url = https://github.com/neudecker-group/libpvol.git
+  url = https://github.com/pprcht/libpvol.git
+  branch = build-update
 [submodule "subprojects/fmlip_relay"]
 	path = subprojects/fmlip_relay
 	url = https://github.com/pprcht/fmlip-relay.git

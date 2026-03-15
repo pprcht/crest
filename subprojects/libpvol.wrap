@@ -1,6 +1,6 @@
 [wrap-git]
-url = https://github.com/neudecker-group/libpvol.git
-revision = head
+url = https://github.com/pprcht/libpvol.git
+revision = build-update
 clone-recursive = true
 
 [provide]
