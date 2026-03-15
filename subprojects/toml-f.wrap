@@ -4,4 +4,4 @@ revision = head
 clone-recursive = true
 
 [provide]
-toml-f = toml_f_dep
+toml-f = tomlf_dep

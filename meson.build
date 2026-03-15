@@ -174,7 +174,7 @@ endif
 # ═══════════════════════════════════════════════════════════════════════════════
 tomlf_dep = dependency('toml-f',
   version  : '>=0.2.4',
-  fallback : ['toml-f', 'toml_f_dep'],
+  fallback : ['toml-f', 'tomlf_dep'],
   required : get_option('toml-f'),
   static   : static_build,
 )
@@ -215,7 +215,7 @@ if with_gfn0
 endif
 
 libpvol_dep = dependency('libpvol',
-  fallback : ['libpvol', 'libpvol_dep'],
+  fallback : ['pvol', 'libpvol_dep'],
   required : get_option('libpvol'),
   static   : static_build,
 )
