@@ -19,6 +19,7 @@ srcs += files(
   'gd.f90',
   'rfo.f90',
   'lbfgs.f90',
+  'newton_raphson.f90',
   'coordtrafo.f90',
   'hessupdate.f90',
   'modelhessian.f90',

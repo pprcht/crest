@@ -41,4 +41,5 @@ srcs += files(
   'approxg.f90',
   'penalty.f90',
   'mlip_sc.F90',
+  'hessian_reconstruct.f90',
 )
