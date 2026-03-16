@@ -301,8 +301,10 @@ contains  !> MODULE PROCEDURES STARTE HERE
     end if
 
     xyz = xyz*aatoau !> NOTE: BACK TO BOHRS
-
+    
+    !$omp critical
     deallocate (vibs)
+    !$omp end critical
     return
   end subroutine calcthermo
 
@@ -326,12 +328,14 @@ contains  !> MODULE PROCEDURES STARTE HERE
     &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
 
     nat3 = 3*mol%nat
+    !$omp critical
     allocate (freq(nat3))
     allocate (et(nt))
     allocate (ht(nt))
     allocate (gt(nt))
     allocate (stot(nt))
     allocate (int_temps(nt))
+    !$omp end critical
 
     int_temps = abs(temps-298.15_wp)
     nrt = minloc(int_temps(:),1)
