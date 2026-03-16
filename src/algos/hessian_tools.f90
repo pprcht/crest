@@ -74,14 +74,15 @@ contains  !> MODULE PROCEDURES START HERE
     !Parameters for diagonalization
     lwork = 1+6*nat3+2*nat3**2
     liwork = 3+5*nat3
-
+    
+    !$omp critical
     allocate (work(lwork),iwork(liwork))
-
+    !$omp end critical
     !Diagonalization
     call dsyevd('V','U',nat3,prj_mw_hess,nat3,freq,work,lwork,iwork,liwork,info)
-
+    !$omp critical  
     deallocate (work,iwork)
-
+    !$omp end critical
     !Convert eigenvalues to frequencies
     do i = 1,nat3
       if (freq(i) .gt. 0.0_wp) then

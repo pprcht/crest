@@ -188,7 +188,9 @@ contains  !> MODULE PROCEDURES STARTE HERE
     call prepthermo(nat,at,xyz,pr,molmass,rabc,avmom,sym,symchar,iunit)
 
     n3 = 3*nat
+    !$omp critical
     allocate (vibs(n3))
+    !$omp critical end
     vibthr = 1.0
     a = rabc(1)
     b = rabc(2)

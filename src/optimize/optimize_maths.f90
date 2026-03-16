@@ -216,7 +216,9 @@ contains !> MODULE PROCEDURES START HERE
     nprj = 6
     if (nmode .gt. 0) nprj = nprj+nmode
     !if (nmode .lt. 0) nprj = nprj + fixset%n * 3
+    !$omp critical
     allocate (fmat(nat3,nprj))
+    !$omp end critical
     fmat(:,:) = 0.0_wp
 
     if (nmode .ge. 0) then
@@ -256,8 +258,10 @@ contains !> MODULE PROCEDURES START HERE
 
     !> do projection
     call dsyprj(nat3,nprj,fmat,nat3,hess)
-
+    
+    !$omp critical
     deallocate (fmat)
+    !$omp end critical
     return
   end subroutine gtrprojm
 
@@ -462,8 +466,9 @@ contains !> MODULE PROCEDURES START HERE
     external :: dsymm
     external :: dgemm
 !-----------------------------------------------------------------
+   !$omp critical
     allocate (scrb(n,m),scra(n,n))
-
+    !$omp end critical
 !> Expand trigonal matrix asym to full matrix on scra
     call dhtosq(n,scra,asym)
 !> Calculate scrb = asym*bmat (BLAS)
@@ -491,8 +496,9 @@ contains !> MODULE PROCEDURES START HERE
         asym(ij) = asym(ij)+scra(i,j)
       end do
     end do
-
+    !$omp critical
     deallocate (scra,scrb)
+    !$omp end critical
     return
   end subroutine dsyprj
 
@@ -539,7 +545,9 @@ contains !> MODULE PROCEDURES START HERE
 !-----------------------------------------------------------------
 ! Allocate overlap matrix
 !-----------------------------------------------------------------
+    !$omp critical
     allocate (smat(ibsize,ibsize))
+    !$omp end critical
 
 !-----------------------------------------------------------------
 ! Calculate the number of blocks
@@ -603,7 +611,9 @@ contains !> MODULE PROCEDURES START HERE
     end do
 
 !> Clean up and return
+    !$omp critical
     deallocate (smat)
+    !$omp end critical
     return
   end subroutine dblckmgs
 
