@@ -190,7 +190,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
     n3 = 3*nat
     !$omp critical
     allocate (vibs(n3))
-    !$omp critical end
+    !$omp end critical
     vibthr = 1.0
     a = rabc(1)
     b = rabc(2)
