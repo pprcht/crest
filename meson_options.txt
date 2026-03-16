@@ -74,7 +74,7 @@ option('lwoniom',
 )
 option('fmlip-relay',
   type    : 'feature',
-  value   : 'disabled',
+  value   : 'auto',
   description : 'Enable fmlip-relay ML/IP interface',
 )
 
