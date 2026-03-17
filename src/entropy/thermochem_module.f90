@@ -61,7 +61,10 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     !>--- symmetry number from rotational symmetry
     xyz = xyz/bohr
+    !write(stdout,*) nat,at,xyz,desy,maxat,sfsym
+    !$omp critical
     call getsymmetry2(.false.,6,nat,at,xyz,desy,maxat,sfsym)
+    !$omp end critical
     xyz = xyz*bohr
     sym = sfsym(1:3)
     symchar = sym

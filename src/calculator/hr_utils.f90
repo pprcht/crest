@@ -91,8 +91,10 @@ contains
       call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
       call dsqtoh(nat3,hess_full(:,:),hess(:))
     case (5)
+      !$omp critical
       mhset%model = calc%mh_type
       call modhes(calc,mhset,nat,xyz,at,hess(:),pr)
+      !$omp end critical
     end select
 
     !call axis(nat,at,xyz,rot,dumi)
