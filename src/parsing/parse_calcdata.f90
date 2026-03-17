@@ -266,7 +266,7 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%approxg
       case ('rmsdbias','penalty')
         job%id = jobtype%penalty
-        nullify(job%penalty%biaslist)
+        nullify (job%penalty%biaslist)
       case ('mlip','fmlip_relay')
         job%id = jobtype%mlip
       case default
@@ -651,6 +651,24 @@ contains !> MODULE PROCEDURES START HERE
         calc%initialize_hr_type = 5
       case default
         !>--- keyword was recognized, but invalid argument supplied
+        write (stdout,fmtura) kv%value_c
+        call creststop(status_config)
+      end select
+
+    case ('gs_hess_type')
+      select case (kv%value_c)
+      case ('gfnff','gfn-ff')
+        calc%gs_hess_type = 1
+      case ('gfn0')
+        calc%gs_hess_type = 2
+      case ('gfn1')
+        calc%gs_hess_type = 3
+      case ('gfn2')
+        calc%gs_hess_type = 4
+      case ('modhess')
+        calc%gs_hess_type = 5
+      case default
+        !>--- keyword was recognized, but
         write (stdout,fmtura) kv%value_c
         call creststop(status_config)
       end select

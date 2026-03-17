@@ -52,7 +52,9 @@ contains  !> MODULE PROCEDURES STARTE HERE
     lwork = 1+6*nat3+2*nat3**2
     liwork = 3+5*nat3
 
+    !$omp critical
     allocate (work(lwork),iwork(liwork))
+    !$omp end critical
 
     !Diagonalization
     call dsyevd('V','U',nat3,prj_mw_hess,nat3,freq,work,lwork,iwork,liwork,info)
@@ -134,10 +136,14 @@ contains  !> MODULE PROCEDURES STARTE HERE
     if (present(phess_ut)) then
       phess => phess_ut
     else
+      !$omp critical
       allocate (hess_ut(nat3*(nat3+1)/2),source=0.0_wp)
       phess => hess_ut
+      !$omp end critical
     end if
+    !$omp critical
     allocate (pmode(nat3,1),source=0.0_wp)
+    !$omp end critical
 
     !> Transforms matrix of the upper triangle vector
     call dsqtoh(nat3,hess,phess)
@@ -205,7 +211,10 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     !>--- symmetry number from rotational symmetry
     xyz = xyz/bohr
+    !write(stdout,*) nat,at,xyz,desy,maxat,sfsym
+    !$omp critical
     call getsymmetry2(.false.,6,nat,at,xyz,desy,maxat,sfsym)
+    !$omp end critical
     xyz = xyz*bohr
     sym = sfsym(1:3)
     symchar = sym
@@ -329,7 +338,9 @@ contains  !> MODULE PROCEDURES STARTE HERE
     call prepthermo(nat,at,xyz,pr,molmass,rabc,avmom,sym,symchar,iunit)
 
     n3 = 3*nat
+    !$omp critical
     allocate (vibs(n3))
+    !$omp end critical
     vibthr = 1.0
     a = rabc(1)
     b = rabc(2)
@@ -443,7 +454,9 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     xyz = xyz*aatoau !> NOTE: BACK TO BOHRS
 
+    !$omp critical
     deallocate (vibs)
+    !$omp end critical
     return
   end subroutine calcthermo
 
@@ -467,12 +480,14 @@ contains  !> MODULE PROCEDURES STARTE HERE
     &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
 
     nat3 = 3*mol%nat
+    !$omp critical
     allocate (freq(nat3))
     allocate (et(nt))
     allocate (ht(nt))
     allocate (gt(nt))
     allocate (stot(nt))
     allocate (int_temps(nt))
+    !$omp end critical
 
     int_temps = abs(temps-298.15_wp)
     nrt = minloc(int_temps(:),1)
@@ -527,7 +542,9 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     integer :: lwork,liwork,info
 
+    !$omp critical
     allocate (proj_vec(nat3,nat3),source=0.0_wp)
+    !$omp end critical
 
     grad1 = reshape(grad1_i, (/nat3/))
     grad2 = reshape(grad2_i, (/nat3/))
@@ -577,7 +594,9 @@ contains  !> MODULE PROCEDURES STARTE HERE
     !Check if hess1 and hess2 are assigned correctly, otherwise change
     lwork = 1+6*nat3+2*nat3**2
     liwork = 3+5*nat3
+    !$omp critical
     allocate (work(lwork),iwork(liwork))
+    !$omp end critical
 
     heff_temp = heff
 

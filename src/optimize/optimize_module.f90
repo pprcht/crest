@@ -66,6 +66,8 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: hess(:),g_hess(:), g_hess_full(:,:), int_temps(:)
     logical :: pr2
 
+    
+    !write(stdout,*) "RUNNING AN OPT" 
 
     iostatus = -1
     !> do NOT overwrite original geometry
@@ -157,18 +159,27 @@ contains  !> MODULE PROCEDURES START HERE
       deallocate (calc%chess)
     end if
 
+    !write(stdout,*) calc%g_sampling
+    write(*,*) "TEST"
     if (calc%g_sampling) then 
       pr2 = .false.
+      !write(stdout,*) "Running gs"
       !write(stdout,*) "Energy pre correction", etot
+      !$omp critical
       allocate(g_hess(nat3*(nat3+1)/2),g_hess_full(nat3,nat3))
-      call initialize_hessian(calc,5,molnew%xyz,molnew%nat,molnew%at,g_hess,calc%chess%hguess,pr2)
+      !$omp end critical
+      call initialize_hessian(calc,calc%gs_hess_type,molnew%xyz,molnew%nat,molnew%at,g_hess,calc%chess%hguess,pr2)
+      !write(*,*) "Hess Initialized"
       call dhtosq(nat3,g_hess_full,g_hess)
+      !write(*,*) "Hess diagonalized"
       call calc_thermo_from_hess(molnew,g_hess_full,pr2, &
       & calc%nt,calc%temperatures,calc%ithr,calc%fscal,calc%sthr,calc%et, &
       & calc%ht,calc%gt,calc%stot,etot)
+      !write(*,*) "Thermo calculated"
 
-
+      !$omp critical
       allocate (int_temps(calc%nt))
+      !$omp end critical
 
       int_temps = abs(calc%temperatures-298.15_wp)
       nrt = minloc(int_temps(:),1)
