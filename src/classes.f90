@@ -1112,7 +1112,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (tmptemps(nt),source=0.0_wp)
     tmptemps(:) = abs(self%temps(:)-298.15_wp)
     nrt = minloc(tmptemps,1)
-    temp = tmptemps(nrt)
+    temp = self%temps(nrt)
   end function thermo_get_close_rt
 !========================================================================================!
 !========================================================================================!
