@@ -188,6 +188,7 @@ tblite_dep = dependency('tblite',
   fallback : ['tblite', 'tblite_dep'],
   required : get_option('tblite'),
   static   : static_build,
+  default_options: ['api=false'],
 )
 with_tblite = tblite_dep.found()
 if with_tblite

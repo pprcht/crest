@@ -5,3 +5,6 @@ clone-recursive = true
 
 [provide]
 tblite = tblite_dep
+
+[default_options]
+api = false
