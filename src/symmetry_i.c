@@ -1711,8 +1711,8 @@ for( i = 0 ; i < PointGroupsCount ; i++ ){
         }
     }
 if( matching_count == 0 ){
-    printf( "WARNING: These symmetry elements match no point group I know of. Sorry.\n"
-	    "Trying fallback mode to highest recognized Axis...\n" ) ;
+    //printf( "WARNING: These symmetry elements match no point group I know of. Sorry.\n"
+	  //  "Trying fallback mode to highest recognized Axis...\n" ) ;
     return -1;    
 }
 if( matching_count >  1 ){

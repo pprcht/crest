@@ -84,8 +84,6 @@ subroutine crest_refine(env,input,output)
       !> set the calculator to the correct stage
       env%calc%refine_stage = refine_stage
 
-      write(*,*) env%calc%refine_stage
-
       select case (refine_stage)
       case (refine%singlepoint)
         write (stdout,'("> Singlepoint re-ranking for ",i0," structures")') nall

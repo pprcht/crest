@@ -261,6 +261,11 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
 !* This subroutine performs concurrent singlepoint evaluations
 !* for the given ensemble. Input eread is overwritten
 !* xyz must be in Bohrs
+!*
+!* WARNING: OpenMP doesn't seem to like numhess2. We are hence
+!* doing the loop serial, and hope for parallelization of the
+!* underlying potentials
+!*
 !***************************************************************
   use crest_parameters,only:wp,stdout,sep
   use crest_calculator
@@ -367,15 +372,15 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
   eread(:) = 0.0_wp
   grads(:,:,:) = 0.0_wp
 !>--- loop over ensemble
-  !$omp parallel &
-  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
-  !$omp shared(ich,ich2,mols,nested,Tn,freqs,hess)
-  !$omp single
+!  !$omp parallel &
+!  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
+!  !$omp shared(ich,ich2,mols,nested,Tn,freqs,hess)
+!  !$omp single
   do i = 1,nall
 
     call initsignal()
     vz = i
-    !$omp task firstprivate( vz ) private(i,j,job,energy,io,thread_id,zcopy)
+!    !$omp task firstprivate( vz ) private(i,j,job,energy,io,thread_id,zcopy)
     call initsignal()
 
     !>--- OpenMP nested region threads
@@ -395,25 +400,29 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
     !>-- engery+gradient call first, for setup
     call engrad(mols(job),calculations(job),energy,grads(:,:,job),io)
     !>-- then, numerical hessian
-    !call numhess2(mols(job)%nat,mols(job)%at,mols(job)%xyz,calculations(job),hess(:,:,job),io)
+    call numhess2(mols(job)%nat,mols(job)%at,mols(job)%xyz, &
+                  calculations(job),hess(:,:,job),io)
     !!$omp critical
-    !if (io .eq. 0) then
-    !  call prj_mw_hess(mols(job)%nat,mols(job)%at,nat3,mols(job)%xyz,hess(:,:,job))
-    !  !>-- Computes the Frequencies
-    !  call frequencies(mols(job)%nat,mols(job)%at,mols(job)%xyz,nat3,hess(:,:,job),freqs(:,job),io)
-    !end if
+    if (io .eq. 0) then
+      call prj_mw_hess(mols(job)%nat,mols(job)%at,nat3,mols(job)%xyz,hess(:,:,job))
+      !>-- Computes the Frequencies
+      call frequencies(mols(job)%nat,mols(job)%at,mols(job)%xyz, &
+                       nat3,hess(:,:,job),freqs(:,job),io)
+    end if
 
-    !if (io .eq. 0) then
-    !  !call calcthermo(mols(job)%nat,mols(job)%at,mols(job)%xyz,freqs(:,job),.false., &
-    !  ! ithr,fscal,sthr,nt,temps(:,job),et(:,job),ht(:,job),gt(:,job),stot(:,job), emodel=emodel)
-    !end if
+    if (io .eq. 0) then
+      call calcthermo(mols(job)%nat,mols(job)%at,mols(job)%xyz,   &
+                      freqs(:,job),.false.,ithr,fscal,sthr,nt,    &
+                      temps(:,job),et(:,job),ht(:,job),gt(:,job), &
+                      stot(:,job),emodel=emodel)
+    end if
     !!$omp end critical
 
     !$omp critical
     if (io == 0) then
       !>--- successful optimization (io==0)
       c = c+1
-      eread(zcopy) = 0.0_wp !gt(1,job)
+      eread(zcopy) = gt(1,job)
     else
       eread(zcopy) = big
     end if
@@ -421,11 +430,11 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
     !>--- print progress
     call crest_oloop_pr_progress(env,nall,k)
     !$omp end critical
-    !$omp end task
+    !   !$omp end task
   end do
-  !$omp taskwait
-  !$omp end single
-  !$omp end parallel
+  ! !$omp taskwait
+  ! !$omp end single
+  ! !$omp end parallel
 
 !>--- finalize progress printout
   call crest_oloop_pr_progress(env,nall,-1)
