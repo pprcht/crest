@@ -376,6 +376,8 @@ contains !> MODULE PROCEDURES START HERE
         job%refine_lvl = refine%correction
       case ('opt','optimization')
         job%refine_lvl = refine%geoopt
+      case ('freq','frequencies','deltag')
+        job%refine_lvl = refine%deltaG
       case default
         job%refine_lvl = refine%non
         !>--- keyword was recognized, but invalid argument supplied

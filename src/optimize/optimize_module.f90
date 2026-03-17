@@ -160,7 +160,6 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     !write(stdout,*) calc%g_sampling
-    write(*,*) "TEST"
     if (calc%g_sampling) then 
       pr2 = .false.
       !write(stdout,*) "Running gs"

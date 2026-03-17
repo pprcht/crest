@@ -68,6 +68,25 @@ module parallel_interface
       type(calcdata),intent(in),target,optional :: customcalc
     end subroutine crest_oloop
   end interface
+
+  interface
+    subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
+      use crest_parameters,only:wp,stdout,sep
+      use crest_calculator
+      use omp_lib
+      use crest_data
+      use strucrd
+      use thermochem_module
+      use iomod,only:makedir,directory_exist,remove
+      implicit none
+      type(systemdata),intent(inout) :: env
+      real(wp),intent(inout) :: xyz(3,nat,nall)
+      integer,intent(in)  :: at(nat)
+      real(wp),intent(inout) :: eread(nall)
+      integer,intent(in) :: nat,nall
+    end subroutine crest_hessloop
+  end interface
+
 end module parallel_interface
 
 !========================================================================================!
@@ -120,12 +139,12 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   call new_ompautoset(env,'auto_nested',nall,T,Tn)
   nested = env%omp_allow_nested
 
-
 !>--- prepare objects for parallelization
   T = env%threads
   allocate (calculations(T),source=env%calc)
   allocate (mols(T))
   do i = 1,T
+    call calculations(T)%copy(env%calc)
     do j = 1,env%calc%ncalculations
       calculations(i)%calcs(j) = env%calc%calcs(j)
       !>--- directories and io preparation
@@ -135,8 +154,8 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
       end if
       write (atmp,'(a,"_",i0)') sep,i
       calculations(i)%calcs(j)%calcspace = env%calc%calcs(j)%calcspace//trim(atmp)
-      if(allocated(calculations(i)%calcs(j)%calcfile)) deallocate(calculations(i)%calcs(j)%calcfile)
-      if(allocated(calculations(i)%calcs(j)%systemcall)) deallocate(calculations(i)%calcs(j)%systemcall)
+      if (allocated(calculations(i)%calcs(j)%calcfile)) deallocate (calculations(i)%calcs(j)%calcfile)
+      if (allocated(calculations(i)%calcs(j)%systemcall)) deallocate (calculations(i)%calcs(j)%systemcall)
       call calculations(i)%calcs(j)%printid(i,j)
     end do
     calculations(i)%pr_energies = .false.
@@ -233,6 +252,210 @@ end subroutine crest_sploop
 
 !========================================================================================!
 !========================================================================================!
+!> Routines for concurrent singlepoint evaluations
+!========================================================================================!
+!========================================================================================!
+subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
+!***************************************************************
+!* subroutine crest_sploop
+!* This subroutine performs concurrent singlepoint evaluations
+!* for the given ensemble. Input eread is overwritten
+!* xyz must be in Bohrs
+!***************************************************************
+  use crest_parameters,only:wp,stdout,sep
+  use crest_calculator
+  use omp_lib
+  use crest_data
+  use strucrd
+  use optimize_module
+  use thermochem_module
+  use iomod,only:makedir,directory_exist,remove
+  implicit none
+  type(systemdata),intent(inout) :: env
+  real(wp),intent(inout) :: xyz(3,nat,nall)
+  integer,intent(in)  :: at(nat)
+  real(wp),intent(inout) :: eread(nall)
+  integer,intent(in) :: nat,nall
+
+  type(coord),allocatable :: mols(:)
+  integer :: i,j,k,l,io,ich,ich2,c,z,job_id,zcopy,nat3
+  logical :: pr,wr,ex
+  type(calcdata),allocatable :: calculations(:)
+  real(wp) :: energy,gnorm
+  real(wp),allocatable :: grad(:,:),grads(:,:,:)
+  real(wp),allocatable :: freqs(:,:),hess(:,:,:)
+  integer :: thread_id,vz,job
+  character(len=80) :: atmp
+  real(wp) :: percent,runtime
+
+  integer :: nt,nrt
+  real(wp),allocatable :: temps(:,:),et(:,:),ht(:,:),gt(:,:),stot(:,:)
+  real(wp) :: ithr,sthr,fscal
+  character(len=:),allocatable :: emodel
+
+  type(timer) :: profiler
+  integer :: T,Tn  !> threads and threads per core
+  logical :: nested
+  real(wp),parameter :: big = 10e10
+
+!>--- check if we have any calculation settings allocated
+  if (env%calc%ncalculations < 1) then
+    write (stdout,*) 'no calculations allocated'
+    return
+  end if
+
+!>--- prepare calculation objects for parallelization (one per thread)
+  call new_ompautoset(env,'auto_nested',nall,T,Tn)
+  nested = env%omp_allow_nested
+
+!>--- prepare objects for parallelization
+  T = env%threads
+  allocate (calculations(T))!,source=env%calc)
+  allocate (mols(T))
+  nat3 = nat*3
+  allocate (freqs(nat3,T),source=0.0_wp)
+  allocate (hess(nat3,nat3,T),source=0.0_wp)
+  do i = 1,T
+    call calculations(i)%copy(env%calc)
+    do j = 1,env%calc%ncalculations
+      !calculations(i)%calcs(j) = env%calc%calcs(j)
+      !>--- directories and io preparation
+      ex = directory_exist(env%calc%calcs(j)%calcspace)
+      if (.not.ex) then
+        io = makedir(trim(env%calc%calcs(j)%calcspace))
+      end if
+      write (atmp,'(a,"_",i0)') sep,i
+      calculations(i)%calcs(j)%calcspace = env%calc%calcs(j)%calcspace//trim(atmp)
+      if (allocated(calculations(i)%calcs(j)%calcfile)) deallocate (calculations(i)%calcs(j)%calcfile)
+      if (allocated(calculations(i)%calcs(j)%systemcall)) deallocate (calculations(i)%calcs(j)%systemcall)
+      call calculations(i)%calcs(j)%printid(i,j)
+    end do
+    calculations(i)%pr_energies = .false.
+    allocate (mols(i)%at(nat),mols(i)%xyz(3,nat))
+  end do
+
+!>--- thermo settings
+  !> inversion threshold
+  ithr = env%thermo%ithr
+  !> frequency scaling factor
+  fscal = env%thermo%fscal
+  !> RR-HO interpolation (or cut-off)
+  sthr = env%thermo%sthr
+  !> Svib model
+  emodel = env%thermo%emodel
+  if (.not.allocated(env%thermo%temps)) then
+    call env%thermo%get_temps()
+  end if
+  nt = 1
+  allocate (temps(nt,T),et(nt,T),ht(nt,T),gt(nt,T),stot(nt,T),source=0.0_wp)
+  temps = env%thermo%get_close_rt(nrt)
+
+!>--- printout directions and timer initialization
+  pr = .false. !> stdout printout
+  wr = .false. !> write crestopt.log.xyz
+  call profiler%init(1)
+  call profiler%start(1)
+
+!>--- first progress printout (initializes progress variables)
+  call crest_oloop_pr_progress(env,nall,0)
+
+!>--- shared variables
+  allocate (grads(3,nat,T),source=0.0_wp)
+  c = 0  !> counter of successfull optimizations
+  k = 0  !> counter of total optimization (fail+success)
+  z = 0  !> counter to perform optimization in right order (1...nall)
+  eread(:) = 0.0_wp
+  grads(:,:,:) = 0.0_wp
+!>--- loop over ensemble
+  !$omp parallel &
+  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
+  !$omp shared(ich,ich2,mols,nested,Tn,freqs,hess)
+  !$omp single
+  do i = 1,nall
+
+    call initsignal()
+    vz = i
+    !$omp task firstprivate( vz ) private(i,j,job,energy,io,thread_id,zcopy)
+    call initsignal()
+
+    !>--- OpenMP nested region threads
+    if (nested) call ompmklset(Tn)
+
+    thread_id = OMP_GET_THREAD_NUM()
+    job = thread_id+1
+    !>--- modify calculation spaces
+    !$omp critical
+    z = z+1
+    zcopy = z
+    mols(job)%nat = nat
+    mols(job)%at(:) = at(:)
+    mols(job)%xyz(:,:) = xyz(:,:,z)
+    !$omp end critical
+
+    !>-- engery+gradient call first, for setup
+    call engrad(mols(job),calculations(job),energy,grads(:,:,job),io)
+    !>-- then, numerical hessian
+    !call numhess2(mols(job)%nat,mols(job)%at,mols(job)%xyz,calculations(job),hess(:,:,job),io)
+    !!$omp critical
+    !if (io .eq. 0) then
+    !  call prj_mw_hess(mols(job)%nat,mols(job)%at,nat3,mols(job)%xyz,hess(:,:,job))
+    !  !>-- Computes the Frequencies
+    !  call frequencies(mols(job)%nat,mols(job)%at,mols(job)%xyz,nat3,hess(:,:,job),freqs(:,job),io)
+    !end if
+
+    !if (io .eq. 0) then
+    !  !call calcthermo(mols(job)%nat,mols(job)%at,mols(job)%xyz,freqs(:,job),.false., &
+    !  ! ithr,fscal,sthr,nt,temps(:,job),et(:,job),ht(:,job),gt(:,job),stot(:,job), emodel=emodel)
+    !end if
+    !!$omp end critical
+
+    !$omp critical
+    if (io == 0) then
+      !>--- successful optimization (io==0)
+      c = c+1
+      eread(zcopy) = 0.0_wp !gt(1,job)
+    else
+      eread(zcopy) = big
+    end if
+    k = k+1
+    !>--- print progress
+    call crest_oloop_pr_progress(env,nall,k)
+    !$omp end critical
+    !$omp end task
+  end do
+  !$omp taskwait
+  !$omp end single
+  !$omp end parallel
+
+!>--- finalize progress printout
+  call crest_oloop_pr_progress(env,nall,-1)
+
+!>--- stop timer
+  call profiler%stop(1)
+
+!>--- prepare some summary printout
+  percent = float(c)/float(nall)*100.0_wp
+  write (atmp,'(f5.1,a)') percent,'% success)'
+  write (stdout,'(">",1x,i0,a,i0,a,a)') c,' of ',nall,' structures successfully evaluated (', &
+  &     trim(adjustl(atmp))
+  write (atmp,'(">",1x,a,i0,a)') 'Total runtime for ',nall,' frequency calculations:'
+  call profiler%write_timing(stdout,1,trim(atmp),.true.)
+  runtime = profiler%get(1)
+  write (atmp,'(f16.3,a)') runtime/real(nall,wp),' sec'
+  write (stdout,'(a,a,a)') '> Corresponding to approximately ',trim(adjustl(atmp)), &
+  &                       ' per processed structure'
+
+  deallocate (grads)
+  call profiler%clear()
+  deallocate (calculations)
+  if (allocated(mols)) deallocate (mols)
+  if (allocated(freqs)) deallocate (freqs)
+  if (allocated(hess)) deallocate (hess)
+  return
+end subroutine crest_hessloop
+
+!========================================================================================!
+!========================================================================================!
 !> Routines for concurrent geometry optimization
 !========================================================================================!
 !========================================================================================!
@@ -244,7 +467,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
 !* env        - contains parallelization and other program settings
 !* dump       - decides on whether to dump an ensemble file
 !*              WARNING: the ensemble file will NOT be in the same order
-!*              as the input xyz array. However, the overwritten xyz will be! 
+!*              as the input xyz array. However, the overwritten xyz will be!
 !*
 !* customcalc - customized (optional) calculation level data
 !*
@@ -289,11 +512,11 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   end if
 
 !>--- check which calc to use
-  if(present(customcalc))then
+  if (present(customcalc)) then
     mycalc => customcalc
   else
     mycalc => env%calc
-  endif
+  end if
 
 !>--- check if we have any calculation settings allocated
   if (mycalc%ncalculations < 1) then
@@ -317,13 +540,13 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
       if (.not.ex) then
         io = makedir(trim(mycalc%calcs(j)%calcspace))
       end if
-      if(calculations(i)%calcs(j)%id == jobtype%tblite)then
-         calculations(i)%optnewinit=.true.
-      endif
+      if (calculations(i)%calcs(j)%id == jobtype%tblite) then
+        calculations(i)%optnewinit = .true.
+      end if
       write (atmp,'(a,"_",i0)') sep,i
       calculations(i)%calcs(j)%calcspace = mycalc%calcs(j)%calcspace//trim(atmp)
-      if(allocated(calculations(i)%calcs(j)%calcfile)) deallocate(calculations(i)%calcs(j)%calcfile)
-      if(allocated(calculations(i)%calcs(j)%systemcall)) deallocate(calculations(i)%calcs(j)%systemcall)
+      if (allocated(calculations(i)%calcs(j)%calcfile)) deallocate (calculations(i)%calcs(j)%calcfile)
+      if (allocated(calculations(i)%calcs(j)%systemcall)) deallocate (calculations(i)%calcs(j)%systemcall)
       call calculations(i)%calcs(j)%printid(i,j)
     end do
     calculations(i)%pr_energies = .false.
@@ -397,7 +620,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
       end if
       eread(zcopy) = energy
       xyz(:,:,zcopy) = molsnew(job)%xyz(:,:)
-    else if(io==calculations(job)%maxcycle .and. calculations(job)%anopt) then
+    else if (io == calculations(job)%maxcycle.and.calculations(job)%anopt) then
       !>--- allow partial optimization?
       c = c+1
       eread(zcopy) = energy
@@ -578,8 +801,8 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
       end if
       write (atmp,'(a,"_",i0)') sep,i
       calculations(i)%calcs(j)%calcspace = env%calc%calcs(j)%calcspace//trim(atmp)
-      if(allocated(calculations(i)%calcs(j)%calcfile)) deallocate(calculations(i)%calcs(j)%calcfile)
-      if(allocated(calculations(i)%calcs(j)%systemcall)) deallocate(calculations(i)%calcs(j)%systemcall)
+      if (allocated(calculations(i)%calcs(j)%calcfile)) deallocate (calculations(i)%calcs(j)%calcfile)
+      if (allocated(calculations(i)%calcs(j)%systemcall)) deallocate (calculations(i)%calcs(j)%systemcall)
       call calculations(i)%calcs(j)%printid(i,j)
     end do
     calculations(i)%pr_energies = .false.
@@ -882,8 +1105,8 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
       end if
       write (atmp,'(a,"_",i0)') sep,i
       calculations(i)%calcs(j)%calcspace = env%calc%calcs(j)%calcspace//trim(atmp)
-      if(allocated(calculations(i)%calcs(j)%calcfile)) deallocate(calculations(i)%calcs(j)%calcfile)
-      if(allocated(calculations(i)%calcs(j)%systemcall)) deallocate(calculations(i)%calcs(j)%systemcall)
+      if (allocated(calculations(i)%calcs(j)%calcfile)) deallocate (calculations(i)%calcs(j)%calcfile)
+      if (allocated(calculations(i)%calcs(j)%systemcall)) deallocate (calculations(i)%calcs(j)%systemcall)
       call calculations(i)%calcs(j)%printid(i,j)
     end do
     calculations(i)%pr_energies = .false.
@@ -1027,9 +1250,9 @@ subroutine parallel_md_block_printout(MD,vz)
     else
       write (stdout,'(2x,"|   Vbias exponent (α)   :",f8.4,"          |")') MD%mtd(1)%alpha
     end if
-    if (allocated(MD%mtd(1)%atinclude))then
+    if (allocated(MD%mtd(1)%atinclude)) then
       write (stdout,'(2x,"|   # active atoms      :",i9," atoms    |")') count(MD%mtd(1)%atinclude,1)
-    endif  
+    end if
   end if
 
   !$omp end critical

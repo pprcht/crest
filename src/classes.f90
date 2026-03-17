@@ -133,6 +133,7 @@ module crest_data
     integer :: correction  = 2
     integer :: geoopt      = 3
     integer :: ConfSolv    = 4
+    integer :: deltaG      = 5
   end type refine_type
   type(refine_type), parameter,public :: refine = refine_type()
 
@@ -296,6 +297,7 @@ module crest_data
   contains
     procedure :: get_temps => thermo_get_temps
     procedure :: read_temps => thermo_read_temps
+    procedure :: get_close_rt => thermo_get_close_rt
   end type thermodata
 
 !========================================================================================!
@@ -974,7 +976,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: optlev
     character(len=*),intent(in) :: flag
     integer,intent(out),optional :: iostat
-    if(present(iostat)) iostat = 0
+    if (present(iostat)) iostat = 0
     optlev = 0.0_wp
     select case (trim(adjustl(flag)))
     case ('crude','-3')
@@ -992,7 +994,7 @@ contains  !> MODULE PROCEDURES START HERE
     case ('extreme','3')
       optlev = 3.0_wp
     case default
-      if(present(iostat)) iostat = 1
+      if (present(iostat)) iostat = 1
     end select
     return
   end function optlevnum
@@ -1098,6 +1100,20 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine thermo_read_temps
 
+  function thermo_get_close_rt(self,nrt) result(temp)
+    implicit none
+    class(thermodata) :: self
+    integer,intent(out) :: nrt
+    real(wp) :: temp
+    integer :: i,nt,io,ich
+    real(wp),allocatable :: tmptemps(:)
+    nrt = 0
+    nt = self%ntemps
+    allocate (tmptemps(nt),source=0.0_wp)
+    tmptemps(:) = abs(self%temps(:)-298.15_wp)
+    nrt = minloc(tmptemps,1)
+    temp = tmptemps(nrt)
+  end function thermo_get_close_rt
 !========================================================================================!
 !========================================================================================!
 end module crest_data

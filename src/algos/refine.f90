@@ -84,6 +84,8 @@ subroutine crest_refine(env,input,output)
       !> set the calculator to the correct stage
       env%calc%refine_stage = refine_stage
 
+      write(*,*) env%calc%refine_stage
+
       select case (refine_stage)
       case (refine%singlepoint)
         write (stdout,'("> Singlepoint re-ranking for ",i0," structures")') nall
@@ -97,6 +99,11 @@ subroutine crest_refine(env,input,output)
       case (refine%geoopt)
         write (stdout,'("> Geometry optimization of ",i0," structures")') nall
         call crest_oloop(env,nat,nall,at,xyz,eread,.false.)
+
+      case (refine%deltaG)
+        write (stdout,'("> Free energy correction (δG) for ",i0," structures")') nall
+        call crest_hessloop(env,nat,nall,at,xyz,etmp)
+        eread(:) = eread(:)+etmp(:)
 
       case (refine%confsolv)
         call new_ompautoset(env,'subprocess',1,t1,t2)
