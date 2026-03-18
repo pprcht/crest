@@ -23,6 +23,7 @@ project(
   default_options : [
     'buildtype=release',
     'c_std=gnu11',
+    'warning_level=0',
   ],
 )
 
