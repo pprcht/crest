@@ -116,17 +116,17 @@ module symmetry_i
   !> All symmetry-analysis state collected in one derived type
   type,public :: symmetry_state_t
     ! Tolerance / control
-    real(wp) :: ToleranceSame = 1.0d-3
-    real(wp) :: TolerancePrimary = 5.0d-2
-    real(wp) :: ToleranceFinal = 1.0d-4
-    real(wp) :: MaxOptStep = 5.0d-1
-    real(wp) :: MinOptStep = 1.0d-7
-    real(wp) :: GradientStep = 1.0d-7
-    real(wp) :: OptChangeThreshold = 1.0d-10
-    integer  :: verbose = 0
-    integer  :: MaxAxisOrder = 20
-    integer  :: MaxOptCycles = 200
-    integer  :: OptChangeHits = 5
+    real(wp) :: ToleranceSame       = 1.0d-3
+    real(wp) :: TolerancePrimary    = 5.0d-2
+    real(wp) :: ToleranceFinal      = 1.0d-4
+    real(wp) :: MaxOptStep          = 5.0d-1
+    real(wp) :: MinOptStep          = 1.0d-7
+    real(wp) :: GradientStep        = 1.0d-7
+    real(wp) :: OptChangeThreshold  = 1.0d-10
+    integer  :: verbose             = 0
+    integer  :: MaxAxisOrder        = 20
+    integer  :: MaxOptCycles        = 200
+    integer  :: OptChangeHits       = 5
     ! Geometry / working data
     real(wp)              :: CenterOfSomething(3) = 0.0_wp
     real(wp),allocatable  :: DistanceFromCenter(:)
@@ -1743,7 +1743,6 @@ contains    !> MODULE PROCEDURES START HERE
         symbol = trim(state%MaxRotAxis)
       end if
     end if
-    write(*,*) symbol
   end subroutine schoenflies
 
 ! ══════════════════════════════════════════════════════════════════════════════
