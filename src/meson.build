@@ -69,7 +69,6 @@ srcs += files(
   'signal.c',
   'sigterm.f90',
   'strucreader.f90',
-  'symmetry2.f90',
   'symmetry_i.f90',
   'timer.f90',
   'trackorigin.f90',

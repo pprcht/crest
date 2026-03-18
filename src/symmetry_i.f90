@@ -16,6 +16,7 @@ module symmetry_i
 
   ! Public interface
   public :: schoenflies
+  public :: getsym
   !public :: symmetry_element,atom_t,symmetry_state_t
 
   !> Mathematical constants
@@ -116,17 +117,17 @@ module symmetry_i
   !> All symmetry-analysis state collected in one derived type
   type,public :: symmetry_state_t
     ! Tolerance / control
-    real(wp) :: ToleranceSame       = 1.0d-3
-    real(wp) :: TolerancePrimary    = 5.0d-2
-    real(wp) :: ToleranceFinal      = 1.0d-4
-    real(wp) :: MaxOptStep          = 5.0d-1
-    real(wp) :: MinOptStep          = 1.0d-7
-    real(wp) :: GradientStep        = 1.0d-7
-    real(wp) :: OptChangeThreshold  = 1.0d-10
-    integer  :: verbose             = 0
-    integer  :: MaxAxisOrder        = 20
-    integer  :: MaxOptCycles        = 200
-    integer  :: OptChangeHits       = 5
+    real(wp) :: ToleranceSame = 1.0d-3
+    real(wp) :: TolerancePrimary = 5.0d-2
+    real(wp) :: ToleranceFinal = 1.0d-4
+    real(wp) :: MaxOptStep = 5.0d-1
+    real(wp) :: MinOptStep = 1.0d-7
+    real(wp) :: GradientStep = 1.0d-7
+    real(wp) :: OptChangeThreshold = 1.0d-10
+    integer  :: verbose = 0
+    integer  :: MaxAxisOrder = 20
+    integer  :: MaxOptCycles = 200
+    integer  :: OptChangeHits = 5
     ! Geometry / working data
     real(wp)              :: CenterOfSomething(3) = 0.0_wp
     real(wp),allocatable  :: DistanceFromCenter(:)
@@ -1580,7 +1581,7 @@ contains    !> MODULE PROCEDURES START HERE
   !> Report symmetry elements brief
   subroutine report_symmetry_elements_brief(state)
     type(symmetry_state_t),intent(inout) :: state
-    integer :: i, n, tlen
+    integer :: i,n,tlen
     character(len=32) :: buf
 
     state%SymmetryCode = ""
@@ -1746,5 +1747,63 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine schoenflies
 
 ! ══════════════════════════════════════════════════════════════════════════════
+
+  subroutine getsym(pr,iunit,n,iat,xyz,sfsym,symthr,maxatdesy)
+    use iso_fortran_env,only:wp => real64
+    implicit none
+    logical,intent(in)           :: pr
+    integer,intent(in)           :: iunit
+    integer,intent(in)           :: n
+    integer,intent(in)           :: iat(n)
+    real(wp),intent(in)          :: xyz(3,n)
+    character(len=*),intent(out) :: sfsym
+    real(wp),intent(in),optional :: symthr    ! default 0.1
+    integer,intent(in),optional  :: maxatdesy ! default 200
+    real(wp) :: thr
+    integer  :: maxat
+    character(len=8) :: atmp
+    real(wp) :: paramar(11)
+
+    thr = 0.1_wp; if (present(symthr)) thr = symthr
+    maxat = 200; if (present(maxatdesy)) maxat = maxatdesy
+
+    if (n > maxat) then
+      if (pr) write (iunit,*) 'symmetry recognition skipped because # atoms >',maxat
+      sfsym = 'none'
+      return
+    end if
+
+    if (pr) write (iunit,'(a)')
+    paramar(1) = -1       ! verbose
+    paramar(2) = 10       ! MaxAxisOrder
+    paramar(3) = 100      ! MaxOptCycles
+    paramar(4) = 0.001d0  ! ToleranceSame
+    paramar(5) = 0.5d0    ! TolerancePrimary
+    paramar(6) = thr      ! ToleranceFinal
+    paramar(7) = 0.5d0    ! MaxOptStep
+    paramar(8) = 1.0d-7   ! MinOptStep
+    paramar(9) = 1.0d-7   ! GradientStep
+    paramar(10) = 1.0d-8   ! OptChangeThreshold
+    paramar(11) = 5        ! OptChangeHits
+
+    atmp = '        '
+    call schoenflies(n,iat,xyz,atmp,paramar)
+
+    sfsym(1:3) = atmp(1:3)
+    if (sfsym(1:1) == 'D') sfsym(1:1) = 'd'
+    if (sfsym(1:1) == 'C') sfsym(1:1) = 'c'
+    if (sfsym(1:1) == 'T') sfsym(1:1) = 't'
+    if (sfsym(1:1) == 'O') sfsym(1:1) = 'o'
+    if (sfsym(1:1) == 'I') sfsym(1:1) = 'i'
+    if (sfsym(1:1) == 'S') sfsym(1:1) = 's'
+    ! Linear molecules: fix to correct 3-char codes
+    if (sfsym(1:3) == 'dih') sfsym(1:3) = 'din'
+    if (sfsym(1:3) == 'civ') sfsym(1:3) = 'cin'
+    if (sfsym(3:3) > 'v'.or.sfsym(3:3) < 'a') sfsym(3:3) = ' '
+
+    if (pr) write (iunit,'(a3,'' symmetry found (for desy threshold: '',e9.2,'')'')') &
+      sfsym,thr
+  end subroutine getsym
+
 ! ══════════════════════════════════════════════════════════════════════════════
 end module symmetry_i

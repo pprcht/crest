@@ -524,7 +524,7 @@ subroutine ensemble_analsym(fname,pr)
 !*****************************************************************
   use crest_parameters
   use strucrd
-  use getsymmetry
+  use symmetry_i,only: getsym
   implicit none
   character(len=*) :: fname
   logical :: pr
@@ -535,8 +535,6 @@ subroutine ensemble_analsym(fname,pr)
   integer,allocatable  :: at(:)
   integer :: i,ich
   character(len=4) :: sfsym,sfsm
-  real(wp),parameter :: desy = 0.1_wp
-  integer,parameter  :: maxat = 200
   character(len=80) :: atmp
 
   call rdensembleparam(fname,nat,nall)
@@ -557,7 +555,7 @@ subroutine ensemble_analsym(fname,pr)
   open (file='symmetries',newunit=ich)
   do i = 1,nall
     c0(1:3,1:nat) = xyz(:,:,i)
-    call getsymmetry2(.false.,6,nat,at,c0,desy,maxat,sfsym)
+    call getsym(.false.,6,nat,at,c0,sfsym)
     sfsm = sfsym(1:3)
     write (atmp,'(3x,a,i10,2x,f18.8,2x,a)') 'structure',i,er(i),sfsm
     write (ich,'(a)') trim(atmp)

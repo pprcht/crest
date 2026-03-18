@@ -1,6 +1,6 @@
 module thermochem_module
   use crest_parameters
-  use getsymmetry
+  use symmetry_i
   use optimize_maths
   use atmasses,only:molweight
   use iomod,only:to_lower,directory_exist
@@ -182,9 +182,6 @@ contains  !> MODULE PROCEDURES STARTE HERE
     real(wp) :: a,b,c
     character(len=4) :: sfsym
     character(len=3) :: sym,symchar
-    real(wp),parameter :: desy = 0.1_wp
-    integer,parameter  :: maxat = 200
-
     !>--- molecular mass in amu
     molmass = molweight(nat,at)
 
@@ -211,13 +208,11 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     !>--- symmetry number from rotational symmetry
     xyz = xyz/bohr
-    !write(stdout,*) nat,at,xyz,desy,maxat,sfsym
-    !!$omp critical
-    !call getsymmetry2(.false.,6,nat,at,xyz,desy,maxat,sfsym)
-    !!$omp end critical
+    !$omp critical
+    call getsym(.false.,iunit,nat,at,xyz,sfsym)
+    !$omp end critical
     xyz = xyz*bohr
-    !sym = sfsym(1:3)
-    sym = 'c1'
+    sym = sfsym(1:3)
     symchar = sym
     symnum = 1.0d0
     if (a .lt. 1.d-9.or.b .lt. 1.d-9.or.c .lt. 1.d-9) then
