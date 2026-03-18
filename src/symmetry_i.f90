@@ -1580,48 +1580,65 @@ contains    !> MODULE PROCEDURES START HERE
   !> Report symmetry elements brief
   subroutine report_symmetry_elements_brief(state)
     type(symmetry_state_t),intent(inout) :: state
-    integer :: i
+    integer :: i, n, tlen
     character(len=32) :: buf
 
     state%SymmetryCode = ""
+    n = 0
 
     if (state%PlanesCount+state%NormalAxesCount+state%ImproperAxesCount+ &
         state%InversionCentersCount > 0) then
-      if (state%InversionCentersCount > 0) &
-        state%SymmetryCode = trim(state%SymmetryCode)//"(i) "
+      if (state%InversionCentersCount > 0) then
+        state%SymmetryCode(n+1:n+4) = "(i) "
+        n = n+4
+      end if
 
       if (state%NormalAxesCounts(0) == 1) then
-        state%SymmetryCode = trim(state%SymmetryCode)//"(Cinf) "
+        state%SymmetryCode(n+1:n+7) = "(Cinf) "
+        n = n+7
       else if (state%NormalAxesCounts(0) > 1) then
         write (buf,'(I0,A)') state%NormalAxesCounts(0),"*(Cinf) "
-        state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+        tlen = len_trim(buf)+1
+        state%SymmetryCode(n+1:n+tlen) = buf(1:tlen)
+        n = n+tlen
       end if
 
       do i = state%MaxAxisOrder,2,-1
         if (state%NormalAxesCounts(i) == 1) then
           write (buf,'(A,I0,A)') "(C",i,") "
-          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+          tlen = len_trim(buf)+1
+          state%SymmetryCode(n+1:n+tlen) = buf(1:tlen)
+          n = n+tlen
         else if (state%NormalAxesCounts(i) > 1) then
           write (buf,'(I0,A,I0,A)') state%NormalAxesCounts(i),"*(C",i,") "
-          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+          tlen = len_trim(buf)+1
+          state%SymmetryCode(n+1:n+tlen) = buf(1:tlen)
+          n = n+tlen
         end if
       end do
 
       do i = state%MaxAxisOrder,2,-1
         if (state%ImproperAxesCounts(i) == 1) then
           write (buf,'(A,I0,A)') "(S",i,") "
-          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+          tlen = len_trim(buf)+1
+          state%SymmetryCode(n+1:n+tlen) = buf(1:tlen)
+          n = n+tlen
         else if (state%ImproperAxesCounts(i) > 1) then
           write (buf,'(I0,A,I0,A)') state%ImproperAxesCounts(i),"*(S",i,") "
-          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+          tlen = len_trim(buf)+1
+          state%SymmetryCode(n+1:n+tlen) = buf(1:tlen)
+          n = n+tlen
         end if
       end do
 
       if (state%PlanesCount == 1) then
-        state%SymmetryCode = trim(state%SymmetryCode)//"(sigma) "
+        state%SymmetryCode(n+1:n+8) = "(sigma) "
+        n = n+8
       else if (state%PlanesCount > 1) then
         write (buf,'(I0,A)') state%PlanesCount,"*(sigma) "
-        state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+        tlen = len_trim(buf)+1
+        state%SymmetryCode(n+1:n+tlen) = buf(1:tlen)
+        n = n+tlen
       end if
     end if
   end subroutine report_symmetry_elements_brief
@@ -1726,6 +1743,7 @@ contains    !> MODULE PROCEDURES START HERE
         symbol = trim(state%MaxRotAxis)
       end if
     end if
+    write(*,*) symbol
   end subroutine schoenflies
 
 ! ══════════════════════════════════════════════════════════════════════════════
