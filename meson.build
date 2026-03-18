@@ -170,6 +170,29 @@ if with_openblas
   add_project_arguments('-DWITH_OPENBLAS', language : ['c', 'fortran'])
 endif
 
+# ── Static-build guard: pin BLAS/LAPACK for subprojects ───────────────────────
+# When building statically, subprojects must not resolve BLAS/LAPACK to shared
+# libraries.  meson.override_dependency() is global: all subsequent dependency()
+# calls in this project AND every subproject get the static dep we already found.
+if static_build
+  meson.override_dependency('lapack', lapack_dep)
+  meson.override_dependency('blas',   blas_dep)
+  if with_openblas
+    meson.override_dependency('openblas', blas_dep)
+  endif
+endif
+
+# libgfortran.a (Fortran runtime) references quadmath_* symbols; the GFortran
+# driver would add -lquadmath automatically, but meson uses the C linker driver
+# for the final link step, so we must add it explicitly for static GCC builds.
+_quadmath_dep = []
+if static_build and fc_id == 'gcc'
+  _qm = fc.find_library('quadmath', required : false, static : true)
+  if _qm.found()
+    _quadmath_dep = [_qm]
+  endif
+endif
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Optional subproject / external library dependencies
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -200,6 +223,7 @@ gfnff_dep = dependency('gfnff',
   fallback : ['gfnff', 'gfnff_dep'],
   required : get_option('gfnff'),
   static   : static_build,
+  default_options : ['tests=false'],
 )
 with_gfnff = gfnff_dep.found()
 if with_gfnff
@@ -220,6 +244,7 @@ libpvol_dep = dependency('libpvol',
   fallback : ['pvol', 'libpvol_dep'],
   required : get_option('libpvol'),
   static   : static_build,
+  default_options : ['tests=false'],
 )
 with_libpvol = libpvol_dep.found()
 if with_libpvol
@@ -295,7 +320,7 @@ lib_crest = static_library(
   'crest',
   sources             : srcs,
   include_directories : inc_dirs,
-  dependencies        : [lapack_dep, blas_dep] + _omp_link_dep + _optional_deps,
+  dependencies        : [lapack_dep, blas_dep] + _omp_link_dep + _optional_deps + _quadmath_dep,
   install             : false,
   pic                 : true,
 )
@@ -305,7 +330,7 @@ executable(
   sources             : prog,
   include_directories : inc_dirs,
   link_with           : lib_crest,
-  dependencies        : [lapack_dep, blas_dep] + _omp_link_dep + _optional_deps,
+  dependencies        : [lapack_dep, blas_dep] + _omp_link_dep + _optional_deps + _quadmath_dep,
   install             : true,
 )
 
