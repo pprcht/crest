@@ -262,9 +262,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
 !* for the given ensemble. Input eread is overwritten
 !* xyz must be in Bohrs
 !*
-!* WARNING: OpenMP doesn't seem to like numhess2. We are hence
-!* doing the loop serial, and hope for parallelization of the
-!* underlying potentials
+!* Parallelization is enabled using numhess1 (OpenMP-compatible).
 !*
 !***************************************************************
   use crest_parameters,only:wp,stdout,sep
@@ -372,15 +370,15 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
   eread(:) = 0.0_wp
   grads(:,:,:) = 0.0_wp
 !>--- loop over ensemble
-!  !$omp parallel &
-!  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
-!  !$omp shared(ich,ich2,mols,nested,Tn,freqs,hess)
-!  !$omp single
+  !$omp parallel &
+  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
+  !$omp shared(mols,nested,Tn,freqs,hess,temps,et,ht,gt,stot,nat3,ithr,fscal,sthr,nt,emodel)
+  !$omp single
   do i = 1,nall
 
     call initsignal()
     vz = i
-!    !$omp task firstprivate( vz ) private(i,j,job,energy,io,thread_id,zcopy)
+    !$omp task firstprivate( vz ) private(i,j,job,energy,io,thread_id,zcopy)
     call initsignal()
 
     !>--- OpenMP nested region threads
@@ -400,7 +398,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
     !>-- engery+gradient call first, for setup
     call engrad(mols(job),calculations(job),energy,grads(:,:,job),io)
     !>-- then, numerical hessian
-    call numhess2(mols(job)%nat,mols(job)%at,mols(job)%xyz, &
+    call numhess1(mols(job)%nat,mols(job)%at,mols(job)%xyz, &
                   calculations(job),hess(:,:,job),io)
     !!$omp critical
     if (io .eq. 0) then
@@ -430,11 +428,11 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
     !>--- print progress
     call crest_oloop_pr_progress(env,nall,k)
     !$omp end critical
-    !   !$omp end task
+    !$omp end task
   end do
-  ! !$omp taskwait
-  ! !$omp end single
-  ! !$omp end parallel
+  !$omp taskwait
+  !$omp end single
+  !$omp end parallel
 
 !>--- finalize progress printout
   call crest_oloop_pr_progress(env,nall,-1)
