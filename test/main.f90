@@ -10,6 +10,7 @@ program tester
   use test_cn, only: collect_cn 
   use test_optimization, only: collect_optimization
   use test_molecular_dynamics, only: collect_mol_dynamics
+  use test_getsym, only: collect_getsym
   implicit none
   integer :: stat, is
   character(len=:), allocatable :: suite_name, test_name
@@ -31,8 +32,9 @@ program tester
     new_testsuite("gfn0", collect_gfn0),       &
     new_testsuite("gfn0occ", collect_gfn0occ), &
     new_testsuite("CN",collect_CN),            &
+    new_testsuite("getsym", collect_getsym),   & 
     new_testsuite("optimization", collect_optimization), &
-    new_testsuite("molecular_dynamics", collect_mol_dynamics) & 
+    new_testsuite("molecular_dynamics", collect_mol_dynamics) &
   ]
 !&>
 

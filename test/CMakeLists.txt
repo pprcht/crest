@@ -8,6 +8,7 @@ set(
   "CN"
   "optimization"
   "molecular_dynamics"
+  "getsym"
 )
 set(
   test-srcs

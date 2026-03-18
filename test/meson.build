@@ -9,6 +9,7 @@ tests = [
   'CN',
   'optimization',
   'molecular_dynamics',
+  'getsym',
 ]
 
 test_srcs = files(

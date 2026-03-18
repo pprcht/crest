@@ -14,3 +14,4 @@ bin/
 subprojects/.wraplock
 meson_build/
 meson_build_*
+utils/
