@@ -9,8 +9,6 @@
 !> the Free Software Foundation; either version 2 of the License, or
 !> (at your option) any later version.
 
-! WARNING: Currently unused and untested!
-
 module symmetry_i
   use iso_fortran_env,only:wp => real64
   implicit none
@@ -18,8 +16,7 @@ module symmetry_i
 
   ! Public interface
   public :: schoenflies
-  public :: symmetry_element,atom_t
-  public :: set_symmetry_tolerance
+  !public :: symmetry_element,atom_t,symmetry_state_t
 
   !> Mathematical constants
   real(wp),parameter :: PI = 3.14159265358979323846d0
@@ -50,135 +47,138 @@ module symmetry_i
     character(len=64) :: symmetry_code
   end type point_group
 
-  !> Module-level parameters (can be modified)
-  real(wp),save :: ToleranceSame = 1.0d-3
-  real(wp),save :: TolerancePrimary = 5.0d-2
-  real(wp),save :: ToleranceFinal = 1.0d-4
-  real(wp),save :: MaxOptStep = 5.0d-1
-  real(wp),save :: MinOptStep = 1.0d-7
-  real(wp),save :: GradientStep = 1.0d-7
-  real(wp),save :: OptChangeThreshold = 1.0d-10
-  integer,save :: verbose = 0
-  integer,save :: MaxOptCycles = 200
-  integer,save :: OptChangeHits = 5
-  integer,save :: MaxAxisOrder = 20
-
-  !> Working data
-  real(wp),save :: CenterOfSomething(DIMENSION)
-  real(wp),allocatable,save :: DistanceFromCenter(:)
-  integer,save :: AtomsCount = 0
-  type(atom_t),allocatable,save :: Atoms(:)
-
-  !> Symmetry elements storage
-  integer,save :: PlanesCount = 0
-  type(symmetry_element),allocatable,save :: Planes(:)
-  type(symmetry_element),allocatable,save :: MolecularPlane
-  logical,save :: MolecularPlaneExists = .false.
-  integer,save :: InversionCentersCount = 0
-  type(symmetry_element),allocatable,save :: InversionCenters(:)
-  integer,save :: NormalAxesCount = 0
-  type(symmetry_element),allocatable,save :: NormalAxes(:)
-  integer,save :: ImproperAxesCount = 0
-  type(symmetry_element),allocatable,save :: ImproperAxes(:)
-  integer,allocatable,save :: NormalAxesCounts(:)
-  integer,allocatable,save :: ImproperAxesCounts(:)
-  integer,save :: BadOptimization = 0
-  character(len=256),save :: SymmetryCode = ""
-  character(len=8),save :: MaxRotAxis = ""
-
-  !> Statistics
-  integer(8),save :: StatTotal = 0
-  integer(8),save :: StatEarly = 0
-  integer(8),save :: StatPairs = 0
-  integer(8),save :: StatDups = 0
-  integer(8),save :: StatOrder = 0
-  integer(8),save :: StatOpt = 0
-  integer(8),save :: StatAccept = 0
-
-  !> Point groups table
+  !> Number of point groups in the lookup table
   integer,parameter :: PointGroupsCount = 60
-  type(point_group),save :: PointGroups(PointGroupsCount)
-  logical,save :: PointGroupsInitialized = .false.
+
+  !> All symmetry-analysis state collected in one derived type
+  type,public :: symmetry_state_t
+    ! Tolerance / control
+    real(wp) :: ToleranceSame = 1.0d-3
+    real(wp) :: TolerancePrimary = 5.0d-2
+    real(wp) :: ToleranceFinal = 1.0d-4
+    real(wp) :: MaxOptStep = 5.0d-1
+    real(wp) :: MinOptStep = 1.0d-7
+    real(wp) :: GradientStep = 1.0d-7
+    real(wp) :: OptChangeThreshold = 1.0d-10
+    integer  :: verbose = 0
+    integer  :: MaxAxisOrder = 20
+    integer  :: MaxOptCycles = 200
+    integer  :: OptChangeHits = 5
+    ! Geometry / working data
+    real(wp)              :: CenterOfSomething(3) = 0.0_wp
+    real(wp),allocatable  :: DistanceFromCenter(:)
+    integer               :: AtomsCount = 0
+    type(atom_t),allocatable :: Atoms(:)
+    ! Symmetry elements
+    integer                            :: PlanesCount = 0
+    type(symmetry_element),allocatable :: Planes(:)
+    type(symmetry_element)             :: MolecularPlane
+    logical                            :: MolecularPlaneExists = .false.
+    integer                            :: InversionCentersCount = 0
+    type(symmetry_element),allocatable :: InversionCenters(:)
+    integer                            :: NormalAxesCount = 0
+    type(symmetry_element),allocatable :: NormalAxes(:)
+    integer                            :: ImproperAxesCount = 0
+    type(symmetry_element),allocatable :: ImproperAxes(:)
+    integer,allocatable                :: NormalAxesCounts(:)
+    integer,allocatable                :: ImproperAxesCounts(:)
+    integer                            :: BadOptimization = 0
+    character(len=256)                 :: SymmetryCode = ""
+    character(len=8)                   :: MaxRotAxis = ""
+    ! Statistics
+    integer(8) :: StatTotal = 0
+    integer(8) :: StatEarly = 0
+    integer(8) :: StatPairs = 0
+    integer(8) :: StatDups = 0
+    integer(8) :: StatOrder = 0
+    integer(8) :: StatOpt = 0
+    integer(8) :: StatAccept = 0
+    ! Point groups lookup table
+    type(point_group) :: PointGroups(PointGroupsCount)
+    logical           :: PointGroupsInitialized = .false.
+  end type symmetry_state_t
 
 ! ══════════════════════════════════════════════════════════════════════════════
 contains    !> MODULE PROCEDURES START HERE
 ! ══════════════════════════════════════════════════════════════════════════════
 
+  !> Initialise (reset) a symmetry_state_t to its defaults
+  subroutine init_symmetry_state(state)
+    type(symmetry_state_t),intent(out) :: state
+    ! intent(out) resets all scalar fields to their type-definition defaults
+    ! and deallocates every allocatable component (transitively).
+    ! Explicitly destroy the non-allocatable MolecularPlane's inner allocatable.
+    call destroy_symmetry_element(state%MolecularPlane)
+  end subroutine init_symmetry_state
+
   !> Initialize point groups table
-  subroutine init_point_groups()
-    if (PointGroupsInitialized) return
+  subroutine init_point_groups(state)
+    type(symmetry_state_t),intent(inout) :: state
+    if (state%PointGroupsInitialized) return
 
-    PointGroups(1) = point_group("C1","")
-    PointGroups(2) = point_group("Cs","(sigma) ")
-    PointGroups(3) = point_group("Ci","(i) ")
-    PointGroups(4) = point_group("C2","(C2) ")
-    PointGroups(5) = point_group("C3","(C3) ")
-    PointGroups(6) = point_group("C4","(C4) (C2) ")
-    PointGroups(7) = point_group("C5","(C5) ")
-    PointGroups(8) = point_group("C6","(C6) (C3) (C2) ")
-    PointGroups(9) = point_group("C7","(C7) ")
-    PointGroups(10) = point_group("C8","(C8) (C4) (C2) ")
-    PointGroups(11) = point_group("D2","3*(C2) ")
-    PointGroups(12) = point_group("D3","(C3) 3*(C2) ")
-    PointGroups(13) = point_group("D4","(C4) 5*(C2) ")
-    PointGroups(14) = point_group("D5","(C5) 5*(C2) ")
-    PointGroups(15) = point_group("D6","(C6) (C3) 7*(C2) ")
-    PointGroups(16) = point_group("D7","(C7) 7*(C2) ")
-    PointGroups(17) = point_group("D8","(C8) (C4) 9*(C2) ")
-    PointGroups(18) = point_group("C2v","(C2) 2*(sigma) ")
-    PointGroups(19) = point_group("C3v","(C3) 3*(sigma) ")
-    PointGroups(20) = point_group("C4v","(C4) (C2) 4*(sigma) ")
-    PointGroups(21) = point_group("C5v","(C5) 5*(sigma) ")
-    PointGroups(22) = point_group("C6v","(C6) (C3) (C2) 6*(sigma) ")
-    PointGroups(23) = point_group("C7v","(C7) 7*(sigma) ")
-    PointGroups(24) = point_group("C8v","(C8) (C4) (C2) 8*(sigma) ")
-    PointGroups(25) = point_group("C2h","(i) (C2) (sigma) ")
-    PointGroups(26) = point_group("C3h","(C3) (S3) (sigma) ")
-    PointGroups(27) = point_group("C4h","(i) (C4) (C2) (S4) (sigma) ")
-    PointGroups(28) = point_group("C5h","(C5) (S5) (sigma) ")
-    PointGroups(29) = point_group("C6h","(i) (C6) (C3) (C2) (S6) (S3) (sigma) ")
-    PointGroups(30) = point_group("C7h","(C7) (S7) (sigma) ")
-    PointGroups(31) = point_group("C8h","(i) (C8) (C4) (C2) (S8) (S4) (sigma) ")
-    PointGroups(32) = point_group("D2h","(i) 3*(C2) 3*(sigma) ")
-    PointGroups(33) = point_group("D3h","(C3) 3*(C2) (S3) 4*(sigma) ")
-    PointGroups(34) = point_group("D4h","(i) (C4) 5*(C2) (S4) 5*(sigma) ")
-    PointGroups(35) = point_group("D5h","(C5) 5*(C2) (S5) 6*(sigma) ")
-    PointGroups(36) = point_group("D6h","(i) (C6) (C3) 7*(C2) (S6) (S3) 7*(sigma) ")
-    PointGroups(37) = point_group("D7h","(C7) 7*(C2) (S7) 8*(sigma) ")
-    PointGroups(38) = point_group("D8h","(i) (C8) (C4) 9*(C2) (S8) (S4) 9*(sigma) ")
-    PointGroups(39) = point_group("D2d","3*(C2) (S4) 2*(sigma) ")
-    PointGroups(40) = point_group("D3d","(i) (C3) 3*(C2) (S6) 3*(sigma) ")
-    PointGroups(41) = point_group("D4d","(C4) 5*(C2) (S8) 4*(sigma) ")
-    PointGroups(42) = point_group("D5d","(i) (C5) 5*(C2) (S10) 5*(sigma) ")
-    PointGroups(43) = point_group("D6d","(C6) (C3) 7*(C2) (S12) (S4) 6*(sigma) ")
-    PointGroups(44) = point_group("D7d","(i) (C7) 7*(C2) (S14) 7*(sigma) ")
-    PointGroups(45) = point_group("D8d","(C8) (C4) 9*(C2) (S16) 8*(sigma) ")
-    PointGroups(46) = point_group("S4","(C2) (S4) ")
-    PointGroups(47) = point_group("S6","(i) (C3) (S6) ")
-    PointGroups(48) = point_group("S8","(C4) (C2) (S8) ")
-    PointGroups(49) = point_group("T","4*(C3) 3*(C2) ")
-    PointGroups(50) = point_group("Th","(i) 4*(C3) 3*(C2) 4*(S6) 3*(sigma) ")
-    PointGroups(51) = point_group("Td","4*(C3) 3*(C2) 3*(S4) 6*(sigma) ")
-    PointGroups(52) = point_group("O","3*(C4) 4*(C3) 9*(C2) ")
-    PointGroups(53) = point_group("Oh","(i) 3*(C4) 4*(C3) 9*(C2) 4*(S6) 3*(S4) 9*(sigma) ")
-    PointGroups(54) = point_group("Cinfv","(Cinf) (sigma) ")
-    PointGroups(55) = point_group("Dinfh","(i) (Cinf) (C2) 2*(sigma) ")
-    PointGroups(56) = point_group("I","6*(C5) 10*(C3) 15*(C2) ")
-    PointGroups(57) = point_group("Ih","(i) 6*(C5) 10*(C3) 15*(C2) 6*(S10) 10*(S6) 15*(sigma) ")
-    PointGroups(58) = point_group("Kh","(i) (Cinf) (sigma) ")
-    PointGroups(59) = point_group("","")  ! Padding
-    PointGroups(60) = point_group("","")  ! Padding
+    state%PointGroups(1)  = point_group("C1","")
+    state%PointGroups(2)  = point_group("Cs","(sigma) ")
+    state%PointGroups(3)  = point_group("Ci","(i) ")
+    state%PointGroups(4)  = point_group("C2","(C2) ")
+    state%PointGroups(5)  = point_group("C3","(C3) ")
+    state%PointGroups(6)  = point_group("C4","(C4) (C2) ")
+    state%PointGroups(7)  = point_group("C5","(C5) ")
+    state%PointGroups(8)  = point_group("C6","(C6) (C3) (C2) ")
+    state%PointGroups(9)  = point_group("C7","(C7) ")
+    state%PointGroups(10) = point_group("C8","(C8) (C4) (C2) ")
+    state%PointGroups(11) = point_group("D2","3*(C2) ")
+    state%PointGroups(12) = point_group("D3","(C3) 3*(C2) ")
+    state%PointGroups(13) = point_group("D4","(C4) 5*(C2) ")
+    state%PointGroups(14) = point_group("D5","(C5) 5*(C2) ")
+    state%PointGroups(15) = point_group("D6","(C6) (C3) 7*(C2) ")
+    state%PointGroups(16) = point_group("D7","(C7) 7*(C2) ")
+    state%PointGroups(17) = point_group("D8","(C8) (C4) 9*(C2) ")
+    state%PointGroups(18) = point_group("C2v","(C2) 2*(sigma) ")
+    state%PointGroups(19) = point_group("C3v","(C3) 3*(sigma) ")
+    state%PointGroups(20) = point_group("C4v","(C4) (C2) 4*(sigma) ")
+    state%PointGroups(21) = point_group("C5v","(C5) 5*(sigma) ")
+    state%PointGroups(22) = point_group("C6v","(C6) (C3) (C2) 6*(sigma) ")
+    state%PointGroups(23) = point_group("C7v","(C7) 7*(sigma) ")
+    state%PointGroups(24) = point_group("C8v","(C8) (C4) (C2) 8*(sigma) ")
+    state%PointGroups(25) = point_group("C2h","(i) (C2) (sigma) ")
+    state%PointGroups(26) = point_group("C3h","(C3) (S3) (sigma) ")
+    state%PointGroups(27) = point_group("C4h","(i) (C4) (C2) (S4) (sigma) ")
+    state%PointGroups(28) = point_group("C5h","(C5) (S5) (sigma) ")
+    state%PointGroups(29) = point_group("C6h","(i) (C6) (C3) (C2) (S6) (S3) (sigma) ")
+    state%PointGroups(30) = point_group("C7h","(C7) (S7) (sigma) ")
+    state%PointGroups(31) = point_group("C8h","(i) (C8) (C4) (C2) (S8) (S4) (sigma) ")
+    state%PointGroups(32) = point_group("D2h","(i) 3*(C2) 3*(sigma) ")
+    state%PointGroups(33) = point_group("D3h","(C3) 3*(C2) (S3) 4*(sigma) ")
+    state%PointGroups(34) = point_group("D4h","(i) (C4) 5*(C2) (S4) 5*(sigma) ")
+    state%PointGroups(35) = point_group("D5h","(C5) 5*(C2) (S5) 6*(sigma) ")
+    state%PointGroups(36) = point_group("D6h","(i) (C6) (C3) 7*(C2) (S6) (S3) 7*(sigma) ")
+    state%PointGroups(37) = point_group("D7h","(C7) 7*(C2) (S7) 8*(sigma) ")
+    state%PointGroups(38) = point_group("D8h","(i) (C8) (C4) 9*(C2) (S8) (S4) 9*(sigma) ")
+    state%PointGroups(39) = point_group("D2d","3*(C2) (S4) 2*(sigma) ")
+    state%PointGroups(40) = point_group("D3d","(i) (C3) 3*(C2) (S6) 3*(sigma) ")
+    state%PointGroups(41) = point_group("D4d","(C4) 5*(C2) (S8) 4*(sigma) ")
+    state%PointGroups(42) = point_group("D5d","(i) (C5) 5*(C2) (S10) 5*(sigma) ")
+    state%PointGroups(43) = point_group("D6d","(C6) (C3) 7*(C2) (S12) (S4) 6*(sigma) ")
+    state%PointGroups(44) = point_group("D7d","(i) (C7) 7*(C2) (S14) 7*(sigma) ")
+    state%PointGroups(45) = point_group("D8d","(C8) (C4) 9*(C2) (S16) 8*(sigma) ")
+    state%PointGroups(46) = point_group("S4","(C2) (S4) ")
+    state%PointGroups(47) = point_group("S6","(i) (C3) (S6) ")
+    state%PointGroups(48) = point_group("S8","(C4) (C2) (S8) ")
+    state%PointGroups(49) = point_group("T","4*(C3) 3*(C2) ")
+    state%PointGroups(50) = point_group("Th","(i) 4*(C3) 3*(C2) 4*(S6) 3*(sigma) ")
+    state%PointGroups(51) = point_group("Td","4*(C3) 3*(C2) 3*(S4) 6*(sigma) ")
+    state%PointGroups(52) = point_group("O","3*(C4) 4*(C3) 9*(C2) ")
+    state%PointGroups(53) = point_group("Oh","(i) 3*(C4) 4*(C3) 9*(C2) 4*(S6) 3*(S4) 9*(sigma) ")
+    state%PointGroups(54) = point_group("Cinfv","(Cinf) (sigma) ")
+    state%PointGroups(55) = point_group("Dinfh","(i) (Cinf) (C2) 2*(sigma) ")
+    state%PointGroups(56) = point_group("I","6*(C5) 10*(C3) 15*(C2) ")
+    state%PointGroups(57) = point_group("Ih","(i) 6*(C5) 10*(C3) 15*(C2) 6*(S10) 10*(S6) 15*(sigma) ")
+    state%PointGroups(58) = point_group("Kh","(i) (Cinf) (sigma) ")
+    state%PointGroups(59) = point_group("","")  ! Padding
+    state%PointGroups(60) = point_group("","")  ! Padding
 
-    PointGroupsInitialized = .true.
+    state%PointGroupsInitialized = .true.
   end subroutine init_point_groups
-
-  !> Set tolerance parameters
-  subroutine set_symmetry_tolerance(tol_same,tol_primary,tol_final)
-    real(wp),intent(in),optional :: tol_same,tol_primary,tol_final
-    if (present(tol_same)) ToleranceSame = tol_same
-    if (present(tol_primary)) TolerancePrimary = tol_primary
-    if (present(tol_final)) ToleranceFinal = tol_final
-  end subroutine set_symmetry_tolerance
 
   !> Square function
   pure real(wp) function pow2(x)
@@ -187,20 +187,21 @@ contains    !> MODULE PROCEDURES START HERE
   end function pow2
 
   !> Allocate a symmetry element
-  subroutine alloc_symmetry_element(elem)
+  subroutine alloc_symmetry_element(state,elem)
+    type(symmetry_state_t),intent(in) :: state
     type(symmetry_element),intent(out) :: elem
     integer :: i
 
-    allocate (elem%transform(AtomsCount))
-    do i = 1,AtomsCount
-      elem%transform(i) = AtomsCount+1  ! Impossible value
+    allocate (elem%transform(state%AtomsCount))
+    do i = 1,state%AtomsCount
+      elem%transform(i) = state%AtomsCount+1  ! Impossible value
     end do
-    elem%order = 0
-    elem%nparam = 0
-    elem%maxdev = 0.0d0
-    elem%distance = 0.0d0
-    elem%normal = 0.0d0
-    elem%direction = 0.0d0
+    elem%order      = 0
+    elem%nparam     = 0
+    elem%maxdev     = 0.0d0
+    elem%distance   = 0.0d0
+    elem%normal     = 0.0d0
+    elem%direction  = 0.0d0
     elem%transform_type = 0
   end subroutine alloc_symmetry_element
 
@@ -355,7 +356,8 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine transform_atom
 
   !> Establish pairs of atoms related by symmetry
-  function establish_pairs(elem) result(status)
+  function establish_pairs(state,elem) result(status)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(inout) :: elem
     integer :: status
     integer :: i,j,k,best_j
@@ -364,21 +366,21 @@ contains    !> MODULE PROCEDURES START HERE
     type(atom_t) :: symmetric
 
     status = 0
-    allocate (atom_used(AtomsCount))
+    allocate (atom_used(state%AtomsCount))
     atom_used = .false.
 
-    do i = 1,AtomsCount
-      if (elem%transform(i) > AtomsCount) then
-        call transform_atom(elem,Atoms(i),symmetric)
+    do i = 1,state%AtomsCount
+      if (elem%transform(i) > state%AtomsCount) then
+        call transform_atom(elem,state%Atoms(i),symmetric)
         best_j = i
-        best_distance = 2.0d0*TolerancePrimary
+        best_distance = 2.0d0*state%TolerancePrimary
 
-        do j = 1,AtomsCount
-          if (Atoms(j)%atom_type /= symmetric%atom_type.or.atom_used(j)) cycle
+        do j = 1,state%AtomsCount
+          if (state%Atoms(j)%atom_type /= symmetric%atom_type.or.atom_used(j)) cycle
 
           distance = 0.0d0
           do k = 1,DIMENSION
-            distance = distance+pow2(symmetric%x(k)-Atoms(j)%x(k))
+            distance = distance+pow2(symmetric%x(k)-state%Atoms(j)%x(k))
           end do
           distance = sqrt(distance)
 
@@ -388,7 +390,7 @@ contains    !> MODULE PROCEDURES START HERE
           end if
         end do
 
-        if (best_distance > TolerancePrimary) then
+        if (best_distance > state%TolerancePrimary) then
           deallocate (atom_used)
           status = -1
           return
@@ -403,14 +405,15 @@ contains    !> MODULE PROCEDURES START HERE
   end function establish_pairs
 
   !> Check if transformation order is correct
-  function check_transform_order(elem) result(status)
+  function check_transform_order(state,elem) result(status)
+    type(symmetry_state_t),intent(in) :: state
     type(symmetry_element),intent(in) :: elem
     integer :: status
     integer :: i,j,k
 
     status = 0
 
-    do i = 1,AtomsCount
+    do i = 1,state%AtomsCount
       if (elem%transform(i) == i) cycle
 
       if (elem%transform_type == 4) then  ! rotate_reflect
@@ -445,7 +448,8 @@ contains    !> MODULE PROCEDURES START HERE
   end function check_transform_order
 
   !> Check if two transforms are the same
-  function same_transform(a,b) result(is_same)
+  function same_transform(state,a,b) result(is_same)
+    type(symmetry_state_t),intent(in) :: state
     type(symmetry_element),intent(in) :: a,b
     logical :: is_same
     integer :: i,j,code
@@ -456,7 +460,7 @@ contains    !> MODULE PROCEDURES START HERE
         a%transform_type /= b%transform_type) return
 
     code = 1
-    do i = 1,AtomsCount
+    do i = 1,state%AtomsCount
       if (a%transform(i) /= b%transform(i)) then
         code = 0
         exit
@@ -464,7 +468,7 @@ contains    !> MODULE PROCEDURES START HERE
     end do
 
     if (code == 0.and.a%order > 2) then
-      do i = 1,AtomsCount
+      do i = 1,state%AtomsCount
         j = a%transform(i)
         if (b%transform(j) /= i) return
       end do
@@ -476,7 +480,8 @@ contains    !> MODULE PROCEDURES START HERE
   end function same_transform
 
   !> Check transform quality
-  function check_transform_quality(elem) result(status)
+  function check_transform_quality(state,elem) result(status)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(inout) :: elem
     integer :: status
     integer :: i,j,k
@@ -486,17 +491,17 @@ contains    !> MODULE PROCEDURES START HERE
     status = 0
     max_r = 0.0d0
 
-    do i = 1,AtomsCount
+    do i = 1,state%AtomsCount
       j = elem%transform(i)
-      call transform_atom(elem,Atoms(i),symmetric)
+      call transform_atom(elem,state%Atoms(i),symmetric)
 
       r = 0.0d0
       do k = 1,DIMENSION
-        r = r+pow2(symmetric%x(k)-Atoms(j)%x(k))
+        r = r+pow2(symmetric%x(k)-state%Atoms(j)%x(k))
       end do
       r = sqrt(r)
 
-      if (r > ToleranceFinal) then
+      if (r > state%ToleranceFinal) then
         status = -1
         return
       end if
@@ -507,7 +512,8 @@ contains    !> MODULE PROCEDURES START HERE
   end function check_transform_quality
 
   !> Evaluate optimization target function
-  function eval_optimization_target_function(elem,finish) result(target)
+  function eval_optimization_target_function(state,elem,finish) result(target)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(inout) :: elem
     logical,intent(out),optional :: finish
     real(wp) :: target
@@ -522,7 +528,7 @@ contains    !> MODULE PROCEDURES START HERE
         r = r+elem%normal(k)*elem%normal(k)
       end do
       r = sqrt(r)
-      if (r < ToleranceSame) then
+      if (r < state%ToleranceSame) then
         write (*,*) "Normal collapsed!"
         stop
       end if
@@ -540,7 +546,7 @@ contains    !> MODULE PROCEDURES START HERE
         r = r+elem%direction(k)*elem%direction(k)
       end do
       r = sqrt(r)
-      if (r < ToleranceSame) then
+      if (r < state%ToleranceSame) then
         write (*,*) "Direction collapsed!"
         stop
       end if
@@ -550,20 +556,20 @@ contains    !> MODULE PROCEDURES START HERE
     target = 0.0d0
     maxr = 0.0d0
 
-    do i = 1,AtomsCount
-      call transform_atom(elem,Atoms(i),symmetric)
+    do i = 1,state%AtomsCount
+      call transform_atom(elem,state%Atoms(i),symmetric)
       j = elem%transform(i)
 
       r = 0.0d0
       do k = 1,DIMENSION
-        r = r+pow2(Atoms(j)%x(k)-symmetric%x(k))
+        r = r+pow2(state%Atoms(j)%x(k)-symmetric%x(k))
       end do
       if (r > maxr) maxr = r
       target = target+r
     end do
 
     if (present(finish)) then
-      finish = (sqrt(maxr) < ToleranceFinal)
+      finish = (sqrt(maxr) < state%ToleranceFinal)
     end if
   end function eval_optimization_target_function
 
@@ -592,7 +598,8 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine set_params
 
   !> Optimize transformation parameters
-  subroutine optimize_transformation_params(elem)
+  subroutine optimize_transformation_params(state,elem)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(inout) :: elem
     real(wp) :: values(MAXPARAM),grad(MAXPARAM),force(MAXPARAM),step(MAXPARAM)
     real(wp) :: f,fold,fnew,fnew2,fdn,fup,snorm
@@ -612,34 +619,34 @@ contains    !> MODULE PROCEDURES START HERE
 
     do
       fold = f
-      f = eval_optimization_target_function(elem,finish)
+      f = eval_optimization_target_function(state,elem,finish)
 
       if (finish) exit
 
       if (cycle > 0) then
-        if (abs(f-fold) > OptChangeThreshold) then
+        if (abs(f-fold) > state%OptChangeThreshold) then
           hits = 0
         else
           hits = hits+1
         end if
-        if (hits >= OptChangeHits) exit
+        if (hits >= state%OptChangeHits) exit
       end if
 
       call get_params(elem,values)
 
       ! Calculate gradient and force constants
       do i = 1,vars
-        values(i) = values(i)-GradientStep
+        values(i) = values(i)-state%GradientStep
         call set_params(elem,values)
-        fdn = eval_optimization_target_function(elem)
+        fdn = eval_optimization_target_function(state,elem)
 
-        values(i) = values(i)+2.0d0*GradientStep
+        values(i) = values(i)+2.0d0*state%GradientStep
         call set_params(elem,values)
-        fup = eval_optimization_target_function(elem)
+        fup = eval_optimization_target_function(state,elem)
 
-        values(i) = values(i)-GradientStep
-        grad(i) = (fup-fdn)/(2.0d0*GradientStep)
-        force(i) = (fup+fdn-2.0d0*f)/(GradientStep*GradientStep)
+        values(i) = values(i)-state%GradientStep
+        grad(i) = (fup-fdn)/(2.0d0*state%GradientStep)
+        force(i) = (fup+fdn-2.0d0*f)/(state%GradientStep*state%GradientStep)
       end do
 
       ! Quasi-Newton step
@@ -653,15 +660,15 @@ contains    !> MODULE PROCEDURES START HERE
       end do
       snorm = sqrt(snorm)
 
-      if (snorm > MaxOptStep) then
-        step = step*MaxOptStep/snorm
-        snorm = MaxOptStep
+      if (snorm > state%MaxOptStep) then
+        step = step*state%MaxOptStep/snorm
+        snorm = state%MaxOptStep
       end if
 
-      do while (snorm > MinOptStep)
+      do while (snorm > state%MinOptStep)
         values = values+step
         call set_params(elem,values)
-        fnew = eval_optimization_target_function(elem)
+        fnew = eval_optimization_target_function(state,elem)
 
         if (fnew < f) exit
 
@@ -672,10 +679,10 @@ contains    !> MODULE PROCEDURES START HERE
       end do
 
       ! Quadratic interpolation
-      if (snorm > MinOptStep.and.snorm < MaxOptStep/2.0d0) then
+      if (snorm > state%MinOptStep.and.snorm < state%MaxOptStep/2.0d0) then
         values = values+step
         call set_params(elem,values)
-        fnew2 = eval_optimization_target_function(elem)
+        fnew2 = eval_optimization_target_function(state,elem)
         values = values-2.0d0*step
 
         a = (4.0d0*f-fnew2-3.0d0*fnew)/2.0d0
@@ -701,15 +708,16 @@ contains    !> MODULE PROCEDURES START HERE
       end if
 
       cycle = cycle+1
-      if (snorm <= MinOptStep.or.cycle >= MaxOptCycles) exit
+      if (snorm <= state%MinOptStep.or.cycle >= state%MaxOptCycles) exit
     end do
 
-    f = eval_optimization_target_function(elem)
-    if (cycle >= MaxOptCycles) BadOptimization = 1
+    f = eval_optimization_target_function(state,elem)
+    if (cycle >= state%MaxOptCycles) state%BadOptimization = 1
   end subroutine optimize_transformation_params
 
   !> Refine symmetry element
-  function refine_symmetry_element(elem,build_table) result(status)
+  function refine_symmetry_element(state,elem,build_table) result(status)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(inout) :: elem
     logical,intent(in) :: build_table
     integer :: status
@@ -718,65 +726,66 @@ contains    !> MODULE PROCEDURES START HERE
     status = 0
 
     if (build_table) then
-      if (establish_pairs(elem) < 0) then
-        StatPairs = StatPairs+1
+      if (establish_pairs(state,elem) < 0) then
+        state%StatPairs = state%StatPairs+1
         status = -1
         return
       end if
     end if
 
     ! Check for duplicates
-    do i = 1,PlanesCount
-      if (same_transform(Planes(i),elem)) then
-        StatDups = StatDups+1
+    do i = 1,state%PlanesCount
+      if (same_transform(state,state%Planes(i),elem)) then
+        state%StatDups = state%StatDups+1
         status = -1
         return
       end if
     end do
 
-    do i = 1,InversionCentersCount
-      if (same_transform(InversionCenters(i),elem)) then
-        StatDups = StatDups+1
+    do i = 1,state%InversionCentersCount
+      if (same_transform(state,state%InversionCenters(i),elem)) then
+        state%StatDups = state%StatDups+1
         status = -1
         return
       end if
     end do
 
-    do i = 1,NormalAxesCount
-      if (same_transform(NormalAxes(i),elem)) then
-        StatDups = StatDups+1
+    do i = 1,state%NormalAxesCount
+      if (same_transform(state,state%NormalAxes(i),elem)) then
+        state%StatDups = state%StatDups+1
         status = -1
         return
       end if
     end do
 
-    do i = 1,ImproperAxesCount
-      if (same_transform(ImproperAxes(i),elem)) then
-        StatDups = StatDups+1
+    do i = 1,state%ImproperAxesCount
+      if (same_transform(state,state%ImproperAxes(i),elem)) then
+        state%StatDups = state%StatDups+1
         status = -1
         return
       end if
     end do
 
-    if (check_transform_order(elem) < 0) then
-      StatOrder = StatOrder+1
+    if (check_transform_order(state,elem) < 0) then
+      state%StatOrder = state%StatOrder+1
       status = -1
       return
     end if
 
-    call optimize_transformation_params(elem)
+    call optimize_transformation_params(state,elem)
 
-    if (check_transform_quality(elem) < 0) then
-      StatOpt = StatOpt+1
+    if (check_transform_quality(state,elem) < 0) then
+      state%StatOpt = state%StatOpt+1
       status = -1
       return
     end if
 
-    StatAccept = StatAccept+1
+    state%StatAccept = state%StatAccept+1
   end function refine_symmetry_element
 
   !> Initialize mirror plane
-  subroutine init_mirror_plane(i,j,plane,success)
+  subroutine init_mirror_plane(state,i,j,plane,success)
+    type(symmetry_state_t),intent(inout) :: state
     integer,intent(in) :: i,j
     type(symmetry_element),intent(out) :: plane
     logical,intent(out) :: success
@@ -784,22 +793,22 @@ contains    !> MODULE PROCEDURES START HERE
     integer :: k
 
     success = .false.
-    StatTotal = StatTotal+1
+    state%StatTotal = state%StatTotal+1
 
-    call alloc_symmetry_element(plane)
+    call alloc_symmetry_element(state,plane)
     plane%transform_type = 1  ! mirror
     plane%order = 2
     plane%nparam = 4
 
     rab = 0.0d0
     do k = 1,DIMENSION
-      dx(k) = Atoms(i)%x(k)-Atoms(j)%x(k)
-      midpoint(k) = (Atoms(i)%x(k)+Atoms(j)%x(k))/2.0d0
+      dx(k) = state%Atoms(i)%x(k)-state%Atoms(j)%x(k)
+      midpoint(k) = (state%Atoms(i)%x(k)+state%Atoms(j)%x(k))/2.0d0
       rab = rab+dx(k)*dx(k)
     end do
     rab = sqrt(rab)
 
-    if (rab < ToleranceSame) then
+    if (rab < state%ToleranceSame) then
       call destroy_symmetry_element(plane)
       return
     end if
@@ -816,7 +825,7 @@ contains    !> MODULE PROCEDURES START HERE
     end if
     plane%distance = r
 
-    if (refine_symmetry_element(plane,.true.) < 0) then
+    if (refine_symmetry_element(state,plane,.true.) < 0) then
       call destroy_symmetry_element(plane)
       return
     end if
@@ -825,7 +834,8 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine init_mirror_plane
 
   !> Initialize ultimate (whole-molecule) plane
-  subroutine init_ultimate_plane(plane,success)
+  subroutine init_ultimate_plane(state,plane,success)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(out) :: plane
     logical,intent(out) :: success
     real(wp) :: d0(DIMENSION),d1(DIMENSION),d2(DIMENSION),p(DIMENSION)
@@ -834,9 +844,9 @@ contains    !> MODULE PROCEDURES START HERE
     integer :: i,j,k
 
     success = .false.
-    StatTotal = StatTotal+1
+    state%StatTotal = state%StatTotal+1
 
-    call alloc_symmetry_element(plane)
+    call alloc_symmetry_element(state,plane)
     plane%transform_type = 1
     plane%order = 1
     plane%nparam = 4
@@ -844,11 +854,11 @@ contains    !> MODULE PROCEDURES START HERE
     d0 = 0.0d0; d1 = 0.0d0; d2 = 0.0d0
     d0(1) = 1.0d0; d1(2) = 1.0d0; d2(3) = 1.0d0
 
-    do i = 2,AtomsCount
+    do i = 2,state%AtomsCount
       do j = 1,i-1
         r = 0.0d0
         do k = 1,DIMENSION
-          p(k) = Atoms(i)%x(k)-Atoms(j)%x(k)
+          p(k) = state%Atoms(i)%x(k)-state%Atoms(j)%x(k)
           r = r+p(k)*p(k)
         end do
         r = sqrt(r)
@@ -888,14 +898,14 @@ contains    !> MODULE PROCEDURES START HERE
       plane%normal = [1.0d0,0.0d0,0.0d0]
     end if
 
-    r = dot_product(CenterOfSomething,plane%normal)
+    r = dot_product(state%CenterOfSomething,plane%normal)
     plane%distance = r
 
-    do k = 1,AtomsCount
+    do k = 1,state%AtomsCount
       plane%transform(k) = k
     end do
 
-    if (refine_symmetry_element(plane,.false.) < 0) then
+    if (refine_symmetry_element(state,plane,.false.) < 0) then
       call destroy_symmetry_element(plane)
       return
     end if
@@ -904,30 +914,31 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine init_ultimate_plane
 
   !> Initialize inversion center
-  subroutine init_inversion_center(center,success)
+  subroutine init_inversion_center(state,center,success)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(out) :: center
     logical,intent(out) :: success
     real(wp) :: r
     integer :: k
 
     success = .false.
-    StatTotal = StatTotal+1
+    state%StatTotal = state%StatTotal+1
 
-    call alloc_symmetry_element(center)
+    call alloc_symmetry_element(state,center)
     center%transform_type = 2  ! invert
     center%order = 2
     center%nparam = 4
 
-    r = sqrt(sum(CenterOfSomething**2))
+    r = sqrt(sum(state%CenterOfSomething**2))
 
     if (r > 0.0d0) then
-      center%normal = CenterOfSomething/r
+      center%normal = state%CenterOfSomething/r
     else
       center%normal = [1.0d0,0.0d0,0.0d0]
     end if
     center%distance = r
 
-    if (refine_symmetry_element(center,.true.) < 0) then
+    if (refine_symmetry_element(state,center,.true.) < 0) then
       call destroy_symmetry_element(center)
       return
     end if
@@ -936,25 +947,26 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine init_inversion_center
 
   !> Initialize ultimate (infinity) axis
-  subroutine init_ultimate_axis(axis,success)
+  subroutine init_ultimate_axis(state,axis,success)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(out) :: axis
     logical,intent(out) :: success
     real(wp) :: dir(DIMENSION),rel(DIMENSION),s
     integer :: i,k
 
     success = .false.
-    StatTotal = StatTotal+1
+    state%StatTotal = state%StatTotal+1
 
-    call alloc_symmetry_element(axis)
+    call alloc_symmetry_element(state,axis)
     axis%transform_type = 3  ! rotate
     axis%order = 0
     axis%nparam = 7
 
     dir = 0.0d0
-    do i = 1,AtomsCount
+    do i = 1,state%AtomsCount
       s = 0.0d0
       do k = 1,DIMENSION
-        rel(k) = Atoms(i)%x(k)-CenterOfSomething(k)
+        rel(k) = state%Atoms(i)%x(k)-state%CenterOfSomething(k)
         s = s+rel(k)*dir(k)
       end do
       if (s >= 0.0d0) then
@@ -971,19 +983,19 @@ contains    !> MODULE PROCEDURES START HERE
       axis%direction = [1.0d0,0.0d0,0.0d0]
     end if
 
-    s = sqrt(sum(CenterOfSomething**2))
+    s = sqrt(sum(state%CenterOfSomething**2))
     if (s > 0.0d0) then
-      axis%normal = CenterOfSomething/s
+      axis%normal = state%CenterOfSomething/s
     else
       axis%normal = [1.0d0,0.0d0,0.0d0]
     end if
     axis%distance = s
 
-    do k = 1,AtomsCount
+    do k = 1,state%AtomsCount
       axis%transform(k) = k
     end do
 
-    if (refine_symmetry_element(axis,.false.) < 0) then
+    if (refine_symmetry_element(state,axis,.false.) < 0) then
       call destroy_symmetry_element(axis)
       return
     end if
@@ -991,83 +1003,9 @@ contains    !> MODULE PROCEDURES START HERE
     success = .true.
   end subroutine init_ultimate_axis
 
-  !> Initialize C2 axis
-  subroutine init_c2_axis(i,j,support,axis,success)
-    integer,intent(in) :: i,j
-    real(wp),intent(in) :: support(DIMENSION)
-    type(symmetry_element),intent(out) :: axis
-    logical,intent(out) :: success
-    real(wp) :: ris,rjs,r,center(DIMENSION)
-    integer :: k
-
-    success = .false.
-    StatTotal = StatTotal+1
-
-    ! Quick sanity check
-    ris = 0.0d0
-    rjs = 0.0d0
-    do k = 1,DIMENSION
-      ris = ris+pow2(Atoms(i)%x(k)-support(k))
-      rjs = rjs+pow2(Atoms(j)%x(k)-support(k))
-    end do
-    ris = sqrt(ris)
-    rjs = sqrt(rjs)
-
-    if (abs(ris-rjs) > TolerancePrimary) then
-      StatEarly = StatEarly+1
-      return
-    end if
-
-    call alloc_symmetry_element(axis)
-    axis%transform_type = 3  ! rotate
-    axis%order = 2
-    axis%nparam = 7
-
-    r = sqrt(sum(CenterOfSomething**2))
-    if (r > 0.0d0) then
-      axis%normal = CenterOfSomething/r
-    else
-      axis%normal = [1.0d0,0.0d0,0.0d0]
-    end if
-    axis%distance = r
-
-    r = 0.0d0
-    do k = 1,DIMENSION
-      center(k) = (Atoms(i)%x(k)+Atoms(j)%x(k))/2.0d0-support(k)
-      r = r+center(k)*center(k)
-    end do
-    r = sqrt(r)
-
-    if (r <= TolerancePrimary) then
-      ! C2 is underdefined
-      if (MolecularPlaneExists) then
-        axis%direction = MolecularPlane%normal
-      else
-        do k = 1,DIMENSION
-          center(k) = Atoms(i)%x(k)-Atoms(j)%x(k)
-        end do
-        if (abs(center(3))+abs(center(2)) > ToleranceSame) then
-          axis%direction = [0.0d0,center(3),-center(2)]
-        else
-          axis%direction = [-center(3),0.0d0,center(1)]
-        end if
-        r = sqrt(sum(axis%direction**2))
-        axis%direction = axis%direction/r
-      end if
-    else
-      axis%direction = center/r
-    end if
-
-    if (refine_symmetry_element(axis,.true.) < 0) then
-      call destroy_symmetry_element(axis)
-      return
-    end if
-
-    success = .true.
-  end subroutine init_c2_axis
-
   !> Initialize axis parameters from three points
-  subroutine init_axis_parameters(a,b,c,axis,success)
+  subroutine init_axis_parameters(state,a,b,c,axis,success)
+    type(symmetry_state_t),intent(inout) :: state
     real(wp),intent(in) :: a(3),b(3),c(3)
     type(symmetry_element),intent(out) :: axis
     logical,intent(out) :: success
@@ -1080,10 +1018,10 @@ contains    !> MODULE PROCEDURES START HERE
     rb = sqrt(sum(b**2))
     rc = sqrt(sum(c**2))
 
-    if (abs(ra-rb) > TolerancePrimary.or. &
-        abs(ra-rc) > TolerancePrimary.or. &
-        abs(rb-rc) > TolerancePrimary) then
-      StatEarly = StatEarly+1
+    if (abs(ra-rb) > state%TolerancePrimary.or. &
+        abs(ra-rc) > state%TolerancePrimary.or. &
+        abs(rb-rc) > state%TolerancePrimary) then
+      state%StatEarly = state%StatEarly+1
       return
     end if
 
@@ -1091,37 +1029,38 @@ contains    !> MODULE PROCEDURES START HERE
     rac = sqrt(sum((a-c)**2))
     rbc = sqrt(sum((c-b)**2))
 
-    if (abs(rab-rbc) > TolerancePrimary) then
-      StatEarly = StatEarly+1
+    if (abs(rab-rbc) > state%TolerancePrimary) then
+      state%StatEarly = state%StatEarly+1
       return
     end if
 
-    if (rab <= ToleranceSame.or.rbc <= ToleranceSame.or.rac <= ToleranceSame) then
-      StatEarly = StatEarly+1
+    if (rab <= state%ToleranceSame.or.rbc <= state%ToleranceSame.or. &
+        rac <= state%ToleranceSame) then
+      state%StatEarly = state%StatEarly+1
       return
     end if
 
     rab = (rab+rbc)/2.0d0
     angle = PI-2.0d0*asin(rac/(2.0d0*rab))
 
-    if (abs(angle) <= PI/(MaxAxisOrder+1)) then
-      StatEarly = StatEarly+1
+    if (abs(angle) <= PI/(state%MaxAxisOrder+1)) then
+      state%StatEarly = state%StatEarly+1
       return
     end if
 
     order = nint((2.0d0*PI)/angle)
-    if (order <= 2.or.order > MaxAxisOrder) then
-      StatEarly = StatEarly+1
+    if (order <= 2.or.order > state%MaxAxisOrder) then
+      state%StatEarly = state%StatEarly+1
       return
     end if
 
-    call alloc_symmetry_element(axis)
+    call alloc_symmetry_element(state,axis)
     axis%order = order
     axis%nparam = 7
 
-    r = sqrt(sum(CenterOfSomething**2))
+    r = sqrt(sum(state%CenterOfSomething**2))
     if (r > 0.0d0) then
-      axis%normal = CenterOfSomething/r
+      axis%normal = state%CenterOfSomething/r
     else
       axis%normal = [1.0d0,0.0d0,0.0d0]
     end if
@@ -1152,8 +1091,85 @@ contains    !> MODULE PROCEDURES START HERE
     success = .true.
   end subroutine init_axis_parameters
 
+  !> Initialize C2 axis
+  subroutine init_c2_axis(state,i,j,support,axis,success)
+    type(symmetry_state_t),intent(inout) :: state
+    integer,intent(in) :: i,j
+    real(wp),intent(in) :: support(DIMENSION)
+    type(symmetry_element),intent(out) :: axis
+    logical,intent(out) :: success
+    real(wp) :: ris,rjs,r,center(DIMENSION)
+    integer :: k
+
+    success = .false.
+    state%StatTotal = state%StatTotal+1
+
+    ! Quick sanity check
+    ris = 0.0d0
+    rjs = 0.0d0
+    do k = 1,DIMENSION
+      ris = ris+pow2(state%Atoms(i)%x(k)-support(k))
+      rjs = rjs+pow2(state%Atoms(j)%x(k)-support(k))
+    end do
+    ris = sqrt(ris)
+    rjs = sqrt(rjs)
+
+    if (abs(ris-rjs) > state%TolerancePrimary) then
+      state%StatEarly = state%StatEarly+1
+      return
+    end if
+
+    call alloc_symmetry_element(state,axis)
+    axis%transform_type = 3  ! rotate
+    axis%order = 2
+    axis%nparam = 7
+
+    r = sqrt(sum(state%CenterOfSomething**2))
+    if (r > 0.0d0) then
+      axis%normal = state%CenterOfSomething/r
+    else
+      axis%normal = [1.0d0,0.0d0,0.0d0]
+    end if
+    axis%distance = r
+
+    r = 0.0d0
+    do k = 1,DIMENSION
+      center(k) = (state%Atoms(i)%x(k)+state%Atoms(j)%x(k))/2.0d0-support(k)
+      r = r+center(k)*center(k)
+    end do
+    r = sqrt(r)
+
+    if (r <= state%TolerancePrimary) then
+      ! C2 is underdefined
+      if (state%MolecularPlaneExists) then
+        axis%direction = state%MolecularPlane%normal
+      else
+        do k = 1,DIMENSION
+          center(k) = state%Atoms(i)%x(k)-state%Atoms(j)%x(k)
+        end do
+        if (abs(center(3))+abs(center(2)) > state%ToleranceSame) then
+          axis%direction = [0.0d0,center(3),-center(2)]
+        else
+          axis%direction = [-center(3),0.0d0,center(1)]
+        end if
+        r = sqrt(sum(axis%direction**2))
+        axis%direction = axis%direction/r
+      end if
+    else
+      axis%direction = center/r
+    end if
+
+    if (refine_symmetry_element(state,axis,.true.) < 0) then
+      call destroy_symmetry_element(axis)
+      return
+    end if
+
+    success = .true.
+  end subroutine init_c2_axis
+
   !> Initialize higher-order axis
-  subroutine init_higher_axis(ia,ib,ic,axis,success)
+  subroutine init_higher_axis(state,ia,ib,ic,axis,success)
+    type(symmetry_state_t),intent(inout) :: state
     integer,intent(in) :: ia,ib,ic
     type(symmetry_element),intent(out) :: axis
     logical,intent(out) :: success
@@ -1161,20 +1177,20 @@ contains    !> MODULE PROCEDURES START HERE
     integer :: i
 
     success = .false.
-    StatTotal = StatTotal+1
+    state%StatTotal = state%StatTotal+1
 
     do i = 1,DIMENSION
-      a(i) = Atoms(ia)%x(i)-CenterOfSomething(i)
-      b(i) = Atoms(ib)%x(i)-CenterOfSomething(i)
-      c(i) = Atoms(ic)%x(i)-CenterOfSomething(i)
+      a(i) = state%Atoms(ia)%x(i)-state%CenterOfSomething(i)
+      b(i) = state%Atoms(ib)%x(i)-state%CenterOfSomething(i)
+      c(i) = state%Atoms(ic)%x(i)-state%CenterOfSomething(i)
     end do
 
-    call init_axis_parameters(a,b,c,axis,success)
+    call init_axis_parameters(state,a,b,c,axis,success)
     if (.not.success) return
 
     axis%transform_type = 3  ! rotate
 
-    if (refine_symmetry_element(axis,.true.) < 0) then
+    if (refine_symmetry_element(state,axis,.true.) < 0) then
       call destroy_symmetry_element(axis)
       success = .false.
       return
@@ -1184,7 +1200,8 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine init_higher_axis
 
   !> Initialize improper axis
-  subroutine init_improper_axis(ia,ib,ic,axis,success)
+  subroutine init_improper_axis(state,ia,ib,ic,axis,success)
+    type(symmetry_state_t),intent(inout) :: state
     integer,intent(in) :: ia,ib,ic
     type(symmetry_element),intent(out) :: axis
     logical,intent(out) :: success
@@ -1193,12 +1210,12 @@ contains    !> MODULE PROCEDURES START HERE
     integer :: i
 
     success = .false.
-    StatTotal = StatTotal+1
+    state%StatTotal = state%StatTotal+1
 
     do i = 1,DIMENSION
-      a(i) = Atoms(ia)%x(i)-CenterOfSomething(i)
-      b(i) = Atoms(ib)%x(i)-CenterOfSomething(i)
-      c(i) = Atoms(ic)%x(i)-CenterOfSomething(i)
+      a(i) = state%Atoms(ia)%x(i)-state%CenterOfSomething(i)
+      b(i) = state%Atoms(ib)%x(i)-state%CenterOfSomething(i)
+      c(i) = state%Atoms(ic)%x(i)-state%CenterOfSomething(i)
     end do
 
     r = 0.0d0
@@ -1208,8 +1225,8 @@ contains    !> MODULE PROCEDURES START HERE
     end do
     r = sqrt(r)
 
-    if (r <= ToleranceSame) then
-      StatEarly = StatEarly+1
+    if (r <= state%ToleranceSame) then
+      state%StatEarly = state%StatEarly+1
       return
     end if
 
@@ -1217,12 +1234,12 @@ contains    !> MODULE PROCEDURES START HERE
     r = dot_product(centerpoint,b)
     b = 2.0d0*r*centerpoint-b
 
-    call init_axis_parameters(a,b,c,axis,success)
+    call init_axis_parameters(state,a,b,c,axis,success)
     if (.not.success) return
 
     axis%transform_type = 4  ! rotate_reflect
 
-    if (refine_symmetry_element(axis,.true.) < 0) then
+    if (refine_symmetry_element(state,axis,.true.) < 0) then
       call destroy_symmetry_element(axis)
       success = .false.
       return
@@ -1232,182 +1249,191 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine init_improper_axis
 
   !> Find center of something (centroid)
-  subroutine find_center_of_something()
+  subroutine find_center_of_something(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i,j
     real(wp) :: coord_sum(DIMENSION),r
 
     coord_sum = 0.0d0
-    do i = 1,AtomsCount
-      coord_sum = coord_sum+Atoms(i)%x
+    do i = 1,state%AtomsCount
+      coord_sum = coord_sum+state%Atoms(i)%x
     end do
-    CenterOfSomething = coord_sum/dble(AtomsCount)
+    state%CenterOfSomething = coord_sum/dble(state%AtomsCount)
 
-    if (allocated(DistanceFromCenter)) deallocate (DistanceFromCenter)
-    allocate (DistanceFromCenter(AtomsCount))
+    if (allocated(state%DistanceFromCenter)) deallocate (state%DistanceFromCenter)
+    allocate (state%DistanceFromCenter(state%AtomsCount))
 
-    do i = 1,AtomsCount
+    do i = 1,state%AtomsCount
       r = 0.0d0
       do j = 1,DIMENSION
-        r = r+pow2(Atoms(i)%x(j)-CenterOfSomething(j))
+        r = r+pow2(state%Atoms(i)%x(j)-state%CenterOfSomething(j))
       end do
-      DistanceFromCenter(i) = r
+      state%DistanceFromCenter(i) = r
     end do
   end subroutine find_center_of_something
 
   !> Add plane to planes array
-  subroutine add_plane(plane)
+  subroutine add_plane(state,plane)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(in) :: plane
     type(symmetry_element),allocatable :: temp(:)
 
-    PlanesCount = PlanesCount+1
-    if (allocated(Planes)) then
-      allocate (temp(PlanesCount))
-      temp(1:PlanesCount-1) = Planes
-      temp(PlanesCount) = plane
-      call move_alloc(temp,Planes)
+    state%PlanesCount = state%PlanesCount+1
+    if (allocated(state%Planes)) then
+      allocate (temp(state%PlanesCount))
+      temp(1:state%PlanesCount-1) = state%Planes
+      temp(state%PlanesCount) = plane
+      call move_alloc(temp,state%Planes)
     else
-      allocate (Planes(1))
-      Planes(1) = plane
+      allocate (state%Planes(1))
+      state%Planes(1) = plane
     end if
   end subroutine add_plane
 
   !> Add normal axis to array
-  subroutine add_normal_axis(axis)
+  subroutine add_normal_axis(state,axis)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(in) :: axis
     type(symmetry_element),allocatable :: temp(:)
 
-    NormalAxesCount = NormalAxesCount+1
-    if (allocated(NormalAxes)) then
-      allocate (temp(NormalAxesCount))
-      temp(1:NormalAxesCount-1) = NormalAxes
-      temp(NormalAxesCount) = axis
-      call move_alloc(temp,NormalAxes)
+    state%NormalAxesCount = state%NormalAxesCount+1
+    if (allocated(state%NormalAxes)) then
+      allocate (temp(state%NormalAxesCount))
+      temp(1:state%NormalAxesCount-1) = state%NormalAxes
+      temp(state%NormalAxesCount) = axis
+      call move_alloc(temp,state%NormalAxes)
     else
-      allocate (NormalAxes(1))
-      NormalAxes(1) = axis
+      allocate (state%NormalAxes(1))
+      state%NormalAxes(1) = axis
     end if
   end subroutine add_normal_axis
 
   !> Add improper axis to array
-  subroutine add_improper_axis(axis)
+  subroutine add_improper_axis(state,axis)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element),intent(in) :: axis
     type(symmetry_element),allocatable :: temp(:)
 
-    ImproperAxesCount = ImproperAxesCount+1
-    if (allocated(ImproperAxes)) then
-      allocate (temp(ImproperAxesCount))
-      temp(1:ImproperAxesCount-1) = ImproperAxes
-      temp(ImproperAxesCount) = axis
-      call move_alloc(temp,ImproperAxes)
+    state%ImproperAxesCount = state%ImproperAxesCount+1
+    if (allocated(state%ImproperAxes)) then
+      allocate (temp(state%ImproperAxesCount))
+      temp(1:state%ImproperAxesCount-1) = state%ImproperAxes
+      temp(state%ImproperAxesCount) = axis
+      call move_alloc(temp,state%ImproperAxes)
     else
-      allocate (ImproperAxes(1))
-      ImproperAxes(1) = axis
+      allocate (state%ImproperAxes(1))
+      state%ImproperAxes(1) = axis
     end if
   end subroutine add_improper_axis
 
   !> Find planes of symmetry
-  subroutine find_planes()
+  subroutine find_planes(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i,j
     type(symmetry_element) :: plane
     logical :: success
 
-    call init_ultimate_plane(plane,success)
+    call init_ultimate_plane(state,plane,success)
     if (success) then
-      if (.not.allocated(MolecularPlane)) allocate (MolecularPlane)
-      MolecularPlane = plane
-      MolecularPlaneExists = .true.
-      call add_plane(plane)
+      state%MolecularPlane = plane
+      state%MolecularPlaneExists = .true.
+      call add_plane(state,plane)
     end if
 
-    do i = 2,AtomsCount
+    do i = 2,state%AtomsCount
       do j = 1,i-1
-        if (Atoms(i)%atom_type /= Atoms(j)%atom_type) cycle
+        if (state%Atoms(i)%atom_type /= state%Atoms(j)%atom_type) cycle
 
-        call init_mirror_plane(i,j,plane,success)
-        if (success) call add_plane(plane)
+        call init_mirror_plane(state,i,j,plane,success)
+        if (success) call add_plane(state,plane)
       end do
     end do
   end subroutine find_planes
 
   !> Find inversion centers
-  subroutine find_inversion_centers()
+  subroutine find_inversion_centers(state)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element) :: center
     logical :: success
 
-    call init_inversion_center(center,success)
+    call init_inversion_center(state,center,success)
     if (success) then
-      InversionCentersCount = 1
-      allocate (InversionCenters(1))
-      InversionCenters(1) = center
+      state%InversionCentersCount = 1
+      allocate (state%InversionCenters(1))
+      state%InversionCenters(1) = center
     end if
   end subroutine find_inversion_centers
 
   !> Find infinity axis
-  subroutine find_infinity_axis()
+  subroutine find_infinity_axis(state)
+    type(symmetry_state_t),intent(inout) :: state
     type(symmetry_element) :: axis
     logical :: success
 
-    call init_ultimate_axis(axis,success)
-    if (success) call add_normal_axis(axis)
+    call init_ultimate_axis(state,axis,success)
+    if (success) call add_normal_axis(state,axis)
   end subroutine find_infinity_axis
 
   !> Find C2 axes
-  subroutine find_c2_axes()
+  subroutine find_c2_axes(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i,j,k,l,m
     real(wp) :: center(DIMENSION),r
     real(wp),allocatable :: distances(:)
     type(symmetry_element) :: axis
     logical :: success
 
-    allocate (distances(AtomsCount))
+    allocate (distances(state%AtomsCount))
 
-    do i = 2,AtomsCount
+    do i = 2,state%AtomsCount
       do j = 1,i-1
-        if (Atoms(i)%atom_type /= Atoms(j)%atom_type) cycle
-        if (abs(DistanceFromCenter(i)-DistanceFromCenter(j)) > TolerancePrimary) cycle
+        if (state%Atoms(i)%atom_type /= state%Atoms(j)%atom_type) cycle
+        if (abs(state%DistanceFromCenter(i)-state%DistanceFromCenter(j)) > &
+            state%TolerancePrimary) cycle
 
         ! Try using CenterOfSomething
         r = 0.0d0
         do k = 1,DIMENSION
-          center(k) = (Atoms(i)%x(k)+Atoms(j)%x(k))/2.0d0
-          r = r+pow2(center(k)-CenterOfSomething(k))
+          center(k) = (state%Atoms(i)%x(k)+state%Atoms(j)%x(k))/2.0d0
+          r = r+pow2(center(k)-state%CenterOfSomething(k))
         end do
         r = sqrt(r)
 
-        if (r > 5.0d0*TolerancePrimary) then
-          call init_c2_axis(i,j,CenterOfSomething,axis,success)
-          if (success) call add_normal_axis(axis)
+        if (r > 5.0d0*state%TolerancePrimary) then
+          call init_c2_axis(state,i,j,state%CenterOfSomething,axis,success)
+          if (success) call add_normal_axis(state,axis)
           cycle
         end if
 
         ! Try through atoms
-        do k = 1,AtomsCount
-          call init_c2_axis(i,j,Atoms(k)%x,axis,success)
-          if (success) call add_normal_axis(axis)
+        do k = 1,state%AtomsCount
+          call init_c2_axis(state,i,j,state%Atoms(k)%x,axis,success)
+          if (success) call add_normal_axis(state,axis)
         end do
 
         ! Calculate distances for prescreening
-        do k = 1,AtomsCount
+        do k = 1,state%AtomsCount
           r = 0.0d0
           do l = 1,DIMENSION
-            r = r+pow2(Atoms(k)%x(l)-center(l))
+            r = r+pow2(state%Atoms(k)%x(l)-center(l))
           end do
           distances(k) = sqrt(r)
         end do
 
         ! Try through midpoints of atom pairs
-        do k = 1,AtomsCount
-          do l = 1,AtomsCount
-            if (Atoms(k)%atom_type /= Atoms(l)%atom_type) cycle
-            if (abs(DistanceFromCenter(k)-DistanceFromCenter(l)) > TolerancePrimary.or. &
-                abs(distances(k)-distances(l)) > TolerancePrimary) cycle
+        do k = 1,state%AtomsCount
+          do l = 1,state%AtomsCount
+            if (state%Atoms(k)%atom_type /= state%Atoms(l)%atom_type) cycle
+            if (abs(state%DistanceFromCenter(k)-state%DistanceFromCenter(l)) > &
+                state%TolerancePrimary.or. &
+                abs(distances(k)-distances(l)) > state%TolerancePrimary) cycle
 
             do m = 1,DIMENSION
-              center(m) = (Atoms(k)%x(m)+Atoms(l)%x(m))/2.0d0
+              center(m) = (state%Atoms(k)%x(m)+state%Atoms(l)%x(m))/2.0d0
             end do
 
-            call init_c2_axis(i,j,center,axis,success)
-            if (success) call add_normal_axis(axis)
+            call init_c2_axis(state,i,j,center,axis,success)
+            if (success) call add_normal_axis(state,axis)
           end do
         end do
       end do
@@ -1417,53 +1443,59 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine find_c2_axes
 
   !> Find higher-order axes
-  subroutine find_higher_axes()
+  subroutine find_higher_axes(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i,j,k
     type(symmetry_element) :: axis
     logical :: success
 
-    do i = 1,AtomsCount
-      do j = i+1,AtomsCount
-        if (Atoms(i)%atom_type /= Atoms(j)%atom_type) cycle
-        if (abs(DistanceFromCenter(i)-DistanceFromCenter(j)) > TolerancePrimary) cycle
+    do i = 1,state%AtomsCount
+      do j = i+1,state%AtomsCount
+        if (state%Atoms(i)%atom_type /= state%Atoms(j)%atom_type) cycle
+        if (abs(state%DistanceFromCenter(i)-state%DistanceFromCenter(j)) > &
+            state%TolerancePrimary) cycle
 
-        do k = 1,AtomsCount
-          if (Atoms(i)%atom_type /= Atoms(k)%atom_type) cycle
-          if (abs(DistanceFromCenter(i)-DistanceFromCenter(k)) > TolerancePrimary.or. &
-              abs(DistanceFromCenter(j)-DistanceFromCenter(k)) > TolerancePrimary) cycle
+        do k = 1,state%AtomsCount
+          if (state%Atoms(i)%atom_type /= state%Atoms(k)%atom_type) cycle
+          if (abs(state%DistanceFromCenter(i)-state%DistanceFromCenter(k)) > &
+              state%TolerancePrimary.or. &
+              abs(state%DistanceFromCenter(j)-state%DistanceFromCenter(k)) > &
+              state%TolerancePrimary) cycle
 
-          call init_higher_axis(i,j,k,axis,success)
-          if (success) call add_normal_axis(axis)
+          call init_higher_axis(state,i,j,k,axis,success)
+          if (success) call add_normal_axis(state,axis)
         end do
       end do
     end do
   end subroutine find_higher_axes
 
   !> Find improper axes
-  subroutine find_improper_axes()
+  subroutine find_improper_axes(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i,j,k
     type(symmetry_element) :: axis
     logical :: success
 
-    do i = 1,AtomsCount
-      do j = i+1,AtomsCount
-        do k = 1,AtomsCount
-          call init_improper_axis(i,j,k,axis,success)
-          if (success) call add_improper_axis(axis)
+    do i = 1,state%AtomsCount
+      do j = i+1,state%AtomsCount
+        do k = 1,state%AtomsCount
+          call init_improper_axis(state,i,j,k,axis,success)
+          if (success) call add_improper_axis(state,axis)
         end do
       end do
     end do
   end subroutine find_improper_axes
 
   !> Find all symmetry elements
-  subroutine find_symmetry_elements()
-    call find_center_of_something()
-    call find_inversion_centers()
-    call find_planes()
-    call find_infinity_axis()
-    call find_c2_axes()
-    call find_higher_axes()
-    call find_improper_axes()
+  subroutine find_symmetry_elements(state)
+    type(symmetry_state_t),intent(inout) :: state
+    call find_center_of_something(state)
+    call find_inversion_centers(state)
+    call find_planes(state)
+    call find_infinity_axis(state)
+    call find_c2_axes(state)
+    call find_higher_axes(state)
+    call find_improper_axes(state)
   end subroutine find_symmetry_elements
 
   !> Compare axes for sorting
@@ -1490,124 +1522,133 @@ contains    !> MODULE PROCEDURES START HERE
   end function compare_axes
 
   !> Sort symmetry elements (simple bubble sort)
-  subroutine sort_symmetry_elements()
+  subroutine sort_symmetry_elements(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i,j
     type(symmetry_element) :: temp
 
     ! Sort planes
-    do i = 1,PlanesCount-1
-      do j = i+1,PlanesCount
-        if (compare_axes(Planes(i),Planes(j)) < 0) then
-          temp = Planes(i)
-          Planes(i) = Planes(j)
-          Planes(j) = temp
+    do i = 1,state%PlanesCount-1
+      do j = i+1,state%PlanesCount
+        if (compare_axes(state%Planes(i),state%Planes(j)) < 0) then
+          temp = state%Planes(i)
+          state%Planes(i) = state%Planes(j)
+          state%Planes(j) = temp
         end if
       end do
     end do
 
     ! Sort normal axes
-    do i = 1,NormalAxesCount-1
-      do j = i+1,NormalAxesCount
-        if (compare_axes(NormalAxes(i),NormalAxes(j)) < 0) then
-          temp = NormalAxes(i)
-          NormalAxes(i) = NormalAxes(j)
-          NormalAxes(j) = temp
+    do i = 1,state%NormalAxesCount-1
+      do j = i+1,state%NormalAxesCount
+        if (compare_axes(state%NormalAxes(i),state%NormalAxes(j)) < 0) then
+          temp = state%NormalAxes(i)
+          state%NormalAxes(i) = state%NormalAxes(j)
+          state%NormalAxes(j) = temp
         end if
       end do
     end do
 
     ! Sort improper axes
-    do i = 1,ImproperAxesCount-1
-      do j = i+1,ImproperAxesCount
-        if (compare_axes(ImproperAxes(i),ImproperAxes(j)) < 0) then
-          temp = ImproperAxes(i)
-          ImproperAxes(i) = ImproperAxes(j)
-          ImproperAxes(j) = temp
+    do i = 1,state%ImproperAxesCount-1
+      do j = i+1,state%ImproperAxesCount
+        if (compare_axes(state%ImproperAxes(i),state%ImproperAxes(j)) < 0) then
+          temp = state%ImproperAxes(i)
+          state%ImproperAxes(i) = state%ImproperAxes(j)
+          state%ImproperAxes(j) = temp
         end if
       end do
     end do
   end subroutine sort_symmetry_elements
 
   !> Summarize symmetry elements
-  subroutine summarize_symmetry_elements()
+  subroutine summarize_symmetry_elements(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i
 
-    if (allocated(NormalAxesCounts)) deallocate (NormalAxesCounts)
-    if (allocated(ImproperAxesCounts)) deallocate (ImproperAxesCounts)
+    if (allocated(state%NormalAxesCounts)) deallocate (state%NormalAxesCounts)
+    if (allocated(state%ImproperAxesCounts)) deallocate (state%ImproperAxesCounts)
 
-    allocate (NormalAxesCounts(0:MaxAxisOrder))
-    allocate (ImproperAxesCounts(0:MaxAxisOrder))
+    allocate (state%NormalAxesCounts(0:state%MaxAxisOrder))
+    allocate (state%ImproperAxesCounts(0:state%MaxAxisOrder))
 
-    NormalAxesCounts = 0
-    ImproperAxesCounts = 0
+    state%NormalAxesCounts = 0
+    state%ImproperAxesCounts = 0
 
-    do i = 1,NormalAxesCount
-      NormalAxesCounts(NormalAxes(i)%order) = NormalAxesCounts(NormalAxes(i)%order)+1
+    do i = 1,state%NormalAxesCount
+      state%NormalAxesCounts(state%NormalAxes(i)%order) = &
+        state%NormalAxesCounts(state%NormalAxes(i)%order)+1
     end do
 
-    do i = 1,ImproperAxesCount
-      ImproperAxesCounts(ImproperAxes(i)%order) = ImproperAxesCounts(ImproperAxes(i)%order)+1
+    do i = 1,state%ImproperAxesCount
+      state%ImproperAxesCounts(state%ImproperAxes(i)%order) = &
+        state%ImproperAxesCounts(state%ImproperAxes(i)%order)+1
     end do
   end subroutine summarize_symmetry_elements
 
   !> Report symmetry elements brief
-  subroutine report_symmetry_elements_brief()
+  subroutine report_symmetry_elements_brief(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i
     character(len=32) :: buf
 
-    SymmetryCode = ""
+    state%SymmetryCode = ""
 
-    if (PlanesCount+NormalAxesCount+ImproperAxesCount+InversionCentersCount > 0) then
-      if (InversionCentersCount > 0) SymmetryCode = trim(SymmetryCode)//"(i) "
+    if (state%PlanesCount+state%NormalAxesCount+state%ImproperAxesCount+ &
+        state%InversionCentersCount > 0) then
+      if (state%InversionCentersCount > 0) &
+        state%SymmetryCode = trim(state%SymmetryCode)//"(i) "
 
-      if (NormalAxesCounts(0) == 1) then
-        SymmetryCode = trim(SymmetryCode)//"(Cinf) "
-      else if (NormalAxesCounts(0) > 1) then
-        write (buf,'(I0,A)') NormalAxesCounts(0),"*(Cinf) "
-        SymmetryCode = trim(SymmetryCode)//trim(buf)
+      if (state%NormalAxesCounts(0) == 1) then
+        state%SymmetryCode = trim(state%SymmetryCode)//"(Cinf) "
+      else if (state%NormalAxesCounts(0) > 1) then
+        write (buf,'(I0,A)') state%NormalAxesCounts(0),"*(Cinf) "
+        state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
       end if
 
-      do i = MaxAxisOrder,2,-1
-        if (NormalAxesCounts(i) == 1) then
+      do i = state%MaxAxisOrder,2,-1
+        if (state%NormalAxesCounts(i) == 1) then
           write (buf,'(A,I0,A)') "(C",i,") "
-          SymmetryCode = trim(SymmetryCode)//trim(buf)
-        else if (NormalAxesCounts(i) > 1) then
-          write (buf,'(I0,A,I0,A)') NormalAxesCounts(i),"*(C",i,") "
-          SymmetryCode = trim(SymmetryCode)//trim(buf)
+          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+        else if (state%NormalAxesCounts(i) > 1) then
+          write (buf,'(I0,A,I0,A)') state%NormalAxesCounts(i),"*(C",i,") "
+          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
         end if
       end do
 
-      do i = MaxAxisOrder,2,-1
-        if (ImproperAxesCounts(i) == 1) then
+      do i = state%MaxAxisOrder,2,-1
+        if (state%ImproperAxesCounts(i) == 1) then
           write (buf,'(A,I0,A)') "(S",i,") "
-          SymmetryCode = trim(SymmetryCode)//trim(buf)
-        else if (ImproperAxesCounts(i) > 1) then
-          write (buf,'(I0,A,I0,A)') ImproperAxesCounts(i),"*(S",i,") "
-          SymmetryCode = trim(SymmetryCode)//trim(buf)
+          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
+        else if (state%ImproperAxesCounts(i) > 1) then
+          write (buf,'(I0,A,I0,A)') state%ImproperAxesCounts(i),"*(S",i,") "
+          state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
         end if
       end do
 
-      if (PlanesCount == 1) then
-        SymmetryCode = trim(SymmetryCode)//"(sigma) "
-      else if (PlanesCount > 1) then
-        write (buf,'(I0,A)') PlanesCount,"*(sigma) "
-        SymmetryCode = trim(SymmetryCode)//trim(buf)
+      if (state%PlanesCount == 1) then
+        state%SymmetryCode = trim(state%SymmetryCode)//"(sigma) "
+      else if (state%PlanesCount > 1) then
+        write (buf,'(I0,A)') state%PlanesCount,"*(sigma) "
+        state%SymmetryCode = trim(state%SymmetryCode)//trim(buf)
       end if
     end if
   end subroutine report_symmetry_elements_brief
 
   !> Report highest rotation axis only
-  subroutine report_symmetry_elements_brief_conly()
+  subroutine report_symmetry_elements_brief_conly(state)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: i
     character(len=8) :: buf
 
-    MaxRotAxis = ""
+    state%MaxRotAxis = ""
 
-    if (PlanesCount+NormalAxesCount+ImproperAxesCount+InversionCentersCount > 0) then
-      do i = MaxAxisOrder,2,-1
-        if (NormalAxesCounts(i) >= 1) then
+    if (state%PlanesCount+state%NormalAxesCount+state%ImproperAxesCount+ &
+        state%InversionCentersCount > 0) then
+      do i = state%MaxAxisOrder,2,-1
+        if (state%NormalAxesCounts(i) >= 1) then
           write (buf,'(A,I0)') "C",i
-          MaxRotAxis = trim(buf)
+          state%MaxRotAxis = trim(buf)
           return
         end if
       end do
@@ -1615,18 +1656,19 @@ contains    !> MODULE PROCEDURES START HERE
   end subroutine report_symmetry_elements_brief_conly
 
   !> Identify point group
-  function identify_point_group() result(last_matching)
+  function identify_point_group(state) result(last_matching)
+    type(symmetry_state_t),intent(inout) :: state
     integer :: last_matching
     integer :: i,matching_count
 
-    call init_point_groups()
+    call init_point_groups(state)
 
     last_matching = -1
     matching_count = 0
 
     do i = 1,PointGroupsCount
-      if (len_trim(PointGroups(i)%group_name) == 0) cycle
-      if (trim(SymmetryCode) == trim(PointGroups(i)%symmetry_code)) then
+      if (len_trim(state%PointGroups(i)%group_name) == 0) cycle
+      if (trim(state%SymmetryCode) == trim(state%PointGroups(i)%symmetry_code)) then
         last_matching = i
         matching_count = matching_count+1
       end if
@@ -1639,90 +1681,60 @@ contains    !> MODULE PROCEDURES START HERE
     end if
   end function identify_point_group
 
-  !> Reset module state
-  subroutine reset_state()
-    PlanesCount = 0
-    InversionCentersCount = 0
-    NormalAxesCount = 0
-    ImproperAxesCount = 0
-    BadOptimization = 0
-    SymmetryCode = ""
-    MaxRotAxis = ""
-    MolecularPlaneExists = .false.
-
-    StatTotal = 0
-    StatEarly = 0
-    StatPairs = 0
-    StatDups = 0
-    StatOrder = 0
-    StatOpt = 0
-    StatAccept = 0
-
-    if (allocated(Planes)) deallocate (Planes)
-    if (allocated(MolecularPlane)) deallocate (MolecularPlane)
-    if (allocated(InversionCenters)) deallocate (InversionCenters)
-    if (allocated(NormalAxes)) deallocate (NormalAxes)
-    if (allocated(ImproperAxes)) deallocate (ImproperAxes)
-    if (allocated(NormalAxesCounts)) deallocate (NormalAxesCounts)
-    if (allocated(ImproperAxesCounts)) deallocate (ImproperAxesCounts)
-    if (allocated(DistanceFromCenter)) deallocate (DistanceFromCenter)
-    if (allocated(Atoms)) deallocate (Atoms)
-  end subroutine reset_state
-
   !> Main entry point: determine Schoenflies symbol
   subroutine schoenflies(natoms,attype,coord,symbol,paramar)
-    integer,intent(in) :: natoms
-    integer,intent(in) :: attype(natoms)
+    integer,intent(in)  :: natoms
+    integer,intent(in)  :: attype(natoms)
     real(wp),intent(in) :: coord(3,natoms)
     character(len=*),intent(out) :: symbol
     real(wp),intent(in),optional :: paramar(11)
+    type(symmetry_state_t) :: state
     integer :: last_pg,i
 
-    ! Reset state
-    call reset_state()
+    call init_symmetry_state(state)
 
     ! Set parameters if provided
     if (present(paramar)) then
-      verbose = nint(paramar(1))
-      MaxAxisOrder = nint(paramar(2))
-      MaxOptCycles = nint(paramar(3))
-      ToleranceSame = paramar(4)
-      TolerancePrimary = paramar(5)
-      ToleranceFinal = paramar(6)
-      MaxOptStep = paramar(7)
-      MinOptStep = paramar(8)
-      GradientStep = paramar(9)
-      OptChangeThreshold = paramar(10)
-      OptChangeHits = nint(paramar(11))
+      state%verbose            = nint(paramar(1))
+      state%MaxAxisOrder       = nint(paramar(2))
+      state%MaxOptCycles       = nint(paramar(3))
+      state%ToleranceSame      = paramar(4)
+      state%TolerancePrimary   = paramar(5)
+      state%ToleranceFinal     = paramar(6)
+      state%MaxOptStep         = paramar(7)
+      state%MinOptStep         = paramar(8)
+      state%GradientStep       = paramar(9)
+      state%OptChangeThreshold = paramar(10)
+      state%OptChangeHits      = nint(paramar(11))
     end if
 
     ! Set up atoms
-    AtomsCount = natoms
-    allocate (Atoms(AtomsCount))
+    state%AtomsCount = natoms
+    allocate (state%Atoms(state%AtomsCount))
 
-    do i = 1,AtomsCount
-      Atoms(i)%atom_type = attype(i)
-      Atoms(i)%x(1) = coord(1,i)
-      Atoms(i)%x(2) = coord(2,i)
-      Atoms(i)%x(3) = coord(3,i)
+    do i = 1,state%AtomsCount
+      state%Atoms(i)%atom_type = attype(i)
+      state%Atoms(i)%x(1) = coord(1,i)
+      state%Atoms(i)%x(2) = coord(2,i)
+      state%Atoms(i)%x(3) = coord(3,i)
     end do
 
     ! Find and analyze symmetry
-    call find_symmetry_elements()
-    call sort_symmetry_elements()
-    call summarize_symmetry_elements()
-    call report_symmetry_elements_brief()
+    call find_symmetry_elements(state)
+    call sort_symmetry_elements(state)
+    call summarize_symmetry_elements(state)
+    call report_symmetry_elements_brief(state)
 
-    last_pg = identify_point_group()
+    last_pg = identify_point_group(state)
 
     if (last_pg >= 1) then
-      symbol = trim(PointGroups(last_pg)%group_name)
+      symbol = trim(state%PointGroups(last_pg)%group_name)
     else
-      call report_symmetry_elements_brief_conly()
-      if (len_trim(MaxRotAxis) == 0) then
+      call report_symmetry_elements_brief_conly(state)
+      if (len_trim(state%MaxRotAxis) == 0) then
         symbol = "C1"
       else
-        symbol = trim(MaxRotAxis)
+        symbol = trim(state%MaxRotAxis)
       end if
     end if
   end subroutine schoenflies

@@ -73,7 +73,7 @@ list(APPEND srcs
   "${dir}/sigterm.f90"
   "${dir}/strucreader.f90"
   "${dir}/symmetry2.f90"
-  "${dir}/symmetry_i.c"
+  "${dir}/symmetry_i.f90"
   "${dir}/timer.f90"
   "${dir}/trackorigin.f90"
   "${dir}/utilmod.f90"

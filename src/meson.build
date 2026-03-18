@@ -70,7 +70,7 @@ srcs += files(
   'sigterm.f90',
   'strucreader.f90',
   'symmetry2.f90',
-  'symmetry_i.c',
+  'symmetry_i.f90',
   'timer.f90',
   'trackorigin.f90',
   'utilmod.f90',
