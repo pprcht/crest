@@ -90,6 +90,7 @@ module crest_data
   integer,parameter,public :: crest_ensemblesp = 273
   integer,parameter,public :: crest_bh         = 274
   integer,parameter,public :: crest_bhpt       = 275
+  integer,parameter,public :: crest_dryrun     = 276
 !>> <<!
   integer,parameter,public :: crest_test       = 456
 

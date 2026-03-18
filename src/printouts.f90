@@ -757,233 +757,26 @@ subroutine print_crest_metadata()
 !********************************
   include 'crest_metadata.fh'
   integer :: l
-  write (*,'(2x,a,1x,a)') 'CREST version    :',version
-  write (*,'(2x,a,1x,a)') 'timestamp        :',date
-  write (*,'(2x,a,1x,a)') 'commit           :',commit
+  write (*,'(2x,a,t20,":   ",a)') 'CREST version    ',version
+  write (*,'(2x,a,t20,":   ",a)') 'timestamp        ',date
+  write (*,'(2x,a,t20,":   ",a)') 'commit           ',commit
   if (author(1:2) .eq. "'@") then
     l = len_trim(author)
-    write (*,'(2x,a,1x,a)') 'compiled by      :',"'usr"//author(2:l)
+    write (*,'(2x,a,t20,":   ",a)') 'compiled by      ',"'usr"//author(2:l)
   else
-    write (*,'(2x,a,1x,a)') 'compiled by      :',author
+    write (*,'(2x,a,t20,":   ",a)') 'compiled by      ',author
   end if
-  write (*,'(2x,a,1x,a)') 'Fortran compiler :',fcompiler
-  write (*,'(2x,a,1x,a)') 'C compiler       :',ccompiler
-  write (*,'(2x,a,1x,a)') 'build system     :',bsystem
-  write (*,'(2x,a,1x,a)') '-DWITH_TOMLF     :',tomlfvar
-  write (*,'(2x,a,1x,a)') '-DWITH_GFN0      :',gfn0var
-  write (*,'(2x,a,1x,a)') '-DWITH_GFNFF     :',gfnffvar
-  write (*,'(2x,a,1x,a)') '-DWITH_TBLITE    :',tblitevar
-  write (*,'(2x,a,1x,a)') '-DWITH_LIBPVOL   :',libpvolvar
-  write (*,'(2x,a,1x,a)') '-DWITH_LWONIOM   :',lwoniomvar
+  write (*,'(2x,a,t20,":   ",a)') 'Fortran compiler ',fcompiler
+  write (*,'(2x,a,t20,":   ",a)') 'C compiler       ',ccompiler
+  write (*,'(2x,a,t20,":   ",a)') 'build system     ',bsystem
+  write (*,'(2x,a,t20,":   ",a)') '-DWITH_TOMLF     ',tomlfvar
+  write (*,'(2x,a,t20,":   ",a)') '-DWITH_GFN0      ',gfn0var
+  write (*,'(2x,a,t20,":   ",a)') '-DWITH_GFNFF     ',gfnffvar
+  write (*,'(2x,a,t20,":   ",a)') '-DWITH_TBLITE    ',tblitevar
+  write (*,'(2x,a,t20,":   ",a)') '-DWITH_LIBPVOL   ',libpvolvar
+  write (*,'(2x,a,t20,":   ",a)') '-DWITH_LWONIOM   ',lwoniomvar
 end subroutine print_crest_metadata
 
-!========================================================================================!
-!========================================================================================!
-!> Confscript dry-run printout
-!========================================================================================!
-!========================================================================================!
-subroutine crest_dry(env)
-  use iso_fortran_env,wp => real64
-  use crest_data
-  use iomod
-  implicit none
-
-  type(systemdata),intent(inout) :: env
-  character(len=1024) :: dumstr
-  character(len=:),allocatable :: dum
-  logical :: cregenpr = .false.
-  logical :: mdsetpr = .false.
-  logical :: jobpr = .true.
-  logical :: xtbpr = .true.
-  logical :: techpr = .true.
-
-  call largehead('D R Y    R U N')
-  write (*,'(1x,a)') 'Dry run was requested.'
-  write (*,'(1x,a)') 'Running CREST with the chosen cmd arguments will result in the following settings:'
-
-  write (*,'(/,1x,a,a)') 'Input file : ',trim(env%inputcoords)
-
-  write (*,'(/,1x,a)') 'Job type :'
-  if (env%onlyZsort) then
-    write (*,'(2x,a)',advance='no') '1.'
-    write (*,'(2x,a)') 'Standalone use of ZSORT routine.'
-    xtbpr = .false.
-    techpr = .false.
-    jobpr = .false.
-  else if (env%properties .lt. 0) then
-    jobpr = .false.
-    write (*,'(2x,a)',advance='no') '1.'
-    select case (env%properties)
-    case (-1)
-      write (*,'(2x,a)') 'Standalone use of CREGEN sorting routine.'
-      cregenpr = .true.
-      xtbpr = .false.
-    case (-2)
-      write (*,'(2x,a)') 'Comparison of two conformer-rotamer ensembles'
-      cregenpr = .true.
-      xtbpr = .false.
-    case (-3)
-      write (*,'(2x,a)') 'Automated protonation'
-    case (-4)
-      write (*,'(2x,a)') 'Automated deprotonation'
-    case (-5)
-      write (*,'(2x,a)') 'Automated tautomerization'
-    case (-666)
-      write (*,'(2x,a)') '"Property" calculation (-prop) for a given ensemble.'
-    case default
-      write (*,'(2x,a)') '<undefined>'
-    end select
-  else
-    cregenpr = .true.
-    write (*,'(2x,a)',advance='no') '1.'
-    select case (env%crestver)
-    case (1)
-      write (*,'(2x,a)') 'Conformational search via the MF-MD-GC algo'
-    case (2)
-      if (env%properties == 45) then
-        write (*,'(2x,a)') 'Conformational search via the iMTD-sMTD algo'
-      else if (env%iterativeV2) then
-        write (*,'(2x,a)') 'Conformational search via the iMTD-GC algo'
-      else
-        write (*,'(2x,a)') 'Conformational search via the MTD-GC algo'
-      end if
-      mdsetpr = .true.
-    case (crest_imtd2)
-      write (*,'(2x,a)') 'Conformational search cia the iMTD-sMTD algo (-v4)'
-      mdsetpr = .true.
-    case (3)
-      write (*,'(2x,a)') 'Reoptimization of all structures in a given ensemble (-mdopt)'
-    case (4)
-      write (*,'(2x,a)') 'Reoptimization and sorting of all structures in a given ensemble (-screen)'
-    case (7)
-      write (*,'(2x,a)') 'GFNn-xTB nano reactor (-reactor)'
-    case (crest_pka)
-      write (*,'(2x,a)') 'GFN2-xTB/ALPB(H2O) pKa calculation (-pka)'
-    case default
-      write (*,'(2x,a)') '<undefined>'
-    end select
-    if (env%properties .gt. 0) then
-      select case (env%properties)
-      case (45)
-        write (*,'(2x,a,2x,a)') '2.','Calculation of molecular ensemble entropy (-entropy)'
-      case default
-        write (*,'(2x,a,2x,a)') '2.','Additional "property" calculation requested (-prop)'
-      end select
-    end if
-  end if
-
-  if (jobpr) then
-    write (*,'(/,1x,a)') 'Job settings'
-    write (*,'(2x,a,l6)') 'sort Z-matrix        : ',env%autozsort
-    if (env%crestver .eq. 2) then
-      select case (env%runver)
-      case (2)
-        write (*,'(2x,a,a)') 'MTD-GC modified mode : ','"-quick"'
-      case (4)
-        write (*,'(2x,a,a)') 'MTD-GC modified mode : ','"-nci"'
-      case (5)
-        write (*,'(2x,a,a)') 'MTD-GC modified mode : ','"-squick"'
-      case (6)
-        write (*,'(2x,a,a)') 'MTD-GC modified mode : ','"-mquick"'
-      case (111)
-        write (*,'(2x,a,a)') 'iMTD-sMTD mode       : ','"-entropy"'
-      case default
-        continue
-      end select
-    end if
-    if (env%properties .gt. 0) then
-      select case (env%properties)
-      case (1)
-        dum = '"hess"'
-      case (10)
-        dum = '"ohess"'
-      case (2)
-        dum = '"autoIR (GFN)"'
-      case (20)
-        dum = '"reopt"'
-      case (3:7,100)
-        dum = 'DFT'
-      case (45)
-        dum = 'none'
-      case default
-        dum = '<undefined>'
-      end select
-      if (dum .ne. 'none') then
-        write (*,'(2x,a,a)') 'PROP mode (-prop)    : ',dum
-      end if
-    end if
-  end if
-
-  if (cregenpr) then
-    write (*,'(/,1x,a)') 'CRE settings'
-    write (*,'(2x,a,f10.4)') 'energy window         (-ewin) :',env%ewin
-    write (*,'(2x,a,f10.4)') 'RMSD threshold        (-rthr) :',env%rthr          !RTHR - RMSD thr in Angstroem
-    write (*,'(2x,a,f10.4)') 'energy threshold      (-ethr) :',env%ethr          !ETHR - E threshold in kcal
-    write (*,'(2x,a,f10.2)') 'rot. const. threshold (-bthr) :',env%bthr2         !BTHR - rot const  thr
-    write (*,'(2x,a,f10.2)') 'T (for boltz. weight) (-temp) :',env%tboltz
-  end if
-
-  if (mdsetpr) then
-    write (*,'(/,1x,a)') 'General MD/MTD settings'
-    if (env%mdtime .gt. 0.0d0) then
-      write (*,'(2x,a,f10.1)') 'simulation length [ps]    (-len) :',env%mdtime
-    else
-      write (*,'(2x,a,a)') 'simulation length [ps]    (-len) : ','<system dependent>'
-    end if
-    write (*,'(2x,a,f10.1)') 'time step [fs]          (-tstep) :',env%mdstep
-    write (*,'(2x,a,i10)') 'shake mode              (-shake) :',env%shake
-    write (*,'(2x,a,f10.2)') 'MTD temperature [K]    (-mdtemp) :',env%mdtemp
-    write (*,'(2x,a,i10)') 'trj dump step  [fs]    (-mddump) :',env%mddumpxyz
-    write (*,'(2x,a,f10.1)') 'MTD Vbias dump [ps]    (-vbdump) :',real(env%mddump)/1000.0d0
-  end if
-
-  if (env%cts%used) then
-    write (*,'(/,1x,a)') 'Constrainment info'
-    write (*,'(2x,a,l7)') 'applying constraints?  : ',env%cts%used
-    write (*,'(2x,a,a)') 'constraining file      : ',trim(env%constraints)
-    write (*,'(2x,a)') 'file content :'
-    call cat_mod(6,'  > ',env%constraints,'')
-  end if
-
-  if (xtbpr) then
-    if (env%legacy) then
-      write (*,'(/,1x,a)') 'XTB settings'
-      write (*,'(2x,a,a)') 'binary name        (-xnam) : ',trim(env%ProgName)
-      call checkbinary(env)
-      write (*,'(2x,a,a)') 'GFN method         (-gfn)  : ',trim(env%gfnver)
-    else
-      write (*,'(/,1x,a)') 'Calculation settings'
-    end if
-    write (*,'(2x,a,i0)') '(final) opt level  (-opt)  : ',nint(env%optlev)
-    if (env%gbsa) then
-      if (index(env%solv,'--alpb') .ne. 0) then
-        write (*,'(2x,a,a)') 'Implicit solvation (-alpb) : ',trim(env%solvent)
-      else
-        write (*,'(2x,a,a)') 'Implicit solvation (-gbsa) : ',trim(env%solvent)
-      end if
-    end if
-    if (env%chrg .ne. 0.0d0) then
-      write (*,'(2x,a,i0)') 'Molecular charge   (-chrg) : ',env%chrg
-    end if
-    if (env%uhf .ne. 0) then
-      write (*,'(2x,a,i0)') 'UHF (nα-nβ elec.)  (-uhf)  : ',env%uhf
-    end if
-  end if
-
-  if (techpr) then
-    call getcwd(dumstr)
-    write (*,'(/,1x,a)') 'Technical settings'
-    write (*,'(2x,a,a)') 'working directory : ',trim(dumstr)
-    write (*,'(2x,a,i0)') 'CPUs (threads)     (-T) : ',env%threads
-
-  end if
-
-  write (*,'(/,1x,a)') 'CREST binary info'
-  call print_crest_metadata()
-
-  write (*,'(/)')
-  stop 'normal dry run termination.'
-end subroutine crest_dry
 
 subroutine cat_mod(ch,pre,fname,post)
   implicit none

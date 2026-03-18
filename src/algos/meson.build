@@ -35,4 +35,5 @@ srcs += files(
   'queueing.f90',
   'alkylize.f90',
   'deform_opt_hess.f90',
+  'dryrun.f90',
 )

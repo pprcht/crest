@@ -930,19 +930,24 @@ contains  !>--- Module routines start here
 
 !========================================================================================!
 
-  subroutine calculation_info(self,iunit)
+  subroutine calculation_info(self,iunit,printhdr)
     implicit none
     class(calcdata) :: self
     integer,intent(in) :: iunit
+    logical,intent(in),optional :: printhdr
     integer :: i,j
     character(len=*),parameter :: fmt1 = '(1x,a20," : ",i5)'
     character(len=*),parameter :: fmt2 = '(1x,a20," : ",f12.5)'
     character(len=20) :: atmp
     integer :: constraintype(8)
+    logical :: prhdr
 
-    write (iunit,'(1x,a)') '----------------'
-    write (iunit,'(1x,a)') 'Calculation info'
-    write (iunit,'(1x,a)') '----------------'
+    prhdr=.true.; if(present(printhdr)) prhdr = printhdr
+    if(prhdr)then
+      write (iunit,'(1x,a)') '----------------'
+      write (iunit,'(1x,a)') 'Calculation info'
+      write (iunit,'(1x,a)') '----------------'
+    endif
     if (self%ncalculations <= 0) then
       write (iunit,'("> ",a)') 'No calculation levels set up!'
     else if (self%ncalculations > 1) then
