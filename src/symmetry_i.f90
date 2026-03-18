@@ -50,6 +50,69 @@ module symmetry_i
   !> Number of point groups in the lookup table
   integer,parameter :: PointGroupsCount = 60
 
+  !> Compile-time point group lookup table
+  type(point_group),parameter :: PointGroups(PointGroupsCount) = [                &
+  &  point_group("C1",""),                                                        &
+  &  point_group("Cs","(sigma) "),                                                &
+  &  point_group("Ci","(i) "),                                                    &
+  &  point_group("C2","(C2) "),                                                   &
+  &  point_group("C3","(C3) "),                                                   &
+  &  point_group("C4","(C4) (C2) "),                                              &
+  &  point_group("C5","(C5) "),                                                   &
+  &  point_group("C6","(C6) (C3) (C2) "),                                         &
+  &  point_group("C7","(C7) "),                                                   &
+  &  point_group("C8","(C8) (C4) (C2) "),                                         &
+  &  point_group("D2","3*(C2) "),                                                 &
+  &  point_group("D3","(C3) 3*(C2) "),                                            &
+  &  point_group("D4","(C4) 5*(C2) "),                                            &
+  &  point_group("D5","(C5) 5*(C2) "),                                            &
+  &  point_group("D6","(C6) (C3) 7*(C2) "),                                       &
+  &  point_group("D7","(C7) 7*(C2) "),                                            &
+  &  point_group("D8","(C8) (C4) 9*(C2) "),                                       &
+  &  point_group("C2v","(C2) 2*(sigma) "),                                        &
+  &  point_group("C3v","(C3) 3*(sigma) "),                                        &
+  &  point_group("C4v","(C4) (C2) 4*(sigma) "),                                   &
+  &  point_group("C5v","(C5) 5*(sigma) "),                                        &
+  &  point_group("C6v","(C6) (C3) (C2) 6*(sigma) "),                              &
+  &  point_group("C7v","(C7) 7*(sigma) "),                                        &
+  &  point_group("C8v","(C8) (C4) (C2) 8*(sigma) "),                              &
+  &  point_group("C2h","(i) (C2) (sigma) "),                                      &
+  &  point_group("C3h","(C3) (S3) (sigma) "),                                     &
+  &  point_group("C4h","(i) (C4) (C2) (S4) (sigma) "),                            &
+  &  point_group("C5h","(C5) (S5) (sigma) "),                                     &
+  &  point_group("C6h","(i) (C6) (C3) (C2) (S6) (S3) (sigma) "),                  &
+  &  point_group("C7h","(C7) (S7) (sigma) "),                                     &
+  &  point_group("C8h","(i) (C8) (C4) (C2) (S8) (S4) (sigma) "),                  &
+  &  point_group("D2h","(i) 3*(C2) 3*(sigma) "),                                  &
+  &  point_group("D3h","(C3) 3*(C2) (S3) 4*(sigma) "),                            &
+  &  point_group("D4h","(i) (C4) 5*(C2) (S4) 5*(sigma) "),                        &
+  &  point_group("D5h","(C5) 5*(C2) (S5) 6*(sigma) "),                            &
+  &  point_group("D6h","(i) (C6) (C3) 7*(C2) (S6) (S3) 7*(sigma) "),              &
+  &  point_group("D7h","(C7) 7*(C2) (S7) 8*(sigma) "),                            &
+  &  point_group("D8h","(i) (C8) (C4) 9*(C2) (S8) (S4) 9*(sigma) "),              &
+  &  point_group("D2d","3*(C2) (S4) 2*(sigma) "),                                 &
+  &  point_group("D3d","(i) (C3) 3*(C2) (S6) 3*(sigma) "),                        &
+  &  point_group("D4d","(C4) 5*(C2) (S8) 4*(sigma) "),                            &
+  &  point_group("D5d","(i) (C5) 5*(C2) (S10) 5*(sigma) "),                       &
+  &  point_group("D6d","(C6) (C3) 7*(C2) (S12) (S4) 6*(sigma) "),                 &
+  &  point_group("D7d","(i) (C7) 7*(C2) (S14) 7*(sigma) "),                       &
+  &  point_group("D8d","(C8) (C4) 9*(C2) (S16) 8*(sigma) "),                      &
+  &  point_group("S4","(C2) (S4) "),                                              &
+  &  point_group("S6","(i) (C3) (S6) "),                                          &
+  &  point_group("S8","(C4) (C2) (S8) "),                                         &
+  &  point_group("T","4*(C3) 3*(C2) "),                                           &
+  &  point_group("Th","(i) 4*(C3) 3*(C2) 4*(S6) 3*(sigma) "),                     &
+  &  point_group("Td","4*(C3) 3*(C2) 3*(S4) 6*(sigma) "),                         &
+  &  point_group("O","3*(C4) 4*(C3) 9*(C2) "),                                    &
+  &  point_group("Oh","(i) 3*(C4) 4*(C3) 9*(C2) 4*(S6) 3*(S4) 9*(sigma) "),       &
+  &  point_group("Cinfv","(Cinf) (sigma) "),                                      &
+  &  point_group("Dinfh","(i) (Cinf) (C2) 2*(sigma) "),                           &
+  &  point_group("I","6*(C5) 10*(C3) 15*(C2) "),                                  &
+  &  point_group("Ih","(i) 6*(C5) 10*(C3) 15*(C2) 6*(S10) 10*(S6) 15*(sigma) "),  &
+  &  point_group("Kh","(i) (Cinf) (sigma) "),                                     &
+  &  point_group("",""),                                                          &
+  &  point_group("","")]
+
   !> All symmetry-analysis state collected in one derived type
   type,public :: symmetry_state_t
     ! Tolerance / control
@@ -93,9 +156,6 @@ module symmetry_i
     integer(8) :: StatOrder = 0
     integer(8) :: StatOpt = 0
     integer(8) :: StatAccept = 0
-    ! Point groups lookup table
-    type(point_group) :: PointGroups(PointGroupsCount)
-    logical           :: PointGroupsInitialized = .false.
   end type symmetry_state_t
 
 ! ══════════════════════════════════════════════════════════════════════════════
@@ -110,75 +170,6 @@ contains    !> MODULE PROCEDURES START HERE
     ! Explicitly destroy the non-allocatable MolecularPlane's inner allocatable.
     call destroy_symmetry_element(state%MolecularPlane)
   end subroutine init_symmetry_state
-
-  !> Initialize point groups table
-  subroutine init_point_groups(state)
-    type(symmetry_state_t),intent(inout) :: state
-    if (state%PointGroupsInitialized) return
-
-    state%PointGroups(1)  = point_group("C1","")
-    state%PointGroups(2)  = point_group("Cs","(sigma) ")
-    state%PointGroups(3)  = point_group("Ci","(i) ")
-    state%PointGroups(4)  = point_group("C2","(C2) ")
-    state%PointGroups(5)  = point_group("C3","(C3) ")
-    state%PointGroups(6)  = point_group("C4","(C4) (C2) ")
-    state%PointGroups(7)  = point_group("C5","(C5) ")
-    state%PointGroups(8)  = point_group("C6","(C6) (C3) (C2) ")
-    state%PointGroups(9)  = point_group("C7","(C7) ")
-    state%PointGroups(10) = point_group("C8","(C8) (C4) (C2) ")
-    state%PointGroups(11) = point_group("D2","3*(C2) ")
-    state%PointGroups(12) = point_group("D3","(C3) 3*(C2) ")
-    state%PointGroups(13) = point_group("D4","(C4) 5*(C2) ")
-    state%PointGroups(14) = point_group("D5","(C5) 5*(C2) ")
-    state%PointGroups(15) = point_group("D6","(C6) (C3) 7*(C2) ")
-    state%PointGroups(16) = point_group("D7","(C7) 7*(C2) ")
-    state%PointGroups(17) = point_group("D8","(C8) (C4) 9*(C2) ")
-    state%PointGroups(18) = point_group("C2v","(C2) 2*(sigma) ")
-    state%PointGroups(19) = point_group("C3v","(C3) 3*(sigma) ")
-    state%PointGroups(20) = point_group("C4v","(C4) (C2) 4*(sigma) ")
-    state%PointGroups(21) = point_group("C5v","(C5) 5*(sigma) ")
-    state%PointGroups(22) = point_group("C6v","(C6) (C3) (C2) 6*(sigma) ")
-    state%PointGroups(23) = point_group("C7v","(C7) 7*(sigma) ")
-    state%PointGroups(24) = point_group("C8v","(C8) (C4) (C2) 8*(sigma) ")
-    state%PointGroups(25) = point_group("C2h","(i) (C2) (sigma) ")
-    state%PointGroups(26) = point_group("C3h","(C3) (S3) (sigma) ")
-    state%PointGroups(27) = point_group("C4h","(i) (C4) (C2) (S4) (sigma) ")
-    state%PointGroups(28) = point_group("C5h","(C5) (S5) (sigma) ")
-    state%PointGroups(29) = point_group("C6h","(i) (C6) (C3) (C2) (S6) (S3) (sigma) ")
-    state%PointGroups(30) = point_group("C7h","(C7) (S7) (sigma) ")
-    state%PointGroups(31) = point_group("C8h","(i) (C8) (C4) (C2) (S8) (S4) (sigma) ")
-    state%PointGroups(32) = point_group("D2h","(i) 3*(C2) 3*(sigma) ")
-    state%PointGroups(33) = point_group("D3h","(C3) 3*(C2) (S3) 4*(sigma) ")
-    state%PointGroups(34) = point_group("D4h","(i) (C4) 5*(C2) (S4) 5*(sigma) ")
-    state%PointGroups(35) = point_group("D5h","(C5) 5*(C2) (S5) 6*(sigma) ")
-    state%PointGroups(36) = point_group("D6h","(i) (C6) (C3) 7*(C2) (S6) (S3) 7*(sigma) ")
-    state%PointGroups(37) = point_group("D7h","(C7) 7*(C2) (S7) 8*(sigma) ")
-    state%PointGroups(38) = point_group("D8h","(i) (C8) (C4) 9*(C2) (S8) (S4) 9*(sigma) ")
-    state%PointGroups(39) = point_group("D2d","3*(C2) (S4) 2*(sigma) ")
-    state%PointGroups(40) = point_group("D3d","(i) (C3) 3*(C2) (S6) 3*(sigma) ")
-    state%PointGroups(41) = point_group("D4d","(C4) 5*(C2) (S8) 4*(sigma) ")
-    state%PointGroups(42) = point_group("D5d","(i) (C5) 5*(C2) (S10) 5*(sigma) ")
-    state%PointGroups(43) = point_group("D6d","(C6) (C3) 7*(C2) (S12) (S4) 6*(sigma) ")
-    state%PointGroups(44) = point_group("D7d","(i) (C7) 7*(C2) (S14) 7*(sigma) ")
-    state%PointGroups(45) = point_group("D8d","(C8) (C4) 9*(C2) (S16) 8*(sigma) ")
-    state%PointGroups(46) = point_group("S4","(C2) (S4) ")
-    state%PointGroups(47) = point_group("S6","(i) (C3) (S6) ")
-    state%PointGroups(48) = point_group("S8","(C4) (C2) (S8) ")
-    state%PointGroups(49) = point_group("T","4*(C3) 3*(C2) ")
-    state%PointGroups(50) = point_group("Th","(i) 4*(C3) 3*(C2) 4*(S6) 3*(sigma) ")
-    state%PointGroups(51) = point_group("Td","4*(C3) 3*(C2) 3*(S4) 6*(sigma) ")
-    state%PointGroups(52) = point_group("O","3*(C4) 4*(C3) 9*(C2) ")
-    state%PointGroups(53) = point_group("Oh","(i) 3*(C4) 4*(C3) 9*(C2) 4*(S6) 3*(S4) 9*(sigma) ")
-    state%PointGroups(54) = point_group("Cinfv","(Cinf) (sigma) ")
-    state%PointGroups(55) = point_group("Dinfh","(i) (Cinf) (C2) 2*(sigma) ")
-    state%PointGroups(56) = point_group("I","6*(C5) 10*(C3) 15*(C2) ")
-    state%PointGroups(57) = point_group("Ih","(i) 6*(C5) 10*(C3) 15*(C2) 6*(S10) 10*(S6) 15*(sigma) ")
-    state%PointGroups(58) = point_group("Kh","(i) (Cinf) (sigma) ")
-    state%PointGroups(59) = point_group("","")  ! Padding
-    state%PointGroups(60) = point_group("","")  ! Padding
-
-    state%PointGroupsInitialized = .true.
-  end subroutine init_point_groups
 
   !> Square function
   pure real(wp) function pow2(x)
@@ -196,12 +187,12 @@ contains    !> MODULE PROCEDURES START HERE
     do i = 1,state%AtomsCount
       elem%transform(i) = state%AtomsCount+1  ! Impossible value
     end do
-    elem%order      = 0
-    elem%nparam     = 0
-    elem%maxdev     = 0.0d0
-    elem%distance   = 0.0d0
-    elem%normal     = 0.0d0
-    elem%direction  = 0.0d0
+    elem%order = 0
+    elem%nparam = 0
+    elem%maxdev = 0.0d0
+    elem%distance = 0.0d0
+    elem%normal = 0.0d0
+    elem%direction = 0.0d0
     elem%transform_type = 0
   end subroutine alloc_symmetry_element
 
@@ -1657,18 +1648,16 @@ contains    !> MODULE PROCEDURES START HERE
 
   !> Identify point group
   function identify_point_group(state) result(last_matching)
-    type(symmetry_state_t),intent(inout) :: state
+    type(symmetry_state_t),intent(in) :: state
     integer :: last_matching
     integer :: i,matching_count
-
-    call init_point_groups(state)
 
     last_matching = -1
     matching_count = 0
 
     do i = 1,PointGroupsCount
-      if (len_trim(state%PointGroups(i)%group_name) == 0) cycle
-      if (trim(state%SymmetryCode) == trim(state%PointGroups(i)%symmetry_code)) then
+      if (len_trim(PointGroups(i)%group_name) == 0) cycle
+      if (trim(state%SymmetryCode) == trim(PointGroups(i)%symmetry_code)) then
         last_matching = i
         matching_count = matching_count+1
       end if
@@ -1695,17 +1684,17 @@ contains    !> MODULE PROCEDURES START HERE
 
     ! Set parameters if provided
     if (present(paramar)) then
-      state%verbose            = nint(paramar(1))
-      state%MaxAxisOrder       = nint(paramar(2))
-      state%MaxOptCycles       = nint(paramar(3))
-      state%ToleranceSame      = paramar(4)
-      state%TolerancePrimary   = paramar(5)
-      state%ToleranceFinal     = paramar(6)
-      state%MaxOptStep         = paramar(7)
-      state%MinOptStep         = paramar(8)
-      state%GradientStep       = paramar(9)
+      state%verbose = nint(paramar(1))
+      state%MaxAxisOrder = nint(paramar(2))
+      state%MaxOptCycles = nint(paramar(3))
+      state%ToleranceSame = paramar(4)
+      state%TolerancePrimary = paramar(5)
+      state%ToleranceFinal = paramar(6)
+      state%MaxOptStep = paramar(7)
+      state%MinOptStep = paramar(8)
+      state%GradientStep = paramar(9)
       state%OptChangeThreshold = paramar(10)
-      state%OptChangeHits      = nint(paramar(11))
+      state%OptChangeHits = nint(paramar(11))
     end if
 
     ! Set up atoms
@@ -1728,7 +1717,7 @@ contains    !> MODULE PROCEDURES START HERE
     last_pg = identify_point_group(state)
 
     if (last_pg >= 1) then
-      symbol = trim(state%PointGroups(last_pg)%group_name)
+      symbol = trim(PointGroups(last_pg)%group_name)
     else
       call report_symmetry_elements_brief_conly(state)
       if (len_trim(state%MaxRotAxis) == 0) then

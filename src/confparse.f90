@@ -783,7 +783,7 @@ subroutine parseflags(env,arg,nra)
           processedarg(i+1) = .true.
           call ensemble_analsym(trim(ctmp),.true.)
         end if
-        stop
+        call exit(0)
 
       case ('-exlig','-exligand','-exchligand')
         processedarg(i) = .true.
