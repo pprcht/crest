@@ -78,6 +78,7 @@ module dynamics_module
     type(shakedata) :: shk !> SHAKE bond information
 
     real(wp) :: tsoll = 0.0_wp !298.15_wp  !> wanted temperature
+    real(wp) :: Tavg = 0.0_wp  !> trajectory-average temperature (set after dynamics())
     logical :: thermostat = .true. !> apply thermostat?
     character(len=64) :: thermotype = 'berendsen'
     real(wp) :: thermo_damp = 500.0_wp !> thermostat damping parameter
@@ -506,6 +507,9 @@ contains  !> MODULE PROCEDURES START HERE
         write (stdout,*) 'MD terminated, but still taking as converged.'
       end select
     end if
+
+!>--- store trajectory-average temperature for callers
+    dat%Tavg = tav/float(t)
 
 !>--- deallocate data
     deallocate (dat%blockrege,dat%blockt,dat%blocke)

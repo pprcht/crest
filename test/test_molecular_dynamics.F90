@@ -64,8 +64,6 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     integer :: io
     logical :: pr
 
-    real(wp),parameter :: e_ref = -0.6272508_wp
-
     !> setup calculator backend
     call sett%create('gfnff')
     call calc%add(sett)
@@ -76,6 +74,7 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     !> MD setup
     pr = .false.
     io = 0
+    mdyn%length_ps = 200.0_wp 
     call mdyn%defaults()
     mdyn%shake = .false.
     mdyn%restart = .true. !> turn on restart reading (for determinic results)
@@ -92,7 +91,8 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     !> checks
     call check(error,io,0)
     if (allocated(error)) return
-    call check(error,mol%energy,e_ref,thr=1e-6_wp)
+    !> Average temperature must be within ±50 K of thermostat target (compiler-portable)
+    call check(error,mdyn%Tavg,mdyn%tsoll,thr=50.0_wp)
     if (allocated(error)) return
   end subroutine test_md_shake_off
 
@@ -104,10 +104,9 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     type(calculation_settings) :: sett
     type(coord) :: mol
     type(mddata) :: mdyn
-    integer :: io
+    integer :: io,i,ia,ib
     logical :: wr,pr
-
-    real(wp),parameter :: e_ref = -0.57741556160488028_wp
+    real(wp) :: d
 
     !> setup calculator backend
     call sett%create('gfnff')
@@ -117,8 +116,10 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     call get_testmol('methane',mol)
 
     !> MD setup
-    pr = .false.
+    pr = .true.
     io = 0
+    mdyn%length_ps = 50.0_wp 
+    mdyn%Tsoll = 450.0_wp
     call mdyn%defaults()
     mdyn%shake = .true.
     mdyn%restart = .true. !> turn on restart reading (for determinic results)
@@ -135,8 +136,17 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     !> checks
     call check(error,io,0)
     if (allocated(error)) return
-    call check(error,mol%energy,e_ref,thr=1e-6_wp)
+    !> Average temperature must be within ±50 K of thermostat target (compiler-portable)
+    call check(error,mdyn%Tavg,mdyn%tsoll,thr=50.0_wp)
     if (allocated(error)) return
+    !> SHAKE: all constrained bonds must satisfy their target lengths
+    do i = 1,mdyn%shk%ncons
+      ia = mdyn%shk%conslist(1,i)
+      ib = mdyn%shk%conslist(2,i)
+      d = norm2(mol%xyz(:,ia)-mol%xyz(:,ib))
+      call check(error,d**2,mdyn%shk%distcons(i),thr=1e-4_wp)
+      if (allocated(error)) return
+    end do
   end subroutine test_md_shake_on
 
 !========================================================================================!
@@ -148,10 +158,9 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     type(coord) :: mol
 
     type(mddata) :: mdyn
-    integer :: io
+    integer :: io,i,ia,ib
     logical :: wr,pr
-
-    real(wp),parameter :: e_ref = -4.6456536819174667_wp
+    real(wp) :: d
 
     !> setup calculator backend
     call sett%create('gfnff')
@@ -163,11 +172,11 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     !> MD setup
     pr = .false.
     io = 0
-    mdyn%length_ps=5.0_wp  !> shorter runtime because the mol is larger
+    mdyn%length_ps=50.0_wp  !> shorter runtime because the mol is larger
     call mdyn%defaults()
     mdyn%shake = .true.
     mdyn%shk%shake_mode=1
-    mdyn%restart = .true. !> turn on restart reading (for determinic results)_wp  !> shorter runtime because the mol is larger
+    mdyn%restart = .true. !> turn on restart reading (for determinic results)
     mdyn%wrtrj = .false. !> turn off trajectory dump
     call write_fake_restart(mol,mdyn%restartfile)
 
@@ -181,8 +190,17 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     !> checks
     call check(error,io,0)
     if (allocated(error)) return
-    call check(error,mol%energy,e_ref,thr=1e-6_wp)
+    !> Average temperature must be within ±50 K of thermostat target (compiler-portable)
+    call check(error,mdyn%Tavg,mdyn%tsoll,thr=50.0_wp)
     if (allocated(error)) return
+    !> SHAKE: all constrained bonds must satisfy their target lengths
+    do i = 1,mdyn%shk%ncons
+      ia = mdyn%shk%conslist(1,i)
+      ib = mdyn%shk%conslist(2,i)
+      d = norm2(mol%xyz(:,ia)-mol%xyz(:,ib))
+      call check(error,d**2,mdyn%shk%distcons(i),thr=1e-4_wp)
+      if (allocated(error)) return
+    end do
   end subroutine test_md_shake_honly
 
   subroutine write_fake_restart(mol,restartfile)

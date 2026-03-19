@@ -70,7 +70,7 @@ list(APPEND srcs
   "${dir}/sdfio.f90"
   "${dir}/select.f90"
   "${dir}/signal.c"
-  "${dir}/sigterm.f90"
+  "${dir}/sigterm.F90"
   "${dir}/strucreader.f90"
   "${dir}/symmetry_i.f90"
   "${dir}/timer.f90"
