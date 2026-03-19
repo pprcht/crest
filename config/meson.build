@@ -93,16 +93,32 @@ if fc_id == 'intel-llvm'
   add_project_arguments(
     '-r8',
     '-align', 'array64byte',
-    '-traceback',
     language : 'fortran',
   )
   if _is_debug
     add_project_arguments(
+      '-traceback',
       '-check', 'all',
       '-fpe0',
       language : 'fortran',
     )
   endif
+endif
+
+if fc_id == 'intel-llvm'
+  # -lifport  : POSIX intrinsics (getcwd, chdir, …) not auto-linked by ifx.
+  # libgcc_s  : was previously added to supply _Unwind_* symbols for libifcore's
+  #             signal handler. No longer needed since signal registration was
+  #             moved to crest_install_signal() via ISO_C_BINDING, bypassing
+  #             libifcore's handler entirely.
+  #_libgcc_s = run_command('gcc', '-print-file-name=libgcc_s.so',
+  #                         check : false).stdout().strip()
+  #_gcc_s_link = (_libgcc_s != 'libgcc_s.so') ? [_libgcc_s] : []
+  #if _gcc_s_link.length() == 0
+  #  warning('intel-llvm: libgcc_s.so not found — _Unwind_* symbols will be NULL, ' +
+  #          'Intel Fortran runtime will SIGSEGV at startup.')
+  #endif
+  add_project_link_arguments(['-lifport'], language : 'fortran')
 endif
 
 # ═══════════════════════════════════════════════════════════════════════════════

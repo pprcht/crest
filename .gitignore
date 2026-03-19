@@ -4,6 +4,8 @@
 *.i90
 *.bak
 *__genmod.f90
+.s*
+.c*
 github_bin/
 build_majestix
 build_commands

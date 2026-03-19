@@ -28,6 +28,7 @@ crest_tester = executable(
   link_with           : lib_crest,
   dependencies        : [testdrive_dep, lapack_dep, blas_dep]
                         + _omp_link_dep + _optional_deps,
+  link_language       : 'fortran',
 )
 
 foreach t : tests

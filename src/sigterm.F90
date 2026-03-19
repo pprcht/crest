@@ -54,7 +54,7 @@ end subroutine creststop
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC!
 !================================================================================!
 
-subroutine wsigint !> Ctrl+C
+subroutine wsigint() bind(C, name="crest_wsigint") !> Ctrl+C
   use crest_parameters,only:stderr,stdout
   use crest_restartlog,only:dump_restart
   use ConfSolv_module
@@ -67,7 +67,7 @@ subroutine wsigint !> Ctrl+C
   error stop
 end subroutine wsigint
 
-subroutine wsigquit !> Ctrl+D or Ctrl+\
+subroutine wsigquit() bind(C, name="crest_wsigquit") !> Ctrl+D or Ctrl+\
   use crest_parameters,only:stderr,stdout
   use crest_restartlog,only:dump_restart
   use ConfSolv_module
@@ -80,7 +80,7 @@ subroutine wsigquit !> Ctrl+D or Ctrl+\
   error stop
 end subroutine wsigquit
 
-subroutine wsigterm !> Recieved by the "kill" pid command
+subroutine wsigterm() bind(C, name="crest_wsigterm") !> Recieved by the "kill" pid command
   use crest_parameters,only:stderr,stdout
   use crest_restartlog,only:dump_restart
   use ConfSolv_module
@@ -93,7 +93,7 @@ subroutine wsigterm !> Recieved by the "kill" pid command
   error stop
 end subroutine wsigterm
 
-subroutine wsigkill
+subroutine wsigkill() bind(C, name="crest_wsigkill")
   use crest_parameters,only:stderr,stdout
   use crest_restartlog,only:dump_restart
   use ConfSolv_module
@@ -105,16 +105,40 @@ subroutine wsigkill
 end subroutine wsigkill
 
 subroutine initsignal()
+#if defined(__INTEL_LLVM_COMPILER)
+  ! ifx: libifport's SIGNAL intrinsic crashes with ifx procedure thunks.
+  ! Register handlers via ISO_C_BINDING → crest_install_signal() in signal.c.
+  use iso_c_binding, only: c_int, c_funloc, c_funptr
+  implicit none
+  interface
+    subroutine crest_install_signal(signum, handler) &
+        bind(C, name='crest_install_signal')
+      import :: c_int, c_funptr
+      integer(c_int), value :: signum
+      type(c_funptr), value :: handler
+    end subroutine
+    subroutine wsigint() bind(C, name='crest_wsigint')
+    end subroutine
+    subroutine wsigquit() bind(C, name='crest_wsigquit')
+    end subroutine
+    subroutine wsigterm() bind(C, name='crest_wsigterm')
+    end subroutine
+  end interface
+  call crest_install_signal(2_c_int,  c_funloc(wsigint))
+  call crest_install_signal(3_c_int,  c_funloc(wsigquit))
+  call crest_install_signal(15_c_int, c_funloc(wsigterm))
+  ! SIGKILL (9) cannot be caught; signal 69 is invalid — omit both.
+#else
   external :: wSIGINT
   external :: wSIGTERM
   external :: wSIGKILL
   external :: wSIGQUIT
-
   call signal(2,wSIGINT)
   call signal(3,wSIGQUIT)
   call signal(9,wSIGKILL)
   call signal(15,wSIGTERM)
   call signal(69,wSIGINT)
+#endif
 end subroutine initsignal
 
 

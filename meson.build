@@ -345,6 +345,7 @@ executable(
   include_directories : inc_dirs,
   link_with           : lib_crest,
   dependencies        : [lapack_dep, blas_dep] + _omp_link_dep + _optional_deps + _quadmath_dep,
+  link_language       : 'fortran',
   install             : true,
 )
 

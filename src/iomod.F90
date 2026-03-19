@@ -781,7 +781,7 @@ contains !> MODULE PROCEDURES START HERE
   function directory_exist(file) result(exist)
     character(len=*),intent(in) :: file
     logical :: exist
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     !> Intel provides the directory extension to inquire to handle this case
     inquire (directory=file,exist=exist)
 #else
@@ -804,7 +804,7 @@ contains !> MODULE PROCEDURES START HERE
     implicit none
     integer,intent(in) :: channel
     logical :: term
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
     logical,external :: isatty
 #endif
     term = isatty(channel)

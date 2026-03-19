@@ -67,7 +67,7 @@ srcs += files(
   'sdfio.f90',
   'select.f90',
   'signal.c',
-  'sigterm.f90',
+  'sigterm.F90',
   'strucreader.f90',
   'symmetry_i.f90',
   'timer.f90',
