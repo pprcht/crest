@@ -42,10 +42,24 @@ inc_dirs = include_directories('include', '.')
 # ═══════════════════════════════════════════════════════════════════════════════
 #  OpenMP
 # ═══════════════════════════════════════════════════════════════════════════════
-omp_dep = dependency('openmp',
-  required : get_option('openmp'),
-  language : 'fortran',
-)
+# ifx (intel-llvm) triggers a Meson bug in dependency('openmp') because its
+# preprocessor output lacks the delimiter strings Meson searches for.
+# Work around it by constructing the dependency manually for that compiler.
+if fc_id == 'intel-llvm'
+  if get_option('openmp')
+    omp_dep = declare_dependency(
+      compile_args : ['-qopenmp'],
+      link_args    : ['-qopenmp'],
+    )
+  else
+    omp_dep = declare_dependency()
+  endif
+else
+  omp_dep = dependency('openmp',
+    required : get_option('openmp'),
+    language : 'fortran',
+  )
+endif
 if omp_dep.found()
   add_project_arguments('-DWITH_OMP', language : ['c', 'fortran'])
 endif
@@ -60,7 +74,7 @@ _omp_link_dep = (omp_dep.found() and not static_build) ? [omp_dep] : []
 # ─────────────────────────────────────────────────────────────────────────────
 #  Fortran compiler  │  Recommended provider  │  MKL threading layer
 #  ──────────────────┼────────────────────────┼──────────────────────
-#  gfortran          │  OpenBLAS (default)     │  mkl_gnu_thread
+#  gfortran          │  OpenBLAS (default)    │  mkl_gnu_thread
 #  ifort / ifx       │  MKL  ← natural match  │  mkl_intel_thread
 #  ifort/ifx + gcc C │  MKL                   │  mkl_intel_thread (Fortran wins)
 # ─────────────────────────────────────────────────────────────────────────────
