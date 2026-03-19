@@ -116,7 +116,7 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     call get_testmol('methane',mol)
 
     !> MD setup
-    pr = .true.
+    pr = .false.
     io = 0
     mdyn%length_ps = 50.0_wp 
     mdyn%Tsoll = 450.0_wp
