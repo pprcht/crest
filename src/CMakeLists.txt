@@ -30,6 +30,7 @@ add_subdirectory("legacy_algos")
 add_subdirectory("msreact")
 add_subdirectory("sorting")
 add_subdirectory("basinhopping")
+add_subdirectory("chelpers")
 
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -58,7 +59,6 @@ list(APPEND srcs
   "${dir}/marqfit.f90"
   "${dir}/minitools.f90"
   "${dir}/miscdata.f90"
-  "${dir}/mempeak.c"
   "${dir}/ncigeo.f90"
   "${dir}/ompmklset.F90"
   "${dir}/printouts.f90"
@@ -69,7 +69,6 @@ list(APPEND srcs
   "${dir}/scratch.f90"
   "${dir}/sdfio.f90"
   "${dir}/select.f90"
-  "${dir}/signal.c"
   "${dir}/sigterm.F90"
   "${dir}/strucreader.f90"
   "${dir}/symmetry_i.f90"

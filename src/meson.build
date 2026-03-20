@@ -29,6 +29,7 @@ subdir('legacy_algos')
 subdir('msreact')
 subdir('sorting')
 subdir('basinhopping')
+subdir('chelpers')
 
 srcs += files(
   'atmasses.f90',
@@ -55,7 +56,6 @@ srcs += files(
   'marqfit.f90',
   'minitools.f90',
   'miscdata.f90',
-  'mempeak.c',
   'ncigeo.f90',
   'ompmklset.F90',
   'printouts.f90',
@@ -66,7 +66,6 @@ srcs += files(
   'scratch.f90',
   'sdfio.f90',
   'select.f90',
-  'signal.c',
   'sigterm.F90',
   'strucreader.f90',
   'symmetry_i.f90',

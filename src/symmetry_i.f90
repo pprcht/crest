@@ -1,8 +1,10 @@
 !> symmetry_i.f90
 !> Brute force symmetry analyzer - Fortran module
 !>
+!> Fortran conversion of the original C code, 2026 Philipp Pracht
+!> 
 !> Original C code: (C) 1996, 2003 S. Patchkovskii
-!> Fortran conversion of the original C code
+!>
 !>
 !> This program is free software; you can redistribute it and/or modify
 !> it under the terms of the GNU General Public License as published by
