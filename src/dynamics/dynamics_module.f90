@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2021 - 2023 Philipp Pracht
+! Copyright (C) 2021 - 2026 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -23,6 +23,7 @@
 module dynamics_module
   use crest_parameters
   use crest_calculator
+  use iomod
   use strucrd
   use atmasses
   use shake_module
@@ -80,9 +81,10 @@ module dynamics_module
     real(wp) :: tsoll = 0.0_wp !298.15_wp  !> wanted temperature
     real(wp) :: Tavg = 0.0_wp  !> trajectory-average temperature (set after dynamics())
     real(wp) :: Tvar = 0.0_wp  !> trajectory temperature variance (set after dynamics())
-    integer  :: Ndf  = 0       !> degrees of freedom used in the run (set after dynamics())
+    integer  :: Ndf = 0       !> degrees of freedom used in the run (set after dynamics())
     logical :: thermostat = .true. !> apply thermostat?
     character(len=64) :: thermotype = 'berendsen'
+    integer :: thermotype_i = 2 !> integer mapping thermostats, 2=berendsen
     real(wp) :: thermo_damp = 500.0_wp !> thermostat damping parameter
     logical :: samerand = .false.
 
@@ -111,6 +113,12 @@ module dynamics_module
 
   public :: dynamics
   public :: mdautoset
+
+  character(len=30),parameter,private :: thermostattype(4) = [ &
+     & 'None                         ', &
+     & 'Berendsen                    ', &
+     & 'Langevin                     ', &
+     & 'Bussi-Donadio-Parrinello     ']
 
 !========================================================================================!
 !========================================================================================!
@@ -158,6 +166,7 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=256) :: commentline
     integer :: i,j,k,l,ich,och,io
     integer :: dcount,printcount
+    integer,allocatable :: iseed(:)
     logical :: ex,fail,bdump,shakefallback
 
     call initsignal()
@@ -165,6 +174,15 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- pre-settings and calculations
     !$omp critical
     call dat%defaults() !> check for unset parameters
+!>--- seed RNG before any stochastic use (velocity init or thermostat steps)
+    if (dat%samerand) then
+      call random_seed(size=i)
+      allocate (iseed(i),source=1)
+      call random_seed(put=iseed)
+      deallocate (iseed)
+    else
+      call random_seed()
+    end if
     term = 0
     tstep_au = dat%tstep*fstoau
     nfreedom = 3*mol%nat
@@ -213,9 +231,15 @@ contains  !> MODULE PROCEDURES START HERE
     if (pr) then
       write (stdout,*)
       write (stdout,'(1x,15("─"),1x,a,1x,14("─"))') 'Molecular Dynamics Settings'
-      write (stdout,'("  MD time /ps",t25,       ":",f10.2)') dat%length_ps
-      write (stdout,'("  dt /fs",t25,            ":",f10.2)') dat%tstep
-      write (stdout,'("  temperature /K",t25,    ":",f10.2)') dat%tsoll
+      write (stdout,'("  Simulation type",t25,       ":",1x)',advance='no')
+      if (dat%thermostat) then
+        write (stdout,'(a9)') 'NVT'
+      else
+        write (stdout,'(a9)') 'NVE'
+      end if
+      write (stdout,'("  MD time (length)",t25,       ":",f10.2,a)') dat%length_ps,' ps'
+      write (stdout,'("  dt (timetep)",t25,            ":",f10.2,a)') dat%tstep,' fs'
+      write (stdout,'("  temperature",t25,    ":",f10.2,a)') dat%tsoll,' K'
       write (stdout,'("  max steps",t25,         ":",i10  )') dat%length_steps
       write (stdout,'("  block length (av.)",t25,":",i10  )') dat%blockl
       write (stdout,'("  dumpstep(trj) /fs",t25, ":",f10.2,1x,"(",i0,")")') dat%dumpstep,dat%sdump
@@ -224,7 +248,7 @@ contains  !> MODULE PROCEDURES START HERE
         write (stdout,'("  # frozen atoms",t25,     ":",i10  )') calc%nfreeze
       end if
       call thermostatprint(dat,pr)
-      write (stdout,'("  SHAKE constraint",t25,   ":",9x,l)') dat%shake
+      write (stdout,'("  SHAKE constraint",t25,   ":",1x,a9)') to_str(dat%shake)
       if (dat%shake) then
         if (shakefallback) then
           write (stdout,'("  SHAKE using CN fallback",t25,":",9x,l)') shakefallback
@@ -239,6 +263,7 @@ contains  !> MODULE PROCEDURES START HERE
       if (allocated(dat%active_potentials)) then
         write (stdout,'("  active potentials",t25,":",i10)') size(dat%active_potentials,1)
       end if
+
     end if
 
 !>--- set atom masses
@@ -309,6 +334,8 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- begin printout
     if (pr) then
+      write (stdout,'(1x,58("─"))')
+
       write (stdout,'(/,"> ",a)') 'Starting simulation'
       if (.not.dat%thermostat) then
         write (stdout,'(/,11x,"time (ps)",7x,"<Epot>",8x,"Ekin",5x,"<T>",7x,"T",12x, &
@@ -422,7 +449,7 @@ contains  !> MODULE PROCEDURES START HERE
       temp = 2.0_wp*ekin/float(nfreedom)/kB
 
       !>--- THERMOSTATING and velocity update
-      if (trim(dat%thermotype) == 'langevin') then
+      if (dat%thermotype_i == 3)then !'langevin') then
         if (dat%thermostat) then
           call langevin_step(mol%nat,dat,mass,velo,acc,tstep_au,vel)
         else
@@ -436,8 +463,9 @@ contains  !> MODULE PROCEDURES START HERE
         !>--- the scaling scal=sqrt(K_new/ekin) gives Ekin(vel_scaled)=K_new exactly.
         !>--- Using the half-step estimate veln would give Ekin(vel_scaled)=K_new*(Efull/Ehalf)
         !>--- and systematically overshoot the target temperature by ~Efull/Ehalf.
-        if (dat%thermostat .and. &
-          & (trim(dat%thermotype) == 'bussi' .or. trim(dat%thermotype) == 'csvr')) then
+        if (dat%thermostat.and. &
+           & dat%thermotype_i == 4 ) then
+          !& (trim(dat%thermotype) == 'bussi'.or.trim(dat%thermotype) == 'csvr')) then
           call ekinet(mol%nat,vel,mass,ekin)
           temp = 2.0_wp*ekin/float(nfreedom)/kB
         end if
@@ -506,8 +534,8 @@ contains  !> MODULE PROCEDURES START HERE
     !$omp end critical
 
 !>--- block energy statistics (blockrege still allocated here)
-    eblk_mean  = 0.0_wp
-    eblk_std   = 0.0_wp
+    eblk_mean = 0.0_wp
+    eblk_std = 0.0_wp
     eblk_drift = 0.0_wp
     if (dat%nblock >= 1) then
       eblk_mean = sum(dat%blockrege(1:dat%nblock))/real(dat%nblock,wp)
@@ -528,13 +556,13 @@ contains  !> MODULE PROCEDURES START HERE
       write (stdout,'(1x,a)') repeat('-',42)
       write (stdout,'(1x,a,t22,f16.8,a)') '<Epot>',Epav/float(t),' Eh'
       write (stdout,'(1x,a,t22,f16.8,a)') '<Ekin>',Ekav/float(t),' Eh'
-      write (stdout,'(1x,a,t22,f16.8,a)') '<Etot>',(Ekav+Epav)/float(t),' Eh'
+      write (stdout,'(1x,a,t22,f16.8,a)') '<Etot>', (Ekav+Epav)/float(t),' Eh'
       write (stdout,'(1x,a,t28,f10.2,a)') '<T>',Tav/float(t),' K'
       write (stdout,'(1x,a,t28,f10.2,a)') 'Tvar',tav2/float(t)-(tav/float(t))**2,' K²'
       write (stdout,'(1x,a,t29,f10.2,a)') 'σ(T)',sqrt(max(tav2/float(t)-(tav/float(t))**2,0.0_wp)),' K'
       if (dat%nblock >= 2) then
         write (stdout,'(1x,a)') repeat('-',42)
-        write (stdout,'(1x,a,t28,i10,a)')  'blocks',dat%nblock,' '
+        write (stdout,'(1x,a,t28,i10,a)') 'blocks',dat%nblock,' '
         write (stdout,'(1x,a,t23,f16.8,a)') 'block σ(Epot)',eblk_std,' Eh'
         write (stdout,'(1x,a,t28,es10.2,a)') 'drift',eblk_drift,' Eh/ps'
       end if
@@ -560,7 +588,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- store trajectory-average temperature for callers
     dat%Tavg = tav/float(t)
     dat%Tvar = tav2/float(t)-(tav/float(t))**2
-    dat%Ndf  = nfreedom
+    dat%Ndf = nfreedom
 
 !>--- deallocate data
     deallocate (dat%blockrege,dat%blockt,dat%blocke)
@@ -849,7 +877,7 @@ contains  !> MODULE PROCEDURES START HERE
       fail = .true.
     end if
     if (.not.fail.and.pr) then
-      write (stdout,'("  read RESTART file",t25,":",9x,l)').not.fail
+      write (stdout,'("  read RESTART file",t25,":",1x,a9)') to_str(.not.fail)
       write (stdout,'("  restart file",t25,":",1x,a)') dat%restartfile
     end if
 
@@ -869,9 +897,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(in) :: Ekin
     logical,intent(in) :: pr
     real :: x(3),ranf
-    integer :: n
     real(wp) :: eperat,v,f,t,edum,f2
-    integer,allocatable :: iseed(:)
     logical :: newvelos
     integer :: i
 
@@ -879,13 +905,6 @@ contains  !> MODULE PROCEDURES START HERE
 
     !>--- newly initialized
     if (newvelos) then
-      if (dat%samerand) then
-        call random_seed(size=n)
-        allocate (iseed(n),source=1)
-        call random_seed(put=iseed)
-      else
-        call random_seed()
-      end if
       eperat = Ekin/(3.0_wp*float(mol%nat))
       do i = 1,mol%nat
         call random_number(x)
@@ -932,11 +951,11 @@ contains  !> MODULE PROCEDURES START HERE
 
     if (.not.dat%thermostat) return
 
-    select case (trim(dat%thermotype))
-    case ('berendsen')
+    select case (dat%thermotype_i) !(trim(dat%thermotype))
+    case (2) !('berendsen')
       scal = sqrt(1.0d0+(dat%tstep/dat%thermo_damp) &
-                  &     *(dat%tsoll/t-1.0_wp))
-    case ('bussi','csvr')
+                 &     *(dat%tsoll/t-1.0_wp))
+    case (4) !('bussi','csvr')
       !> Bussi-Donadio-Parrinello CSVR (J. Chem. Phys. 126, 014101, 2007)
       !> Stochastic velocity rescaling for correct NVT ensemble sampling.
       !>
@@ -948,17 +967,17 @@ contains  !> MODULE PROCEDURES START HERE
       !>   sum term:  A^2*(z1^2 + chi2(Nf-1))  with chi2(Nf-1) = 2*Gamma((Nf-1)/2)
       !>   cross term: 2*A*B*z1
       !>   combined: (A*z1 + B)^2 + A^2*chi2(Nf-1)   <- always non-negative
-      Nf    = nfreedom
-      c1    = exp(-dat%tstep/dat%thermo_damp)
+      Nf = nfreedom
+      c1 = exp(-dat%tstep/dat%thermo_damp)
       K_ref = 0.5_wp*real(Nf,wp)*kB*dat%tsoll
-      xi    = sqrt(K_ref*(1.0_wp-c1)/real(Nf,wp))   ! A = sqrt(K_ref*(1-c1)/Nf)
+      xi = sqrt(K_ref*(1.0_wp-c1)/real(Nf,wp))   ! A = sqrt(K_ref*(1-c1)/Nf)
       call random_gauss(chi2)                         ! z1 ~ N(0,1)
       K_new = (xi*chi2+sqrt(ekin*c1))**2             ! (A*z1 + B)^2, B = sqrt(K*c1)
       if (Nf > 1) then
         call random_gamma(0.5_wp*real(Nf-1,wp),gam)  ! gam ~ Gamma((Nf-1)/2)
         K_new = K_new+xi**2*2.0_wp*gam               ! + A^2 * chi2(Nf-1)
       end if
-      scal  = sqrt(K_new/max(ekin,1.0e-30_wp))
+      scal = sqrt(K_new/max(ekin,1.0e-30_wp))
     case default
       !>-- (no scaling; langevin uses a separate integration path)
       scal = 1.0_wp
@@ -987,10 +1006,10 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: xi
     integer  :: i,k
 
-    tau_au   = dat%thermo_damp*fstoau
+    tau_au = dat%thermo_damp*fstoau
     gamma_dt = tstep_au/tau_au
-    c1       = (1.0_wp-0.5_wp*gamma_dt)/(1.0_wp+0.5_wp*gamma_dt)
-    c2       = tstep_au/(1.0_wp+0.5_wp*gamma_dt)
+    c1 = (1.0_wp-0.5_wp*gamma_dt)/(1.0_wp+0.5_wp*gamma_dt)
+    c2 = tstep_au/(1.0_wp+0.5_wp*gamma_dt)
 
     do i = 1,nat
       sigma = sqrt(2.0_wp*kB*dat%tsoll*tstep_au/(mass(i)*tau_au)) &
@@ -1010,19 +1029,49 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,l,ich,och,io
 
     if (.not.pr) return
+    write (stdout,'("  thermostat",t25,":")',advance='no')
     if (dat%thermostat) then
       select case (trim(dat%thermotype))
-      case ('berendsen','bussi','csvr','langevin')
-        write (stdout,'("  thermostat",t25,":",1x,a  )') trim(dat%thermotype)
+      case ('berendsen')
+        write (stdout,'(1x,a  )') trim(thermostattype(2))
+      case ('bussi','csvr')
+        write (stdout,'(1x,a )') trim(thermostattype(4))
+      case ('langevin','bbk')
+        write (stdout,'(1x,a  )') trim(thermostattype(3))
       case default
-        write (stdout,'("  thermostat",t25,":",1x,a  )') 'berendsen'
+        write (stdout,'(1x,a  )') trim(thermostattype(1))
       end select
     else
-      write (stdout,'("  thermostat",t25,":",1x,a  )') 'OFF'
+      write (stdout,'(1x,a  )') trim(thermostattype(1))
     end if
 
     return
   end subroutine thermostatprint
+
+  subroutine thermostat2int(dat)
+    implicit none
+    type(mddata) :: dat
+    integer :: i,j,k,l,ich,och,io
+
+    if (dat%thermostat) then
+      select case (trim(dat%thermotype))
+      case ('berendsen')
+        dat%thermotype_i = 2
+      case ('bussi','csvr')
+        dat%thermotype_i = 4
+      case ('langevin','bbk')
+        dat%thermotype_i = 3
+      case default
+        dat%thermotype_i = 1
+        dat%thermostat = .false.
+      end select
+    else
+      dat%thermotype_i = 1
+      dat%thermostat = .false.
+    end if
+
+    return
+  end subroutine thermostat2int
 
 !========================================================================================!
 ! subroutine zeroz
@@ -1398,6 +1447,9 @@ contains  !> MODULE PROCEDURES START HERE
       self%blockl = min(5000,idint(5000.0_wp/self%tstep))
     end if
     self%maxblock = nint(self%length_steps/float(self%blockl))
+
+
+    call thermostat2int(self)
 
   end subroutine md_defaults_fallback
 !========================================================================================!

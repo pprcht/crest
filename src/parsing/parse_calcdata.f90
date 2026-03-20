@@ -1233,6 +1233,20 @@ contains !> MODULE PROCEDURES START HERE
       mddat%tsoll = kv%value_f
       mddat%thermostat = .true.
 
+    case ('thermostat')  
+      select case(kv%value_c)
+      case ('off','nve')
+        mddat%thermotype = 'none'
+      case ('berendsen','langevin','bbk')
+        mddat%thermotype = trim(kv%value_c)
+      case ('bussi','bussi-donaido-parinello','bussi-parinello','csvr')  
+        mddat%thermotype = 'bussi'
+      case default
+        write (stdout,fmtura) kv%value_c
+        call creststop(status_config)
+      end select
+      mddat%thermostat=.true.
+
     case ('shake')
       select case (kv%id)
       case (valuetypes%int)
