@@ -164,8 +164,8 @@ contains  !> MODULE PROCEDURES START HERE
     if (self%saved < self%maxsave) then
       self%saved = self%saved+1
       i = self%saved
+      !$omp critical 
       self%structures(i) = mol
-      !$omp critical
       call self%sorters(i)%init(mol,invtype='apsp+',heavy=.false.)
       if (i == 1) then
         self%stereocheck = .not. (self%sorters(i)%hasstereo(mol))
@@ -173,8 +173,8 @@ contains  !> MODULE PROCEDURES START HERE
       !$omp end critical
     else
       i = self%whichmax
+      !$omp critical 
       self%structures(i) = mol
-      !$omp critical
       call self%sorters(i)%deallocate()
       call self%sorters(i)%init(mol,invtype='apsp+',heavy=.false.)
       call self%sorters(i)%shrink()

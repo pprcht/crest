@@ -194,11 +194,15 @@ subroutine single_basinhopping_core(env,mol,calc,structuredump)
   do mciter = 1,bh%maxiter
     if (bh%maxiter > 1) call printiter3('Basin-Hopping Epoch',mciter)
     call bh%newiter()
-    call mc(calc,mol,bh,verbosity=2)
+    call mc(calc,mol,bh,io,verbosity=2)
 
-    write (stdout,'(a)') 'New structures will be appended to memory ...'
-    call unionizeEnsembles(nall,structuredump,bh%saved,bh%structures, &
-    &                      ethr=bh%ethr,rthr=bh%rthr)
+    if (io .eq. 0) then
+      write (stdout,'(a)') 'New structures will be appended to memory ...'
+      call unionizeEnsembles(nall,structuredump,bh%saved,bh%structures, &
+      &                      ethr=bh%ethr,rthr=bh%rthr)
+    else
+      write (stdout,'(a)') 'Skipping run with failed initial quench ...'
+    end if
     write (stdout,'(a,i0,a)') 'Currently ',nall,' structures saved!'
   end do
   return
@@ -233,7 +237,7 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
   type(bh_class),allocatable :: bhp(:)
   type(coord),allocatable    :: mols(:)
   real(wp) :: energy
-  integer :: nall,verbose
+  integer :: nall,verbose,iostatus
   character(len=128) :: tag
   type(mollist),allocatable :: dumplist(:)
 
@@ -285,17 +289,26 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
     write (tag,'(a,i0,a)') 'Basin-Hopping Epoch'
     if (bhp(1)%maxiter > 1) call printiter3(trim(tag),mciter)
     !$omp end critical
-    !$omp parallel do default(shared) private(K, mciter) schedule(dynamic)
+    !$omp parallel do default(shared) private(K, mciter, iostatus) schedule(dynamic)
     do K = 1,T
       call bhp(K)%newiter()
-      call mc(calcp(K),mols(K),bhp(K),verbosity=1)
-
-      write (stdout,'(a)') 'New structures will be appended to memory ...'
-      call unionizeEnsembles(dumplist(K)%nall,dumplist(K)%structure, &
-      &                      bhp(K)%saved,bhp(K)%structures, &
-      &                      ethr=bhp(K)%ethr,rthr=bhp(K)%rthr)
+      call mc(calcp(K),mols(K),bhp(K),iostatus,verbosity=1)
+      if (iostatus .eq. 0) then
+        !$omp critical
+        write (stdout,'(a)') 'New structures will be appended to memory ...'
+        !$omp end critical
+        call unionizeEnsembles(dumplist(K)%nall,dumplist(K)%structure, &
+        &                      bhp(K)%saved,bhp(K)%structures, &
+        &                      ethr=bhp(K)%ethr,rthr=bhp(K)%rthr)
+      else
+        !$omp critical
+        write (stdout,'(a)') 'Skipping run with failed initial quench ...'
+        !$omp end critical
+      end if
+      !$omp critical
       write (stdout,'(a,i0,a,i0,a)') 'Currently ',dumplist(K)%nall, &
       &      ' structures saved (BH[',bhp(K)%id,'])!'
+      !$omp end critical
     end do
     !$omp end parallel do
 

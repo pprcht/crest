@@ -43,7 +43,7 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine mc(calc,mol,bh,verbosity)
+  subroutine mc(calc,mol,bh,iostat,verbosity)
 !********************************************************************
 !* A thread-safe single basin-hopping MC run
 !* Parameters and quenched structures are saved within the bh object
@@ -53,6 +53,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(calcdata),intent(inout) :: calc  !> potential settings
     type(coord),intent(inout)    :: mol   !> molecular system
     type(bh_class),intent(inout) :: bh    !> BH settings
+    integer,intent(out) :: iostat
     integer,intent(in),optional  :: verbosity  !> printout parameter
     !> LOCAL
     type(coord) :: tmpmol    !> copy to take steps
@@ -64,7 +65,9 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: printlvl,first,last,dynamicseed
     character(len=20) :: tag
 
-    write (tag,'("BH[Runner ",i0,"]>")') bh%id
+    !$omp critical
+    write (tag,'("BH[Runner ",i3,"]>")') bh%id
+    !$omp end critical
 
     if (present(verbosity)) then
       printlvl = verbosity
@@ -72,24 +75,33 @@ contains  !> MODULE PROCEDURES START HERE
       printlvl = 0
     end if
 
+    iostat = 0
+
 !>--- Add input energy to Markov chain after an initial quench
     !$omp critical
     allocate (grd(3,mol%nat),source=0.0_wp)
     !$omp end critical
 
     if (printlvl > 0) then
+      !$omp critical
       write (stdout,'(a,1x,a)') trim(tag),'Performing '//colorify('initial quench','gold')//"."
+      !$omp end critical
     end if
 
     tmpmol = mol
     call mcquench(calc,bh,tmpmol,optmol,etot,grd,iostatus)
-    if(iostatus .ne. 0)then
-      write(stdout,'(a,1x,a)') trim(tag),colorify('** WARNING **','red')// &
+    if (iostatus .ne. 0) then
+      !$omp critical
+      write (stdout,'(a,1x,a)') trim(tag),colorify('** WARNING **','red')// &
         & ' initial quench failed. Returning.'
+      !$omp end critical
+      iostat = iostatus
       return
-    endif
+    end if
+    !$omp critical
     mol = optmol
     bh%emin = mol%energy
+    !$omp end critical
     call bh%add(mol)
 
 !>--- print information about the run?
@@ -103,8 +115,10 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(bh%seed)) then
       dynamicseed = bh%seed+(bh%iteration-1)+bh%id*1000
       if (printlvl > 1) then
+        !$omp critical
         write (stdout,'(a,1x,2(a,i0),a)') trim(tag), &
         & 'Seeding current RNG instance with: ',bh%seed,' (',dynamicseed,')'
+        !$omp end critical
       end if
       call RNG_seed(bh%seed)
     end if
@@ -143,6 +157,7 @@ contains  !> MODULE PROCEDURES START HERE
           !> check duplicates here
           call mcduplicate(mol,bh,dupe,broken)
 
+          !$omp critical
           if (printlvl > 1) then
             write (stdout,'(a)',advance='no') repeat(' ',len_trim(tag)+1)// &
             & "Quench "//colorify('ACCEPTED','green')
@@ -162,20 +177,31 @@ contains  !> MODULE PROCEDURES START HERE
           end if
 
           if (printlvl > 1) write (stdout,'(/)')
+          !$omp end critical
         else
-          if (printlvl > 1) write (stdout,'(a,a,/)') repeat(' ',len_trim(tag)+1), &
-          &                 'Quench '//colorify('REJECTED','red')//', does not fulfill MC criterion'
+          if (printlvl > 1) then
+            !$omp critical
+            write (stdout,'(a,a,/)') repeat(' ',len_trim(tag)+1), &
+            &                 'Quench '//colorify('REJECTED','red')//', does not fulfill MC criterion'
+            !$omp end critical
+          end if
           cycle MonteCarlo
         end if
       else
-        if (printlvl > 1) write (stdout,'(a,1x,a,/)') trim(tag),"Quench "//colorify("FAILED","red")
+        if (printlvl > 1)then
+          !$omp critical
+          write (stdout,'(a,1x,a,/)') trim(tag),"Quench "//colorify("FAILED","red")
+          !$omp end critical
+        endif
         cycle MonteCarlo
       end if
 
 !>--- Update structures
       if (.not.broken) then
         !> continue Markov chain
+        !$omp critical
         mol = optmol
+        !$omp end critical
 
         if (.not.dupe) then
           !> Save new unique structures
@@ -222,7 +248,7 @@ contains  !> MODULE PROCEDURES START HERE
     write (stdout,'(24x,"│")')
 
     write (stdout,'(t8,a,1x)',advance='no') '│'
-    write (stdout,'(a,es9.3,3x)',advance='no') 'T/K: ',bh%temp
+    write (stdout,'(a,es10.3,2x)',advance='no') 'T/K: ',bh%temp
     write (stdout,'(a,i5,3x)',advance='no') 'steps: ',bh%maxsteps
     write (stdout,'(a,i5,3x)',advance='no') 'max save: ',bh%maxsave
     write (stdout,'(12x,"│")')
@@ -243,8 +269,8 @@ contains  !> MODULE PROCEDURES START HERE
 
     write (stdout,'(t8,a,1x)',advance='no') '│'
     write (stdout,'(a,f9.5,a)',advance='no') 'Thresholds   ΔRMSD:',bh%rthr,' Å,  '
-    write (stdout,'(a,es10.4,a)',advance='no') 'ΔE: ',bh%ethr,' kcal/mol'
-    write (stdout,'(6x,"│")')
+    write (stdout,'(a,es11.4,a)',advance='no') 'ΔE: ',bh%ethr,' kcal/mol'
+    write (stdout,'(5x,"│")')
 
     write (stdout,'(t8,a)') '└'//repeat('─',63)//'┘'
   end subroutine mcheader

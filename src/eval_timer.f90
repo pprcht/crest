@@ -25,7 +25,7 @@ subroutine eval_timer(tim)
   use crest_data
   use crest_calculator,only:engrad_total
   use crest_restartlog
-  use iomod,only:get_peak_rss_kb
+  use iomod,only:get_peak_rss_kb,to_str
   implicit none
   type(timer) :: tim
   real(wp) :: time_total,time_avg,mem
@@ -43,7 +43,7 @@ subroutine eval_timer(tim)
       write (stdout,'(" * Total number of energy+grad calls: ",i0)') &
       &  nint(engrad_total)
     else
-      write (stdout,'(" * Total number of energy+grad calls: ",es10.4)') &
+      write (stdout,'(" * Total number of energy+grad calls: ",es11.4)') &
       &  engrad_total
     end if
     write (stdout,*)
