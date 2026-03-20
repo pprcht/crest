@@ -797,6 +797,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,na,plast
     integer :: l(3)
 
+    io = 0
     if (allocated(kv%value_rawa)) deallocate (kv%value_rawa)
 
     vtmp = trim(adjustl(str))
