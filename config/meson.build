@@ -234,6 +234,7 @@ _conf.set('gfnffvar',   'false')
 _conf.set('tblitevar',  'false')
 _conf.set('libpvolvar', 'false')
 _conf.set('lwoniomvar', 'false')
+_conf.set('fmliprelayvar', 'false')
 
 # Expose _conf to the root so it can set the with_* keys and then call
 # configure_file().  The root owns the final configure_file() call.

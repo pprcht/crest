@@ -757,24 +757,25 @@ subroutine print_crest_metadata()
 !********************************
   include 'crest_metadata.fh'
   integer :: l
-  write (*,'(2x,a,t20,":   ",a)') 'CREST version    ',version
-  write (*,'(2x,a,t20,":   ",a)') 'timestamp        ',date
-  write (*,'(2x,a,t20,":   ",a)') 'commit           ',commit
+  write (*,'(2x,a,t22,":   ",a)') 'CREST version    ',version
+  write (*,'(2x,a,t22,":   ",a)') 'timestamp        ',date
+  write (*,'(2x,a,t22,":   ",a)') 'commit           ',commit
+  l = len_trim(author) 
   if (author(1:2) .eq. "'@") then
-    l = len_trim(author)
-    write (*,'(2x,a,t20,":   ",a)') 'compiled by      ',"'usr"//author(2:l)
+    write (*,'(2x,a,t22,":   ",a)') 'compiled by      ',"usr"//author(2:l-1)
   else
-    write (*,'(2x,a,t20,":   ",a)') 'compiled by      ',author
+    write (*,'(2x,a,t22,":   ",a)') 'compiled by      ',author(2:l-1)
   end if
-  write (*,'(2x,a,t20,":   ",a)') 'Fortran compiler ',fcompiler
-  write (*,'(2x,a,t20,":   ",a)') 'C compiler       ',ccompiler
-  write (*,'(2x,a,t20,":   ",a)') 'build system     ',bsystem
-  write (*,'(2x,a,t20,":   ",a)') '-DWITH_TOMLF     ',tomlfvar
-  write (*,'(2x,a,t20,":   ",a)') '-DWITH_GFN0      ',gfn0var
-  write (*,'(2x,a,t20,":   ",a)') '-DWITH_GFNFF     ',gfnffvar
-  write (*,'(2x,a,t20,":   ",a)') '-DWITH_TBLITE    ',tblitevar
-  write (*,'(2x,a,t20,":   ",a)') '-DWITH_LIBPVOL   ',libpvolvar
-  write (*,'(2x,a,t20,":   ",a)') '-DWITH_LWONIOM   ',lwoniomvar
+  write (*,'(2x,a,t22,":   ",a)') 'Fortran compiler ',fcompiler
+  write (*,'(2x,a,t22,":   ",a)') 'C compiler       ',ccompiler
+  write (*,'(2x,a,t22,":   ",a)') 'build system     ',bsystem
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_TOMLF     ',tomlfvar
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_GFN0      ',gfn0var
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_GFNFF     ',gfnffvar
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_TBLITE    ',tblitevar
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_LIBPVOL   ',libpvolvar
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_LWONIOM   ',lwoniomvar
+  write (*,'(2x,a,t22,":   ",a)') '-DWITH_FMLIP_RELAY',fmliprelayvar
 end subroutine print_crest_metadata
 
 

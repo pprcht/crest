@@ -104,6 +104,7 @@ set(gfnffvar "${WITH_GFNFF}")
 set(tblitevar "${WITH_TBLITE}")
 set(libpvolvar "${WITH_LIBPVOL}")
 set(lwoniomvar "${WITH_LWONIOM}")
+set(fmliprelayvar "${WITH_FMLIP_RELAY}")
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/assets/template/metadata.f90"

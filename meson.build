@@ -306,6 +306,7 @@ metadata_conf.set('gfnffvar',   with_gfnff.to_string())
 metadata_conf.set('tblitevar',  with_tblite.to_string())
 metadata_conf.set('libpvolvar', with_libpvol.to_string())
 metadata_conf.set('lwoniomvar', with_lwoniom.to_string())
+metadata_conf.set('fmliprelayvar', with_fmlip.to_string())
 
 configure_file(
   input         : 'assets/template/metadata.f90',
