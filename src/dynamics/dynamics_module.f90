@@ -79,6 +79,8 @@ module dynamics_module
 
     real(wp) :: tsoll = 0.0_wp !298.15_wp  !> wanted temperature
     real(wp) :: Tavg = 0.0_wp  !> trajectory-average temperature (set after dynamics())
+    real(wp) :: Tvar = 0.0_wp  !> trajectory temperature variance (set after dynamics())
+    integer  :: Ndf  = 0       !> degrees of freedom used in the run (set after dynamics())
     logical :: thermostat = .true. !> apply thermostat?
     character(len=64) :: thermotype = 'berendsen'
     real(wp) :: thermo_damp = 500.0_wp !> thermostat damping parameter
@@ -121,7 +123,7 @@ contains  !> MODULE PROCEDURES START HERE
 !* subroutine dynamics
 !* perform a molecular dynamics simulation
 !* the coordinate propagation is made with an
-!* Leap-Frog algorithm (Velert-type algo)
+!* Leap-Frog algorithm (Verlet-type algo)
 !*************************************************************
     implicit none
 
@@ -136,7 +138,9 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: epot,ekin,edum
     real(wp) :: temp,thermoscal
 !>--- averages & errors
-    real(wp) :: Tav,Epav,Ekav,Eerror
+    real(wp) :: Tav,Tav2,Epav,Ekav,Eerror
+!>--- block statistics (computed before printout)
+    real(wp) :: eblk_mean,eblk_std,eblk_drift
 
     real(wp),allocatable :: grd(:,:)
     real(wp),allocatable :: velo(:,:)
@@ -186,6 +190,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 !>--- averages
     tav = 0.0_wp
+    tav2 = 0.0_wp
     eerror = 0.0_wp
     ekav = 0.0_wp
     epav = 0.0_wp
@@ -270,6 +275,7 @@ contains  !> MODULE PROCEDURES START HERE
         call ekinet(mol%nat,velo,mass,ekin)
         temp = 2.0_wp*ekin/float(nfreedom)/kB
         tav = temp
+        tav2 = temp**2
       end if
     end if
     call ekinet(mol%nat,velo,mass,ekin)
@@ -415,12 +421,29 @@ contains  !> MODULE PROCEDURES START HERE
       call ekinet(mol%nat,veln,mass,ekin)
       temp = 2.0_wp*ekin/float(nfreedom)/kB
 
-      !>--- THERMOSTATING (determine factor thermoscal)
-      call thermostating(mol,dat,temp,thermoscal)
-
-      !>>-- STEP 3: velocity and position update
-      !>--- update velocities to t
-      vel = thermoscal*(velo+acc*tstep_au)
+      !>--- THERMOSTATING and velocity update
+      if (trim(dat%thermotype) == 'langevin') then
+        if (dat%thermostat) then
+          call langevin_step(mol%nat,dat,mass,velo,acc,tstep_au,vel)
+        else
+          vel = velo+acc*tstep_au
+        end if
+      else
+        !>>-- STEP 3: velocity update for scaling thermostats
+        !>--- compute trial velocity (unscaled leapfrog step)
+        vel = velo+acc*tstep_au
+        !>--- Bussi/CSVR: recompute ekin from the actual trial velocity so that
+        !>--- the scaling scal=sqrt(K_new/ekin) gives Ekin(vel_scaled)=K_new exactly.
+        !>--- Using the half-step estimate veln would give Ekin(vel_scaled)=K_new*(Efull/Ehalf)
+        !>--- and systematically overshoot the target temperature by ~Efull/Ehalf.
+        if (dat%thermostat .and. &
+          & (trim(dat%thermotype) == 'bussi' .or. trim(dat%thermotype) == 'csvr')) then
+          call ekinet(mol%nat,vel,mass,ekin)
+          temp = 2.0_wp*ekin/float(nfreedom)/kB
+        end if
+        call thermostating(mol,dat,temp,ekin,nfreedom,thermoscal)
+        vel = thermoscal*vel
+      end if
 
       !>--- update positions to t+dt, except for frozen atoms, and not at the final step
       if (t < dat%length_steps) then
@@ -467,6 +490,7 @@ contains  !> MODULE PROCEDURES START HERE
       edum = edum+epot+ekin
       eerror = edum/float(t)-epot-ekin
       tav = tav+temp
+      tav2 = tav2+temp**2
       epav = epav+epot
       ekav = ekav+ekin
       dcount = dcount+1
@@ -481,15 +505,40 @@ contains  !> MODULE PROCEDURES START HERE
     if (dat%wrtrj) close (trj)
     !$omp end critical
 
+!>--- block energy statistics (blockrege still allocated here)
+    eblk_mean  = 0.0_wp
+    eblk_std   = 0.0_wp
+    eblk_drift = 0.0_wp
+    if (dat%nblock >= 1) then
+      eblk_mean = sum(dat%blockrege(1:dat%nblock))/real(dat%nblock,wp)
+    end if
+    if (dat%nblock >= 2) then
+      eblk_std = sqrt(sum((dat%blockrege(1:dat%nblock)-eblk_mean)**2) &
+               &      /real(dat%nblock-1,wp))
+      !> drift in Eh/ps: endpoint slope over all completed blocks
+      eblk_drift = (dat%blockrege(dat%nblock)-dat%blockrege(1)) &
+                 & /real(dat%nblock-1,wp) &
+                 & /(dat%blockl*dat%tstep*1.0e-3_wp)
+    end if
+
 !>--- averages printout
     if (pr) then
       write (stdout,*)
-      write (stdout,*) 'average properties '
-      write (stdout,*) '----------------------'
-      write (stdout,*) '<Epot> / Eh          :',Epav/float(t)
-      write (stdout,*) '<Ekin> / Eh          :',Ekav/float(t)
-      write (stdout,*) '<Etot> / Eh          :', (Ekav+Epav)/float(t)
-      write (stdout,*) '<T> / K              :',Tav/float(t)
+      write (stdout,'(1x,a)') 'average properties'
+      write (stdout,'(1x,a)') repeat('-',42)
+      write (stdout,'(1x,a,t22,f16.8,a)') '<Epot>',Epav/float(t),' Eh'
+      write (stdout,'(1x,a,t22,f16.8,a)') '<Ekin>',Ekav/float(t),' Eh'
+      write (stdout,'(1x,a,t22,f16.8,a)') '<Etot>',(Ekav+Epav)/float(t),' Eh'
+      write (stdout,'(1x,a,t28,f10.2,a)') '<T>',Tav/float(t),' K'
+      write (stdout,'(1x,a,t28,f10.2,a)') 'Tvar',tav2/float(t)-(tav/float(t))**2,' K²'
+      write (stdout,'(1x,a,t29,f10.2,a)') 'σ(T)',sqrt(max(tav2/float(t)-(tav/float(t))**2,0.0_wp)),' K'
+      if (dat%nblock >= 2) then
+        write (stdout,'(1x,a)') repeat('-',42)
+        write (stdout,'(1x,a,t28,i10,a)')  'blocks',dat%nblock,' '
+        write (stdout,'(1x,a,t23,f16.8,a)') 'block σ(Epot)',eblk_std,' Eh'
+        write (stdout,'(1x,a,t28,es10.2,a)') 'drift',eblk_drift,' Eh/ps'
+      end if
+      write (stdout,'(1x,a)') repeat('-',42)
     end if
 
 !>--- write restart file
@@ -510,6 +559,8 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- store trajectory-average temperature for callers
     dat%Tavg = tav/float(t)
+    dat%Tvar = tav2/float(t)-(tav/float(t))**2
+    dat%Ndf  = nfreedom
 
 !>--- deallocate data
     deallocate (dat%blockrege,dat%blockt,dat%blocke)
@@ -577,6 +628,65 @@ contains  !> MODULE PROCEDURES START HERE
     e = e*0.5_wp
     return
   end subroutine ekinet
+
+!========================================================================================!
+! subroutine random_gauss
+! sample one standard normal N(0,1) via Box-Muller transform
+  subroutine random_gauss(z)
+    !*************************************
+    !* Sample one standard normal N(0,1) *
+    !* via Box-Muller transform.         *
+    !*************************************
+    implicit none
+    real(wp),intent(out) :: z
+    real(wp) :: u1,u2
+    real(wp),parameter :: twopi = 6.28318530717958647693_wp
+    do
+      call random_number(u1)
+      if (u1 > 0.0_wp) exit
+    end do
+    call random_number(u2)
+    z = sqrt(-2.0_wp*log(u1))*cos(twopi*u2)
+    return
+  end subroutine random_gauss
+
+!========================================================================================!
+! subroutine random_gamma
+! sample x ~ Gamma(a,1) using the Marsaglia-Tsang (2000) algorithm
+  subroutine random_gamma(a,x)
+    !*****************************************************
+    !* Sample x ~ Gamma(a,1) using Marsaglia-Tsang 2000. *
+    !* For a < 1: apply the relation Gamma(a) = Gamma(a+1)*U^(1/a). *
+    !*****************************************************
+    implicit none
+    real(wp),intent(in)  :: a
+    real(wp),intent(out) :: x
+    real(wp) :: d,c,z,v,u,aa
+    logical  :: small
+    small = (a < 1.0_wp)
+    aa = merge(a+1.0_wp,a,small)
+    d = aa-1.0_wp/3.0_wp
+    c = 1.0_wp/sqrt(9.0_wp*d)
+    do
+      do
+        call random_gauss(z)
+        v = (1.0_wp+c*z)**3
+        if (v > 0.0_wp) exit
+      end do
+      call random_number(u)
+      if (u < 1.0_wp-0.0331_wp*z**2*z**2) then
+        x = d*v; exit
+      end if
+      if (log(u) < 0.5_wp*z**2+d*(1.0_wp-v+log(v))) then
+        x = d*v; exit
+      end if
+    end do
+    if (small) then
+      call random_number(u)
+      x = x*u**(1.0_wp/a)
+    end if
+    return
+  end subroutine random_gamma
 
 !========================================================================================!
 ! subroutine u_block
@@ -803,13 +913,20 @@ contains  !> MODULE PROCEDURES START HERE
 ! helper routine to re-scale velocities,
 ! i.e., thermostating
 
-  subroutine thermostating(mol,dat,t,scal)
+  subroutine thermostating(mol,dat,t,ekin,nfreedom,scal)
+    !**************************************************************
+    !* Apply velocity-scaling thermostat and return scale factor. *
+    !* Supports: berendsen, bussi/csvr                            *
+    !**************************************************************
     implicit none
     type(coord) :: mol
     type(mddata) :: dat
     real(wp),intent(in) :: t
+    real(wp),intent(in) :: ekin
+    integer,intent(in)  :: nfreedom
     real(wp),intent(out) :: scal
-    integer :: i,j,k,l,ich,och,io
+    real(wp) :: c1,K_ref,K_new,gam,xi,chi2
+    integer  :: Nf
 
     scal = 1.0_wp
 
@@ -817,15 +934,67 @@ contains  !> MODULE PROCEDURES START HERE
 
     select case (trim(dat%thermotype))
     case ('berendsen')
-      scal = dsqrt(1.0d0+(dat%tstep/dat%thermo_damp) &
+      scal = sqrt(1.0d0+(dat%tstep/dat%thermo_damp) &
                   &     *(dat%tsoll/t-1.0_wp))
+    case ('bussi','csvr')
+      !> Bussi-Donadio-Parrinello CSVR (J. Chem. Phys. 126, 014101, 2007)
+      !> Stochastic velocity rescaling for correct NVT ensemble sampling.
+      !> K_new = K_ref + (K-K_ref)*c1 + sqrt(K*K_ref*2/Nf)*sqrt(c1*(1-c1))*xi
+      !>       + K_ref/Nf*(1-c1)*chi2
+      Nf    = nfreedom
+      c1    = exp(-dat%tstep/dat%thermo_damp)
+      K_ref = 0.5_wp*real(Nf,wp)*kB*dat%tsoll
+      call random_gauss(xi)
+      call random_gamma(0.5_wp*real(Nf-1,wp),gam)
+      chi2  = 2.0_wp*gam
+      K_new = K_ref+(ekin-K_ref)*c1 &
+            & +2.0_wp*sqrt(ekin*K_ref/real(Nf,wp))*sqrt(c1*(1.0_wp-c1))*xi &
+            & +K_ref/real(Nf,wp)*(1.0_wp-c1)*chi2
+      K_new = max(K_new,0.0_wp)
+      scal  = sqrt(K_new/max(ekin,1.0e-30_wp))
     case default
-      !>-- (no scaling, other thermostats require special implementation)
+      !>-- (no scaling; langevin uses a separate integration path)
       scal = 1.0_wp
     end select
 
     return
   end subroutine thermostating
+
+!========================================================================================!
+! subroutine langevin_step
+! BBK Langevin velocity update for leapfrog MD
+  subroutine langevin_step(nat,dat,mass,velo,acc,tstep_au,vel)
+    !*************************************************************
+    !* Langevin BBK velocity update for leapfrog MD.             *
+    !* velo = v(t-dt/2), acc = a(t), vel = v(t+dt/2) on output.  *
+    !* Uses dat%thermo_damp as relaxation time tau (in fs).      *
+    !*************************************************************
+    implicit none
+    integer,intent(in)      :: nat
+    type(mddata),intent(in) :: dat
+    real(wp),intent(in)     :: mass(nat)
+    real(wp),intent(in)     :: velo(3,nat),acc(3,nat)
+    real(wp),intent(in)     :: tstep_au
+    real(wp),intent(out)    :: vel(3,nat)
+    real(wp) :: tau_au,gamma_dt,c1,c2,sigma
+    real(wp) :: xi
+    integer  :: i,k
+
+    tau_au   = dat%thermo_damp*fstoau
+    gamma_dt = tstep_au/tau_au
+    c1       = (1.0_wp-0.5_wp*gamma_dt)/(1.0_wp+0.5_wp*gamma_dt)
+    c2       = tstep_au/(1.0_wp+0.5_wp*gamma_dt)
+
+    do i = 1,nat
+      sigma = sqrt(2.0_wp*kB*dat%tsoll*tstep_au/(mass(i)*tau_au)) &
+            & /(1.0_wp+0.5_wp*gamma_dt)
+      do k = 1,3
+        call random_gauss(xi)
+        vel(k,i) = c1*velo(k,i)+c2*acc(k,i)+sigma*xi
+      end do
+    end do
+    return
+  end subroutine langevin_step
 
   subroutine thermostatprint(dat,pr)
     implicit none
@@ -836,9 +1005,9 @@ contains  !> MODULE PROCEDURES START HERE
     if (.not.pr) return
     if (dat%thermostat) then
       select case (trim(dat%thermotype))
-      case ('berendsen')
+      case ('berendsen','bussi','csvr','langevin')
         write (stdout,'("  thermostat",t25,":",1x,a  )') trim(dat%thermotype)
-      case default !>-- (also berendsen thermostat)
+      case default
         write (stdout,'("  thermostat",t25,":",1x,a  )') 'berendsen'
       end select
     else
