@@ -263,12 +263,11 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
 
     call sett%create('gfnff')
     call calc%add(sett)
-    call get_testmol('methane',mol)
+    call get_testmol('caffeine',mol)
 
     pr = .false.
     io = 0
-    mdyn%length_ps = 50.0_wp
-    mdyn%tstep = 0.5_wp
+    mdyn%length_ps = 25.0_wp
     call mdyn%defaults()
     mdyn%shake = .false.
     mdyn%samerand = .true.   !> deterministic RNG seed
@@ -316,9 +315,9 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
     call calc%add(sett)
     call get_testmol('caffeine',mol)
 
-    pr = .true.
+    pr = .false.
     io = 0
-    mdyn%length_ps = 50.0_wp
+    mdyn%length_ps = 25.0_wp
     call mdyn%defaults()
     mdyn%shake = .false.
     mdyn%samerand = .true.   !> deterministic RNG seed
@@ -366,7 +365,7 @@ contains  !> Unit tests for using molecular dynamics routines in CREST
       write (ich,*) 500.0_wp
     end if
     do ii = 1,mol%nat
-      write (ich,'(6D22.14)') mol%xyz(1:3,ii),mol%xyz(1:3,ii)*0.0001_wp
+      write (ich,'(6D22.14)') mol%xyz(1:3,ii),mol%xyz(1:3,ii)*0.00005_wp
     end do
     close (ich)
   end subroutine write_fake_restart

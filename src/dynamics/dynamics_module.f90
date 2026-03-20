@@ -939,18 +939,25 @@ contains  !> MODULE PROCEDURES START HERE
     case ('bussi','csvr')
       !> Bussi-Donadio-Parrinello CSVR (J. Chem. Phys. 126, 014101, 2007)
       !> Stochastic velocity rescaling for correct NVT ensemble sampling.
-      !> K_new = K_ref + (K-K_ref)*c1 + sqrt(K*K_ref*2/Nf)*sqrt(c1*(1-c1))*xi
-      !>       + K_ref/Nf*(1-c1)*chi2
+      !>
+      !> Exact discrete update (paper Eq. A7):
+      !>   K_new = K*c1 + K_ref*(1-c1)/Nf * sum_i(z_i^2) + 2*sqrt(K*K_ref*c1*(1-c1)/Nf)*z1
+      !>   E[K_new] = K*c1 + K_ref*(1-c1)  →  converges to K_ref = Nf/2*kB*T
+      !>
+      !> Setting A = sqrt(K_ref*(1-c1)/Nf), B = sqrt(K*c1):
+      !>   sum term:  A^2*(z1^2 + chi2(Nf-1))  with chi2(Nf-1) = 2*Gamma((Nf-1)/2)
+      !>   cross term: 2*A*B*z1
+      !>   combined: (A*z1 + B)^2 + A^2*chi2(Nf-1)   <- always non-negative
       Nf    = nfreedom
       c1    = exp(-dat%tstep/dat%thermo_damp)
       K_ref = 0.5_wp*real(Nf,wp)*kB*dat%tsoll
-      call random_gauss(xi)
-      call random_gamma(0.5_wp*real(Nf-1,wp),gam)
-      chi2  = 2.0_wp*gam
-      K_new = K_ref+(ekin-K_ref)*c1 &
-            & +2.0_wp*sqrt(ekin*K_ref/real(Nf,wp))*sqrt(c1*(1.0_wp-c1))*xi &
-            & +K_ref/real(Nf,wp)*(1.0_wp-c1)*chi2
-      K_new = max(K_new,0.0_wp)
+      xi    = sqrt(K_ref*(1.0_wp-c1)/real(Nf,wp))   ! A = sqrt(K_ref*(1-c1)/Nf)
+      call random_gauss(chi2)                         ! z1 ~ N(0,1)
+      K_new = (xi*chi2+sqrt(ekin*c1))**2             ! (A*z1 + B)^2, B = sqrt(K*c1)
+      if (Nf > 1) then
+        call random_gamma(0.5_wp*real(Nf-1,wp),gam)  ! gam ~ Gamma((Nf-1)/2)
+        K_new = K_new+xi**2*2.0_wp*gam               ! + A^2 * chi2(Nf-1)
+      end if
       scal  = sqrt(K_new/max(ekin,1.0e-30_wp))
     case default
       !>-- (no scaling; langevin uses a separate integration path)
