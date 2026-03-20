@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2018-2025 Philipp Pracht
+! Copyright (C) 2018-2026 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -1120,9 +1120,8 @@ contains !> MODULE PROCEDURES START HERE
     end if
   end function truncate_zeros
 
-!========================================================================================!
-!========================================================================================!
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
+! ══════════════════════════════════════════════════════════════════════════════
 
   subroutine getpath(fname,path)
     implicit none
@@ -1391,9 +1390,8 @@ contains !> MODULE PROCEDURES START HERE
     close (unit)
   end function dump_array_to_tmp
 
-!========================================================================================!
-!========================================================================================!
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
+! ══════════════════════════════════════════════════════════════════════════════
 
 !> For some reason the behaviour of "call system"  and "call execute_command_line"
 !> differs slightly beteen Intel and GNU versions of the program that I have build.
@@ -1417,5 +1415,53 @@ contains !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 !========================================================================================!
+!> subroutine readl
+!> Parse a line of text and extract all real(wp) numbers from it.
+!> Numbers may be separated by whitespace (spaces or tabs).
+!> Handles integers, reals, signed values, and scientific notation (E/D exponent).
+!> This is a modern replacement for the legacy standalone readl subroutine.
+  subroutine readl(a1,x,n)
+    implicit none
+    character(len=*),intent(in) :: a1
+    real(wp),intent(out) :: x(:)
+    integer,intent(out) :: n
+    integer :: pos,next_pos,slen,io
+    real(wp) :: val
+    character(len=:),allocatable :: token
+
+    n = 0
+    slen = len_trim(a1)
+    if (slen == 0) return
+
+    pos = 1
+    do
+      !> skip whitespace (spaces and tabs)
+      do while (pos <= slen)
+        if (a1(pos:pos) /= ' ' .and. a1(pos:pos) /= char(9)) exit
+        pos = pos+1
+      end do
+      if (pos > slen) exit
+
+      !> find end of token
+      next_pos = pos
+      do while (next_pos <= slen)
+        if (a1(next_pos:next_pos) == ' ' .or. a1(next_pos:next_pos) == char(9)) exit
+        next_pos = next_pos+1
+      end do
+
+      !> try to parse token as a real number
+      token = a1(pos:next_pos-1)
+      read (token,*,iostat=io) val
+      if (io == 0) then
+        n = n+1
+        if (n <= size(x)) x(n) = val
+      end if
+
+      pos = next_pos
+    end do
+  end subroutine readl
+
+! ══════════════════════════════════════════════════════════════════════════════
+! ══════════════════════════════════════════════════════════════════════════════
 end module iomod
 

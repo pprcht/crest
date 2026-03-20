@@ -63,7 +63,6 @@ list(APPEND srcs
   "${dir}/ompmklset.F90"
   "${dir}/printouts.f90"
   "${dir}/prmat.f90"
-  "${dir}/readl.f90"
   "${dir}/restartlog.f90"
   "${dir}/scratch.f90"
   "${dir}/sdfio.f90"

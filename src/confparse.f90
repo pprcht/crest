@@ -918,7 +918,7 @@ subroutine parseflags(env,arg,nra)
 
       case ('-SANDBOX')
         processedarg(i) = .true.
-        !>--- IMPLEMENT HERE WHATEVER YOU LIKE, FOR TESTING
+        !>--- readl vs readl_old test suite
         !>-----
         stop
       case ('-PLAYGROUND','-TEST')

@@ -217,6 +217,7 @@ subroutine prbweight(fname,Targ)
 !* comment lines (#) are ignored
 !*****************************************************
   use crest_parameters
+  use iomod, only: readl
   implicit none
 
   character(len=*) :: fname
