@@ -2891,35 +2891,18 @@ subroutine parseflags(env,arg,nra)
           processedarg(i+1) = .true.
           PROPARG:select case(ctmp)
           case ('hess')                  !hessian calculation to free energies for all conformers
-          env%properties2 = 1
+          env%properties2 = p_prop_hess
           case ('ohess')                 !optimization+hessian calculation
-          env%properties2 = 10
+          env%properties2 = p_prop_ohess
           case ('autoir','autoIR')       !automated IR averaging for populated (-pthr) conformers
-          env%properties2 = 2
-          case ('b973c')                 !B97-3c optimization (xtb driver for ancopt)
-          env%properties2 = 3
-          case ('b973cIR')               !B97-3c optimization + IR spectra average
-          env%properties2 = 4
-          case ('dft')                   !DFT (custom) job, read from dftrc
-          env%properties2 = 100
-          case ('dftOPT')                !DFT (custom) optimization (xtb driver for ancopt)
-          env%properties2 = 5
-          case ('dftIR')                 !DFT (custom) optimization + IR spectra average
-          env%properties2 = 6
-          case ('dftSP')                 !DFT (custom) singlepoint
-          env%properties2 = 7
-          env%harcutpthr = 0.75
-          case ('dftFREQ')               !DFT (custom) optimization + frequencies
-          env%properties2 = 8
+          env%properties2 = p_prop_autoir
           case ('reopt')                 !reoptimize only conformers at vtight level
-          env%properties2 = 20
-          case ('TEST')                  !testSTUFF
-          env%properties2 = -9999
+          env%properties2 = p_prop_reopt
           case ('singlepoint','sp')      !singlepoint calculation and ensemble sorting
-          env%properties2 = 999
+          env%properties2 = p_prop_rerank
           env%pclean = .true.
-          case ('dipole')      !singlepoint calculation and dipole grepping
-          env%properties2 = 998
+          case ('dipole')                !singlepoint calculation and dipole grepping
+          env%properties2 = p_prop_dipole
           env%pclean = .true.
           case default
           env%properties2 = 0

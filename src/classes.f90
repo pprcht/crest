@@ -116,6 +116,15 @@ module crest_data
   integer,parameter,public :: p_thermo       = -3654
   integer,parameter,public :: p_useonly      = -227
   integer,parameter,public :: p_qcg          = 37
+!>---- propcalc sub-modes (imode argument of propcalc / values in env%pqueue)
+  integer,parameter,public :: p_prop_hess        =   1  !> Hessian for all conformers
+  integer,parameter,public :: p_prop_autoir      =   2  !> IR spectrum averaging
+  integer,parameter,public :: p_prop_ohess       =  10  !> Optimization + Hessian
+  integer,parameter,public :: p_prop_gsolv       =  13  !> Free energy in solvation (2-step)
+  integer,parameter,public :: p_prop_reopt       =  20  !> Vtight reoptimization
+  integer,parameter,public :: p_prop_multilevel  =  50  !> Multilevel/hybrid reopt base (range 50:59)
+  integer,parameter,public :: p_prop_dipole      = 998  !> Singlepoint + dipole extraction
+  integer,parameter,public :: p_prop_rerank      = 999  !> Singlepoint + reranking
 
 !>--- exit status
   integer,parameter,public :: status_normal = 0    !> success

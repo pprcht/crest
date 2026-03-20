@@ -36,4 +36,5 @@ srcs += files(
   'alkylize.f90',
   'deform_opt_hess.f90',
   'dryrun.f90',
+  'propcalc.f90',
 )

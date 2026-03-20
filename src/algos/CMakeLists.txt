@@ -38,6 +38,7 @@ list(APPEND srcs
   "${dir}/queueing.f90"
   "${dir}/alkylize.f90"
   "${dir}/dryrun.f90"
+  "${dir}/propcalc.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

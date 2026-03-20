@@ -60,7 +60,6 @@ srcs += files(
   'ompmklset.F90',
   'printouts.f90',
   'prmat.f90',
-  'propcalc.f90',
   'readl.f90',
   'restartlog.f90',
   'scratch.f90',

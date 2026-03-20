@@ -57,6 +57,5 @@ subroutine propquit(tim)
   implicit none
   type(timer) :: tim
   call eval_timer(tim)
-  write (stdout,*) 'CREST terminated normally.'
-  stop
+  call creststop(status_normal)
 end subroutine propquit

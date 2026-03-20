@@ -348,13 +348,13 @@ program CREST
     do i = 1,env%npq
       j = env%pqueue(i)
       select case (j)
-      case (1:8,10,20,100,998)
+      case (p_prop_hess,p_prop_autoir,p_prop_ohess,p_prop_reopt,p_prop_dipole)
         call propcalc(conformerfile,j,env,tim)
       case (45)
         call tim%start(15,'Conf. entropy evaluation')
         call newentropyextrapol(env)
         call tim%stop(15)
-      case (50:59)  !hybrid reoptimization (e.g. gfn2@gff)
+      case (p_prop_multilevel:p_prop_multilevel+9)  !hybrid reoptimization (e.g. gfn2@gff)
         call propcalc(infile,j,env,tim)
         infile = 'crest_reopt.xyz'
       case (70) !PCA and clustering
