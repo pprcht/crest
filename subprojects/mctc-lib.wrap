@@ -4,4 +4,4 @@ revision = head
 clone-recursive = true
 
 [provide]
-mctc-lib = mctc_lib_dep
+mctc-lib = mctc_dep

@@ -105,20 +105,26 @@ if fc_id == 'intel-llvm'
   endif
 endif
 
+static_build = get_option('static')
+
 if fc_id == 'intel-llvm'
-  # -lifport  : POSIX intrinsics (getcwd, chdir, …) not auto-linked by ifx.
-  # libgcc_s  : was previously added to supply _Unwind_* symbols for libifcore's
-  #             signal handler. No longer needed since signal registration was
-  #             moved to crest_install_signal() via ISO_C_BINDING, bypassing
-  #             libifcore's handler entirely.
-  #_libgcc_s = run_command('gcc', '-print-file-name=libgcc_s.so',
-  #                         check : false).stdout().strip()
-  #_gcc_s_link = (_libgcc_s != 'libgcc_s.so') ? [_libgcc_s] : []
-  #if _gcc_s_link.length() == 0
-  #  warning('intel-llvm: libgcc_s.so not found — _Unwind_* symbols will be NULL, ' +
-  #          'Intel Fortran runtime will SIGSEGV at startup.')
-  #endif
-  add_project_link_arguments(['-lifport'], language : 'fortran')
+  ## -lifport  : POSIX intrinsics (getcwd, chdir, …) not auto-linked by ifx.
+  ##             In static builds -static-intel already bundles libifport.a, so
+  ##             adding a bare -lifport here would cause the linker to resolve it
+  ##             to the shared library (before -static-intel takes effect).
+  ## libgcc_s  : was previously added to supply _Unwind_* symbols for libifcore's
+  ##             signal handler. No longer needed since signal registration was
+  ##             moved to crest_install_signal() via ISO_C_BINDING, bypassing
+  ##             libifcore's handler entirely.
+  _libgcc_s = run_command('gcc', '-print-file-name=libgcc_s.so',
+                           check : false).stdout().strip()
+  _gcc_s_link = (_libgcc_s != 'libgcc_s.so') ? [_libgcc_s] : []
+  if _gcc_s_link.length() == 0
+    warning('intel-llvm: libgcc_s.so not found — _Unwind_* symbols will be NULL, ' +
+            'Intel Fortran runtime will SIGSEGV at startup.')
+  endif
+  _lifport_arg = static_build ? [] : ['-lifport']
+  add_project_link_arguments(_lifport_arg + _gcc_s_link, language : 'fortran')
 endif
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -126,7 +132,6 @@ endif
 # ═══════════════════════════════════════════════════════════════════════════════
 # Injected globally so they propagate to every link step (library + executable).
 # See BUILD.md for notes on required system .a archives.
-static_build = get_option('static')
 
 if static_build
   if fc_id == 'gcc'
@@ -147,10 +152,11 @@ if static_build
     )
 
   elif fc_id == 'intel-llvm'
-    # ifx uses -static-openmp instead of -qopenmp-link=static
+    # -static-intel : statically links Intel runtime (ifcore, ifport, imf, svml)
+    # -qopenmp-link=static : statically links Intel OpenMP (libomp / libiomp5)
     add_project_link_arguments(
       '-static-intel',
-      '-static-openmp',
+      '-qopenmp-link=static',
       language : 'fortran',
     )
   endif

@@ -220,7 +220,7 @@ meson setup build_static              \
 ninja -C build_static
 ```
 
-`-static-intel -static-openmp` are applied automatically for ifx.
+\`-static-intel -qopenmp-link=static\` are applied automatically for ifx.
 
 ---
 
