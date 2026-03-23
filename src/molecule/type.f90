@@ -28,9 +28,10 @@ module molecule_type
   use crest_cn_module,only:calculate_cn
   implicit none
   private
-
+! ══════════════════════════════════════════════════════════════════════════════
+  !> EXPORTS
   public :: coord
-
+  public :: coord2xyz,xyz2coord
 ! ══════════════════════════════════════════════════════════════════════════════
 
   type :: coord
