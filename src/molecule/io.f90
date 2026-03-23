@@ -20,6 +20,7 @@
 module molecule_io
   use iso_c_binding
   use molecule_parameters
+  use molecule_type_components
 !> simple geomerty and vector operations
   use geo
 !> element symbols
@@ -77,32 +78,9 @@ module molecule_io
     module procedure wrsdf_channel
   end interface wrsdf
 
-  public :: xyz2coord
-  public :: coord2xyz
-
   public :: coordline
   public :: get_atlist
   public :: sumform
-
-  !coord class. contains a single structure in the PDB format.
-  !coordinates by definition are in Angstroem.
-  type :: pdbdata
-    !--- data
-    integer :: nat = 0
-    integer :: frag = 0
-    !--- arrays
-    integer,allocatable  :: athet(:) !ATOM (1) or HETATM (2)
-    character(len=4),allocatable :: pdbat(:) !PDB atom specifier
-    character(len=3),allocatable :: pdbas(:) !PDB amino acid specifier
-    integer,allocatable :: pdbfrag(:) !PDB fragment specifier
-    character(len=1),allocatable :: pdbgrp(:)  !PDB group specifier
-    real(wp),allocatable :: pdbocc(:) !PDB occupancy
-    real(wp),allocatable :: pdbtf(:)  !PDB temperature factor
-  contains
-    procedure :: deallocate => deallocate_pdb !clear memory space
-    procedure :: allocate => allocate_pdb
-  end type pdbdata
-  public :: pdbdata
 
 ! ══════════════════════════════════════════════════════════════════════════════
 contains  !> MODULE PROCEDURES START HERE
@@ -247,13 +225,14 @@ contains  !> MODULE PROCEDURES START HERE
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  subroutine rdcoord(fname,nat,at,xyz,energy)
+  subroutine rdcoord(fname,nat,at,xyz,energy,ftype)
 !*****************************************************************
 !* subroutine rdcoord                                            *
 !* read in a structure. The format is determined automatically   *
 !*                                                               *
 !* On Input: fname  - name of the coord file                     *
 !*           nat    - number of atoms                            *
+!*           ftype  - coord file type (optional)                 *
 !*                                                               *
 !* On Output: at   - atom number as integer                      *
 !*            xyz  - coordinates (always in Bohr)                *
@@ -266,14 +245,18 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(inout)  :: at(nat)
     real(wp),intent(inout) :: xyz(3,nat)
     real(wp),optional :: energy
+    integer,intent(in),optional :: ftype
     character(len=256) :: atmp
-    integer :: ftype
+    integer :: ftypedum
     type(pdbdata) :: pdbdummy
 
-    !--- determine the file type
-    call checkcoordtype(fname,ftype)
+    if (present(ftype)) then
+      ftypedum = ftype
+    else
+      call checkcoordtype(fname,ftypedum)
+    end if
 
-    select case (ftype)
+    select case (ftypedum)
     case (coordtype%turbomole)  !-- TM coord file, always retruns coords in Bohr
       call rdtmcoord(fname,nat,at,xyz)
     case (coordtype%xyz)     !-- XYZ file, is Angström, needs conversion
@@ -400,18 +383,20 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine rdxmol
 
-!============================================================!
-!* subroutine rdsdf
-!* read a struncture in the .sdf/.mol V2000 style.
-!*
-!* On Input: fname  - name of the coord file
-!*           nat    - number of atoms
-!*
-!* On Output: at   - atom number as integer
-!*            xyz  - coordinates (in Angström)
-!*            comment - (OPTIONAL) commentary line of the file
-!============================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
   subroutine rdsdf(fname,nat,at,xyz,comment)
+!***************************************************************
+!* subroutine rdsdf                                            *
+!* read a struncture in the .sdf/.mol V2000 style.             *
+!*                                                             *
+!* On Input: fname  - name of the coord file                   *
+!*           nat    - number of atoms                          *
+!*                                                             *
+!* On Output: at   - atom number as integer                    *
+!*            xyz  - coordinates (in Angström)                 *
+!*            comment - (OPTIONAL) commentary line of the file *
+!***************************************************************
     implicit none
     character(len=*),intent(in) :: fname
     integer,intent(in) :: nat
@@ -446,18 +431,20 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine rdsdf
 
-!============================================================!
-! subroutine rdsdfV3000
-! read a struncture in the .sdf/.mol V3000 style.
-!
-! On Input: fname  - name of the coord file
-!           nat    - number of atoms
-!
-! On Output: at   - atom number as integer
-!            xyz  - coordinates (in Angström)
-!            comment - (OPTIONAL) commentary line of the file
-!============================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
   subroutine rdsdfV3000(fname,nat,at,xyz,comment)
+!***************************************************************
+!* subroutine rdsdfV3000                                       *
+!* read a struncture in the .sdf/.mol V3000 style.             *
+!*                                                             *
+!* On Input: fname  - name of the coord file                   *
+!*           nat    - number of atoms                          *
+!*                                                             *
+!* On Output: at   - atom number as integer                    *
+!*            xyz  - coordinates (in Angström)                 *
+!*            comment - (OPTIONAL) commentary line of the file *
+!***************************************************************
     implicit none
     character(len=*),intent(in) :: fname
     integer,intent(in) :: nat
@@ -514,18 +501,20 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine rdsdfV3000
 
-!============================================================!
-! subroutine rdPDB
-! read a struncture in the .PDB style.
-!
-! On Input: fname  - name of the coord file
-!           nat    - number of atoms
-!
-! On Output: at   - atom number as integer
-!            xyz  - coordinates (in Angström)
-!            pdb  - pdbdata object
-!============================================================!
+! ──────────────────────────────────────────────────────────────────────────────
+
   subroutine rdPDB(fname,nat,at,xyz,pdb)
+!***********************************************
+!* subroutine rdPDB                            *
+!* read a struncture in the .PDB style.        *
+!*                                             *
+!* On Input: fname  - name of the coord file   *
+!*           nat    - number of atoms          *
+!*                                             *
+!* On Output: at   - atom number as integer    *
+!*            xyz  - coordinates (in Angström) *
+!*            pdb  - pdbdata object            *
+!***********************************************
     implicit none
     character(len=*),intent(in) :: fname
     integer,intent(in) :: nat
@@ -565,21 +554,22 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine rdPDB
 
-!============================================================!
-! subroutine rdxmolselec
-! Read a file with multiple structures in the *.xyz (Xmol) style.
-! Picks one structure.
-! The commentary (second) line is ignored
-!
-! On Input: fname  - name of the coord file
-!           m      - position of the desired structure
-!           nat    - number of atoms
-!
-! On Output: at   - atom number as integer
-!            xyz  - coordinates (in Bohr)
-!============================================================!
+! ──────────────────────────────────────────────────────────────────────────────
 
   subroutine rdxmolselec(fname,m,nat,at,xyz,comment)
+!*******************************************************************
+!* subroutine rdxmolselec                                          *
+!* Read a file with multiple structures in the *.xyz (Xmol) style. *
+!* Picks one structure.                                            *
+!* The commentary (second) line is ignored                         *
+!*                                                                 *
+!* On Input: fname  - name of the coord file                       *
+!*           m      - position of the desired structure            *
+!*           nat    - number of atoms                              *
+!*                                                                 *
+!* On Output: at   - atom number as integer                        *
+!*            xyz  - coordinates (in Bohr)                         *
+!*******************************************************************
     implicit none
     character(len=*),intent(in) :: fname
     integer,intent(in) :: nat,m
@@ -815,8 +805,10 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: er
     integer :: i,j,k,ich,io
     logical :: ex
+    character(len=30) :: etmp
     write (ch,'(2x,i0)') nat
-    write (ch,'(2x,a,f18.8)') "energy=",er
+    write (etmp,'(f20.10)') er
+    write (ch,'(2x,a,a)') "energy=",adjustl(etmp)
     do j = 1,nat
       write (ch,'(1x,a2,1x,3f20.10)') i2e(at(j),'nc'),xyz(1:3,j)
     end do
@@ -1077,36 +1069,6 @@ contains  !> MODULE PROCEDURES START HERE
     call move_alloc(sout,convertlable)
   end function convertlable
 
-!=============================================================!
-  pure elemental integer function ncore(at)
-    integer,intent(in) :: at
-    if (at .le. 2) then
-      ncore = 0
-    elseif (at .le. 10) then
-      ncore = 2
-    elseif (at .le. 18) then
-      ncore = 10
-    elseif (at .le. 29) then   !zn
-      ncore = 18
-    elseif (at .le. 36) then
-      ncore = 28
-    elseif (at .le. 47) then
-      ncore = 36
-    elseif (at .le. 54) then
-      ncore = 46
-    elseif (at .le. 71) then
-      ncore = 54
-    elseif (at .le. 79) then
-      ncore = 68
-    elseif (at .le. 86) then
-      ncore = 78
-    elseif (at .le. 103) then !> Rn core
-      ncore = 86
-    elseif (at .le. 118) then !> Og core
-      ncore = 102
-    end if
-  end function ncore
-
 !============================================================!
 ! e2i is used to map the element (as a string) to integer
 !============================================================!
@@ -1251,6 +1213,102 @@ contains  !> MODULE PROCEDURES START HERE
     grepenergy = energy
     return
   end function grepenergy
+
+! ──────────────────────────────────────────────────────────────────────────────
+
+  subroutine get_extxyz_value(comment_line,key,value,found)
+!*************************************************************************
+!* subroutine get_extxyz_value                                           *
+!* grep a key-value-pair from the comment line of an extended XYZ file   *
+!* On input:                                                             *
+!*      comment_line - the comment line                                  *
+!*      key          - the key to look for (case INSENSITIVE)            *
+!*                                                                       *
+!* On output:                                                            *
+!*      value - the value as raw string                                  *
+!*      found - success logical, did we find the key?                    *
+!*************************************************************************
+    implicit none
+    character(len=*),intent(in)  :: comment_line
+    character(len=*),intent(in)  :: key
+    character(len=*),intent(out) :: value
+    logical,intent(out)          :: found
+
+    integer :: key_start,val_start,val_end,line_len
+    character(len=:),allocatable :: search_key
+
+    found = .false.
+    value = ""
+    line_len = len_trim(comment_line)
+
+    search_key = lowercase(key)//"="
+    key_start = index(comment_line,trim(search_key))
+
+    if (key_start > 0) then
+      val_start = key_start+len_trim(search_key)
+
+      ! --- Skip any spaces between '=' and the value
+      do while (val_start <= line_len.and.comment_line(val_start:val_start) == " ")
+        val_start = val_start+1
+      end do
+
+      ! If we hit the end of the line, the key had no value
+      if (val_start > line_len) return
+      found = .true.
+
+      ! Check for quotes
+      if (comment_line(val_start:val_start) == '"'.or. &
+          comment_line(val_start:val_start) == "'") then
+
+        val_start = val_start+1
+        val_end = val_start+index(comment_line(val_start:),comment_line(val_start-1:val_start-1))-2
+      else
+        ! Bare value: find next space
+        val_end = val_start+index(comment_line(val_start:)," ")-2
+        if (val_end < val_start) val_end = line_len
+      end if
+
+      value = comment_line(val_start:val_end)
+    end if
+  end subroutine get_extxyz_value
+
+! ──────────────────────────────────────────────────────────────────────────────
+
+  function count_extxyz_pairs(comment_line) result(num_pairs)
+    implicit none
+    character(len=*),intent(in) :: comment_line
+    integer :: num_pairs
+    integer :: i,line_len
+    logical :: in_quotes
+    character :: quote_char
+
+    num_pairs = 0
+    in_quotes = .false.
+    line_len = len_trim(comment_line)
+    quote_char = ' '
+
+    do i = 1,line_len
+      ! Check if we are entering or leaving a quoted section
+      if (.not.in_quotes) then
+        if (comment_line(i:i) == '"'.or.comment_line(i:i) == "'") then
+          in_quotes = .true.
+          quote_char = comment_line(i:i)
+        end if
+      else
+        ! If we are in quotes, look for the matching closing quote
+        if (comment_line(i:i) == quote_char) then
+          in_quotes = .false.
+        end if
+      end if
+
+      ! If we find an '=' while NOT in quotes, it's a new key-value pair
+      if (.not.in_quotes.and.comment_line(i:i) == '=') then
+        num_pairs = num_pairs+1
+      end if
+    end do
+  end function count_extxyz_pairs
+
+! ──────────────────────────────────────────────────────────────────────────────
 
 !============================================================!
 ! count number of bonds from an wbo matrix
@@ -1411,46 +1469,6 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     return
   end function sumform
-
-! ──────────────────────────────────────────────────────────────────────────────
-!==================================================================!
-! subroutine deallocate_pdb
-! is used to clear memory for the pdbdata type
-!==================================================================!
-  subroutine deallocate_pdb(self)
-    implicit none
-    class(pdbdata) :: self
-    self%nat = 0
-    self%frag = 0
-    if (allocated(self%athet)) deallocate (self%athet)
-    if (allocated(self%pdbat)) deallocate (self%pdbat)
-    if (allocated(self%pdbas)) deallocate (self%pdbas)
-    if (allocated(self%pdbfrag)) deallocate (self%pdbfrag)
-    if (allocated(self%pdbgrp)) deallocate (self%pdbgrp)
-    if (allocated(self%pdbocc)) deallocate (self%pdbocc)
-    if (allocated(self%pdbtf)) deallocate (self%pdbtf)
-    return
-  end subroutine deallocate_pdb
-
-!==================================================================!
-! subroutine allocate_pdb
-! is used to clear memory for the pdbdata type
-!==================================================================!
-  subroutine allocate_pdb(self,nat)
-    implicit none
-    class(pdbdata) :: self
-    integer :: nat
-    call deallocate_pdb(self)
-    self%nat = nat
-    allocate (self%athet(nat))
-    allocate (self%pdbat(nat))
-    allocate (self%pdbas(nat))
-    allocate (self%pdbfrag(nat))
-    allocate (self%pdbgrp(nat))
-    allocate (self%pdbocc(nat))
-    allocate (self%pdbtf(nat))
-    return
-  end subroutine allocate_pdb
 
 ! ══════════════════════════════════════════════════════════════════════════════
 ! end of the module

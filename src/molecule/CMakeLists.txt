@@ -17,8 +17,10 @@
 set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
-  "${dir}/parameters"
+  "${dir}/parameters.f90"
   "${dir}/io.f90"
+  "${dir}/type_components.f90" 
+  "${dir}/type_ensemble.f90"
   "${dir}/type.f90"
   "${dir}/strucreader.f90"
   "${dir}/sdfio.f90"

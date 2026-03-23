@@ -39,7 +39,7 @@ module molecule_parameters
     integer :: sdfV3000   = 32
     integer :: PDB        = 4
   end type enum_coordtype
-  type(enum_jobtype), parameter,public :: coordtype = enum_coordtype()
+  type(enum_coordtype), parameter,public :: coordtype = enum_coordtype()
 
   !> Element symbols
   character(len=2),parameter :: PSE(118) = [ &
@@ -56,8 +56,39 @@ module molecule_parameters
    &                'Rf','Db','Sg','Bh','Hs','Mt','Ds','Rg','Cn','Nh','Fl','Mc','Lv','Ts','Og' ]
 !&>
 
+  public :: ncore
+
 ! ══════════════════════════════════════════════════════════════════════════════
 contains  !> MODULE PROCEDURES START HERE
 ! ══════════════════════════════════════════════════════════════════════════════
+
+  pure elemental integer function ncore(at)
+    integer,intent(in) :: at
+    if (at .le. 2) then
+      ncore = 0
+    elseif (at .le. 10) then
+      ncore = 2
+    elseif (at .le. 18) then
+      ncore = 10
+    elseif (at .le. 29) then   !zn
+      ncore = 18
+    elseif (at .le. 36) then
+      ncore = 28
+    elseif (at .le. 47) then
+      ncore = 36
+    elseif (at .le. 54) then
+      ncore = 46
+    elseif (at .le. 71) then
+      ncore = 54
+    elseif (at .le. 79) then
+      ncore = 68
+    elseif (at .le. 86) then
+      ncore = 78
+    elseif (at .le. 103) then !> Rn core
+      ncore = 86
+    elseif (at .le. 118) then !> Og core
+      ncore = 102
+    end if
+  end function ncore
 
 end module molecule_parameters

@@ -18,6 +18,8 @@ srcs += files(
   'parameters.f90',
   'type.f90',
   'io.f90',
+  'type_components.f90',
+  'type_ensemble.f90',
   'strucreader.f90',
   'sdfio.f90',
 )

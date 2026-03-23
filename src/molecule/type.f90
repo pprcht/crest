@@ -21,6 +21,7 @@ module molecule_type
   use iso_c_binding
   use molecule_parameters
   use molecule_io
+  use molecule_type_components
 !> simple geomerty and vector operations
   use geo
 !> element symbols
@@ -51,6 +52,8 @@ module molecule_type
     !**************************************!
     !>-- energy
     real(wp) :: energy = 0.0_wp
+    !>-- gradient
+    real(wp),allocatable :: gradient(:,:)
     !>-- a comment line
     character(len=:),allocatable :: comment
     !>-- "origin" tag
@@ -73,6 +76,9 @@ module molecule_type
 
     !>-- (optional) PDB data
     type(pdbdata) :: pdb
+
+    !>-- extxyz signature
+    type(extxyz_signatures),allocatable :: extxyz
 
   contains
     procedure :: deallocate => deallocate_coord !> clear memory space
@@ -138,16 +144,16 @@ contains  !> MODULE PROCEDURES START HERE
     call self%deallocate()
 
     call checkcoordtype(fname,ftype)
-    call rdnat(fname,nat)
+    call rdnat(fname,nat,ftype=ftype)
 
     if (nat > 0) then
       en = 0.0_wp
       allocate (at(nat),xyz(3,nat))
-      if (ftype == pdbfile) then
+      if (ftype == coordtype%PDB) then
         call rdPDB(fname,nat,at,xyz,self%pdb)
         xyz = xyz/bohr
       else
-        call rdcoord(fname,nat,at,xyz,energy=en)
+        call rdcoord(fname,nat,at,xyz,energy=en,ftype=ftype)
       end if
 
       self%nat = nat
