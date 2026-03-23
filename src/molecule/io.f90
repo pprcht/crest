@@ -50,6 +50,7 @@ module molecule_io
   public :: rdcoord     !-- read an input file, determine format automatically
   public :: rdxmol      !-- read a file in the Xmol (.xyz) format specifically
   public :: rdxmolselec !-- read only a certain structure in Xmol file
+  public :: rdPDB
 
   !>--- write a TM coord file
   public :: wrc0
@@ -153,7 +154,8 @@ contains  !> MODULE PROCEDURES START HERE
     nat = 0
     inquire (file=fname,exist=ex)
     if (.not.ex) then
-      error stop 'file does not exist.'
+      write (stdout,'(a)') '**ERROR** could not find coord file '//trim(fname)
+      call exit(1)
     end if
     if (present(ftype)) then
       ftypedum = ftype
@@ -259,6 +261,7 @@ contains  !> MODULE PROCEDURES START HERE
     select case (ftypedum)
     case (coordtype%turbomole)  !-- TM coord file, always retruns coords in Bohr
       call rdtmcoord(fname,nat,at,xyz)
+
     case (coordtype%xyz)     !-- XYZ file, is Angström, needs conversion
       if (present(energy)) then
         call rdxmol(fname,nat,at,xyz,atmp)
@@ -267,16 +270,20 @@ contains  !> MODULE PROCEDURES START HERE
         call rdxmol(fname,nat,at,xyz)
       end if
       xyz = xyz/bohr
+
     case (coordtype%sdfV2000)      !-- SDF/MOL V2000 file, also Angström
       call rdsdf(fname,nat,at,xyz)
       xyz = xyz/bohr
+
     case (coordtype%sdfV3000)     !-- SDF V3000 file, Angström
       call rdsdfV3000(fname,nat,at,xyz)
       xyz = xyz/bohr
+
     case (coordtype%PDB)          !-- PDB file, Angström
       call rdPDB(fname,nat,at,xyz,pdbdummy)
       xyz = xyz/bohr
       call pdbdummy%deallocate()
+
     case default
       continue
     end select
@@ -364,7 +371,9 @@ contains  !> MODULE PROCEDURES START HERE
     open (newunit=ich,file=fname)
     read (ich,*,iostat=io) dum
     if (nat .ne. dum) then
-      error stop 'error while reading input coordinates'
+      write (stdout,'(a)') '**ERROR** Mismatch in expected atom number for file '//trim(fname)
+      write (stdout,'(a,i0,a,i0)') '          Expected ',nat,' got ',dum
+      call exit(1)
     end if
     read (ich,'(a)') atmp !--commentary line
     if (present(comment)) comment = trim(adjustl(atmp))
@@ -374,7 +383,7 @@ contains  !> MODULE PROCEDURES START HERE
       atmp = adjustl(atmp)
       call coordline(atmp,sym,xyz(1:3,i),io)
       if (io < 0) then
-        write (*,*) 'error while reading coord line. EOF'
+        write (stdout,'(a)') '**ERROR** Unexpected EOF while reading file '//trim(fname)
         exit
       end if
       at(i) = e2i(sym)
@@ -414,7 +423,9 @@ contains  !> MODULE PROCEDURES START HERE
     if (present(comment)) comment = trim(adjustl(atmp))
     read (ich,'(i3)',iostat=io) dum
     if (nat .ne. dum) then
-      error stop 'error while reading input coordinates'
+      write (stdout,'(a)') '**ERROR** Mismatch in expected atom number for file '//trim(fname)
+      write (stdout,'(a,i0,a,i0)') '          Expected ',nat,' got ',dum
+      call exit(1)
     end if
     do i = 1,nat
       read (ich,'(a)',iostat=io) atmp
@@ -478,7 +489,9 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end do
     if (nat .ne. dum) then
-      error stop 'error while reading input coordinates'
+      write (stdout,'(a)') '**ERROR** Mismatch in expected atom number for file '//trim(fname)
+      write (stdout,'(a,i0,a,i0)') '          Expected ',nat,' got ',dum
+      call exit(1)
     end if
     do i = 1,nat
       read (ich,'(a)',iostat=io) atmp
@@ -586,7 +599,9 @@ contains  !> MODULE PROCEDURES START HERE
     do j = 1,m
       read (ich,*,iostat=io) dum
       if (nat .ne. dum) then
-        error stop 'error while reading input coordinates'
+        write (stdout,'(a)') '**ERROR** Mismatch in expected atom number for file '//trim(fname)
+        write (stdout,'(a,i0,a,i0)') '          Expected ',nat,' got ',dum
+        call exit(1)
       end if
       read (ich,'(a)') atmp !--commentary line
       if (present(comment)) comment = trim(adjustl(atmp))
@@ -994,9 +1009,6 @@ contains  !> MODULE PROCEDURES START HERE
     read (line,*,iostat=io) xyz(1:3),sym
     if (io .ne. 0) then
       read (line,*,iostat=io) sym,xyz(1:3)
-      !if(io.ne.0)then
-      !  error stop 'error while reading coord line'
-      !endif
     end if
 
     return

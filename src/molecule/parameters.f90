@@ -18,11 +18,11 @@
 !================================================================================!
 
 module molecule_parameters
-  use iso_fortran_env,only:wp => real64
+  use iso_fortran_env,only:wp => real64,stdout=>output_unit
   use iso_c_binding
   implicit none
 
-  public :: wp  !> RE-EXPORT
+  public :: wp,stdout  !> RE-EXPORTS
 !&<
 !>--- some constants and name mappings
   real(wp),parameter :: bohr     = 0.52917726_wp

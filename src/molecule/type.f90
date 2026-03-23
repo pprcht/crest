@@ -139,7 +139,8 @@ contains  !> MODULE PROCEDURES START HERE
 
     inquire (file=fname,exist=ex)
     if (.not.ex) then
-      error stop 'coord file does not exist.'
+      write(stdout,'(a)') '**ERROR** could not find coord file '//trim(fname) 
+      call exit(1)
     end if
 
     call self%deallocate()
@@ -150,19 +151,21 @@ contains  !> MODULE PROCEDURES START HERE
     if (nat > 0) then
       en = 0.0_wp
       allocate (at(nat),xyz(3,nat))
-      if (ftype == coordtype%PDB) then
-        call rdPDB(fname,nat,at,xyz,self%pdb)
+      select case (ftype)
+      case (coordtype%PDB)
+        call rdPDB(fname,nat,at,xyz,self%pdb) ! ← need to fill self%pdb
         xyz = xyz/bohr
-      else
+      case default
         call rdcoord(fname,nat,at,xyz,energy=en,ftype=ftype)
-      end if
-
+      end select
       self%nat = nat
       self%energy = en
       call move_alloc(at,self%at)
       call move_alloc(xyz,self%xyz)
     else
-      error stop 'format error while reading coord file.'
+      write(stdout,'(a)') '**ERROR** Format issue while reading coord file '//trim(fname) 
+      write(stdout,'(a)') '          Number of atoms detected as zero!'
+      call exit(1)
     end if
 
     return
