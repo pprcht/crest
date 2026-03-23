@@ -15,6 +15,7 @@
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
 
+add_subdirectory("molecule")
 add_subdirectory("parsing")
 add_subdirectory("optimize")
 add_subdirectory("calculator")
@@ -65,10 +66,8 @@ list(APPEND srcs
   "${dir}/prmat.f90"
   "${dir}/restartlog.f90"
   "${dir}/scratch.f90"
-  "${dir}/sdfio.f90"
   "${dir}/select.f90"
   "${dir}/sigterm.F90"
-  "${dir}/strucreader.f90"
   "${dir}/symmetry_i.f90"
   "${dir}/timer.f90"
   "${dir}/trackorigin.f90"

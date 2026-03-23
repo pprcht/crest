@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
+subdir('molecule')
 subdir('qcg')
 subdir('dynamics')
 subdir('calculator')
@@ -62,10 +63,8 @@ srcs += files(
   'prmat.f90',
   'restartlog.f90',
   'scratch.f90',
-  'sdfio.f90',
   'select.f90',
   'sigterm.F90',
-  'strucreader.f90',
   'symmetry_i.f90',
   'timer.f90',
   'trackorigin.f90',
