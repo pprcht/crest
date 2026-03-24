@@ -330,6 +330,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     !$omp critical
     if (dat%wrtrj) open (newunit=trj,file=trajectory)
+    mol%wrextxyz = calc%logextxyz
     !$omp end critical
 
 !>--- begin printout
@@ -449,7 +450,7 @@ contains  !> MODULE PROCEDURES START HERE
       temp = 2.0_wp*ekin/float(nfreedom)/kB
 
       !>--- THERMOSTATING and velocity update
-      if (dat%thermotype_i == 3)then !'langevin') then
+      if (dat%thermotype_i == 3) then !'langevin') then
         if (dat%thermostat) then
           call langevin_step(mol%nat,dat,mass,velo,acc,tstep_au,vel)
         else
@@ -464,7 +465,7 @@ contains  !> MODULE PROCEDURES START HERE
         !>--- Using the half-step estimate veln would give Ekin(vel_scaled)=K_new*(Efull/Ehalf)
         !>--- and systematically overshoot the target temperature by ~Efull/Ehalf.
         if (dat%thermostat.and. &
-           & dat%thermotype_i == 4 ) then
+           & dat%thermotype_i == 4) then
           !& (trim(dat%thermotype) == 'bussi'.or.trim(dat%thermotype) == 'csvr')) then
           call ekinet(mol%nat,vel,mass,ekin)
           temp = 2.0_wp*ekin/float(nfreedom)/kB
@@ -1447,7 +1448,6 @@ contains  !> MODULE PROCEDURES START HERE
       self%blockl = min(5000,idint(5000.0_wp/self%tstep))
     end if
     self%maxblock = nint(self%length_steps/float(self%blockl))
-
 
     call thermostat2int(self)
 

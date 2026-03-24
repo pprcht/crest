@@ -63,8 +63,6 @@ module molecule_type
     integer :: chrg = 0
     !>-- multiplicity information
     integer :: uhf = 0
-    !>--- gradient
-    !real(wp),allocatable :: grad(:,:)
     !>-- number of bonds
     integer :: nbd = 0
     !>-- bond info
@@ -89,7 +87,7 @@ module molecule_type
     procedure :: writeextxyz => write_extxyz    !> write extxyz file to a given iunit
     procedure :: append => appendcoord          !> append
     procedure :: get => getcoord                !> allocate & fill with data
-    procedure :: appendlog                      !> append .log file with coordinates and energy
+    procedure :: appendlog => appendcoord       !> append .log file with coordinates and energy
     procedure :: dist => coord_getdistance      !> calculate distance between two atoms
     procedure :: angle => coord_getangle        !> calculate angle between three atoms
     procedure :: dihedral => coord_getdihedral  !> calculate dihedral angle between four atoms
@@ -450,9 +448,12 @@ contains  !> MODULE PROCEDURES START HERE
   end subroutine coord2xyz
 
 ! ──────────────────────────────────────────────────────────────────────────────
-! subroutine writecoord
-! is the write procedure for the "coord" class.
+
   subroutine writecoord(self,fname)
+!*************************************************
+!* subroutine writecoord                         *
+!* is the write procedure for the "coord" class. *
+!*************************************************
     implicit none
     class(coord) :: self
     character(len=*),intent(in) :: fname
@@ -490,73 +491,48 @@ contains  !> MODULE PROCEDURES START HERE
       call wrc0(iunit,self%nat,self%at,self%xyz)
     end select
     close (iunit)
-    !if (index(fname,'.xyz') .ne. 0) then
-    !  write (comment,'(a,G0.12)') '  energy= ',self%energy
-    !  self%xyz = self%xyz*bohr !to Angström
-    !  call wrxyz(fname,self%nat,self%at,self%xyz,comment)
-    !  self%xyz = self%xyz/bohr !back
-    !else
-    !  call wrc0(fname,self%nat,self%at,self%xyz)
-    !end if
     return
   end subroutine writecoord
 
 ! ──────────────────────────────────────────────────────────────────────────────
-! subroutine appendcoord
-! is the write procedure for the "coord" class.
-! coords will be written out in XYZ format!
-  subroutine appendcoord(self,io)
+
+  subroutine appendcoord(self,iunit,energy)
+!*************************************************
+!* subroutine appendcoord                        *
+!* is the write procedure for the "coord" class. *
+!* coords will be written out in XYZ format!     *
+!*************************************************
     implicit none
     class(coord) :: self
-    integer :: io
+    integer,intent(in) :: iunit
+    real(wp),intent(in),optional :: energy
     character(len=64) :: atmp
     character(len=32) :: btmp
+    real(wp) :: etmp
     if (.not.self%wrextxyz) then !> regular xyz append
       self%xyz = self%xyz*bohr !to Angström
-      write (btmp,'(f22.10)') self%energy
+      if (present(energy)) then
+        write (btmp,'(f22.10)') energy
+      else
+        write (btmp,'(f22.10)') self%energy
+      end if
       write (atmp,'(a,a)') ' energy= ',adjustl(btmp)
       if (allocated(self%comment)) then
-        call wrxyz(io,self%nat,self%at,self%xyz, &
+        call wrxyz(iunit,self%nat,self%at,self%xyz, &
         &          trim(atmp)//' '//trim(self%comment))
       else
-        call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
+        call wrxyz(iunit,self%nat,self%at,self%xyz,trim(atmp))
       end if
       self%xyz = self%xyz/bohr !back
     else
       !> extxyz append
-      call self%writeextxyz(io)
-    end if
-    return
-  end subroutine appendcoord
-
-! ──────────────────────────────────────────────────────────────────────────────
-  subroutine appendlog(self,io,energy,gnorm)
-    implicit none
-    class(coord) :: self
-    integer :: io
-    real(wp),optional :: energy
-    real(wp),optional :: gnorm
-    character(len=64) :: atmp
-    real(wp) :: etmp,gtmp
-    if (.not.self%wrextxyz) then
-      self%xyz = self%xyz*bohr !to Angström
-      if (present(gnorm).and.present(energy)) then
-        write (atmp,'(a,f22.10,a,f16.8)') ' energy= ',energy,' grad.norm.= ',gnorm
-      else if (present(energy)) then
-        write (atmp,'(a,f22.10)') ' energy= ',energy
-      else
-        atmp = ''
-      end if
-      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
-      self%xyz = self%xyz/bohr !back
-    else
       etmp = self%energy
-      if(present(energy)) self%energy = energy
-      call self%writeextxyz(io)
+      if (present(energy)) self%energy = energy
+      call self%writeextxyz(iunit)
       self%energy = etmp
     end if
     return
-  end subroutine appendlog
+  end subroutine appendcoord
 
 ! ══════════════════════════════════════════════════════════════════════════════
 !  GENERAL UTILITY ROUTINES
