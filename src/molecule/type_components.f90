@@ -74,6 +74,7 @@ module molecule_type_components
 
   type :: extxyz_properties
     integer :: n_props = 0
+    integer :: total_fields = 0
     type(extxyz_property),allocatable :: props(:)
   end type extxyz_properties
 
@@ -228,19 +229,20 @@ contains  !> MODULE PROCEDURES START HERE
 
     n_props = ext_sigs%n_props
     ext_props%n_props = n_props
+    ext_props%total_fields = ext_sigs%total_fields
     allocate (ext_props%props(n_props))
     do ii = 1,n_props
       associate (prop => ext_props%props(ii))
         prop%signat = ext_sigs%signat(ii)
-        prop%natoms = nat 
+        prop%natoms = nat
         n_fields = prop%signat%n_fields
-        select case(prop%signat%p_type)
+        select case (prop%signat%p_type)
         case ('I')
-          allocate(prop%I(n_fields,nat), source=0) 
+          allocate (prop%I(n_fields,nat),source=0)
         case ('R')
-          allocate(prop%R(n_fields,nat), source=0.0_wp) 
+          allocate (prop%R(n_fields,nat),source=0.0_wp)
         case ('S')
-          allocate(prop%S(n_fields,nat), source=repeat(' ',32))
+          allocate (prop%S(n_fields,nat),source=repeat(' ',32))
         end select
       end associate
     end do

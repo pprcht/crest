@@ -51,6 +51,7 @@ module molecule_io
   public :: rdxmol      !-- read a file in the Xmol (.xyz) format specifically
   public :: rdxmolselec !-- read only a certain structure in Xmol file
   public :: rdPDB
+  public :: read_extxyz_frame
 
   !>--- write a TM coord file
   public :: wrc0
@@ -1060,8 +1061,8 @@ contains  !> MODULE PROCEDURES START HERE
       return
     end if
 
-    ! 4. Placeholder: Allocate extxyz_properties based on signatures
-    ! CALL allocate_extxyz_properties_from_sigs(nat, ext_sigs, ext_props)
+    ! 4. Allocate extxyz_properties based on signatures
+    call allocate_extxyz_properties_from_sigs(nat, ext_sigs, ext_props)
 
     ! 5. Read Atom Data Lines
     total_fields = ext_sigs%total_fields
@@ -1074,23 +1075,52 @@ contains  !> MODULE PROCEDURES START HERE
         exit
       end if
 
-      ! Split line into fields based on whitespace
-      ! Note: Implementing a basic list-directed read or custom splitter here
-      read (current_line,*,iostat=ierr) line_fields
-
-      if (ierr /= 0) then
-        print*,"Error: Mismatch between signature fields and data at atom",i
-        success = .false.
-        exit
-      end if
-
       ! 6. Placeholder: Fill entries in extxyz_properties
-      ! CALL fill_atom_properties(line_fields, ext_sigs, ext_props, i)
+      ! CALL fill_atom_properties(current_line, ext_sigs, ext_props, i)
     end do
 
     deallocate (line_fields)
 
   end subroutine read_extxyz_frame
+
+! ──────────────────────────────────────────────────────────────────────────────
+
+  subroutine fill_atom_properties(current_line,ext_sigs,ext_props,i)
+    implicit none
+    character(len=*),intent(in) :: current_line
+    type(extxyz_signatures),intent(in)    :: ext_sigs
+    type(extxyz_properties),intent(inout) :: ext_props
+    integer,intent(in) :: i
+    integer :: ii,jj,kk
+
+    
+
+
+  end subroutine fill_atom_properties
+
+! ──────────────────────────────────────────────────────────────────────────────
+
+  subroutine get_at_from_ext(ext_props,at)
+    implicit none
+    type(extxyz_properties) :: ext_props
+    integer,intent(out),allocatable :: at(:)
+
+    integer :: ii,jj,nat
+
+    do ii = 1,ext_props%n_props
+      associate (prop => ext_props%props(ii))
+        select case (trim(prop%signat%name))
+        case ('species')
+          nat = prop%natoms
+          allocate (at(nat),source=0)
+          do jj = 1,nat
+            at(jj) = e2i(prop%S(1,jj))
+          end do
+        end select
+      end associate
+    end do
+
+  end subroutine get_at_from_ext
 
 !=========================================================================================!
 !=========================================================================================!

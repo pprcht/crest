@@ -135,9 +135,11 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: at(:)
     real(wp),allocatable :: xyz(:,:)
     integer :: ftype
-    integer :: i,j,k,ich,io
-    logical :: ex
+    integer :: i,j,k,ich,io,iunit
+    logical :: ex,success
     real(wp) :: en
+    type(extxyz_signatures) :: ext_sigs
+    type(extxyz_properties) :: ext_props
 
     inquire (file=fname,exist=ex)
     if (.not.ex) then
@@ -157,6 +159,15 @@ contains  !> MODULE PROCEDURES START HERE
       case (coordtype%PDB)
         call rdPDB(fname,nat,at,xyz,self%pdb) ! ← need to fill self%pdb
         xyz = xyz/bohr
+
+      case (coordtype%extxyz)
+        open(newunit=iunit,file=fname)
+        call read_extxyz_frame(iunit,ext_sigs,ext_props,success)
+        close(iunit)
+        if(success)then
+
+        endif
+
       case default
         call rdcoord(fname,nat,at,xyz,energy=en,ftype=ftype)
       end select
