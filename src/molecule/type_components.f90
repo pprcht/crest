@@ -48,6 +48,7 @@ module molecule_type_components
 
   public :: signature,extxyz_signatures,extxyz_properties
   public :: parse_properties_tag,assemble_properties_tag
+  public :: allocate_extxyz_properties_from_sigs
 
   ! Type representing a single property entry (e.g., pos:R:3)
   type :: signature
@@ -215,6 +216,36 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end do
   end subroutine assemble_properties_tag
+
+! ──────────────────────────────────────────────────────────────────────────────
+  subroutine allocate_extxyz_properties_from_sigs(nat,ext_sigs,ext_props)
+    implicit none
+    integer,intent(in) :: nat
+    type(extxyz_signatures),intent(in) :: ext_sigs
+    type(extxyz_properties),intent(out) :: ext_props
+
+    integer :: ii,n_props,n_fields
+
+    n_props = ext_sigs%n_props
+    ext_props%n_props = n_props
+    allocate (ext_props%props(n_props))
+    do ii = 1,n_props
+      associate (prop => ext_props%props(ii))
+        prop%signat = ext_sigs%signat(ii)
+        prop%natoms = nat 
+        n_fields = prop%signat%n_fields
+        select case(prop%signat%p_type)
+        case ('I')
+          allocate(prop%I(n_fields,nat), source=0) 
+        case ('R')
+          allocate(prop%R(n_fields,nat), source=0.0_wp) 
+        case ('S')
+          allocate(prop%S(n_fields,nat), source=repeat(' ',32))
+        end select
+      end associate
+    end do
+
+  end subroutine allocate_extxyz_properties_from_sigs
 
 ! ══════════════════════════════════════════════════════════════════════════════
 ! ══════════════════════════════════════════════════════════════════════════════
