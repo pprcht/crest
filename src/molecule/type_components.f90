@@ -46,7 +46,7 @@ module molecule_type_components
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  public :: signature,extxyz_signatures
+  public :: signature,extxyz_signatures,extxyz_properties
   public :: parse_properties_tag,assemble_properties_tag
 
   ! Type representing a single property entry (e.g., pos:R:3)
@@ -58,10 +58,23 @@ module molecule_type_components
 
   ! Type representing the collection of all properties in the file
   type :: extxyz_signatures
-    type(signature),allocatable :: props(:)
-    integer :: n_props            ! Number of unique property keys
-    integer :: total_fields       ! Total sum of all n_fields (total columns)
+    type(signature),allocatable :: signat(:)
+    integer :: n_props = 0            ! Number of unique property keys
+    integer :: total_fields = 0       ! Total sum of all n_fields (total columns)
   end type extxyz_signatures
+
+  type :: extxyz_property
+    integer :: natoms = 0
+    type(signature) :: signat
+    character(len=32),allocatable :: S(:,:)
+    integer,allocatable           :: I(:,:)
+    real(wp),allocatable          :: R(:,:)
+  end type extxyz_property
+
+  type :: extxyz_properties
+    integer :: n_props = 0
+    type(extxyz_property),allocatable :: props(:)
+  end type extxyz_properties
 
 ! ══════════════════════════════════════════════════════════════════════════════
 contains  !> MODULE PROCEDURES START HERE
@@ -108,7 +121,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  subroutine parse_properties_tag(prop_str,ext_props)
+  subroutine parse_properties_tag(prop_str,ext_sigs)
 !*************************************************************************************
 !*   Parses the "Properties" value string from an extXYZ comment line.               *
 !*   Following the ASE (Atomic Simulation Environment) standard, it decomposes       *
@@ -118,7 +131,7 @@ contains  !> MODULE PROCEDURES START HERE
 !* ARGUMENTS:                                                                        *
 !*   prop_str  [IN]  : The raw string value of the Properties tag.                   *
 !*                     Example: "species:S:1:pos:R:3:forces:R:3"                     *
-!*   ext_props [OUT] : An instance of extxyz_signatures.                             *
+!*   ext_sigs [OUT] : An instance of extxyz_signatures.                             *
 !*                     - Allocates the 'props' array based on the number of triplets.*
 !*                     - Calculates 'total_fields' for buffer allocation.            *
 !*                                                                                   *
@@ -132,7 +145,7 @@ contains  !> MODULE PROCEDURES START HERE
 !*   - It handles both trailing colons and clean endings.                            *
 !*************************************************************************************
     character(len=*),intent(in)        :: prop_str
-    type(extxyz_signatures),intent(out) :: ext_props
+    type(extxyz_signatures),intent(out) :: ext_sigs
 
     integer :: i,start_pos,end_pos,part_count,i_prop
     character(len=len_trim(prop_str)) :: buffer
@@ -144,39 +157,39 @@ contains  !> MODULE PROCEDURES START HERE
       if (prop_str(i:i) == ':') part_count = part_count+1
     end do
 
-    ext_props%n_props = (part_count+1)/3
-    allocate (ext_props%props(ext_props%n_props))
-    ext_props%total_fields = 0
+    ext_sigs%n_props = (part_count+1)/3
+    allocate (ext_sigs%signat(ext_sigs%n_props))
+    ext_sigs%total_fields = 0
 
     ! 2. Parse the triplets
     buffer = trim(prop_str)
     start_pos = 1
 
-    do i_prop = 1,ext_props%n_props
+    do i_prop = 1,ext_sigs%n_props
       ! Extract Name
       end_pos = index(buffer(start_pos:),':')+start_pos-2
-      ext_props%props(i_prop)%name = buffer(start_pos:end_pos)
+      ext_sigs%signat(i_prop)%name = buffer(start_pos:end_pos)
       start_pos = end_pos+2
 
       ! Extract Type (R/S/I)
-      ext_props%props(i_prop)%p_type = buffer(start_pos:start_pos)
+      ext_sigs%signat(i_prop)%p_type = buffer(start_pos:start_pos)
       start_pos = start_pos+2 ! Skip char and following colon
 
       ! Extract Number of Fields
       end_pos = index(buffer(start_pos:),':')+start_pos-2
       if (end_pos < start_pos) end_pos = len_trim(buffer) ! Handle last element
 
-      read (buffer(start_pos:end_pos),*) ext_props%props(i_prop)%n_fields
+      read (buffer(start_pos:end_pos),*) ext_sigs%signat(i_prop)%n_fields
       start_pos = end_pos+2
 
       ! Update global counter
-      ext_props%total_fields = ext_props%total_fields+ext_props%props(i_prop)%n_fields
+      ext_sigs%total_fields = ext_sigs%total_fields+ext_sigs%signat(i_prop)%n_fields
     end do
   end subroutine parse_properties_tag
 
-  subroutine assemble_properties_tag(ext_props,prop_str)
+  subroutine assemble_properties_tag(ext_sigs,prop_str)
     implicit none
-    type(extxyz_signatures),intent(in) :: ext_props
+    type(extxyz_signatures),intent(in) :: ext_sigs
     character(len=*),intent(out)       :: prop_str
 
     integer :: i
@@ -185,19 +198,19 @@ contains  !> MODULE PROCEDURES START HERE
     ! Initialize the string as empty
     prop_str = ""
 
-    do i = 1,ext_props%n_props
+    do i = 1,ext_sigs%n_props
       ! 1. Append the Name
-      prop_str = trim(prop_str)//trim(ext_props%props(i)%name)//":"
+      prop_str = trim(prop_str)//trim(ext_sigs%signat(i)%name)//":"
 
       ! 2. Append the Type (R/S/I)
-      prop_str = trim(prop_str)//ext_props%props(i)%p_type//":"
+      prop_str = trim(prop_str)//ext_sigs%signat(i)%p_type//":"
 
       ! 3. Append the Number of Columns
-      write (col_buffer,'(I0)') ext_props%props(i)%n_fields
+      write (col_buffer,'(I0)') ext_sigs%signat(i)%n_fields
       prop_str = trim(prop_str)//trim(col_buffer)
 
       ! 4. Add a colon separator UNLESS this is the last property
-      if (i < ext_props%n_props) then
+      if (i < ext_sigs%n_props) then
         prop_str = trim(prop_str)//":"
       end if
     end do

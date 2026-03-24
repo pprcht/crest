@@ -115,6 +115,9 @@ contains  !> MODULE PROCEDURES START HERE
     case ('.xyz','.XYZ', &
         & '.trj','.TRJ','.sorted')
       typint = coordtype%xyz
+      if (sgrep(fname,'Properties=',casesensitive=.false.)) then
+        typint = coordtype%extxyz
+      end if
     case ('.extxyz','.EXTXYZ')
       typint = coordtype%extxyz
     case ('.sd','.sdf','.SDF','.mol','.MOL')
@@ -998,6 +1001,97 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine wrsdfV3000_channel
 
+! ──────────────────────────────────────────────────────────────────────────────
+
+  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,success)
+    implicit none
+
+    ! Formal Arguments
+    integer,intent(in)          :: iunit
+    type(extxyz_signatures),intent(inout) :: ext_sigs
+    type(extxyz_properties),intent(inout) :: ext_props
+    logical,intent(out)         :: success
+
+    ! Internal variables
+    integer                      :: nat,i,ierr,total_fields
+    character(len=5000)          :: comment_line
+    character(len=2000)          :: val_str
+    logical                      :: found
+    real(wp)                     :: energy
+    real(wp)                     :: lattice(3,3)
+    real(wp)                     :: lat_raw(9)
+    character(len=128),allocatable :: line_fields(:)
+    character(len=2000)          :: current_line
+
+    success = .true.
+
+    ! 1. Read Number of Atoms (nat)
+    read (iunit,*,iostat=ierr) nat
+    if (ierr /= 0) then
+      success = .false.
+      return
+    end if
+
+    ! 2. Read the long comment line
+    read (iunit,'(A)',iostat=ierr) comment_line
+    if (ierr /= 0) then
+      success = .false.
+      return
+    end if
+
+    ! 3. Extract Key-Value Pairs
+    ! Extract Energy
+    call get_extxyz_value(comment_line,"energy",val_str,found)
+    if (found) read (val_str,*) energy
+
+    ! Extract Lattice
+    call get_extxyz_value(comment_line,"lattice",val_str,found)
+    if (found) then
+      read (val_str,*) lat_raw
+      lattice = reshape(lat_raw, (/3,3/))
+    end if
+
+    ! Extract and Parse Properties Signature
+    call get_extxyz_value(comment_line,"properties",val_str,found)
+    if (found) then
+      call parse_properties_tag(val_str,ext_sigs)
+    else
+      success = .false.
+      return
+    end if
+
+    ! 4. Placeholder: Allocate extxyz_properties based on signatures
+    ! CALL allocate_extxyz_properties_from_sigs(nat, ext_sigs, ext_props)
+
+    ! 5. Read Atom Data Lines
+    total_fields = ext_sigs%total_fields
+    allocate (line_fields(total_fields))
+
+    do i = 1,nat
+      read (iunit,'(A)',iostat=ierr) current_line
+      if (ierr /= 0) then
+        success = .false.
+        exit
+      end if
+
+      ! Split line into fields based on whitespace
+      ! Note: Implementing a basic list-directed read or custom splitter here
+      read (current_line,*,iostat=ierr) line_fields
+
+      if (ierr /= 0) then
+        print*,"Error: Mismatch between signature fields and data at atom",i
+        success = .false.
+        exit
+      end if
+
+      ! 6. Placeholder: Fill entries in extxyz_properties
+      ! CALL fill_atom_properties(line_fields, ext_sigs, ext_props, i)
+    end do
+
+    deallocate (line_fields)
+
+  end subroutine read_extxyz_frame
+
 !=========================================================================================!
 !=========================================================================================!
 !  4. GENERAL UTILITY ROUTINES
@@ -1175,21 +1269,27 @@ contains  !> MODULE PROCEDURES START HERE
 !============================================================!
 ! grep for a keyword within the file
 !============================================================!
-  function sgrep(fname,key)
+  function sgrep(fname,key,casesensitive)
     implicit none
     character(len=*),intent(in) :: fname
     character(len=*),intent(in) :: key
+    logical,intent(in),optional :: casesensitive
     logical :: sgrep,ex
     character(len=256) :: atmp
+    character(len=:),allocatable :: kkey
     integer :: ic,io
     sgrep = .false.
     inquire (file=fname,exist=ex)
     if (.not.ex) return
+    kkey = trim(key)
+    if (present(casesensitive)) then
+      if (.not.casesensitive) kkey = lowercase(key)
+    end if
     open (newunit=ic,file=fname)
     do
       read (ic,'(a)',iostat=io) atmp
       if (io < 0) exit !EOF
-      if (index(atmp,key) .ne. 0) then
+      if (index(atmp,kkey) .ne. 0) then
         sgrep = .true.
         exit
       end if
@@ -1237,7 +1337,6 @@ contains  !> MODULE PROCEDURES START HERE
     grepenergy = energy
     return
   end function grepenergy
-
 ! ──────────────────────────────────────────────────────────────────────────────
 
   subroutine get_extxyz_value(comment_line,key,value,found)
