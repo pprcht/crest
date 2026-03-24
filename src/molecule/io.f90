@@ -1062,7 +1062,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     ! 4. Allocate extxyz_properties based on signatures
-    call allocate_extxyz_properties_from_sigs(nat, ext_sigs, ext_props)
+    call allocate_extxyz_properties_from_sigs(nat,ext_sigs,ext_props)
 
     ! 5. Read Atom Data Lines
     total_fields = ext_sigs%total_fields
@@ -1075,26 +1075,48 @@ contains  !> MODULE PROCEDURES START HERE
         exit
       end if
 
-      ! 6. Placeholder: Fill entries in extxyz_properties
-      ! CALL fill_atom_properties(current_line, ext_sigs, ext_props, i)
+      ! 6. Fill entries in extxyz_properties
+      call fill_atom_properties(current_line,ext_props,i)
     end do
-
-    deallocate (line_fields)
-
   end subroutine read_extxyz_frame
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  subroutine fill_atom_properties(current_line,ext_sigs,ext_props,i)
+  subroutine fill_atom_properties(current_line,ext_props,i)
     implicit none
     character(len=*),intent(in) :: current_line
-    type(extxyz_signatures),intent(in)    :: ext_sigs
     type(extxyz_properties),intent(inout) :: ext_props
     integer,intent(in) :: i
-    integer :: ii,jj,kk
+    integer :: ii,jj,kk,ierr
+    character(len=32),allocatable :: line_fields(:)
 
-    
+    allocate (line_fields(ext_props%total_fields),source=repeat(' ',32))
 
+    read (current_line,*,iostat=ierr) line_fields
+    if (ierr /= 0) then
+      write (stdout,*) '**ERROR** unexpected line fromat in extxyz parsing for atom',i
+    end if
+
+    do ii = 1,ext_props%n_props
+      associate (prop => ext_props%props(ii))
+        kk = 0
+        do jj = 1,prop%signat%n_fields
+          kk = kk+1
+          select case (prop%signat%p_type)
+          case ('S')
+            prop%S(jj,i) = trim(line_fields(kk))
+          case ('I')
+            read (line_fields(kk),*,iostat=ierr) prop%I(jj,i)
+          case ('R')
+            read (line_fields(kk),*,iostat=ierr) prop%S(jj,i)
+          end select
+          if (ierr /= 0) then
+            write (stdout,*) '**ERROR** unexpected line fromat in extxyz parsing for element',jj,'of atom',i
+            return
+          end if
+        end do
+      end associate
+    end do
 
   end subroutine fill_atom_properties
 
@@ -1121,6 +1143,48 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
   end subroutine get_at_from_ext
+
+  subroutine get_xyz_from_ext(ext_props,xyz)
+    implicit none
+    type(extxyz_properties) :: ext_props
+    real(wp),intent(out),allocatable :: xyz(:,:)
+
+    integer :: ii,jj,nat
+
+    do ii = 1,ext_props%n_props
+      associate (prop => ext_props%props(ii))
+        select case (trim(prop%signat%name))
+        case ('pos')
+          nat = prop%natoms
+          allocate (xyz(3,nat),source=0.0_wp)
+          do jj = 1,nat
+            xyz(:,jj) = prop%R(:,jj)
+          end do
+        end select
+      end associate
+    end do
+  end subroutine get_xyz_from_ext
+
+  subroutine get_grad_from_ext(ext_props,grad)
+    implicit none
+    type(extxyz_properties) :: ext_props
+    real(wp),intent(out),allocatable :: grad(:,:)
+
+    integer :: ii,jj,nat
+
+    do ii = 1,ext_props%n_props
+      associate (prop => ext_props%props(ii))
+        select case (trim(prop%signat%name))
+        case ('forces')
+          nat = prop%natoms
+          allocate (grad(3,nat),source=0.0_wp)
+          do jj = 1,nat
+            grad(:,jj) = prop%R(:,jj)*(-autoaa/autoeV)
+          end do
+        end select
+      end associate
+    end do
+  end subroutine get_grad_from_ext
 
 !=========================================================================================!
 !=========================================================================================!
