@@ -78,6 +78,14 @@ module molecule_io
   interface wrsdf
     module procedure wrsdf_channel
   end interface wrsdf
+  public :: wrsdfV2000
+  interface wrsdfV2000
+    module procedure wrsdf_channel
+  end interface wrsdfV2000
+  interface wrsdfV3000
+    module procedure wrsdfV3000_channel
+  end interface wrsdfV3000
+  public :: wrsdfV3000
 
   public :: coordline
   public :: get_atlist
@@ -105,9 +113,10 @@ contains  !> MODULE PROCEDURES START HERE
     case ('.coord','.COORD')
       typint = coordtype%turbomole
     case ('.xyz','.XYZ', &
-        & '.trj','.TRJ','.sorted', &
-        & '.extxyz')
+        & '.trj','.TRJ','.sorted')
       typint = coordtype%xyz
+    case ('.extxyz','.EXTXYZ')
+      typint = coordtype%extxyz
     case ('.sd','.sdf','.SDF','.mol','.MOL')
       typint = coordtype%sdf
       if (sgrep(fname,'V2000')) then
@@ -119,8 +128,9 @@ contains  !> MODULE PROCEDURES START HERE
     case ('.pdb','.PDB')
       typint = coordtype%PDB
     case default
-      typint = 0
+      typint = coordtype%unknown
     end select
+
     if (typint .ne. coordtype%unknown) return !-- file extension was recognized
     !-- grep for keywords otherwise
     if (sgrep(fname,'$coord')) then
@@ -1169,10 +1179,12 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     character(len=*),intent(in) :: fname
     character(len=*),intent(in) :: key
-    logical :: sgrep
+    logical :: sgrep,ex
     character(len=256) :: atmp
     integer :: ic,io
     sgrep = .false.
+    inquire (file=fname,exist=ex)
+    if (.not.ex) return
     open (newunit=ic,file=fname)
     do
       read (ic,'(a)',iostat=io) atmp

@@ -25,9 +25,12 @@ module molecule_parameters
   public :: wp,stdout  !> RE-EXPORTS
 !&<
 !>--- some constants and name mappings
-  real(wp),parameter :: bohr     = 0.52917726_wp
-  real(wp),parameter :: aatoau   = 1.0_wp/bohr
-  real(wp),parameter :: autokcal = 627.509541_wp
+  real(wp),parameter,public :: bohr     = 0.52917726_wp
+  real(wp),parameter,public :: aatoau   = 1.0_wp/bohr
+  real(wp),parameter,public :: autoaa   = bohr
+  real(wp),parameter,public :: autokcal = 627.509541_wp
+  real(wp),parameter,public :: autoeV   = 27.211324570273_wp
+
 !>-- filetypes as integers
   type ,private:: enum_coordtype
     integer :: unknown    = 0

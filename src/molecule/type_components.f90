@@ -46,7 +46,8 @@ module molecule_type_components
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  public :: signature,extxyz_signatures,parse_properties_tag
+  public :: signature,extxyz_signatures
+  public :: parse_properties_tag,assemble_properties_tag
 
   ! Type representing a single property entry (e.g., pos:R:3)
   type :: signature
@@ -172,6 +173,35 @@ contains  !> MODULE PROCEDURES START HERE
       ext_props%total_fields = ext_props%total_fields+ext_props%props(i_prop)%n_fields
     end do
   end subroutine parse_properties_tag
+
+  subroutine assemble_properties_tag(ext_props,prop_str)
+    implicit none
+    type(extxyz_signatures),intent(in) :: ext_props
+    character(len=*),intent(out)       :: prop_str
+
+    integer :: i
+    character(len=16) :: col_buffer ! Temporary buffer for integer conversion
+
+    ! Initialize the string as empty
+    prop_str = ""
+
+    do i = 1,ext_props%n_props
+      ! 1. Append the Name
+      prop_str = trim(prop_str)//trim(ext_props%props(i)%name)//":"
+
+      ! 2. Append the Type (R/S/I)
+      prop_str = trim(prop_str)//ext_props%props(i)%p_type//":"
+
+      ! 3. Append the Number of Columns
+      write (col_buffer,'(I0)') ext_props%props(i)%n_fields
+      prop_str = trim(prop_str)//trim(col_buffer)
+
+      ! 4. Add a colon separator UNLESS this is the last property
+      if (i < ext_props%n_props) then
+        prop_str = trim(prop_str)//":"
+      end if
+    end do
+  end subroutine assemble_properties_tag
 
 ! ══════════════════════════════════════════════════════════════════════════════
 ! ══════════════════════════════════════════════════════════════════════════════

@@ -79,12 +79,14 @@ module molecule_type
     type(pdbdata) :: pdb
 
     !>-- extxyz signature
+    logical :: wrextxyz = .false.
     type(extxyz_signatures),allocatable :: extxyz
 
   contains
     procedure :: deallocate => deallocate_coord !> clear memory space
     procedure :: open => opencoord              !> read an coord file
-    procedure :: write => writecoord            !> write
+    procedure :: write => writecoord            !> write (detected from file extension)
+    procedure :: writeextxyz => write_extxyz    !> write extxyz file to a given iunit
     procedure :: append => appendcoord          !> append
     procedure :: get => getcoord                !> allocate & fill with data
     procedure :: appendlog                      !> append .log file with coordinates and energy
@@ -139,7 +141,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     inquire (file=fname,exist=ex)
     if (.not.ex) then
-      write(stdout,'(a)') '**ERROR** could not find coord file '//trim(fname) 
+      write (stdout,'(a)') '**ERROR** could not find coord file '//trim(fname)
       call exit(1)
     end if
 
@@ -163,8 +165,8 @@ contains  !> MODULE PROCEDURES START HERE
       call move_alloc(at,self%at)
       call move_alloc(xyz,self%xyz)
     else
-      write(stdout,'(a)') '**ERROR** Format issue while reading coord file '//trim(fname) 
-      write(stdout,'(a)') '          Number of atoms detected as zero!'
+      write (stdout,'(a)') '**ERROR** Format issue while reading coord file '//trim(fname)
+      write (stdout,'(a)') '          Number of atoms detected as zero!'
       call exit(1)
     end if
 
@@ -333,6 +335,60 @@ contains  !> MODULE PROCEDURES START HERE
 !  ROUTINES FOR WRITING STRUCTURES AND CONVERTING THEM
 ! ══════════════════════════════════════════════════════════════════════════════
 
+  subroutine write_extxyz(self,iunit)
+!************************************************************************
+!* Write an extended xyz file from the coord object.                    *
+!* By convention energies will be in eV for extxyz!                     *
+!* By convention (and if present), forces will be in eV/Ang for extxyz! *
+!************************************************************************
+    class(coord) :: self
+    integer,intent(in) :: iunit !> assue the unit is open for writing
+
+    character(len=200) :: atmp
+    real(wp) :: eeV
+    integer :: ii
+    real(wp),parameter :: grad2force = -autoeV/autoaa
+
+    !> print number of atoms
+    write (iunit,'(i10)') self%nat
+
+    !> construct ext comment line bit by bit
+    eeV = self%energy*autoeV
+    write (atmp,'(f20.10)') eeV
+    write (iunit,'(a,a)',advance='no') trim('energy='//adjustl(atmp)),' '
+    if (allocated(self%lat)) then
+      write (iunit,'(a)',advance='no') 'Lattice="'
+      write (iunit,'(9f15.8)',advance='no') reshape(self%lat, [9])
+      write (iunit,'(a)',advance='no') '" '
+    end if
+    if (allocated(self%extxyz)) then
+      call assemble_properties_tag(self%extxyz,atmp)
+    else if (allocated(self%gradient)) then
+      write (atmp,'("species:S:1:pos:R:3:forces:R:3")')
+    else
+      write (atmp,'("species:S:1:pos:R:3")')
+    end if
+    write (iunit,'(a,a,a)',advance='no') 'Properties=',trim(atmp),' ' 
+    write (iunit,*)
+
+    !> coord block
+    if (allocated(self%extxyz)) then
+      write (stdout,*) '**ERROR** This extxyz write function is TODO'
+      call exit(1)
+    else if (allocated(self%gradient)) then
+      do ii = 1,self%nat
+        write (iunit,'(1x,a2,1x,6f20.10)')  &
+        &  i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa,self%gradient(1:3,ii)*grad2force
+      end do
+    else
+      do ii = 1,self%nat
+        write (iunit,'(1x,a2,1x,3f20.10)') i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa
+      end do
+    end if
+  end subroutine write_extxyz
+
+! ──────────────────────────────────────────────────────────────────────────────
+
   subroutine xyz2coord(iname,oname)
 !***********************************************
 !* subroutine xyz2coord                        *
@@ -383,17 +439,47 @@ contains  !> MODULE PROCEDURES START HERE
     class(coord) :: self
     character(len=*),intent(in) :: fname
     character(len=80) :: comment
+    integer :: ftype,iunit
     if (.not.allocated(self%xyz)) then
-      write (*,*) 'Cannot write ',trim(fname),'. not allocated'
+      write (stdout,*) 'Cannot write ',trim(fname),'. No coordinates allocated'
     end if
-    if (index(fname,'.xyz') .ne. 0) then
-      write (comment,'(a,G0.12)') '  energy= ',self%energy
-      self%xyz = self%xyz*bohr !to Angström
-      call wrxyz(fname,self%nat,self%at,self%xyz,comment)
-      self%xyz = self%xyz/bohr !back
-    else
-      call wrc0(fname,self%nat,self%at,self%xyz)
-    end if
+    call checkcoordtype(fname,ftype)
+    open (newunit=iunit,file=trim(fname))
+    select case (ftype)
+    case (coordtype%xyz)
+      if (self%wrextxyz) then
+        call self%writeextxyz(iunit)
+      else
+        call wrxyz(iunit,self%nat,self%at,self%xyz*autoaa,self%energy)
+      end if
+
+    case (coordtype%extxyz)
+      call self%writeextxyz(iunit)
+
+    case (coordtype%sdf,coordtype%sdfV3000)
+      call wrsdfV3000(iunit,self%nat,self%at,self%xyz*autoaa, &
+        & self%energy,real(self%chrg,wp),real(self%bond,wp),' written by CREST')
+
+    case (coordtype%sdfV2000)
+      call wrsdfV2000(iunit,self%nat,self%at,self%xyz*autoaa, &
+        & self%energy,self%chrg,real(self%bond,wp),' written by CREST')
+
+    case (coordtype%PDB)
+      write (stdout,'(a)') '**ERROR** PDB file writer not implemented, TODO'
+      call exit(1)
+    case default
+      !> defaults to Turbomole coord type
+      call wrc0(iunit,self%nat,self%at,self%xyz)
+    end select
+    close (iunit)
+    !if (index(fname,'.xyz') .ne. 0) then
+    !  write (comment,'(a,G0.12)') '  energy= ',self%energy
+    !  self%xyz = self%xyz*bohr !to Angström
+    !  call wrxyz(fname,self%nat,self%at,self%xyz,comment)
+    !  self%xyz = self%xyz/bohr !back
+    !else
+    !  call wrc0(fname,self%nat,self%at,self%xyz)
+    !end if
     return
   end subroutine writecoord
 
