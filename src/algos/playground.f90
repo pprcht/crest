@@ -77,7 +77,12 @@ subroutine crest_playground(env,tim)
 !  call calculation_summary(calc,mol,energy,grad)
 !========================================================================================!
 
+  allocate(mol%gradient(3,mol%nat), source=1.0_wp)
+  call mol%write('dummy.extxyz')
 
+
+  call molnew%open("dummy.extxyz")
+  !call molnew%write("dummy2.extxyz")
 !========================================================================================!
   call tim%stop(14)
   return

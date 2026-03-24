@@ -52,6 +52,7 @@ module molecule_io
   public :: rdxmolselec !-- read only a certain structure in Xmol file
   public :: rdPDB
   public :: read_extxyz_frame
+  public :: get_at_from_ext,get_xyz_from_ext,get_grad_from_ext
 
   !>--- write a TM coord file
   public :: wrc0
@@ -179,7 +180,7 @@ contains  !> MODULE PROCEDURES START HERE
     open (newunit=ich,file=fname)
     select case (ftypedum)
 
-    case (coordtype%xyz)       !--- *.xyz files
+    case (coordtype%xyz,coordtype%extxyz)  !--- *.xyz files
       read (ich,*,iostat=io) nat
 
     case (coordtype%turbomole)      !--- TM coord file
@@ -1004,13 +1005,15 @@ contains  !> MODULE PROCEDURES START HERE
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,success)
+  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,energy,lat,success)
     implicit none
 
     ! Formal Arguments
     integer,intent(in)          :: iunit
     type(extxyz_signatures),intent(inout) :: ext_sigs
     type(extxyz_properties),intent(inout) :: ext_props
+    real(wp),intent(out) :: energy
+    real(wp),intent(out),allocatable :: lat(:,:)
     logical,intent(out)         :: success
 
     ! Internal variables
@@ -1018,7 +1021,6 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=5000)          :: comment_line
     character(len=2000)          :: val_str
     logical                      :: found
-    real(wp)                     :: energy
     real(wp)                     :: lattice(3,3)
     real(wp)                     :: lat_raw(9)
     character(len=128),allocatable :: line_fields(:)
@@ -1042,18 +1044,21 @@ contains  !> MODULE PROCEDURES START HERE
 
     ! 3. Extract Key-Value Pairs
     ! Extract Energy
-    call get_extxyz_value(comment_line,"energy",val_str,found)
+    call get_key_value(comment_line,"energy",val_str,found,case_sensitive=.false.)
     if (found) read (val_str,*) energy
 
     ! Extract Lattice
-    call get_extxyz_value(comment_line,"lattice",val_str,found)
+    call get_key_value(comment_line,"lattice",val_str,found,case_sensitive=.false.)
     if (found) then
       read (val_str,*) lat_raw
       lattice = reshape(lat_raw, (/3,3/))
+      allocate (lat(3,3))
+      lat = lattice
     end if
 
     ! Extract and Parse Properties Signature
-    call get_extxyz_value(comment_line,"properties",val_str,found)
+    call get_extxyz_value(comment_line,"Properties",val_str,found)
+    call get_key_value(comment_line,'Properties',val_str,found,case_sensitive=.false.)
     if (found) then
       call parse_properties_tag(val_str,ext_sigs)
     else
@@ -1097,9 +1102,9 @@ contains  !> MODULE PROCEDURES START HERE
       write (stdout,*) '**ERROR** unexpected line fromat in extxyz parsing for atom',i
     end if
 
+    kk = 0
     do ii = 1,ext_props%n_props
       associate (prop => ext_props%props(ii))
-        kk = 0
         do jj = 1,prop%signat%n_fields
           kk = kk+1
           select case (prop%signat%p_type)
@@ -1108,7 +1113,7 @@ contains  !> MODULE PROCEDURES START HERE
           case ('I')
             read (line_fields(kk),*,iostat=ierr) prop%I(jj,i)
           case ('R')
-            read (line_fields(kk),*,iostat=ierr) prop%S(jj,i)
+            read (line_fields(kk),*,iostat=ierr) prop%R(jj,i)
           end select
           if (ierr /= 0) then
             write (stdout,*) '**ERROR** unexpected line fromat in extxyz parsing for element',jj,'of atom',i
@@ -1136,7 +1141,7 @@ contains  !> MODULE PROCEDURES START HERE
           nat = prop%natoms
           allocate (at(nat),source=0)
           do jj = 1,nat
-            at(jj) = e2i(prop%S(1,jj))
+            at(jj) = e2i(trim(prop%S(1,jj)))
           end do
         end select
       end associate
@@ -1158,7 +1163,7 @@ contains  !> MODULE PROCEDURES START HERE
           nat = prop%natoms
           allocate (xyz(3,nat),source=0.0_wp)
           do jj = 1,nat
-            xyz(:,jj) = prop%R(:,jj)
+            xyz(:,jj) = prop%R(:,jj)*aatoau
           end do
         end select
       end associate
@@ -1488,6 +1493,76 @@ contains  !> MODULE PROCEDURES START HERE
       value = comment_line(val_start:val_end)
     end if
   end subroutine get_extxyz_value
+
+  subroutine get_key_value(input_str,key,value,success,case_sensitive)
+    implicit none
+
+    ! Arguments
+    character(len=*),intent(in)          :: input_str     ! The full string to search
+    character(len=*),intent(in)          :: key           ! The key to look for
+    character(len=*),intent(out)         :: value         ! The extracted value
+    logical,intent(out)         :: success       ! True if found and parsed
+    logical,intent(in),optional :: case_sensitive ! Toggle case sensitivity
+
+    ! Internal variables
+    integer :: key_len,str_len,start_pos,val_start,val_end
+    character(len=len(input_str)) :: search_str,search_key
+    character(len=1) :: quote_char
+    logical :: sensitive
+
+    ! Initialize
+    success = .false.
+    value = ""
+    sensitive = .true.
+    if (present(case_sensitive)) sensitive = case_sensitive
+
+    key_len = len_trim(key)
+    str_len = len_trim(input_str)
+
+    ! Prepare strings for case-insensitive search if requested
+    if (.not.sensitive) then
+      search_str = lowercase(input_str)
+      search_key = lowercase(key)
+    else
+      search_str = input_str
+      search_key = key
+    end if
+
+    ! Find key followed immediately by '='
+    ! Note: Searching for 'key=' to satisfy the "no whitespace" requirement
+    start_pos = index(search_str,trim(search_key)//'=')
+
+    if (start_pos > 0) then
+      ! Value starts right after 'key='
+      val_start = start_pos+key_len+1
+
+      ! Check for quotes
+      quote_char = input_str(val_start:val_start)
+
+      if (quote_char == '"'.or.quote_char == "'") then
+        ! Handle quoted value
+        val_start = val_start+1
+        ! Find the closing quote starting from the next character
+        val_end = index(input_str(val_start:),quote_char)
+
+        if (val_end > 0) then
+          val_end = val_start+val_end-2
+          value = input_str(val_start:val_end)
+          success = .true.
+        end if
+      else
+        ! Handle unquoted value (extract until next space or end of string)
+        val_end = index(input_str(val_start:)," ")
+        if (val_end == 0) then
+          val_end = str_len
+        else
+          val_end = val_start+val_end-2
+        end if
+        value = input_str(val_start:val_end)
+        success = .true.
+      end if
+    end if
+  end subroutine get_key_value
 
 ! ──────────────────────────────────────────────────────────────────────────────
 

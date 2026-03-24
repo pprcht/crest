@@ -64,7 +64,7 @@ module molecule_type
     !>-- multiplicity information
     integer :: uhf = 0
     !>--- gradient
-    real(wp),allocatable :: grad(:,:)
+    !real(wp),allocatable :: grad(:,:)
     !>-- number of bonds
     integer :: nbd = 0
     !>-- bond info
@@ -134,6 +134,8 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: nat
     integer,allocatable :: at(:)
     real(wp),allocatable :: xyz(:,:)
+    real(wp),allocatable :: grad(:,:)
+    real(wp),allocatable :: lat(:,:)
     integer :: ftype
     integer :: i,j,k,ich,io,iunit
     logical :: ex,success
@@ -161,15 +163,24 @@ contains  !> MODULE PROCEDURES START HERE
         xyz = xyz/bohr
 
       case (coordtype%extxyz)
-        open(newunit=iunit,file=fname)
-        call read_extxyz_frame(iunit,ext_sigs,ext_props,success)
-        close(iunit)
-        if(success)then
-
-        endif
+        open (newunit=iunit,file=fname)
+        call read_extxyz_frame(iunit,ext_sigs,ext_props,en,lat,success)
+        close (iunit)
+        if (success) then
+          call get_at_from_ext(ext_props,at)
+          call get_xyz_from_ext(ext_props,xyz)
+          call get_grad_from_ext(ext_props,grad)
+          self%nat = nat
+          self%energy = en
+          call move_alloc(at,self%at)
+          call move_alloc(xyz,self%xyz)
+          if(allocated(lat)) call move_alloc(lat,self%lat)
+          if(allocated(grad)) call move_alloc(grad,self%gradient)
+        end if
 
       case default
         call rdcoord(fname,nat,at,xyz,energy=en,ftype=ftype)
+
       end select
       self%nat = nat
       self%energy = en
@@ -379,7 +390,7 @@ contains  !> MODULE PROCEDURES START HERE
     else
       write (atmp,'("species:S:1:pos:R:3")')
     end if
-    write (iunit,'(a,a,a)',advance='no') 'Properties=',trim(atmp),' ' 
+    write (iunit,'(a,a,a)',advance='no') 'Properties=',trim(atmp),' '
     write (iunit,*)
 
     !> coord block
