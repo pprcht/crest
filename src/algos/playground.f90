@@ -82,7 +82,7 @@ subroutine crest_playground(env,tim)
 
 
   call molnew%open("dummy.extxyz")
-  !call molnew%write("dummy2.extxyz")
+  call molnew%write("dummy2.extxyz")
 !========================================================================================!
   call tim%stop(14)
   return

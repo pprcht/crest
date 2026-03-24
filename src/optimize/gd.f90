@@ -153,6 +153,7 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%nat = mol%nat
     molopt%at = mol%at
     molopt%xyz = mol%xyz
+    molopt%wrextxyz = calc%logextxyz
     estart = etot
     gnorm = 0.0_wp
     depred = 0.0_wp

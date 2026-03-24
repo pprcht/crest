@@ -1131,9 +1131,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(extxyz_properties) :: ext_props
     integer,intent(out),allocatable :: at(:)
-
     integer :: ii,jj,nat
-
     do ii = 1,ext_props%n_props
       associate (prop => ext_props%props(ii))
         select case (trim(prop%signat%name))
@@ -1146,16 +1144,13 @@ contains  !> MODULE PROCEDURES START HERE
         end select
       end associate
     end do
-
   end subroutine get_at_from_ext
 
   subroutine get_xyz_from_ext(ext_props,xyz)
     implicit none
     type(extxyz_properties) :: ext_props
     real(wp),intent(out),allocatable :: xyz(:,:)
-
     integer :: ii,jj,nat
-
     do ii = 1,ext_props%n_props
       associate (prop => ext_props%props(ii))
         select case (trim(prop%signat%name))
@@ -1174,9 +1169,7 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(extxyz_properties) :: ext_props
     real(wp),intent(out),allocatable :: grad(:,:)
-
     integer :: ii,jj,nat
-
     do ii = 1,ext_props%n_props
       associate (prop => ext_props%props(ii))
         select case (trim(prop%signat%name))

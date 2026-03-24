@@ -75,6 +75,7 @@ contains  !> MODULE PROCEDURES START HERE
     molnew%at = mol%at
     molnew%xyz = mol%xyz
     molnew%nat = mol%nat
+    molnew%wrextxyz = .true.
     !$omp end critical
     nat3 = 3*mol%nat
 

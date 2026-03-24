@@ -168,8 +168,12 @@ contains !>  MODULE PROCEDURES START HERE
     econverged = .false.
     gconverged = .false.
     converged = .false.
+    mol%wrextxyz = calc%logextxyz
 
     open (newunit=ilog,file='crestopt.log.xyz')
+    if(calc%logextxyz)then
+      mol%gradient = grd
+    endif
     call mol%appendlog(ilog,etot)
 
     !$omp critical

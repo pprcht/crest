@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2021 - 2022 Philipp Pracht
+! Copyright (C) 2026 Lukas Rindt
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -209,6 +209,7 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%nat = mol%nat
     molopt%at = mol%at
     molopt%xyz = mol%xyz
+    molopt%wrextxyz = calc%logextxyz
     estart = etot
 
 !>--- initialize .log file, if desired

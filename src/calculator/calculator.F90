@@ -308,6 +308,16 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end if
 
+!*********************************************
+!>--- store some outptut data to mol itself?
+!*********************************************
+    mol%energy = energy
+    if (allocated(mol%gradient).or.mol%wrextxyz) then
+      !$omp critical
+      mol%gradient = gradient
+      !$omp end critical
+    end if
+
     return
   end subroutine engrad_mol
 

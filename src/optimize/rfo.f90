@@ -217,6 +217,7 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%nat = mol%nat
     molopt%at = mol%at
     molopt%xyz = mol%xyz
+    molopt%wrextxyz = calc%logextxyz
     estart = etot
     !energy = etot
 

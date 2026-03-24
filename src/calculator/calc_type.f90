@@ -275,6 +275,7 @@ module calc_type
     integer  :: opt_engine = 0 !> default: ANCOPT
     integer  :: lbfgs_histsize = 20  !> L-BFGS history size
     integer  :: hess_init = 5 !> Initialization of the hessian, standard modhess lindh95
+    logical  :: logextxyz = .true.  !> write extended xyz files from optimization trajectories
 
 !>--- GFN0* data, needed for special MECP application
     type(gfn0_data),allocatable  :: g0calc

@@ -170,12 +170,8 @@ contains  !> MODULE PROCEDURES START HERE
           call get_at_from_ext(ext_props,at)
           call get_xyz_from_ext(ext_props,xyz)
           call get_grad_from_ext(ext_props,grad)
-          self%nat = nat
-          self%energy = en
-          call move_alloc(at,self%at)
-          call move_alloc(xyz,self%xyz)
-          if(allocated(lat)) call move_alloc(lat,self%lat)
-          if(allocated(grad)) call move_alloc(grad,self%gradient)
+          if (allocated(lat)) call move_alloc(lat,self%lat)
+          if (allocated(grad)) call move_alloc(grad,self%gradient)
         end if
 
       case default
@@ -515,16 +511,21 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: io
     character(len=64) :: atmp
     character(len=32) :: btmp
-    self%xyz = self%xyz*bohr !to Angström
-    write (btmp,'(f22.10)') self%energy
-    write (atmp,'(a,a)') ' energy= ',adjustl(btmp)
-    if (allocated(self%comment)) then
-      call wrxyz(io,self%nat,self%at,self%xyz, &
-      &          trim(atmp)//' '//trim(self%comment))
+    if (.not.self%wrextxyz) then !> regular xyz append
+      self%xyz = self%xyz*bohr !to Angström
+      write (btmp,'(f22.10)') self%energy
+      write (atmp,'(a,a)') ' energy= ',adjustl(btmp)
+      if (allocated(self%comment)) then
+        call wrxyz(io,self%nat,self%at,self%xyz, &
+        &          trim(atmp)//' '//trim(self%comment))
+      else
+        call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
+      end if
+      self%xyz = self%xyz/bohr !back
     else
-      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
+      !> extxyz append
+      call self%writeextxyz(io)
     end if
-    self%xyz = self%xyz/bohr !back
     return
   end subroutine appendcoord
 
@@ -536,16 +537,24 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),optional :: energy
     real(wp),optional :: gnorm
     character(len=64) :: atmp
-    self%xyz = self%xyz*bohr !to Angström
-    if (present(gnorm).and.present(energy)) then
-      write (atmp,'(a,f22.10,a,f16.8)') ' energy= ',energy,' grad.norm.= ',gnorm
-    else if (present(energy)) then
-      write (atmp,'(a,f22.10)') ' energy= ',energy
+    real(wp) :: etmp,gtmp
+    if (.not.self%wrextxyz) then
+      self%xyz = self%xyz*bohr !to Angström
+      if (present(gnorm).and.present(energy)) then
+        write (atmp,'(a,f22.10,a,f16.8)') ' energy= ',energy,' grad.norm.= ',gnorm
+      else if (present(energy)) then
+        write (atmp,'(a,f22.10)') ' energy= ',energy
+      else
+        atmp = ''
+      end if
+      call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
+      self%xyz = self%xyz/bohr !back
     else
-      atmp = ''
+      etmp = self%energy
+      if(present(energy)) self%energy = energy
+      call self%writeextxyz(io)
+      self%energy = etmp
     end if
-    call wrxyz(io,self%nat,self%at,self%xyz,trim(atmp))
-    self%xyz = self%xyz/bohr !back
     return
   end subroutine appendlog
 

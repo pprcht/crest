@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2021 - 2022 Philipp Pracht
+! Copyright (C) 2021 - 2026 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -122,7 +122,7 @@ contains  !> MODULE PROCEDURES START HERE
     hmax = calc%hmax_opt
     maxdispl = calc%maxdispl_opt
     s6 = mhset%s6 !> slightly better than 30 for various proteins
-    mhset%model=calc%mh_type
+    mhset%model = calc%mh_type
 
 !> initial number of steps in relax() routine before
 !> new ANC are made by model Hessian
@@ -167,6 +167,7 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%nat = mol%nat
     molopt%at = mol%at
     molopt%xyz = mol%xyz
+    molopt%wrextxyz = calc%logextxyz
     estart = etot
 
 !>--- initialize .log file, if desired
@@ -428,18 +429,6 @@ contains  !> MODULE PROCEDURES START HERE
         exit main_loop
       end if
 
-      !if (present(avconv)) then
-      !  call avconv%set_eg_log(energy,gnorm)
-      !  energy = avconv%get_averaged_energy()
-      !  gnorm = avconv%get_averaged_gradient()
-      !  if (pr) then
-      !    write (*,'("av. E:",1x,f14.7,1x,"->",1x,f14.7)') &
-      !      avconv%elog(avconv%nlog),energy
-      !    write (*,'("av. G:",1x,f14.7,1x,"->",1x,f14.7)') &
-      !      avconv%glog(avconv%nlog),gnorm
-      !  end if
-      !end if
-
 !>--- check for convergence
       gchng = gnorm-gnold
       echng = energy-eold
@@ -644,12 +633,12 @@ contains  !> MODULE PROCEDURES START HERE
 !****************************************************
 !* Computes stepsize scaling factor
 !****************************************************
-    real(wp), intent(in) :: gnorm  
-    real(wp) :: alp, shift, l, k
+    real(wp),intent(in) :: gnorm
+    real(wp) :: alp,shift,l,k
 
-    l=2.0_wp
-    k=2000.0
-    shift=0.0005
+    l = 2.0_wp
+    k = 2000.0
+    shift = 0.0005
 
     alp = L/(1+euler**(k*(gnorm-shift)))+1
 
