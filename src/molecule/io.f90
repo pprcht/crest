@@ -33,7 +33,7 @@ module molecule_io
 
 !>--- private utility subroutines
   private :: upperCase,lowerCase
-  private :: convertlable,fextension,sgrep
+  private :: convertlable,fextension
 
 ! ──────────────────────────────────────────────────────────────────────────────
 !>--- public subroutines
@@ -90,6 +90,7 @@ module molecule_io
   public :: wrsdfV3000
 
   public :: coordline
+  public :: sgrep
   public :: get_atlist
   public :: sumform
 
@@ -1005,19 +1006,20 @@ contains  !> MODULE PROCEDURES START HERE
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,energy,lat,success)
+  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success)
     implicit none
 
     ! Formal Arguments
     integer,intent(in)          :: iunit
-    type(extxyz_signatures),intent(inout) :: ext_sigs
-    type(extxyz_properties),intent(inout) :: ext_props
+    type(extxyz_signatures),intent(out) :: ext_sigs
+    type(extxyz_properties),intent(out) :: ext_props
+    integer,intent(out)  :: nat
     real(wp),intent(out) :: energy
     real(wp),intent(out),allocatable :: lat(:,:)
     logical,intent(out)         :: success
 
     ! Internal variables
-    integer                      :: nat,i,ierr,total_fields
+    integer                      :: i,ierr,total_fields
     character(len=5000)          :: comment_line
     character(len=2000)          :: val_str
     logical                      :: found
@@ -1367,7 +1369,8 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=*),intent(in) :: key
     logical,intent(in),optional :: casesensitive
     logical :: sgrep,ex
-    character(len=256) :: atmp
+    logical :: convert = .false.
+    character(len=5000) :: atmp
     character(len=:),allocatable :: kkey
     integer :: ic,io
     sgrep = .false.
@@ -1375,15 +1378,25 @@ contains  !> MODULE PROCEDURES START HERE
     if (.not.ex) return
     kkey = trim(key)
     if (present(casesensitive)) then
-      if (.not.casesensitive) kkey = lowercase(key)
+      if (.not.casesensitive)then
+        kkey = lowercase(key)
+        convert = .true.
+      endif
     end if
     open (newunit=ic,file=fname)
     do
       read (ic,'(a)',iostat=io) atmp
       if (io < 0) exit !EOF
-      if (index(atmp,kkey) .ne. 0) then
-        sgrep = .true.
-        exit
+      if (convert) then
+        if (index(lowercase(atmp),kkey) .ne. 0) then
+          sgrep = .true.
+          exit
+        end if
+      else
+        if (index(atmp,kkey) .ne. 0) then
+          sgrep = .true.
+          exit
+        end if
       end if
     end do
     close (ic)

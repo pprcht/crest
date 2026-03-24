@@ -162,7 +162,7 @@ contains  !> MODULE PROCEDURES START HERE
 
       case (coordtype%extxyz)
         open (newunit=iunit,file=fname)
-        call read_extxyz_frame(iunit,ext_sigs,ext_props,en,lat,success)
+        call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,en,lat,success)
         close (iunit)
         if (success) then
           call get_at_from_ext(ext_props,at)

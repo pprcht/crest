@@ -83,6 +83,15 @@ subroutine crest_playground(env,tim)
 
   call molnew%open("dummy.extxyz")
   call molnew%write("dummy2.extxyz")
+
+
+  block
+    type(coord),allocatable :: structures(:)
+    integer :: nall
+    call rdensemble(env%inputcoords,nall,structures)
+    write(*,*) nall,'structures read from ',env%inputcoords
+    call wrensemble('dummyensemble.xyz',nall,structures)
+  end block
 !========================================================================================!
   call tim%stop(14)
   return

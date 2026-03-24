@@ -17,11 +17,23 @@
 ! along with crest.  If not, see <https://www.gnu.org/licenses/>.
 !================================================================================!
 
+
+
+! ══════════════════════════════════════════════════════════════════════════════
+!
+! NOTE: While there are the two types "ensemble" and "mollist", the best way 
+!       to handle a list of structures is as "type(coord),allocatable :: structures(:)"
+!       which is mapped in the rdensemble_coord_type routine to rdensemble.
+!       Both of the other types wrap that, but it would be better to not use them.
+!
+! ──────────────────────────────────────────────────────────────────────────────
+
 module molecule_type_ensemble
   use iso_c_binding
   use molecule_parameters
   use molecule_io
   use molecule_type
+  use molecule_type_components
   implicit none
 
 ! ══════════════════════════════════════════════════════════════════════════════
@@ -393,13 +405,15 @@ contains  !> MODULE PROCEDURES START HERE
     return
   end subroutine rdensemble_mixed2
 
-!========================================================================================!
+! ══════════════════════════════════════════════════════════════════════════════
+!> most important routine in this module: read into a list of coord objects!
+! ══════════════════════════════════════════════════════════════════════════════
   subroutine rdensemble_coord_type(fname,nall,structures)
-!*********************************************************
-!* subroutine rdensemble_coord_type
-!* A variant of the rdensemble routine that automatically
-!* produces an array of coord containers
-!*********************************************************
+!**********************************************************
+!* subroutine rdensemble_coord_type                       *
+!* A variant of the rdensemble routine that automatically *
+!* produces an array of coord containers                  *
+!**********************************************************
     implicit none
     character(len=*),intent(in) :: fname !> name of the ensemble file
     integer,intent(out) :: nall  !> number of structures in ensemble
@@ -412,32 +426,63 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: ats(:,:)
     real(wp),allocatable :: eread(:)
     character(len=512),allocatable :: comments(:)
-    integer :: i,j,k,ich,io,nat_i
-    logical :: ex,multiple_sizes
+    integer :: i,j,k,ich,io,nat_i,iunit,ii
+    logical :: ex,multiple_sizes,is_extxyz,success
+
+    type(extxyz_signatures) :: ext_sigs
+    type(extxyz_properties) :: ext_props
+    real(wp),allocatable :: exyz(:,:),egrd(:,:),lat(:,:)
+    integer,allocatable :: eat(:)
+    reaL(wp) :: energy
+
+    is_extxyz = sgrep(fname,'Properties=',casesensitive=.false.)
 
     call rdensembleparam(fname,nat,nall,multiple_sizes)
-    !>--- multiple sizes
-    allocate (structures(nall))
-    allocate (xyz(3,nat,nall),ats(nat,nall),nats(nall),eread(nall))
-    allocate (comments(nall))
-    call rdensemble_mixed2(fname,nat,nall,nats,ats,xyz,comments)
-    !>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<!
-    !>--- Important: coord types must be in Bohrs
-    xyz = xyz/bohr
-    !>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<!
-    do i = 1,nall
-      nat_i = nats(i)
-      structures(i)%nat = nats(i)
-      allocate (structures(i)%at(nat_i))
-      structures(i)%at(:) = ats(1:nat_i,i)
-      allocate (structures(i)%xyz(3,nat_i))
-      structures(i)%xyz(:,:) = xyz(1:3,1:nat_i,i)
-      eread(i) = grepenergy(comments(i))
-      structures(i)%energy = eread(i)
-      structures(i)%comment = trim(comments(i))
-    end do
 
-    deallocate (comments,eread,nats,ats,xyz)
+    !>--- multiple sizes possible
+    allocate (structures(nall))
+
+    if (is_extxyz) then
+      !>-- extended xyz case
+      open (newunit=iunit,file=trim(fname))
+      do ii = 1,nall
+        call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success)
+        if (success) then
+          call get_at_from_ext(ext_props,eat)
+          call get_xyz_from_ext(ext_props,exyz)
+          call get_grad_from_ext(ext_props,egrd)
+          if (allocated(eat)) call move_alloc(eat,structures(ii)%at)
+          if(allocated(exyz)) call move_alloc(exyz,structures(ii)%xyz)
+          if (allocated(lat)) call move_alloc(lat,structures(ii)%lat)
+          if (allocated(egrd)) call move_alloc(egrd,structures(ii)%gradient)
+          structures(ii)%energy = energy
+          structures(ii)%wrextxyz = .true.
+          structures(ii)%nat = nat
+        end if
+      end do
+      close (iunit)
+    else
+      !>-- regular xyz case
+      allocate (xyz(3,nat,nall),ats(nat,nall),nats(nall),eread(nall))
+      allocate (comments(nall))
+      call rdensemble_mixed2(fname,nat,nall,nats,ats,xyz,comments)
+      !>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<!
+      !>--- Important: coord types must be in Bohrs
+      xyz = xyz/bohr
+      !>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<!
+      do i = 1,nall
+        nat_i = nats(i)
+        structures(i)%nat = nats(i)
+        allocate (structures(i)%at(nat_i))
+        structures(i)%at(:) = ats(1:nat_i,i)
+        allocate (structures(i)%xyz(3,nat_i))
+        structures(i)%xyz(:,:) = xyz(1:3,1:nat_i,i)
+        eread(i) = grepenergy(comments(i))
+        structures(i)%energy = eread(i)
+        structures(i)%comment = trim(comments(i))
+      end do
+      deallocate (comments,eread,nats,ats,xyz)
+    end if
   end subroutine rdensemble_coord_type
 
 !=================================================================!
@@ -453,13 +498,11 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: xyz(3,nat,nall)
     integer :: i,j,k,ich,io
     logical :: ex
-
     open (newunit=ich,file=fname,status='replace')
     do i = 1,nall
       call wrxyz(ich,nat,at,xyz(:,:,i))
     end do
     close (ich)
-
     return
   end subroutine wrensemble_conf
 
@@ -671,7 +714,6 @@ contains  !> MODULE PROCEDURES START HERE
       mol%energy = self%structures(i)%energy
     end if
   end subroutine ensemble_get_mol
-
 
 ! ══════════════════════════════════════════════════════════════════════════════
 ! ══════════════════════════════════════════════════════════════════════════════
