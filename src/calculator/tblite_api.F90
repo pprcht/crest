@@ -72,7 +72,8 @@ module tblite_api
     integer  :: lvl = 0
     real(wp) :: accuracy = 1.0_wp
     character(len=:),allocatable :: paramfile
-    type(wavefunction_type)     :: wfn
+    type(wavefunction_type)              :: wfn
+    type(wavefunction_type),allocatable :: wfn_aux
     type(xtb_calculator)        :: calc
     type(tblite_ctx)            :: ctx
     type(tblite_resultstype)    :: res
@@ -117,6 +118,9 @@ contains  !> MODULE PROCEDURES START HERE
 !* subroutine tblite_setup initializes the tblite object which is
 !* passed between the CREST calculators and this module
 !*****************************************************************
+#ifdef WITH_TBLITE
+    use multicharge,only:get_charges
+#endif
     implicit none
     type(coord),intent(in)  :: mol
     integer,intent(in)      :: chrg
@@ -191,8 +195,21 @@ contains  !> MODULE PROCEDURES START HERE
     etemp_au = etemp*ktoau
     call new_wavefunction(tblite%wfn,mol%nat,tblite%calc%bas%nsh,  &
     &              tblite%calc%bas%nao,1,etemp_au)
+#ifdef WITH_GXTB
+    if (tblite%lvl == xtblvl%gxtb) then
+      call sad_guess(mctcmol,tblite%calc,tblite%wfn)
+    end if
+#endif
     if (ceh_guess) then
       call tblite_internal_ceh_guess(mctcmol,tblite)
+    end if
+
+!>--- for methods with an auxiliary charge model (e.g., gxTB), pre-allocate wfn_aux.
+!>--- Charges are updated at each singlepoint call (geometry-dependent).
+    if (allocated(tblite%calc%charge_model)) then
+      if (allocated(tblite%wfn_aux)) deallocate(tblite%wfn_aux)
+      allocate(tblite%wfn_aux)
+      call new_wavefunction(tblite%wfn_aux,mctcmol%nat,tblite%calc%bas%nsh,0,1,0.0_wp,.true.)
     end if
 
 #else /* WITH_TBLITE */
@@ -360,6 +377,9 @@ contains  !> MODULE PROCEDURES START HERE
 !* The actual calculator call.
 !* The tblite object must be set up at this point
 !**************************************************
+#ifdef WITH_TBLITE
+    use multicharge,only:get_charges
+#endif
     implicit none
     type(coord),intent(in)   :: mol
     integer,intent(in)       :: chrg
@@ -388,12 +408,27 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- make an mctcmol object from mol
     call tblite_mol2mol(mol,chrg,uhf,mctcmol)
 
+!>--- update geometry-dependent EEQ-BC charges in wfn_aux (allocated once in tblite_setup)
+    if (allocated(tblite%wfn_aux)) then
+      call get_charges(tblite%calc%charge_model,mctcmol,error,tblite%wfn_aux%qat(:,1), &
+      &                dqdr=tblite%wfn_aux%dqatdr(:,:,:,1),dqdL=tblite%wfn_aux%dqatdL(:,:,:,1))
+      if (allocated(error)) then
+        if (pr) call tblite%ctx%message("tblite> auxiliary charge model failed: "//error%message)
+        iostatus = 1
+        return
+      end if
+    end if
+
 !>--- call the singlepoint routine
     select case (tblite%lvl)
     case default
-      call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
-     &                    energy,gradient, &
-     &                    sigma,verbosity,results=tblite%res)
+      if (allocated(tblite%wfn_aux)) then
+        call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
+        &                    energy,gradient,sigma,verbosity,results=tblite%res,wfn_aux=tblite%wfn_aux)
+      else
+        call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
+        &                    energy,gradient,sigma,verbosity,results=tblite%res)
+      end if
     case (xtblvl%ceh)
       call ceh_singlepoint(tblite%ctx,tblite%calc,mctcmol,tblite%wfn, &
       &              tblite%accuracy,verbosity)
