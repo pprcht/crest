@@ -384,7 +384,7 @@ contains  !> MODULE PROCEDURES START HERE
       call ceh_singlepoint(tblite%ctx,tblite%calc,mctcmol,tblite%wfn, &
       &              tblite%accuracy,verbosity)
     case (xtblvl%eeq)
-      call eeq_guess(mctcmol,tblite%calc,tblite%wfn)
+      call eeq_guess(mctcmol,tblite%calc,tblite%wfn,error)
     end select
 
     if (tblite%ctx%failed()) then
@@ -446,7 +446,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,intent(in) :: saveint
     real(wp),intent(in) :: accuracy
 #ifdef WITH_TBLITE
-    tblite%calc%max_iter = maxscc
+    tblite%calc%iterator%max_iter = maxscc
     tblite%calc%save_integrals = (rdwbo.or.saveint)
     tblite%accuracy = accuracy
 #endif
