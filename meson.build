@@ -233,6 +233,14 @@ if with_tblite
   add_project_arguments('-DWITH_TBLITE', language : ['c', 'fortran'])
 endif
 
+with_gxtb = get_option('gxtb')
+if with_gxtb
+  if not with_tblite
+    error('gxtb requires tblite to be enabled')
+  endif
+  add_project_arguments('-DWITH_GXTB', language : ['c', 'fortran'])
+endif
+
 gfnff_dep = dependency('gfnff',
   fallback : ['gfnff', 'gfnff_dep'],
   required : get_option('gfnff'),

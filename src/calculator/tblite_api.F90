@@ -34,6 +34,9 @@ module tblite_api
   use tblite_wavefunction,only:sad_guess,eeq_guess,shell_partition
   use tblite_xtb,xtb_calculator => xtb_calculator
   use tblite_xtb_calculator,only:new_xtb_calculator
+#ifdef WITH_GXTB
+  use tblite_xtb,only:new_gxtb_calculator
+#endif
   use tblite_param,only:param_record
   use tblite_results,only:tblite_resultstype => results_type
   use tblite_wavefunction_mulliken,only:get_molecular_dipole_moment
@@ -86,6 +89,7 @@ module tblite_api
     integer :: eeq = 4
     integer :: ceh = 5
     integer :: param = 6
+    integer :: gxtb = 7
   end type enum_tblite_method
   type(enum_tblite_method),parameter,public :: xtblvl = enum_tblite_method()
 
@@ -167,6 +171,16 @@ contains  !> MODULE PROCEDURES START HERE
         if (pr) call tblite%ctx%message("tblite> parameter file does not exist, defaulting to GFN2-xTB")
         call new_gfn2_calculator(tblite%calc,mctcmol,error)
       end if
+#ifdef WITH_GXTB
+    case (xtblvl%gxtb)
+      if (pr) call tblite%ctx%message("tblite> Setting up g-xTB calculation")
+      call new_gxtb_calculator(tblite%calc,mctcmol,error)
+#else
+    case (xtblvl%gxtb)
+      write (stdout,*) 'Error: Compiled without g-xTB support!'
+      write (stdout,*) 'Recompile with -DWITH_GXTB to enable g-xTB via tblite'
+      error stop
+#endif
     case default
       call tblite%ctx%message("Error: Unknown method in tblite!")
       error stop

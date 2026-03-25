@@ -253,11 +253,16 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%gfnff
       case ('pvol','libpvol','pv')
         job%id = jobtype%libpvol
+      case ('gxtb','g-xtb','gxtb-xtb')
+        job%id = jobtype%tblite
+        job%tblitelvl = xtblvl%gxtb
       case ('gxtb_dev')
-        job%id = jobtype%turbomole
-        job%rdgrad = .true.
-        job%binary = 'gxtb'
-        job%other = '-grad'
+        ! !> fallback: system call (requires gxtb binary in PATH)
+        ! job%id = jobtype%turbomole
+        ! job%rdgrad = .false.
+        ! job%binary = 'gxtb'
+        ! job%rdwbo = .false.
+        call gxtb_dev_warning()
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
@@ -336,6 +341,8 @@ contains !> MODULE PROCEDURES START HERE
       case ('eeq','d4eeq')
         job%tblitelvl = xtblvl%eeq
         job%rdgrad = .false.
+      case ('gxtb','g-xtb')
+        job%tblitelvl = xtblvl%gxtb
       case default
         job%tblitelvl = xtblvl%unknown
         !>--- keyword was recognized, but invalid argument supplied
@@ -1233,19 +1240,19 @@ contains !> MODULE PROCEDURES START HERE
       mddat%tsoll = kv%value_f
       mddat%thermostat = .true.
 
-    case ('thermostat')  
-      select case(kv%value_c)
+    case ('thermostat')
+      select case (kv%value_c)
       case ('off','nve')
         mddat%thermotype = 'none'
       case ('berendsen','langevin','bbk')
         mddat%thermotype = trim(kv%value_c)
-      case ('bussi','bussi-donaido-parinello','bussi-parinello','csvr')  
+      case ('bussi','bussi-donaido-parinello','bussi-parinello','csvr')
         mddat%thermotype = 'bussi'
       case default
         write (stdout,fmtura) kv%value_c
         call creststop(status_config)
       end select
-      mddat%thermostat=.true.
+      mddat%thermostat = .true.
 
     case ('shake')
       select case (kv%id)

@@ -31,6 +31,7 @@ install(
 # Options for enabling or disabling features
 option(WITH_OpenMP  "Enable OpenMP support"       TRUE)
 option(WITH_TBLITE  "Enable support for tblite"   TRUE)
+option(WITH_GXTB    "Enable g-xTB via tblite (requires WITH_TBLITE)" TRUE)
 option(WITH_TOMLF   "Enable support for toml-f"   TRUE)
 option(WITH_GFN0    "Enable support for GFN0-xTB" TRUE)
 option(WITH_GFNFF   "Enable support for GFN-FF"   TRUE)

@@ -1413,15 +1413,19 @@ contains  !>--- Module routines start here
       self%id = jobtype%turbomole
       self%rdgrad = .false.
       self%binary = 'gp3'
-    case ('gxtb','gxtb_dev')
-      self%id = jobtype%turbomole
-      self%rdgrad = .false.
-      self%binary = 'gxtb'
-      self%rdwbo = .false.
-      if (index(levelstring,'_dev') .ne. 0) then
-        self%other = '-grad'
-        self%rdgrad = .true.
-      end if
+    case ('gxtb','--gxtb')
+      self%id = jobtype%tblite
+      self%tblitelvl = xtblvl%gxtb
+!    case ('gxtb','--gxtb','gxtb_dev')
+!      !> fallback: system call (requires gxtb binary in PATH)
+!      self%id = jobtype%turbomole
+!      self%rdgrad = .false.
+!      self%binary = 'gxtb'
+!      self%rdwbo = .false.
+!      if (index(levelstring,'_dev') .ne. 0) then
+!        self%other = '-grad'
+!        self%rdgrad = .true.
+!      end if
     case ('orca')
       self%id = jobtype%orca
 
