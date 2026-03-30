@@ -448,9 +448,10 @@ contains  !> MODULE PROCEDURES START HERE
       do ii = 1,nall
         call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success)
         if (success) then
+          energy = energy / autoeV
           call get_at_from_ext(ext_props,eat)
-          call get_xyz_from_ext(ext_props,exyz)
-          call get_grad_from_ext(ext_props,egrd)
+          call get_xyz_from_ext(ext_props,exyz)  !> converts AA to Bohr
+          call get_grad_from_ext(ext_props,egrd) !> converts eV/AA to Ha/Bohr
           if (allocated(eat)) call move_alloc(eat,structures(ii)%at)
           if(allocated(exyz)) call move_alloc(exyz,structures(ii)%xyz)
           if (allocated(lat)) call move_alloc(lat,structures(ii)%lat)

@@ -165,9 +165,10 @@ contains  !> MODULE PROCEDURES START HERE
         call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,en,lat,success)
         close (iunit)
         if (success) then
+          en = en / autoeV
           call get_at_from_ext(ext_props,at)
-          call get_xyz_from_ext(ext_props,xyz)
-          call get_grad_from_ext(ext_props,grad)
+          call get_xyz_from_ext(ext_props,xyz)  !> converts AA to Bohr
+          call get_grad_from_ext(ext_props,grad) !> converts eV/AA to Ha/Bohr
           if (allocated(lat)) call move_alloc(lat,self%lat)
           if (allocated(grad)) call move_alloc(grad,self%gradient)
         end if
