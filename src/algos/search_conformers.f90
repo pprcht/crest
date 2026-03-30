@@ -316,12 +316,13 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
   integer,allocatable  :: at(:)
   logical :: dump,pr
   character(len=128) :: inpnam,outnam
-  integer :: i,l,k,T,Tn
+  integer :: i,l,k,T,Tn,j
   real(wp) :: ewinbackup,rthrbackup
   real(wp) :: hlowbackup
   integer :: microbackup
   integer :: optlevelbackup
   logical :: multilevel(6)
+  type(coord),allocatable :: structures(:)
 
   interface
     subroutine crest_refine(env,input,output)
@@ -367,13 +368,20 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
     return
   end if
   allocate (xyz(3,nat,nall),at(nat),eread(nall))
-  call rdensemble(ensnam,nat,nall,at,xyz,eread)
-!>--- track ensemble for restart
-  call trackensemble(ensnam,nat,nall,at,xyz,eread)
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: crest_oloop requires coordinates in Bohrs
-  xyz = xyz/bohr
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!  call rdensemble(ensnam,nat,nall,at,xyz,eread)
+!!>--- track ensemble for restart
+!  !call trackensemble(ensnam,nat,nall,at,xyz,eread)
+!!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!!>--- Important: crest_oloop requires coordinates in Bohrs
+!  xyz = xyz/bohr
+!!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+  call rdensemble(ensnam,nall,structures)
+  at(:) = structures(1)%at(:)
+  do j = 1,nall
+    eread(j) = structures(j)%energy
+    xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
+  end do
+  deallocate (structures)
 
   write (stdout,'(1x,a,i0,a,a,a)') 'Optimizing all ',nall, &
   & ' structures from file "',trim(ensnam),'" ...'
@@ -418,11 +426,19 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
       end if
       !>--- read new ensemble for next iteration
       allocate (xyz(3,nat,nall),at(nat),eread(nall))
-      call rdensemble(trim(inpnam),nat,nall,at,xyz,eread)
-      !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-      !>--- Important: crest_oloop requires coordinates in Bohrs
-      xyz = xyz/bohr
-      !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+      !call rdensemble(trim(inpnam),nat,nall,at,xyz,eread)
+      !!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+      !!>--- Important: crest_oloop requires coordinates in Bohrs
+      !xyz = xyz/bohr
+      !!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+      call rdensemble(trim(inpnam),nall,structures)
+      at(:) = structures(1)%at(:)
+      do j = 1,nall
+        eread(j) = structures(j)%energy
+        xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
+      end do
+      deallocate (structures)
+
       !>--- restore default sorting thresholds
       env%ewin = ewinbackup
       env%rthr = rthrbackup

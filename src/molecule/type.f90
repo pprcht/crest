@@ -376,7 +376,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(self%lat)) then
       write (iunit,'(a)',advance='no') 'Lattice="'
       write (iunit,'(9f15.8)',advance='no') reshape(self%lat, [9])
-      write (iunit,'(a)',advance='no') '" '
+      write (iunit,'(a)',advance='no') '"  pbc="T T T"'
     end if
     if (allocated(self%extxyz)) then
       call assemble_properties_tag(self%extxyz,atmp)

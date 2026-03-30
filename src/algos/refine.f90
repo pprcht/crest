@@ -49,6 +49,7 @@ subroutine crest_refine(env,input,output)
   real(wp),allocatable :: xyz(:,:,:)
   integer,allocatable  :: at(:)
   integer :: nrefine,refine_stage
+  type(coord),allocatable :: structures(:)
 !===========================================================!
 !>--- setup
   if (present(output)) then
@@ -57,6 +58,11 @@ subroutine crest_refine(env,input,output)
     outname = input  !> overwrite
   end if
 
+  if(.not.allocated(env%refine_queue))then
+    call rename(trim(input),trim(output))
+    return
+  endif
+
 !>--- presorting step, if necessary
   if (env%refine_presort) then
     call newcregen(env,0,input)
@@ -64,12 +70,21 @@ subroutine crest_refine(env,input,output)
   end if
 
 !>--- read in
-  call rdensemble(input,nat,nall,at,xyz,eread)
-  allocate (etmp(nall),source=0.0_wp)
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: crest_sploop requires coordinates in Bohrs
-  xyz = xyz/bohr
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!  call rdensemble(input,nat,nall,at,xyz,eread)
+!  allocate (etmp(nall),source=0.0_wp)
+!!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!!>--- Important: crest_sploop requires coordinates in Bohrs
+!  xyz = xyz/bohr
+!!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+  call rdensembleparam(input,nat,nall)
+  allocate (xyz(3,nat,nall),at(nat),etmp(nall),eread(nall))
+  call rdensemble(input,nall,structures)
+  at(:) = structures(1)%at(:)
+  do j = 1,nall
+    eread(j) = structures(j)%energy
+    xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
+  end do
+  deallocate (structures)
 
 !===========================================================!
   DO_REFINE: if (allocated(env%refine_queue)) then
