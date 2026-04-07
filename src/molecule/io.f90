@@ -1369,11 +1369,12 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=*),intent(in) :: key
     logical,intent(in),optional :: casesensitive
     logical :: sgrep,ex
-    logical :: convert = .false.
+    logical :: convert
     character(len=5000) :: atmp
     character(len=:),allocatable :: kkey
     integer :: ic,io
     sgrep = .false.
+    convert = .false.
     inquire (file=fname,exist=ex)
     if (.not.ex) return
     kkey = trim(key)

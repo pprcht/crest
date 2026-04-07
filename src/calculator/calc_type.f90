@@ -596,59 +596,117 @@ contains  !>--- Module routines start here
 
     call self%reset()
 
-    self%id = src%id
+! ── identity ─────────────────────────────────────────────────────────────────
+    self%id           = src%id
+    self%refine_stage = src%refine_stage
 
-    if (allocated(self%calcs)) deallocate (self%calcs)
+! ── calculation levels ───────────────────────────────────────────────────────
+    if (allocated(self%calcs)) deallocate(self%calcs)
     self%ncalculations = 0
     do i = 1,src%ncalculations
       call newset%copy(src%calcs(i))
       call self%add(newset)
     end do
 
+! ── constraints ──────────────────────────────────────────────────────────────
     igno = .false.
-    if(present(ignore_constraints)) igno = ignore_constraints
-    if (allocated(self%cons)) deallocate (self%cons)
+    if (present(ignore_constraints)) igno = ignore_constraints
+    if (allocated(self%cons)) deallocate(self%cons)
     self%nconstraints = 0
-    if(.not.igno)then
-    do i = 1,src%nconstraints
-      call newcons%copy(src%cons(i)) 
-      call self%add(newcons)
-    end do
-  endif
+    if (.not.igno) then
+      do i = 1,src%nconstraints
+        call newcons%copy(src%cons(i))
+        call self%add(newcons)
+      end do
+    end if
 
-!&>
+! ── scans ────────────────────────────────────────────────────────────────────
+    self%nscans    = src%nscans
+    self%relaxscan = src%relaxscan
+    self%scansforce = src%scansforce
+    if (allocated(src%scans)) then
+      allocate(self%scans(src%nscans))
+      do i = 1,src%nscans
+        self%scans(i)%type        = src%scans(i)%type
+        self%scans(i)%n           = src%scans(i)%n
+        self%scans(i)%steps       = src%scans(i)%steps
+        self%scans(i)%minval      = src%scans(i)%minval
+        self%scans(i)%maxval      = src%scans(i)%maxval
+        self%scans(i)%constrnmbr  = src%scans(i)%constrnmbr
+        self%scans(i)%restore     = src%scans(i)%restore
+        self%scans(i)%currentstep = src%scans(i)%currentstep
+        if (allocated(src%scans(i)%atms))   self%scans(i)%atms   = src%scans(i)%atms
+        if (allocated(src%scans(i)%points)) self%scans(i)%points = src%scans(i)%points
+      end do
+    end if
+
+! ── frozen atoms ─────────────────────────────────────────────────────────────
+    self%nfreeze = src%nfreeze
+    if (allocated(src%freezelist)) self%freezelist = src%freezelist
+
+! ── optimization settings ────────────────────────────────────────────────────
     self%optnewinit     = src%optnewinit
     self%anopt          = src%anopt
-    self%optlev         = src%optlev 
+    self%optlev         = src%optlev
     self%micro_opt      = src%micro_opt
-    self%maxcycle       = src%maxcycle 
+    self%maxcycle       = src%maxcycle
     self%maxdispl_opt   = src%maxdispl_opt
-    self%ethr_opt       = src%ethr_opt 
-    self%gthr_opt       = src%gthr_opt 
-    self%hlow_opt       = src%hlow_opt 
-    self%hmax_opt       = src%hmax_opt 
-    self%acc_opt        = src%acc_opt 
-    self%maxerise       = src%maxerise 
-    self%hguess         = src%hguess 
-    self%exact_rf       = src%exact_rf 
-    self%average_conv   = src%average_conv 
-    self%tsopt          = src%tsopt 
-    self%iupdat         = src%iupdat 
-    self%opt_engine     = src%opt_engine 
+    self%ethr_opt       = src%ethr_opt
+    self%gthr_opt       = src%gthr_opt
+    self%hlow_opt       = src%hlow_opt
+    self%hmax_opt       = src%hmax_opt
+    self%acc_opt        = src%acc_opt
+    self%maxerise       = src%maxerise
+    self%hguess         = src%hguess
+    self%exact_rf       = src%exact_rf
+    self%average_conv   = src%average_conv
+    self%tsopt          = src%tsopt
+    self%iupdat         = src%iupdat
+    self%opt_engine     = src%opt_engine
     self%lbfgs_histsize = src%lbfgs_histsize
+    self%hess_init      = src%hess_init
+    self%logextxyz      = src%logextxyz
 
-    self%pr_energies    = src%pr_energies
-    self%eout_unit      = src%eout_unit
-    self%elog           = src%elog
-    self%g_sampling     = src%g_sampling
-    self%gs_hess_type   = src%gs_hess_type
-    self%nt             = src%nt
-    self%temperatures   = src%temperatures
-    self%ithr           = src%ithr  
-    self%fscal          = src%fscal
-    self%sthr           = src%sthr
-    self%emodel         = src%emodel
-!&<
+! ── smooth-function parameters ───────────────────────────────────────────────
+    self%L       = src%L
+    self%k       = src%k
+    self%shift   = src%shift
+    self%scaling = src%scaling
+
+! ── printout and I/O ─────────────────────────────────────────────────────────
+    self%pr_energies = src%pr_energies
+    self%eout_unit   = src%eout_unit
+    if (allocated(src%elog)) self%elog = src%elog
+
+! ── ONIOM integer maps ───────────────────────────────────────────────────────
+    if (allocated(src%ONIOMmap))    self%ONIOMmap    = src%ONIOMmap
+    if (allocated(src%ONIOMrevmap)) self%ONIOMrevmap = src%ONIOMrevmap
+
+! ── thermochemistry ──────────────────────────────────────────────────────────
+    self%do_HR              = src%do_HR
+    self%full_HR            = src%full_HR
+    self%hu_steps           = src%hu_steps
+    self%nt                 = src%nt
+    self%ithr               = src%ithr
+    self%fscal              = src%fscal
+    self%sthr               = src%sthr
+    self%initialize_hr_type = src%initialize_hr_type
+    self%mh_type            = src%mh_type
+    self%hr_hu_type         = src%hr_hu_type
+    self%deform_opt_hess    = src%deform_opt_hess
+    self%doh_stepsize       = src%doh_stepsize
+    self%chess_id_guess     = src%chess_id_guess
+    self%g_sampling         = src%g_sampling
+    self%gs_hess_type       = src%gs_hess_type
+    if (allocated(src%emodel))       self%emodel       = src%emodel
+    if (allocated(src%temperatures)) self%temperatures = src%temperatures
+    if (allocated(src%et))   self%et   = src%et
+    if (allocated(src%ht))   self%ht   = src%ht
+    if (allocated(src%gt))   self%gt   = src%gt
+    if (allocated(src%stot)) self%stot = src%stot
+
+!>  NOTE: API handle objects (g0calc, ONIOM, ONIOMmols, chess) are NOT copied;
+!>        they hold C-level or heavy reconstructed state and are re-initialized.
     return
   end subroutine calculation_copy
 
@@ -1086,52 +1144,104 @@ contains  !>--- Module routines start here
     class(calculation_settings),intent(out) :: self
     type(calculation_settings) :: src
 
-!&>    
-    if (allocated(src%calcspace))   self%calcspace = src%calcspace
-    if (allocated(src%calcfile))    self%calcfile = src%calcfile
-    if (allocated(src%gradfile))    self%gradfile = src%gradfile
-    if (allocated(src%path))        self%path = src%path
-    if (allocated(src%other))       self%other = src%other
-    if (allocated(src%binary))      self%binary = src%binary
-    if (allocated(src%systemcall))  self%systemcall = src%systemcall
-    if (allocated(src%description)) self%description = src%description
-    if (allocated(src%gradkey))     self%gradkey = src%gradkey
-    if (allocated(src%efile))       self%efile = src%efile
-    if (allocated(src%solvmodel))   self%solvmodel = src%solvmodel
-    if (allocated(src%solvent))     self%solvent = src%solvent
-
+! ── identity and printout ────────────────────────────────────────────────────
     self%id         = src%id
     self%prch       = src%prch
-    self%chrg       = src%chrg
-    self%uhf        = src%uhf
+    self%pr         = src%pr
+    self%prappend   = src%prappend
+    self%prstdout   = src%prstdout
     self%refine_lvl = src%refine_lvl
 
-    self%rdwbo      = src%rdwbo
-    self%rddip      = src%rddip
-    self%rddipgrad  = src%rddipgrad
+! ── system ───────────────────────────────────────────────────────────────────
+    self%chrg       = src%chrg
+    self%uhf        = src%uhf
+    self%active     = src%active
+    self%weight     = src%weight
+
+! ── allocatable strings ──────────────────────────────────────────────────────
+    if (allocated(src%calcspace))      self%calcspace      = src%calcspace
+    if (allocated(src%calcfile))       self%calcfile       = src%calcfile
+    if (allocated(src%gradfile))       self%gradfile       = src%gradfile
+    if (allocated(src%path))           self%path           = src%path
+    if (allocated(src%other))          self%other          = src%other
+    if (allocated(src%binary))         self%binary         = src%binary
+    if (allocated(src%systemcall))     self%systemcall     = src%systemcall
+    if (allocated(src%description))    self%description    = src%description
+    if (allocated(src%shortflag))      self%shortflag      = src%shortflag
+    if (allocated(src%gradkey))        self%gradkey        = src%gradkey
+    if (allocated(src%efile))          self%efile          = src%efile
+    if (allocated(src%solvmodel))      self%solvmodel      = src%solvmodel
+    if (allocated(src%solvent))        self%solvent        = src%solvent
+    if (allocated(src%parametrisation))self%parametrisation= src%parametrisation
+    if (allocated(src%restartfile))    self%restartfile    = src%restartfile
+    if (allocated(src%refgeo))         self%refgeo         = src%refgeo
+    if (allocated(src%refcharges))     self%refcharges     = src%refcharges
+    if (allocated(src%tbliteparam))    self%tbliteparam    = src%tbliteparam
+
+! ── gradient settings ────────────────────────────────────────────────────────
+    self%numgrad    = src%numgrad
+    self%gradstep   = src%gradstep
+    self%rdgrad     = src%rdgrad
     self%gradtype   = src%gradtype
     self%gradfmt    = src%gradfmt
 
+! ── property requests ────────────────────────────────────────────────────────
+    self%rdwbo      = src%rdwbo
+    self%rdqat      = src%rdqat
+    self%dumpq      = src%dumpq
+    self%rddip      = src%rddip
+    self%dipole     = src%dipole
+    self%rddipgrad  = src%rddipgrad
+    self%getlmocent = src%getlmocent
+    self%nprot      = src%nprot
+    if (allocated(src%getsasa))   self%getsasa   = src%getsasa
+    if (allocated(src%efield))    self%efield    = src%efield
+    if (allocated(src%wbo))       self%wbo       = src%wbo
+    if (allocated(src%qat))       self%qat       = src%qat
+    if (allocated(src%dipgrad))   self%dipgrad   = src%dipgrad
+    if (allocated(src%protxyz))   self%protxyz   = src%protxyz
+
+! ── API / backend settings ───────────────────────────────────────────────────
     self%tblitelvl  = src%tblitelvl
     self%etemp      = src%etemp
     self%accuracy   = src%accuracy
     self%apiclean   = src%apiclean
     self%maxscc     = src%maxscc
     self%saveint    = src%saveint
+    self%ceh_guess  = src%ceh_guess
+    self%restart    = src%restart
 
-    self%ngrid      = src%ngrid
+    self%ngrid       = src%ngrid
     self%extpressure = src%extpressure
-    self%proberad   = src%proberad
+    self%proberad    = src%proberad
+    self%pvmodel     = src%pvmodel
+    self%vdwset      = src%vdwset
+    self%pvradscal   = src%pvradscal
 
+    self%nconfig     = src%nconfig
+    if (allocated(src%config))    self%config    = src%config
+    if (allocated(src%occ))       self%occ       = src%occ
+
+! ── ONIOM identifiers ────────────────────────────────────────────────────────
     self%ONIOM_highlowroot = src%ONIOM_highlowroot
-    self%ONIOM_id   = src%ONIOM_id
+    self%ONIOM_id          = src%ONIOM_id
 
-    self%ag = src%ag
+! ── ORCA input block ─────────────────────────────────────────────────────────
+    self%ORCA%mpi    = src%ORCA%mpi
+    self%ORCA%nlines = src%ORCA%nlines
+    if (allocated(src%ORCA%cmd))   self%ORCA%cmd   = src%ORCA%cmd
+    if (allocated(src%ORCA%input)) self%ORCA%input = src%ORCA%input
+
+! ── inline potentials ────────────────────────────────────────────────────────
+    self%ag      = src%ag
     self%penalty = src%penalty
 
-    self%MPAR = src%MPAR
-    self%MPAR%iid = 0 !> important for parallelization
-!&<
+! ── MLIP settings ────────────────────────────────────────────────────────────
+    self%MPAR     = src%MPAR
+    self%MPAR%iid = 0  !> reset instance ID for parallelization
+
+!>  NOTE: API handle objects (tblite, g0calc, ff_dat, libpvol) are NOT copied;
+!>        they hold C-level state and are re-initialized on first use.
     return
   end subroutine calculation_settings_copy
 
