@@ -664,6 +664,7 @@ module crest_data
     procedure :: addrefine => add_to_refinequeue
     procedure :: wrtCHRG => wrtCHRG
     procedure :: addsplitqueue => env_addsplitqueue
+    procedure :: copy => systemdata_copy
   end type systemdata
 
 !========================================================================================!
@@ -1124,6 +1125,351 @@ contains  !> MODULE PROCEDURES START HERE
     nrt = minloc(tmptemps,1)
     temp = self%temps(nrt)
   end function thermo_get_close_rt
+!========================================================================================!
+!========================================================================================!
+
+  subroutine systemdata_copy(self,src)
+!*************************************************************
+!* Deep copy of a systemdata object from src to self.        *
+!*                                                           *
+!* On Input:  src  - source systemdata object                *
+!* On Output: self - destination, populated with src data    *
+!*                                                           *
+!* NOTE: Some embedded derived types (mddat, splitqueue,     *
+!*       splitheap, bh_ref, ONIOM_input) are assigned via    *
+!*       Fortran intrinsic assignment, which may only be a   *
+!*       shallow copy if those types contain pointer         *
+!*       components. See individual placeholder comments.    *
+!*************************************************************
+    implicit none
+    class(systemdata),intent(out) :: self
+    type(systemdata),intent(in)   :: src
+
+! ── run-control integers ──────────────────────────────────────────────────────
+    self%iostatus_meta = src%iostatus_meta
+    self%crestver      = src%crestver
+    self%runver        = src%runver
+    self%properties    = src%properties
+    self%properties2   = src%properties2
+    self%npq           = src%npq
+    if (allocated(src%pqueue)) self%pqueue = src%pqueue
+
+! ── CREGEN thresholds ─────────────────────────────────────────────────────────
+    self%level      = src%level
+    self%thresholds = src%thresholds
+    self%ewin       = src%ewin
+    self%ethr       = src%ethr
+    self%ethrpurge  = src%ethrpurge
+    self%couthr     = src%couthr
+    self%rthr       = src%rthr
+    self%bthr       = src%bthr
+    self%bthr2      = src%bthr2
+    self%bthrmax    = src%bthrmax
+    self%bthrshift  = src%bthrshift
+    self%athr       = src%athr
+    self%pthr       = src%pthr
+    self%pthrsum    = src%pthrsum
+    self%tboltz     = src%tboltz
+    self%cgf        = src%cgf
+    self%iinversion = src%iinversion
+
+! ── MD / algo control ─────────────────────────────────────────────────────────
+    self%mdtemps    = src%mdtemps
+    self%mdtime     = src%mdtime
+    self%elowest    = src%elowest
+    self%eprivious  = src%eprivious
+    self%gcmax      = src%gcmax
+    self%gcmaxparent = src%gcmaxparent
+    self%icount     = src%icount
+    self%mdmode     = src%mdmode
+    self%nmodes     = src%nmodes
+    self%temps      = src%temps
+    self%snapshots  = src%snapshots
+    self%Maxrestart = src%Maxrestart
+    self%nreset     = src%nreset
+    self%nrotammds  = src%nrotammds
+    self%maxcompare = src%maxcompare
+    self%tsplit     = src%tsplit
+
+! ── molecular data ────────────────────────────────────────────────────────────
+    self%nat          = src%nat
+    self%chrg         = src%chrg
+    self%uhf          = src%uhf
+    self%rednat       = src%rednat
+    self%optlev       = src%optlev
+    self%forceconst   = src%forceconst
+    self%dummypercent = src%dummypercent
+
+! ── parallelization ───────────────────────────────────────────────────────────
+    self%MAXRUN          = src%MAXRUN
+    self%omp             = src%omp
+    self%Threads         = src%Threads
+    self%omp_allow_nested = src%omp_allow_nested
+
+! ── fixed-length names and flags ──────────────────────────────────────────────
+    self%ensemblename  = src%ensemblename
+    self%ensemblename2 = src%ensemblename2
+    self%fixfile       = src%fixfile
+    self%constraints   = src%constraints
+    self%solvent       = src%solvent
+    self%gfnver        = src%gfnver
+    self%gfnver2       = src%gfnver2
+    self%lmover        = src%lmover
+    self%ProgName      = src%ProgName
+    self%ProgIFF       = src%ProgIFF
+    self%homedir       = src%homedir
+    self%scratchdir    = src%scratchdir
+
+! ── allocatable character fields ──────────────────────────────────────────────
+    if (allocated(src%solv))            self%solv           = src%solv
+    if (allocated(src%cmd))             self%cmd            = src%cmd
+    if (allocated(src%inputcoords))     self%inputcoords    = src%inputcoords
+    if (allocated(src%wbofile))         self%wbofile        = src%wbofile
+    if (allocated(src%atlist))          self%atlist         = src%atlist
+    if (allocated(src%chargesfilename)) self%chargesfilename = src%chargesfilename
+    if (allocated(src%sortmode))        self%sortmode       = src%sortmode
+
+! ── METADYN scalar settings ───────────────────────────────────────────────────
+    self%hmass    = src%hmass
+    self%mdtemp   = src%mdtemp
+    self%nmdtemp  = src%nmdtemp
+    self%mdstep   = src%mdstep
+    self%mdlenfac = src%mdlenfac
+    self%tmtd     = src%tmtd
+    self%flexi    = src%flexi
+    self%shake    = src%shake
+    self%mddumpxyz = src%mddumpxyz
+    self%mdskip   = src%mdskip
+    self%mddump   = src%mddump
+    self%maxopt   = src%maxopt
+    self%hlowopt  = src%hlowopt
+    self%microopt = src%microopt
+    self%s6opt    = src%s6opt
+    self%mtd_kscal = src%mtd_kscal
+    self%nstatic  = src%nstatic
+
+! ── METADYN allocatable arrays ────────────────────────────────────────────────
+    self%nmetadyn = src%nmetadyn
+    if (allocated(src%metadfac))  self%metadfac  = src%metadfac
+    if (allocated(src%metadexp))  self%metadexp  = src%metadexp
+    if (allocated(src%metadlist)) self%metadlist = src%metadlist
+    if (allocated(src%mtdstaticfile)) self%mtdstaticfile = src%mtdstaticfile
+    if (allocated(src%includeRMSD))   self%includeRMSD   = src%includeRMSD
+    if (allocated(src%excludeTOPO))   self%excludeTOPO   = src%excludeTOPO
+
+! ── NCI / reactor settings ────────────────────────────────────────────────────
+    self%potscal  = src%potscal
+    self%potpad   = src%potpad
+    self%rdens    = src%rdens
+    self%tempfermi = src%tempfermi
+    self%XH3      = src%XH3
+    self%kappa    = src%kappa
+    if (allocated(src%potatlist)) self%potatlist = src%potatlist
+
+! ── embedded derived types (allocatable-only internals; intrinsic =) ──────────
+    self%protb  = src%protb   !> protobj:     allocatables only, intrinsic = is deep
+    self%cts    = src%cts     !> legacy_constraints: allocatables only, intrinsic = is deep
+    self%eMTD   = src%eMTD   !> entropyMTD:  allocatables only, intrinsic = is deep
+    self%thermo = src%thermo !> thermodata:  allocatables only, intrinsic = is deep
+    self%ref    = src%ref    !> refdata:     allocatables only, intrinsic = is deep
+
+! ── calc pointer: allocate new target and deep-copy ───────────────────────────
+    if (associated(src%calc)) then
+      if (.not. associated(self%calc)) allocate (self%calc)
+      call self%calc%copy(src%calc)
+    end if
+
+! ── placeholder: mddat (mddata) ───────────────────────────────────────────────
+!   mddata may contain pointer components; use intrinsic = as placeholder.
+    self%mddat = src%mddat
+
+! ── placeholder: bh_ref (bh_class) ───────────────────────────────────────────
+!   bh_class may contain pointer components; use intrinsic = as placeholder.
+    if (allocated(src%bh_ref)) then
+      if (.not. allocated(self%bh_ref)) allocate (self%bh_ref,source=src%bh_ref)
+    end if
+
+! ── rigidconf settings ────────────────────────────────────────────────────────
+    self%rigidconf_algo       = src%rigidconf_algo
+    self%rigidconf_toposource = src%rigidconf_toposource
+    if (allocated(src%rigidconf_userfile)) self%rigidconf_userfile = src%rigidconf_userfile
+    if (allocated(src%refine_queue))       self%refine_queue       = src%refine_queue
+    if (allocated(src%ONIOM_toml))         self%ONIOM_toml         = src%ONIOM_toml
+
+! ── placeholder: ONIOM_input (lwoniom_input) ──────────────────────────────────
+!   lwoniom_input may contain pointer components; use intrinsic = as placeholder.
+    if (allocated(src%ONIOM_input)) then
+      if (.not. allocated(self%ONIOM_input)) allocate (self%ONIOM_input,source=src%ONIOM_input)
+    end if
+
+! ── substructure queue ────────────────────────────────────────────────────────
+    self%substructure_queue    = src%substructure_queue
+    self%queue_iter            = src%queue_iter
+    self%queue_maxreconstruct  = src%queue_maxreconstruct
+!   splitqueue (split_atms) and splitheap (construct_heap): placeholder
+    if (allocated(src%splitqueue)) self%splitqueue = src%splitqueue
+    self%splitheap = src%splitheap
+
+! ── QCG settings ─────────────────────────────────────────────────────────────
+    self%qcg_runtype    = src%qcg_runtype
+    self%nsolv          = src%nsolv
+    self%nqcgclust      = src%nqcgclust
+    self%max_solv       = src%max_solv
+    self%ensemble_method = src%ensemble_method
+    self%ensemble_opt   = src%ensemble_opt
+    self%freqver        = src%freqver
+    self%freq_scal      = src%freq_scal
+    self%docking_qcg_flag = src%docking_qcg_flag
+    if (allocated(src%directed_file))   self%directed_file   = src%directed_file
+    if (allocated(src%directed_list))   self%directed_list   = src%directed_list
+    if (allocated(src%directed_number)) self%directed_number = src%directed_number
+    if (allocated(src%solu_file))       self%solu_file       = src%solu_file
+    if (allocated(src%solv_file))       self%solv_file       = src%solv_file
+
+! ── clustering settings ───────────────────────────────────────────────────────
+    self%maxcluster = src%maxcluster
+    self%nclust     = src%nclust
+    self%pccap      = src%pccap
+    self%pcthr      = src%pcthr
+    self%pcmin      = src%pcmin
+    self%csthr      = src%csthr
+    self%clustlev   = src%clustlev
+    if (allocated(src%pcmeasure)) self%pcmeasure = src%pcmeasure
+
+! ── structure generation / bias settings ──────────────────────────────────────
+    self%doOHflip   = src%doOHflip
+    self%maxflip    = src%maxflip
+    self%rthr2      = src%rthr2
+    self%kshift     = src%kshift
+    self%kshiftnum  = src%kshiftnum
+    self%gescoptlev = src%gescoptlev
+    if (allocated(src%biasfile)) self%biasfile = src%biasfile
+
+! ── DFT driver (deprecated) ───────────────────────────────────────────────────
+    self%hardcutDFT  = src%hardcutDFT
+    self%harcutpthr  = src%harcutpthr
+    self%hardcutnst  = src%hardcutnst
+    if (allocated(src%dftrcfile)) self%dftrcfile = src%dftrcfile
+
+! ── msreact settings ──────────────────────────────────────────────────────────
+    self%msei         = src%msei
+    self%mscid        = src%mscid
+    self%msnoiso      = src%msnoiso
+    self%msiso        = src%msiso
+    self%msmolbar     = src%msmolbar
+    self%msinchi      = src%msinchi
+    self%mslargeprint = src%mslargeprint
+    self%msattrh      = src%msattrh
+    self%msnbonds     = src%msnbonds
+    self%msnshifts    = src%msnshifts
+    self%msnshifts2   = src%msnshifts2
+    self%msnfrag      = src%msnfrag
+    self%msinput      = src%msinput
+
+! ── general logical flags ─────────────────────────────────────────────────────
+    self%allrot         = src%allrot
+    self%alkylize       = src%alkylize
+    self%alkylizeskip   = src%alkylizeskip
+    self%altopt         = src%altopt
+    self%autothreads    = src%autothreads
+    self%autozsort      = src%autozsort
+    self%allowrestart   = src%allowrestart
+    self%better         = src%better
+    self%ceh_guess      = src%ceh_guess
+    self%cff            = src%cff
+    self%cluster        = src%cluster
+    self%checktopo      = src%checktopo
+    self%checkiso       = src%checkiso
+    self%chargesfile    = src%chargesfile
+    self%compareens     = src%compareens
+    self%confgo         = src%confgo
+    self%constrain_solu = src%constrain_solu
+    self%crest_ohess    = src%crest_ohess
+    self%doNMR          = src%doNMR
+    self%dryrun         = src%dryrun
+    self%ENSO           = src%ENSO
+    self%ens_const      = src%ens_const
+    self%entropic       = src%entropic
+    self%entropymd      = src%entropymd
+    self%esort          = src%esort
+    self%ext            = src%ext
+    self%extLFER        = src%extLFER
+    self%FINAL_GFN2_OPT = src%FINAL_GFN2_OPT
+    self%fullcre        = src%fullcre
+    self%gbsa           = src%gbsa
+    self%gcmultiopt     = src%gcmultiopt
+    self%gradsp         = src%gradsp
+    self%heavyrmsd      = src%heavyrmsd
+    self%inplaceMode    = src%inplaceMode
+    self%iterativeV2    = src%iterativeV2
+    self%iru            = src%iru
+    self%keepModef      = src%keepModef
+    self%keepScratch    = src%keepScratch
+    self%legacy         = src%legacy
+    self%metadynset     = src%metadynset
+    self%methautocorr   = src%methautocorr
+    self%multilevelopt  = src%multilevelopt
+    self%newcregen      = src%newcregen
+    self%NCI            = src%NCI
+    self%niceprint      = src%niceprint
+    self%noconst        = src%noconst
+    self%onlyZsort      = src%onlyZsort
+    self%optpurge       = src%optpurge
+    self%outputsdf      = src%outputsdf
+    self%pcaexclude     = src%pcaexclude
+    self%pclean         = src%pclean
+    self%performCross   = src%performCross
+    self%performMD      = src%performMD
+    self%performModef   = src%performModef
+    self%performMTD     = src%performMTD
+    self%preactormtd    = src%preactormtd
+    self%preactorpot    = src%preactorpot
+    self%preopt         = src%preopt
+    self%presp          = src%presp
+    self%printscoords   = src%printscoords
+    self%QCG            = src%QCG
+    self%qcg_flag       = src%qcg_flag
+    self%qcg_restart    = src%qcg_restart
+    self%nopreopt       = src%nopreopt
+    self%quick          = src%quick
+    self%readbias       = src%readbias
+    self%reftopo        = src%reftopo
+    self%relax          = src%relax
+    self%restartopt     = src%restartopt
+    self%reweight       = src%reweight
+    self%riso           = src%riso
+    self%rotamermds     = src%rotamermds
+    self%refine_presort = src%refine_presort
+    self%refine_esort   = src%refine_esort
+    self%sameRandomNumber = src%sameRandomNumber
+    self%scallen        = src%scallen
+    self%scratch        = src%scratch
+    self%setgcmax       = src%setgcmax
+    self%sdfformat      = src%sdfformat
+    self%slow           = src%slow
+    self%solv_md        = src%solv_md
+    self%staticmtd      = src%staticmtd
+    self%subRMSD        = src%subRMSD
+    self%superquick     = src%superquick
+    self%threadssetmanual = src%threadssetmanual
+    self%trackorigin    = src%trackorigin
+    self%testnumgrad    = src%testnumgrad
+    self%use_xtbiff     = src%use_xtbiff
+    self%user_enslvl    = src%user_enslvl
+    self%user_temp      = src%user_temp
+    self%user_mdtime    = src%user_mdtime
+    self%user_mdstep    = src%user_mdstep
+    self%user_nclust    = src%user_nclust
+    self%user_dumxyz    = src%user_dumxyz
+    self%user_wscal     = src%user_wscal
+    self%useqmdff       = src%useqmdff
+    self%water          = src%water
+    self%wallsetup      = src%wallsetup
+    self%wbotopo        = src%wbotopo
+
+    return
+  end subroutine systemdata_copy
+
 !========================================================================================!
 !========================================================================================!
 end module crest_data
