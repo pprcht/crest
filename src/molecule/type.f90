@@ -97,6 +97,7 @@ module molecule_type
     procedure :: cn_to_bond => coord_cn_to_bond !> generate neighbour matrix from CN
     procedure :: swap => atswp                  !> swap two atoms coordinates and their at() entries
     procedure :: sumform => coord_sumform       !> generate a string with the sum formula
+    procedure :: copy => coord_copy             !> deep copy from another coord object
   end type coord
 
 ! ══════════════════════════════════════════════════════════════════════════════
@@ -118,6 +119,48 @@ contains  !> MODULE PROCEDURES START HERE
     call self%pdb%deallocate()
     return
   end subroutine deallocate_coord
+
+! ──────────────────────────────────────────────────────────────────────────────
+
+  subroutine coord_copy(self,src)
+!*************************************************************
+!* Deep copy of a coord object from src to self.            *
+!*                                                          *
+!* On Input:  src  - source coord object                    *
+!* On Output: self - destination, populated with src data   *
+!*************************************************************
+    implicit none
+    class(coord),intent(out) :: self
+    type(coord),intent(in)   :: src
+
+    ! ── scalar fields ────────────────────────────────────────────────────────
+    self%nat      = src%nat
+    self%energy   = src%energy
+    self%chrg     = src%chrg
+    self%uhf      = src%uhf
+    self%nbd      = src%nbd
+    self%wrextxyz = src%wrextxyz
+
+    ! ── mandatory allocatable arrays ─────────────────────────────────────────
+    if (allocated(src%at))  self%at  = src%at
+    if (allocated(src%xyz)) self%xyz = src%xyz
+
+    ! ── optional allocatable arrays ──────────────────────────────────────────
+    if (allocated(src%gradient)) self%gradient = src%gradient
+    if (allocated(src%bond))     self%bond     = src%bond
+    if (allocated(src%lat))      self%lat      = src%lat
+    if (allocated(src%qat))      self%qat      = src%qat
+
+    ! ── optional character fields ─────────────────────────────────────────────
+    if (allocated(src%comment)) self%comment = src%comment
+    if (allocated(src%origin))  self%origin  = src%origin
+
+    ! ── derived-type components ───────────────────────────────────────────────
+    self%pdb = src%pdb
+    if (allocated(src%extxyz)) self%extxyz = src%extxyz
+
+    return
+  end subroutine coord_copy
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
