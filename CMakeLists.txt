@@ -26,7 +26,7 @@ endif()
 # Setup the crest Project
 project(
   crest
-  LANGUAGES "C" "Fortran"
+  LANGUAGES "C" "CXX" "Fortran"
   VERSION  3.0.3
   DESCRIPTION "A tool for the exploration of low-energy chemical space"
 )
