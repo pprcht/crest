@@ -22,6 +22,7 @@ srcs += files(
   'newton_raphson.f90',
   'coordtrafo.f90',
   'hessupdate.f90',
+  'hessian_quality.f90',
   'modelhessian.f90',
   'optimize_maths.f90',
   'optimize_module.f90',

@@ -24,6 +24,7 @@ list(APPEND srcs
   "${dir}/newton_raphson.f90"
   "${dir}/hessupdate.f90"
   "${dir}/modelhessian.f90"
+  "${dir}/hessian_quality.f90"
   "${dir}/coordtrafo.f90"
   "${dir}/optimize_maths.f90"
   "${dir}/optimize_module.f90"
