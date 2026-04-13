@@ -362,12 +362,12 @@ subroutine rdfreq_orca_hess(mol,fname,nmodes,freq)
 
   write(stdout,'(a)',advance='no') ' Processing (raw) Hessian read from ORCA '//trim(fname)//' ... '
   flush(stdout)
-  !$omp critical
+  !!$omp critical
   !>-- Projects and mass-weights the Hessian
   call prj_mw_hess(mol%nat,mol%at,nmodes,mol%xyz,hess)
   !>-- Computes the Frequencies
   call frequencies(mol%nat,mol%at,mol%xyz,nmodes,hess,freq,io)
-  !$omp end critical
+  !!$omp end critical
   write(stdout,'(a)') 'done.'
 
   deallocate (hess)
