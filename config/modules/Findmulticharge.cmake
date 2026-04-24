@@ -1,7 +1,7 @@
 set(_lib "multicharge")
 set(_pkg "MULTICHARGE")
 set(_url "https://github.com/grimme-lab/multicharge")
-set(_branch "v0.3.0")
+set(_branch "v0.5.0")
 
 # Discovery method order can be overridden by the parent project, e.g.:
 #   set(multicharge_FIND_METHOD "subproject" "cmake")

@@ -30,7 +30,7 @@ module parse_calcdata
   use dynamics_module
   use bh_module
   use gradreader_module,only:gradtype,conv2gradfmt
-  use tblite_api,only:xtblvl
+  use tblite_api,only:xtblvl,have_gxtb
   use strucrd,only:get_atlist,coord
   use axis_module
 
@@ -253,11 +253,21 @@ contains !> MODULE PROCEDURES START HERE
         job%id = jobtype%gfnff
       case ('pvol','libpvol','pv')
         job%id = jobtype%libpvol
+      case ('gxtb','g-xtb','gxtb-xtb')
+        if (have_gxtb) then
+          job%id = jobtype%tblite
+          job%tblitelvl = xtblvl%gxtb
+        else
+          job%id = jobtype%xtbsys
+          job%other = '--gxtb'
+        end if
       case ('gxtb_dev')
-        job%id = jobtype%turbomole
-        job%rdgrad = .true.
-        job%binary = 'gxtb'
-        job%other = '-grad'
+        if (have_gxtb) then
+          call gxtb_dev_warning()
+        else
+          job%id = jobtype%xtbsys
+          job%other = '--gxtb'
+        end if
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
@@ -336,6 +346,8 @@ contains !> MODULE PROCEDURES START HERE
       case ('eeq','d4eeq')
         job%tblitelvl = xtblvl%eeq
         job%rdgrad = .false.
+      case ('gxtb','g-xtb')
+        job%tblitelvl = xtblvl%gxtb
       case default
         job%tblitelvl = xtblvl%unknown
         !>--- keyword was recognized, but invalid argument supplied
@@ -1233,19 +1245,19 @@ contains !> MODULE PROCEDURES START HERE
       mddat%tsoll = kv%value_f
       mddat%thermostat = .true.
 
-    case ('thermostat')  
-      select case(kv%value_c)
+    case ('thermostat')
+      select case (kv%value_c)
       case ('off','nve')
         mddat%thermotype = 'none'
       case ('berendsen','langevin','bbk')
         mddat%thermotype = trim(kv%value_c)
-      case ('bussi','bussi-donaido-parinello','bussi-parinello','csvr')  
+      case ('bussi','bussi-donaido-parinello','bussi-parinello','csvr')
         mddat%thermotype = 'bussi'
       case default
         write (stdout,fmtura) kv%value_c
         call creststop(status_config)
       end select
-      mddat%thermostat=.true.
+      mddat%thermostat = .true.
 
     case ('shake')
       select case (kv%id)

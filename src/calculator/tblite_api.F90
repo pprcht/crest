@@ -34,6 +34,9 @@ module tblite_api
   use tblite_wavefunction,only:sad_guess,eeq_guess,shell_partition
   use tblite_xtb,xtb_calculator => xtb_calculator
   use tblite_xtb_calculator,only:new_xtb_calculator
+#ifdef WITH_GXTB
+  use tblite_xtb,only:new_gxtb_calculator
+#endif
   use tblite_param,only:param_record
   use tblite_results,only:tblite_resultstype => results_type
   use tblite_wavefunction_mulliken,only:get_molecular_dipole_moment
@@ -69,7 +72,8 @@ module tblite_api
     integer  :: lvl = 0
     real(wp) :: accuracy = 1.0_wp
     character(len=:),allocatable :: paramfile
-    type(wavefunction_type)     :: wfn
+    type(wavefunction_type)              :: wfn
+    type(wavefunction_type),allocatable :: wfn_aux
     type(xtb_calculator)        :: calc
     type(tblite_ctx)            :: ctx
     type(tblite_resultstype)    :: res
@@ -86,8 +90,15 @@ module tblite_api
     integer :: eeq = 4
     integer :: ceh = 5
     integer :: param = 6
+    integer :: gxtb = 7
   end type enum_tblite_method
   type(enum_tblite_method),parameter,public :: xtblvl = enum_tblite_method()
+
+#ifdef WITH_GXTB
+  logical,parameter,public :: have_gxtb = .true.
+#else
+  logical,parameter,public :: have_gxtb = .false.
+#endif
 
   !> Conversion factor from Kelvin to Hartree
   real(wp),parameter :: ktoau = 3.166808578545117e-06_wp
@@ -113,6 +124,9 @@ contains  !> MODULE PROCEDURES START HERE
 !* subroutine tblite_setup initializes the tblite object which is
 !* passed between the CREST calculators and this module
 !*****************************************************************
+#ifdef WITH_TBLITE
+    use multicharge,only:get_charges
+#endif
     implicit none
     type(coord),intent(in)  :: mol
     integer,intent(in)      :: chrg
@@ -167,6 +181,16 @@ contains  !> MODULE PROCEDURES START HERE
         if (pr) call tblite%ctx%message("tblite> parameter file does not exist, defaulting to GFN2-xTB")
         call new_gfn2_calculator(tblite%calc,mctcmol,error)
       end if
+#ifdef WITH_GXTB
+    case (xtblvl%gxtb)
+      if (pr) call tblite%ctx%message("tblite> Setting up g-xTB calculation")
+      call new_gxtb_calculator(tblite%calc,mctcmol,error)
+#else
+    case (xtblvl%gxtb)
+      write (stdout,'(a)') 'Error: g-xTB via tblite not available (compiled without WITH_GXTB).'
+      write (stdout,'(a)') 'This code path should not be reached — use the xtb binary fallback.'
+      error stop
+#endif
     case default
       call tblite%ctx%message("Error: Unknown method in tblite!")
       error stop
@@ -177,8 +201,21 @@ contains  !> MODULE PROCEDURES START HERE
     etemp_au = etemp*ktoau
     call new_wavefunction(tblite%wfn,mol%nat,tblite%calc%bas%nsh,  &
     &              tblite%calc%bas%nao,1,etemp_au)
+#ifdef WITH_GXTB
+    if (tblite%lvl == xtblvl%gxtb) then
+      call sad_guess(mctcmol,tblite%calc,tblite%wfn)
+    end if
+#endif
     if (ceh_guess) then
       call tblite_internal_ceh_guess(mctcmol,tblite)
+    end if
+
+!>--- for methods with an auxiliary charge model (e.g., gxTB), pre-allocate wfn_aux.
+!>--- Charges are updated at each singlepoint call (geometry-dependent).
+    if (allocated(tblite%calc%charge_model)) then
+      if (allocated(tblite%wfn_aux)) deallocate(tblite%wfn_aux)
+      allocate(tblite%wfn_aux)
+      call new_wavefunction(tblite%wfn_aux,mctcmol%nat,tblite%calc%bas%nsh,0,1,0.0_wp,.true.)
     end if
 
 #else /* WITH_TBLITE */
@@ -346,6 +383,9 @@ contains  !> MODULE PROCEDURES START HERE
 !* The actual calculator call.
 !* The tblite object must be set up at this point
 !**************************************************
+#ifdef WITH_TBLITE
+    use multicharge,only:get_charges
+#endif
     implicit none
     type(coord),intent(in)   :: mol
     integer,intent(in)       :: chrg
@@ -374,17 +414,32 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- make an mctcmol object from mol
     call tblite_mol2mol(mol,chrg,uhf,mctcmol)
 
+!>--- update geometry-dependent EEQ-BC charges in wfn_aux (allocated once in tblite_setup)
+    if (allocated(tblite%wfn_aux)) then
+      call get_charges(tblite%calc%charge_model,mctcmol,error,tblite%wfn_aux%qat(:,1), &
+      &                dqdr=tblite%wfn_aux%dqatdr(:,:,:,1),dqdL=tblite%wfn_aux%dqatdL(:,:,:,1))
+      if (allocated(error)) then
+        if (pr) call tblite%ctx%message("tblite> auxiliary charge model failed: "//error%message)
+        iostatus = 1
+        return
+      end if
+    end if
+
 !>--- call the singlepoint routine
     select case (tblite%lvl)
     case default
-      call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
-     &                    energy,gradient, &
-     &                    sigma,verbosity,results=tblite%res)
+      if (allocated(tblite%wfn_aux)) then
+        call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
+        &                    energy,gradient,sigma,verbosity,results=tblite%res,wfn_aux=tblite%wfn_aux)
+      else
+        call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
+        &                    energy,gradient,sigma,verbosity,results=tblite%res)
+      end if
     case (xtblvl%ceh)
       call ceh_singlepoint(tblite%ctx,tblite%calc,mctcmol,tblite%wfn, &
       &              tblite%accuracy,verbosity)
     case (xtblvl%eeq)
-      call eeq_guess(mctcmol,tblite%calc,tblite%wfn)
+      call eeq_guess(mctcmol,tblite%calc,tblite%wfn,error)
     end select
 
     if (tblite%ctx%failed()) then
@@ -446,7 +501,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,intent(in) :: saveint
     real(wp),intent(in) :: accuracy
 #ifdef WITH_TBLITE
-    tblite%calc%max_iter = maxscc
+    tblite%calc%iterator%max_iter = maxscc
     tblite%calc%save_integrals = (rdwbo.or.saveint)
     tblite%accuracy = accuracy
 #endif

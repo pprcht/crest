@@ -47,6 +47,11 @@ option('tblite',
   value   : 'auto',
   description : 'Enable tblite semiempirical library',
 )
+option('gxtb',
+  type    : 'boolean',
+  value   : false,
+  description : 'Enable g-xTB via tblite (requires tblite)',
+)
 option('toml-f',
   type    : 'feature',
   value   : 'auto',

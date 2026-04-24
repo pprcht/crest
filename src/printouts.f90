@@ -920,19 +920,10 @@ end subroutine printprogbar
 
 subroutine gxtb_dev_warning
   use crest_parameters
-  use crest_data,only:status_ioerr
+  use crest_data,only:status_safety
   write (stdout,*)
-  write (stdout,'(a)') "!!! WARNING !!!"
-  write (stdout,'(a)') "You have selected g-xTB for your calculations, but currently only the"
-  write (stdout,'(a)') "preliminary binary version is available."
-  write (stdout,'(a)') "This version does NOT HAVE ANALYTICAL GRADIENTS available and uses"
-  write (stdout,'(a)') "NUMERICAL gradients which are SLOW and NOISY."
+  write (stdout,'(a)') "Note: '--gxtb_dev' is deprecated. Use '--gxtb'."
+  write (stdout,'(a)') "g-xTB via the tblite API is available with this build."
   write (stdout,*)
-  write (stdout,'(a)') 'The cmd argument "--gxtb" will be disabled until an implementation'
-  write (stdout,'(a)') 'with analytical gradients is available'
-  write (stdout,*)
-  write (stdout,'(a)') 'Please use "--gxtb_dev" in the mean time.'
-  write (stdout,'(a)') "Make sure you have the dev version gxtb installed (https://github.com/grimme-lab/g-xtb)"
-  write (stdout,*)
-  call creststop(status_ioerr)
+  call creststop(status_safety)
 end subroutine gxtb_dev_warning

@@ -93,11 +93,19 @@ endif()
 if(NOT TARGET "tblite::tblite" AND WITH_TBLITE)
    find_package("mctc-lib"    REQUIRED)
    find_package("mstore"      REQUIRED)
-   find_package("multicharge" REQUIRED) 
+   find_package("multicharge" REQUIRED)
    find_package("dftd4"       REQUIRED)
    find_package("s-dftd3"     REQUIRED)
    find_package("tblite"      REQUIRED)
    add_compile_definitions(WITH_TBLITE)
+endif()
+
+# g-xTB via tblite
+if(WITH_GXTB)
+   if(NOT WITH_TBLITE)
+      message(FATAL_ERROR "WITH_GXTB requires WITH_TBLITE to be enabled")
+   endif()
+   add_compile_definitions(WITH_GXTB)
 endif()
 
 # GFN-FF

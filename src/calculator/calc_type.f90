@@ -1523,14 +1523,13 @@ contains  !>--- Module routines start here
       self%id = jobtype%turbomole
       self%rdgrad = .false.
       self%binary = 'gp3'
-    case ('gxtb','gxtb_dev')
-      self%id = jobtype%turbomole
-      self%rdgrad = .false.
-      self%binary = 'gxtb'
-      self%rdwbo = .false.
-      if (index(levelstring,'_dev') .ne. 0) then
-        self%other = '-grad'
-        self%rdgrad = .true.
+    case ('gxtb','--gxtb')
+      if (have_gxtb) then
+        self%id = jobtype%tblite
+        self%tblitelvl = xtblvl%gxtb
+      else
+        self%id = jobtype%xtbsys
+        self%other = '--gxtb'
       end if
     case ('orca')
       self%id = jobtype%orca
