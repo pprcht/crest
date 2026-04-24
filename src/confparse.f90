@@ -1416,9 +1416,9 @@ subroutine parseflags(env,arg,nra)
         write (stdout,'(2x,a,'' : Use of g-xTB requested.'')') env%gfnver
 
       case ('-gxtb_dev')
-        processedarg(i+1) = .true.
-        env%gfnver = 'gxtb_dev'
-        call gxtb_dev_warning() 
+        processedarg(i) = .true.
+        env%gfnver = '--gxtb'
+        write (stdout,'(2x,a)') 'Note: --gxtb_dev is deprecated, redirecting to --gxtb.'
 
       case ('-gfn2@gfn0','-gfn2@gfn1','-gfn2@gff','-gfn2@ff','-gfn2@gfnff')
         processedarg(i) = .true.

@@ -94,6 +94,12 @@ module tblite_api
   end type enum_tblite_method
   type(enum_tblite_method),parameter,public :: xtblvl = enum_tblite_method()
 
+#ifdef WITH_GXTB
+  logical,parameter,public :: have_gxtb = .true.
+#else
+  logical,parameter,public :: have_gxtb = .false.
+#endif
+
   !> Conversion factor from Kelvin to Hartree
   real(wp),parameter :: ktoau = 3.166808578545117e-06_wp
 
@@ -181,8 +187,8 @@ contains  !> MODULE PROCEDURES START HERE
       call new_gxtb_calculator(tblite%calc,mctcmol,error)
 #else
     case (xtblvl%gxtb)
-      write (stdout,*) 'Error: Compiled without g-xTB support!'
-      write (stdout,*) 'Recompile with -DWITH_GXTB to enable g-xTB via tblite'
+      write (stdout,'(a)') 'Error: g-xTB via tblite not available (compiled without WITH_GXTB).'
+      write (stdout,'(a)') 'This code path should not be reached — use the xtb binary fallback.'
       error stop
 #endif
     case default

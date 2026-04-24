@@ -30,7 +30,7 @@ module parse_calcdata
   use dynamics_module
   use bh_module
   use gradreader_module,only:gradtype,conv2gradfmt
-  use tblite_api,only:xtblvl
+  use tblite_api,only:xtblvl,have_gxtb
   use strucrd,only:get_atlist,coord
   use axis_module
 
@@ -254,15 +254,20 @@ contains !> MODULE PROCEDURES START HERE
       case ('pvol','libpvol','pv')
         job%id = jobtype%libpvol
       case ('gxtb','g-xtb','gxtb-xtb')
-        job%id = jobtype%tblite
-        job%tblitelvl = xtblvl%gxtb
+        if (have_gxtb) then
+          job%id = jobtype%tblite
+          job%tblitelvl = xtblvl%gxtb
+        else
+          job%id = jobtype%xtbsys
+          job%other = '--gxtb'
+        end if
       case ('gxtb_dev')
-        ! !> fallback: system call (requires gxtb binary in PATH)
-        ! job%id = jobtype%turbomole
-        ! job%rdgrad = .false.
-        ! job%binary = 'gxtb'
-        ! job%rdwbo = .false.
-        call gxtb_dev_warning()
+        if (have_gxtb) then
+          call gxtb_dev_warning()
+        else
+          job%id = jobtype%xtbsys
+          job%other = '--gxtb'
+        end if
       case ('none')
         job%id = jobtype%unknown
       case ('lj','lennard-jones')
