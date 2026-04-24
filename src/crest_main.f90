@@ -102,34 +102,6 @@ program CREST
 !>        PRE-CONFSEARCH PROPERTY CALCS
 !=========================================================================================!
   select case (env%properties)
-!>--- only CREGEN routine
-  case (p_cregen)
-    call tim%start(1,'CREGEN')
-    write (*,*) 'Using only the CREGEN sorting routine.'
-    env%cgf(6) = .true.   !write confg output to file <tmp>
-    if (env%doNMR) then
-      env%cgf(3) = .true.
-      if (.not.env%fullcre) then
-        env%cgf(2) = .false.
-      end if
-    end if
-    if (env%newcregen) then
-      block
-        use cregen_interface
-        call newcregen(env,0)
-      end block
-    else
-      call cregen2(env)
-    end if
-    if (env%doNMR.and.env%fullcre) then
-      call entropic(env,.true.,.false.,.false.,env%ensemblename, &
-      &    env%tboltz,dumfloat,dumfloat2)
-    end if
-    if (env%cluster) then
-      call ccegen(env,.true.,ensemblefile)
-    end if
-    call tim%stop(1)
-    call propquit(tim)
 !>--- zsort routine
   case (p_zsort)
     call zsort

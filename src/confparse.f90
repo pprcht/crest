@@ -891,10 +891,15 @@ subroutine parseflags(env,arg,nra)
         write (stdout,'(2x,a,t15,a)') argument//':','Molecular dynamics simulation'
         exit
 
-      case ('-sort')
+      case ('-sort','-cregen')
         processedarg(i) = .true.
         env%preopt = .false.
         env%crestver = crest_sorting
+        env%autozsort = .false.
+        if (argument == '-cregen') then
+          env%sortmode = 'cregen'
+          env%confgo = .true.
+        end if
         ctmp = arg1
         inquire (file=ctmp,exist=ex)
         if (ex) then
@@ -902,7 +907,7 @@ subroutine parseflags(env,arg,nra)
           env%inputcoords = ctmp
           env%ensemblename = ctmp
         end if
-        if (nra >= i+2) then
+        if (argument == '-sort' .and. nra >= i+2) then
           ctmp = arg2
           if (ctmp(1:1) .ne. '-') then
             processedarg(i+2) = .true.
@@ -972,6 +977,10 @@ subroutine parseflags(env,arg,nra)
   else
     call inputcoords(env,trim(arg(1)))
     processedarg(1) = .true.
+  end if
+!> For sorting runtypes, fall back to the input file if no ensemble was set explicitly
+  if (env%crestver == crest_sorting .and. len_trim(env%ensemblename) == 0) then
+    env%ensemblename = env%inputcoords
   end if
 
 !========================================================================================!
@@ -2081,38 +2090,6 @@ subroutine parseflags(env,arg,nra)
       case ('-inplace')     !> activate "in-place" mode for optimizations (ON by default)
         processedarg(i) = .true.
         env%inplaceMode = .true.
-!========================================================================================!
-!------- CREGEN related flags
-!========================================================================================!
-      case ('-cregen','-oldcregen')  !> CREGEN standalone use
-        processedarg(i) = .true.
-        env%confgo = .true.
-        env%properties = p_cregen
-        env%autozsort = .false.
-        atmp = ''
-        env%ensemblename = 'none selected'
-        if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
-        if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
-          env%ensemblename = trim(atmp)
-          processedarg(i+1) = .true.
-        end if
-        if (index(env%ensemblename,'none selected') .ne. 0) then
-          write (stdout,'(2x,a,1x,a)') trim(arg(i)),': CREGEN standalone usage.'
-        else
-          write (stdout,'(2x,a,1x,a,a,a)') trim(arg(i)),': CREGEN standalone usage. Sorting file <', &
-          & trim(env%ensemblename),'>'
-        end if
-        if (trim(arg(i)) .eq. '-oldcregen') then
-          write (stdout,'(3x,a)') 'Using the old version of the CREGEN subroutine.'
-          env%newcregen = .false.
-        end if
-
-      case ('-oldcr')
-        processedarg(i) = .true.
-        write (stdout,'(3x,a)') 'Using the old version of the CREGEN subroutine.'
-        env%newcregen = .false.
-        env%ethr = 0.1d0 !> ETHR old value
-
       case ('-enso')             !> compare two given ensembles
         processedarg(i) = .true.
         env%ENSO = .true.
@@ -2795,8 +2772,8 @@ subroutine parseflags(env,arg,nra)
         if (env%properties == p_propcalc) then
           !>--- for standalone use
           env%properties = p_cluster
-        elseif (env%confgo.and.env%properties == p_cregen) then
-          !>--- as extension for CREGEN
+        elseif (env%crestver == crest_sorting) then
+          !>--- as extension for CREGEN/sorting
           env%cluster = .true.
         else if (any((/crest_imtd,crest_imtd2/) == env%crestver)) then
           !>--- works as an extensiton to the conformational search

@@ -93,7 +93,7 @@ subroutine crest_sort(env,tim)
     call cregen_irmsd_all(nall,structures,printlvl=2,iinversion=env%iinversion)
 
   case ('cregen')
-!>--- the original CREGEN procedure (fallback, needs nicer implementations)
+!>--- the original CREGEN procedure
     call newcregen(env,structurelist=structures)
     call catdel('cregen.out.tmp')
 
