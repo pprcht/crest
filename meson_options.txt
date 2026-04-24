@@ -49,7 +49,7 @@ option('tblite',
 )
 option('gxtb',
   type    : 'boolean',
-  value   : true,
+  value   : false,
   description : 'Enable g-xTB via tblite (requires tblite)',
 )
 option('toml-f',
