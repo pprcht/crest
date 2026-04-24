@@ -1198,8 +1198,8 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
       if (groups(ii) .ne. gg) cycle
       do jj = ii+1,nall
         kk = groups(jj)
-        if (kk .ne. gg .or. kk < 0) cycle
-        
+        if (kk .ne. gg.or.kk < 0) cycle
+
         workmols(cc)%nat = structures(jj)%nat
         workmols(cc)%at(:) = structures(jj)%at(:)
         workmols(cc)%xyz(:,:) = structures(jj)%xyz(:,:)
@@ -1655,7 +1655,7 @@ subroutine cregen_irmsd_sort(env,nall,structures,groups,allcanon,printlvl)
       cc = omp_get_thread_num()+1
       if (groups(jj) .ne. 0) cycle
       ediff = abs(structures(ii)%energy-structures(jj)%energy)
-      if(ediff > ETHR) cycle
+      if (ediff > ETHR) cycle
       if (individual_IDs) then
         rcaches(cc)%rank(1:nat,1) = sorters(ii)%rank(1:nat)
         rcaches(cc)%rank(1:nat,2) = sorters(jj)%rank(1:nat)
@@ -2460,19 +2460,19 @@ subroutine cregen_pr2(ch,env,nall,ng,degen,er)
 
   !>-- really long energy list
   write (och,'(80("*"))')
-  write (och,'(1x,a8,1x,a8,3(1x,a12),1x,a9,1x,a5)') &
+  write (och,'(1x,a8,1x,a8,(1x,a16),(1x,a8),(1x,a12),1x,a9,1x,a5)') &
   &      '  ','ΔE','Etot','weight','conf.weight','conformer',''
-  write (och,'(a8,1x,a8,3(1x,a12),1x,a9,1x,a5,1x,a6)') &
+  write (och,'(a8,1x,a8,(1x,a16),(1x,a8),(1x,a12),1x,a9,1x,a5,1x,a6)') &
   &        'id ','kcal/mol','hartree','p(i)','p(group)','group','degen','origin'
-  write (och,'(4x,4("-"),1x,8("-"),3(1x,12("-")),1x,9("-"),1x,5("-"),1x,6("-"))')
+  write (och,'(4x,4("-"),1x,8("-"),(1x,16("-")),(1x,8("-")),(1x,12("-")),1x,9("-"),1x,5("-"),1x,6("-"))')
   if (abbrev) then
     call remove('cregen.full')
     open (newunit=och2,file='cregen.full',status='replace')
-    write (och2,'(1x,a8,1x,a8,3(1x,a12),1x,a9,1x,a5)') &
+    write (och2,'(1x,a8,1x,a8,(1x,a16),(1x,a8),(1x,a12),1x,a9,1x,a5)') &
     &      '  ','ΔE','Etot','weight','conf.weight','conformer',''
-    write (och2,'(a8,1x,a8,3(1x,a12),1x,a9,1x,a5,1x,a6)') &
+    write (och2,'(a8,1x,a8,(1x,a16),(1x,a8),(1x,a12),1x,a9,1x,a5,1x,a6)') &
     &        'id ','kcal/mol','hartree','p(i)','p(group)','group','degen','origin'
-    write (och2,'(4x,4("-"),1x,8("-"),3(1x,12("-")),1x,9("-"),1x,5("-"),1x,6("-"))')
+    write (och2,'(4x,4("-"),1x,8("-"),(1x,16("-")),(1x,8("-")),(1x,12("-")),1x,9("-"),1x,5("-"),1x,6("-"))')
   else
     call remove('cregen.full')
   end if
@@ -2484,33 +2484,33 @@ subroutine cregen_pr2(ch,env,nall,ng,degen,er)
     a = degen(2,i)
     b = degen(3,i)
     if (k <= printlimit.or.k > nall-10) then
-      write (och,'(i8,1x,f8.4,1x,f12.6,2(1x,f12.5),1x,i9,1x,i5,a)') &
+      write (och,'(i8,1x,f8.4,1x,f16.6,(1x,f8.5),(1x,f12.5),1x,i9,1x,i5,a)') &
       &     a,erel(a),er(a),p(a),pg(i),i,degen(1,i),trim(origin(a))
     else if (print_placeholder) then
       print_placeholder = .false.
       write (och,'(5x,"...",1x,"<skipped due to ensemble length, see file cregen.full> ...")')
     end if
     if (abbrev) then
-      write (och2,'(i8,1x,f8.4,1x,f12.6,2(1x,f12.5),1x,i9,1x,i5,a)') &
+      write (och2,'(i8,1x,f8.4,1x,f16.6,(1x,f8.5),(1x,f12.5),1x,i9,1x,i5,a)') &
       &     a,erel(a),er(a),p(a),pg(i),i,degen(1,i),trim(origin(a))
     end if
     do j = a+1,b
       k = k+1
       if (k <= printlimit.or.k > nall-10) then
-        write (och,'(i8,1x,f8.4,1x,f12.6,1x,f12.5,1x,a12,1x,a9,1x,a5,1x,a)') &
+        write (och,'(i8,1x,f8.4,1x,f16.6,1x,f8.5,1x,a12,1x,a9,1x,a5,1x,a)') &
                & k,erel(j),er(j),p(j),'.','.','.',trim(origin(j))
       else if (print_placeholder) then
         print_placeholder = .false.
         write (och,'(5x,"...",1x,"<skipped due to ensemble length, see file cregen.full> ...")')
       end if
       if (abbrev) then
-        write (och2,'(i8,1x,f8.4,1x,f12.6,1x,f12.5,1x,a12,1x,a9,1x,a5,1x,a)') &
+        write (och2,'(i8,1x,f8.4,1x,f16.6,1x,f8.5,1x,a12,1x,a9,1x,a5,1x,a)') &
                & k,erel(j),er(j),p(j),'.','.','.',trim(origin(j))
       end if
     end do
   end do
 
-  if(abbrev) close(och2)
+  if (abbrev) close (och2)
 
   !>-- file for the '-compare' mode
   if (env%compareens) then
