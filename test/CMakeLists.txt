@@ -9,6 +9,7 @@ set(
   "optimization"
   "molecular_dynamics"
   "getsym"
+  "irmsd"
 )
 set(
   test-srcs

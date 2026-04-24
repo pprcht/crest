@@ -10,6 +10,7 @@ tests = [
   'optimization',
   'molecular_dynamics',
   'getsym',
+  'irmsd',
 ]
 
 test_srcs = files(
