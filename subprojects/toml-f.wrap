@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/toml-f/toml-f
-revision = v0.4.3
+revision = d5e92701d28b647323ce05ecbcbf302dd19792f7
 clone-recursive = true
 
 [provide]

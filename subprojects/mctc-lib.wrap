@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/grimme-lab/mctc-lib
-revision = head
+revision = 8cd0cb4489537fd28bfb2e8094f1647f3e0da284
 clone-recursive = true
 
 [provide]

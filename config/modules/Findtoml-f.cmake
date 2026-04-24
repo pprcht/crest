@@ -17,6 +17,7 @@
 set(_lib "toml-f")
 set(_pkg "TOML-F")
 set(_url "https://github.com/toml-f/toml-f")
+set(_branch "d5e92701d28b647323ce05ecbcbf302dd19792f7")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
@@ -24,7 +25,7 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
-crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}")
+crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 if(TARGET "toml-f::toml-f")
   set (found TRUE)

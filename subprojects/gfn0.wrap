@@ -1,6 +1,6 @@
 [wrap-git]
-url = https://github.com/grimme-lab/gfn0
-revision = head
+url = https://github.com/pprcht/gfn0
+revision = 717cce283ede4fa88d949292291b1f0f6984440a
 clone-recursive = true
 
 [provide]

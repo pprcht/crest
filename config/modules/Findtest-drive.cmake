@@ -17,6 +17,7 @@
 set(_lib "test-drive")
 set(_pkg "TEST-DRIVE")
 set(_url "https://github.com/fortran-lang/test-drive")
+set(_branch "e8b7ca492c647ed384c9845d2caed04192af7d02")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
@@ -24,7 +25,7 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
-crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}")
+crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 if(TARGET "${_lib}::${_lib}")
   set (found TRUE)

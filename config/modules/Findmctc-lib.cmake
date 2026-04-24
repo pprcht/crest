@@ -1,6 +1,7 @@
 set(_lib "mctc-lib")
 set(_pkg "MCTCLIB")
 set(_url "https://github.com/grimme-lab/mctc-lib")
+set(_branch "8cd0cb4489537fd28bfb2e8094f1647f3e0da284")
 
 # Discovery method order can be overridden by the parent project, e.g.:
 #   set(mctc-lib_FIND_METHOD "subproject" "cmake")
@@ -12,7 +13,7 @@ endif()
 # Replace "crest-utils" with the actual name if yours differs.
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
-crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}")
+crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 set(found FALSE)
 if(TARGET "mctc-lib::mctc-lib")

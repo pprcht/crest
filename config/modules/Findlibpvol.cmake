@@ -17,7 +17,7 @@
 set(_lib "pvol")
 set(_pkg "PVOL")
 set(_url "https://github.com/pprcht/libpvol.git")
-set(_branch "build-update")
+set(_branch "c975ad4e062a00e6b228505bec0f1d722aea9f46")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf" )

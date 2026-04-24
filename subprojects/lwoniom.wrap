@@ -1,6 +1,6 @@
 [wrap-git]
-url = https://github.com/grimme-lab/lwoniom
-revision = head
+url = https://github.com/crest-lab/lwoniom
+revision = ab66c7ebc3066328a8fc313dc783aec9b773cad2
 clone-recursive = true
 
 [provide]

@@ -17,6 +17,7 @@
 set(_lib "gfn0")
 set(_pkg "GFN0")
 set(_url "https://github.com/pprcht/gfn0")
+set(_branch "717cce283ede4fa88d949292291b1f0f6984440a")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
@@ -24,7 +25,7 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
-crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}")
+crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 set (found FALSE)
 if(TARGET "gfn0::gfn0")
