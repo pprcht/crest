@@ -223,10 +223,12 @@ program CREST
 !=========================================================================================!
 !>         PRE-OPTIMIZATION OF THE GEOMETRY
 !=========================================================================================!
-  if (env%preopt) then
-    call trialOPT(env)
-  else if (env%presp) then
-    call xtbsp(env)
+  if (env%crestver /= crest_none) then
+    if (env%preopt) then
+      call trialOPT(env)
+    else if (env%presp) then
+      call xtbsp(env)
+    end if
   end if
 !=========================================================================================!
 !>         SET UP QUEUES, IF REQUIRED
@@ -315,6 +317,9 @@ program CREST
 
     case (crest_test)
       call crest_playground(env,tim)
+
+    case (crest_none)
+      call crest_no_runtype_selected()
 
     case default
       continue

@@ -333,7 +333,7 @@ subroutine parseflags(env,arg,nra)
 !=========================================================================================!
 !=========================================================================================!
 !>--- get the CREST version/runtype
-  env%crestver = crest_imtd !> confscript version (v.1 = MF-MD-GC, v.2 = MTD)
+  env%crestver = crest_none !> no runtype selected — must be set explicitly
   env%runver = 1            !> default
   env%properties = p_none   !> additional calculations/options before or after confsearch
   env%properties2 = p_none  !> backup for env%properties

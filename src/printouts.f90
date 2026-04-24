@@ -927,3 +927,43 @@ subroutine gxtb_dev_warning
   write (stdout,*)
   call creststop(status_safety)
 end subroutine gxtb_dev_warning
+
+!========================================================================================!
+!========================================================================================!
+
+subroutine crest_no_runtype_selected()
+  !*****************************************************
+  !* Print an error when no runtype has been selected, *
+  !* list the available main runtypes, and stop.       *
+  !*****************************************************
+  use crest_parameters,only:stdout
+  use crest_data,only:status_safety
+  implicit none
+  write (stdout,*)
+  write (stdout,'(1x,a)') repeat('=',60)
+  write (stdout,'(1x,a)') 'No runtype was selected.'
+  write (stdout,'(1x,a)') 'Please choose one of the main runtypes listed below.'
+  write (stdout,'(1x,a)') repeat('=',60)
+  write (stdout,*)
+  write (stdout,'(3x,a)') 'Main runtypes:'
+  write (stdout,*)
+  write (stdout,'(5x,a,t30,a)') '--sp','Single-point energy calculation'
+  write (stdout,'(5x,a,t30,a)') '--opt','Structure optimization'
+  write (stdout,'(5x,a,t30,a)') '--md','Molecular dynamics simulation'
+  write (stdout,'(5x,a,t30,a)') '--v3','iMTD-GC conformational search' 
+  write (stdout,'(5x,a,t30,a)') '--entropy','Entropy/free-energy sampling'
+  write (stdout,'(5x,a,t30,a)') '--mdopt','Ensemble optimization (no sorting)'
+  write (stdout,'(5x,a,t30,a)') '--screen','Ensemble screening'
+  write (stdout,'(5x,a,t30,a)') '--protonate','Protonation site search'
+  write (stdout,'(5x,a,t30,a)') '--deprotonate','Deprotonation site search'
+  write (stdout,'(5x,a,t30,a)') '--tautomerize','Tautomer generation'
+  write (stdout,'(5x,a,t30,a)') '--qcg','QCG workflows' 
+  write (stdout,'(5x,a,t30,a)') '--msreact','MSREACT workflows'
+  write (stdout,'(5x,a,t30,a)') '--bh','Basin-hopping global optimization'
+  write (stdout,'(5x,a,t30,a)') '--sort','Ensemble sorting (CREGEN)'
+  write (stdout,*)
+  write (stdout,'(3x,a)') 'For TOML input files use:  crest --input <file.toml>'
+  write (stdout,'(3x,a)') 'For the full option list:  crest --help'
+  write (stdout,*)
+  call creststop(status_safety)
+end subroutine crest_no_runtype_selected
