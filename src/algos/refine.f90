@@ -84,7 +84,6 @@ subroutine crest_refine(env,input,output)
     eread(j) = structures(j)%energy
     xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
   end do
-  deallocate (structures)
 
 !===========================================================!
   DO_REFINE: if (allocated(env%refine_queue)) then
@@ -136,15 +135,17 @@ subroutine crest_refine(env,input,output)
   end if DO_REFINE
 !===========================================================!
 
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: ensemble file must be written in AA
-  xyz = xyz/angstrom
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- write output ensemble
-  call wrensemble(outname,nat,nall,at,xyz,eread)
+!>--- sync refined energies and coordinates back into coord structures
+  do j = 1,nall
+    structures(j)%energy = eread(j)
+    structures(j)%xyz(1:3,1:nat) = xyz(1:3,1:nat,j)
+    structures(j)%wrextxyz = .true.
+  end do
+!>--- write output ensemble in extxyz format
+  call wrensemble(outname,nall,structures)
 
 !===========================================================!
-  deallocate (etmp,eread,xyz,at)
+  deallocate (etmp,eread,xyz,at,structures)
   return
 end subroutine crest_refine
 !========================================================================================!
