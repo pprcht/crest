@@ -33,8 +33,7 @@ project(
 
 # Apply debug flags when building in Debug mode
 set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} \
-    -g -O0 -fcheck=all -fbacktrace -finit-real=snan -finit-integer=-999 \
-    -Wall -Wextra -Wuninitialized -Wmaybe-uninitialized")
+    -g -O0 -fcheck=all -fbacktrace -finit-real=snan -finit-integer=-999")
 
 # Follow GNU conventions for installing directories
 include(GNUInstallDirs)
@@ -65,7 +64,12 @@ if(NOT TARGET "OpenMP::OpenMP_Fortran" AND WITH_OpenMP)
   message(STATUS "OpenMP::OpenMP_Fortran is linking the following libraries:")
   foreach(lib ${OpenMP_Fortran_LIBRARIES})
     message(STATUS "${lib}")
-  endforeach() 
+  endforeach()
+endif()
+# Propagate OpenMP link flags globally so subproject executables (e.g. pvol tests)
+# that bypass CMake target dependencies still link the OpenMP runtime correctly.
+if(WITH_OpenMP AND OpenMP_Fortran_FOUND)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_Fortran_FLAGS}")
 endif()
 
 # Check if we are using OpenBLAS (need a precompiler definition if yes)
