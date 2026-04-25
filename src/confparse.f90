@@ -383,7 +383,7 @@ subroutine parseflags(env,arg,nra)
         env%Maxrestart = 1       !> for non-iterative MTD-GC only
         exit
 
-      case ('-v3','-v2i') !> confscript version 2 but iterativ (iMTD-GC)
+      case ('-v3','-v2i','-imtdgc') !> confscript version 2 but iterativ (iMTD-GC)
         processedarg(i) = .true.
         env%crestver = crest_imtd
         env%iterativeV2 = .true.
