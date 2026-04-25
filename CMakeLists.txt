@@ -69,11 +69,14 @@ if(NOT TARGET "OpenMP::OpenMP_Fortran" AND WITH_OpenMP)
 endif()
 
 # Check if we are using OpenBLAS (need a precompiler definition if yes)
-if(LAPACK_LIBRARIES)
-  string(FIND "${LAPACK_LIBRARIES}" "openblas" _openblas_in_lapack)
+# Match "libopenblas" specifically to avoid false positives from conda env
+# path names that contain "openblas" (e.g. crest-gnu-openblas/lib/libgomp.so).
+if(LAPACK_LIBRARIES OR BLAS_LIBRARIES)
+  set(_all_blas_libs "${LAPACK_LIBRARIES};${BLAS_LIBRARIES}")
+  string(FIND "${_all_blas_libs}" "libopenblas" _openblas_in_lapack)
 
   if(NOT _openblas_in_lapack EQUAL -1)
-    message(STATUS "libopenblas was found as part of LAPACK")
+    message(STATUS "libopenblas was found as part of LAPACK/BLAS")
     add_compile_definitions(WITH_OPENBLAS)
   endif()
 endif()

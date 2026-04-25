@@ -123,8 +123,12 @@ if fc_id == 'intel-llvm'
     warning('intel-llvm: libgcc_s.so not found — _Unwind_* symbols will be NULL, ' +
             'Intel Fortran runtime will SIGSEGV at startup.')
   endif
+  # For static builds libgcc_s.so is not needed (signal handler uses ISO_C_BINDING
+  # and no longer goes through libifcore's _Unwind_* path), and adding an explicit
+  # .so path would defeat -static.  Only add it for dynamic builds.
   _lifport_arg = static_build ? [] : ['-lifport']
-  add_project_link_arguments(_lifport_arg + _gcc_s_link, language : 'fortran')
+  _gcc_s_arg   = static_build ? [] : _gcc_s_link
+  add_project_link_arguments(_lifport_arg + _gcc_s_arg, language : 'fortran')
 endif
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -143,20 +147,24 @@ if static_build
   elif fc_id == 'intel'
     # -static-intel  : statically links Intel runtime (ifcore, imf, svml)
     # -qopenmp-link=static : statically links Intel OpenMP (libiomp5)
-    # Add -static on top if a fully self-contained binary is needed and
-    # glibc-static is available on the build host.
+    # -static        : forces all -l flags (including MKL) to resolve to .a
     add_project_link_arguments(
       '-static-intel',
       '-qopenmp-link=static',
+      '-static',
       language : 'fortran',
     )
 
   elif fc_id == 'intel-llvm'
-    # -static-intel : statically links Intel runtime (ifcore, ifport, imf, svml)
-    # -qopenmp-link=static : statically links Intel OpenMP (libomp / libiomp5)
+    # -static only: with LIBRARY_PATH including the Intel compiler lib dir,
+    # the linker finds libifcore.a/libimf.a/libiomp5.a directly.
+    # -static-intel + -qopenmp-link=static are NOT used because combined with
+    # -fopenmp link args from non-Intel subprojects they cause libifcore.a vs
+    # libifcoremt.a duplicate-symbol errors (ifx 2025.3).  Allow-multiple-
+    # definition suppresses the remaining conflict (same pattern as ifort above).
     add_project_link_arguments(
-      '-static-intel',
-      '-qopenmp-link=static',
+      '-static',
+      '-Wl,--allow-multiple-definition',
       language : 'fortran',
     )
   endif

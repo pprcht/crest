@@ -64,7 +64,7 @@ if omp_dep.found()
   add_project_arguments('-DWITH_OMP', language : ['c', 'fortran'])
 endif
 
-_omp_link_dep = (omp_dep.found() and not static_build) ? [omp_dep] : []
+_omp_link_dep = omp_dep.found() ? [omp_dep] : []
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  LAPACK / BLAS
@@ -91,7 +91,45 @@ _prefer_mkl = (fc_id in ['intel', 'intel-llvm']) and (lapack_opt == 'auto')
 
 # ── MKL ───────────────────────────────────────────────────────────────────────
 if lapack_opt == 'mkl' or _prefer_mkl
-  _mkl = dependency('mkl-sdl', required : false, static : static_build)
+  _mkl = dependency('', required : false)   # not-found sentinel
+
+  # For static builds, mkl-sdl only offers libmkl_rt.so (no .a equivalent).
+  # Use run_command to get the lib dir from pkg-config WITHOUT resolving the
+  # dependency (so we can override it for subprojects below).  Then look up
+  # the real .a archives with explicit dirs:.
+  # iomp5/gomp are provided by -static-intel/-qopenmp-link=static, so we do
+  # not add them explicitly here.
+  if static_build
+    _pc = find_program('pkg-config', required : false)
+    _mkl_libdir = ''
+    if _pc.found()
+      _r = run_command(_pc, '--variable=libdir', 'mkl-sdl', check : false)
+      if _r.returncode() == 0
+        _mkl_libdir = _r.stdout().strip()
+      endif
+    endif
+    if _mkl_libdir != ''
+      _thread_lib   = (fc_id == 'gcc') ? 'mkl_gnu_thread' : 'mkl_intel_thread'
+      _mkl_sa_parts = []
+      foreach lib : ['mkl_intel_lp64', _thread_lib, 'mkl_core']
+        _l = fc.find_library(lib, dirs : [_mkl_libdir], required : false, static : true)
+        if _l.found()
+          _mkl_sa_parts += [_l]
+        endif
+      endforeach
+      if _mkl_sa_parts.length() == 3
+        _mkl = declare_dependency(
+          dependencies : _mkl_sa_parts,
+          link_args    : ['-lpthread', '-lm', '-ldl'],
+        )
+      endif
+    endif
+  endif
+
+  if not _mkl.found()
+    # Dynamic build (or static path failed): use mkl-sdl single dynamic library.
+    _mkl = dependency('mkl-sdl', required : false, static : static_build)
+  endif
 
   if not _mkl.found()
     _thread_lib = (fc_id == 'gcc') ? 'mkl_gnu_thread' : 'mkl_intel_thread'
@@ -193,6 +231,12 @@ if static_build
   meson.override_dependency('blas',   blas_dep)
   if with_openblas
     meson.override_dependency('openblas', blas_dep)
+  endif
+  if with_mkl
+    # Override mkl-sdl so subprojects (gfnff, gfn0, …) don't reintroduce -lmkl_rt
+    # when we resolved MKL statically (dependency() was never called for mkl-sdl
+    # in the static path above, so the override is still allowed here).
+    meson.override_dependency('mkl-sdl', lapack_dep)
   endif
 endif
 
