@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/pprcht/gfnff
-revision = e0d6e39863eaa09531b126dc4a1a58945abc25fb
+revision = 112a7a1bb5707f0e1ab1e86327c669b88cabafe0
 clone-recursive = true
 
 [provide]
