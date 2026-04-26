@@ -763,7 +763,7 @@ contains  !> MODULE PROCEDURES START HERE
   contains
     subroutine regress(n1,n2,rege,slope)
       implicit none
-      real(wp) :: rege(stdout),slope
+      real(wp) :: rege(*),slope
       integer :: n1,n2,n
       real(wp) :: sx,sy,sxx,sxy,x
       integer :: i,j,k,l,ich,och,io

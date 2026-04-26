@@ -181,7 +181,10 @@ contains  !> MODULE PROCEDURES START HERE
     class(rmsd_cache) :: self
     integer,intent(in) :: nat
 
-    if (.not.self%initialized.or.size(self%xyzscratch,2) .ne. nat) then
+    if (.not.self%initialized) then
+      call self%allocate(nat)
+      self%initialized = .true.
+    else if (size(self%xyzscratch,2) .ne. nat) then
       call self%allocate(nat)
       self%initialized = .true.
     end if

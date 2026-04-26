@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/pprcht/gfn0
-revision = 255d47bb2c2b443d8bc70b1ce45c0f4deac42f02
+revision = 4fbf39bf6790eaef74e06fbb49b98f676db66a2b
 clone-recursive = true
 
 [provide]

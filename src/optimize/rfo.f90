@@ -219,7 +219,7 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%xyz = mol%xyz
     molopt%wrextxyz = calc%logextxyz
     estart = etot
-    !energy = etot
+    energy = etot
 
 !>--- initialize .log file, if desired
     ilog = 942

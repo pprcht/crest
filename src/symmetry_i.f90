@@ -601,6 +601,11 @@ contains    !> MODULE PROCEDURES START HERE
     integer :: vars,cycle,i,hits
     logical :: finish
 
+    values = 0.0_wp
+    grad = 0.0_wp
+    force = 0.0_wp
+    step = 0.0_wp
+
     vars = elem%nparam
     if (vars > MAXPARAM) then
       write (*,*) "Catastrophe in optimize_transformation_params!"
