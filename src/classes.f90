@@ -565,6 +565,7 @@ module crest_data
     logical :: allowrestart = .true. !> allow restart in crest algos?
     logical :: better = .false.      !> found a better conformer and restart in V1
     logical :: ceh_guess = .false.   !> use CEH guess in tblite or gfnff, if available
+    logical :: spin_polarized = .false. !> enable spin-polarized calculations
     logical :: cff                   !> CFF used in QCG-energy calculation
     logical :: cluster = .false.     !> perform a clustering analysis
     logical :: checktopo = .true.    !> perform topolgy check in CREGEN
@@ -1376,6 +1377,7 @@ contains  !> MODULE PROCEDURES START HERE
     self%allowrestart   = src%allowrestart
     self%better         = src%better
     self%ceh_guess      = src%ceh_guess
+    self%spin_polarized = src%spin_polarized
     self%cff            = src%cff
     self%cluster        = src%cluster
     self%checktopo      = src%checktopo

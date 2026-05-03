@@ -48,6 +48,7 @@ subroutine env2calc(env,calc,molin)
 
   cal%uhf = env%uhf
   cal%chrg = env%chrg
+  cal%spin_polarized = env%spin_polarized
 !>-- obtain WBOs OFF by default
   cal%rdwbo = .false.
   cal%rddip = .false.
@@ -90,6 +91,7 @@ subroutine env2calc(env,calc,molin)
 
     cal2%chrg = cal%chrg
     cal2%uhf = cal%uhf
+    cal2%spin_polarized = cal%spin_polarized
     if (env%gbsa) then
       cal2%solvmodel = cal%solvmodel
       cal2%solvent = cal%solvent
@@ -187,6 +189,13 @@ subroutine env2calc_modify(env)
   if (env%ceh_guess) then
     do i = 1,env%calc%ncalculations
       env%calc%calcs(i)%ceh_guess = env%ceh_guess
+    end do
+  end if
+
+  !>--- pass on spin-polarized flag
+  if (env%spin_polarized) then
+    do i = 1,env%calc%ncalculations
+      env%calc%calcs(i)%spin_polarized = env%spin_polarized
     end do
   end if
 

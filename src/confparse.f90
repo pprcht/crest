@@ -1534,6 +1534,10 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%ceh_guess = .true.
 
+      case ('-spin-polarized','-spinpol')
+        processedarg(i) = .true.
+        env%spin_polarized = .true.
+
       case ('-dscal','-dispscal','-dscal_global','-dispscal_global')
         processedarg(i) = .true.
         env%cts%dispscal_md = .true.

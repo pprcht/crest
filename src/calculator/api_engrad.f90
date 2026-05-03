@@ -499,7 +499,7 @@ contains    !> MODULE PROCEDURES START HERE
     logical :: ex
     iostatus = 0
     pr = .false.
-    !$omp critical 
+    !$omp critical
 !>--- setup system call information
     if (calc%MPAR%iid == 0) then
       iid = OMP_GET_THREAD_NUM()+1
@@ -513,7 +513,7 @@ contains    !> MODULE PROCEDURES START HERE
 
 !>--- do the engrad call
     call initsignal()
-    call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus, & 
+    call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus, &
       &                   charge=calc%chrg,spin=calc%uhf)
     if (iostatus /= 0) return
 

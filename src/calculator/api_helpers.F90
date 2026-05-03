@@ -155,6 +155,7 @@ contains    !> MODULE PROCEDURES START HERE
       if(allocated(calc%tbliteparam))then
         calc%tblite%paramfile = calc%tbliteparam
       endif
+      calc%tblite%spin_polarized = calc%spin_polarized
       loadnew = .true.
     end if
     if (calc%apiclean) loadnew = .true.
