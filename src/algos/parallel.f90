@@ -70,7 +70,7 @@ module parallel_interface
   end interface
 
   interface
-    subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
+    subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
       use crest_parameters,only:wp,stdout,sep
       use crest_calculator
       use omp_lib
@@ -84,6 +84,8 @@ module parallel_interface
       integer,intent(in)  :: at(nat)
       real(wp),intent(inout) :: eread(nall)
       integer,intent(in) :: nat,nall
+      real(wp),optional,intent(out) :: gt_out(:,:)    !> (nall, nt_full)
+      real(wp),optional,intent(out) :: stot_out(:,:)  !> (nall, nt_full)
     end subroutine crest_hessloop
   end interface
 
@@ -255,12 +257,14 @@ end subroutine crest_sploop
 !> Routines for concurrent singlepoint evaluations
 !========================================================================================!
 !========================================================================================!
-subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
+subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
 !***************************************************************
-!* subroutine crest_sploop
-!* This subroutine performs concurrent singlepoint evaluations
-!* for the given ensemble. Input eread is overwritten
-!* xyz must be in Bohrs
+!* subroutine crest_hessloop
+!* Concurrent numerical Hessian evaluations for an ensemble.
+!* Input eread is overwritten with Gibbs free energies.
+!* xyz must be in Bohrs.
+!* Optional gt_out/stot_out return G and S at all temperatures
+!* from env%thermo; requires pre-allocated (nall,nt) arrays.
 !*
 !* Parallelization is enabled using numhess1 (OpenMP-compatible).
 !*
@@ -279,6 +283,8 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
   integer,intent(in)  :: at(nat)
   real(wp),intent(inout) :: eread(nall)
   integer,intent(in) :: nat,nall
+  real(wp),optional,intent(out) :: gt_out(:,:)    !> (nall, nt_full)
+  real(wp),optional,intent(out) :: stot_out(:,:)  !> (nall, nt_full)
 
   type(coord),allocatable :: mols(:)
   integer :: i,j,k,l,io,ich,ich2,c,z,job_id,zcopy,nat3
@@ -349,9 +355,17 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
   if (.not.allocated(env%thermo%temps)) then
     call env%thermo%get_temps()
   end if
-  nt = 1
-  allocate (temps(nt,T),et(nt,T),ht(nt,T),gt(nt,T),stot(nt,T),source=0.0_wp)
-  temps = env%thermo%get_close_rt(nrt)
+  if (present(gt_out)) then
+    nt = env%thermo%ntemps
+    allocate (temps(nt,T),et(nt,T),ht(nt,T),gt(nt,T),stot(nt,T),source=0.0_wp)
+    do i = 1,T
+      temps(:,i) = env%thermo%temps(:)
+    end do
+  else
+    nt = 1
+    allocate (temps(nt,T),et(nt,T),ht(nt,T),gt(nt,T),stot(nt,T),source=0.0_wp)
+    temps = env%thermo%get_close_rt(nrt)
+  end if
 
 !>--- printout directions and timer initialization
   pr = .false. !> stdout printout
@@ -418,14 +432,14 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread)
 
     !$omp critical
     if (io == 0) then
-      !>--- successful optimization (io==0)
       c = c+1
       eread(zcopy) = gt(1,job)
+      if (present(gt_out))   gt_out(zcopy,:)   = gt(:,job)
+      if (present(stot_out)) stot_out(zcopy,:) = stot(:,job)
     else
       eread(zcopy) = big
     end if
     k = k+1
-    !>--- print progress
     call crest_oloop_pr_progress(env,nall,k)
     !$omp end critical
     !$omp end task

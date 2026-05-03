@@ -390,6 +390,13 @@ subroutine parseflags(env,arg,nra)
         write (stdout,'(2x,a,'' : iMTD-GC'')') trim(arg(i))
         exit
 
+      case ('-entropy') !> sMTD-iMTD+entropy extrapol
+        processedarg(i) = .false.  !> THIS IS IMPORTANT, WE READ FURTHER ENTROPY SETTINGS BELOW
+        env%crestver = crest_imtd
+        env%iterativeV2 = .true.
+        write (stdout,'(2x,a,'' : iMTD-sMTD + entropy extrapolation'')') trim(arg(i))
+        exit
+
       case ('-v4') !> sMTD-iMTD (same as entropy mode)
         processedarg(i) = .true.
         env%crestver = crest_imtd2
@@ -907,7 +914,7 @@ subroutine parseflags(env,arg,nra)
           env%inputcoords = ctmp
           env%ensemblename = ctmp
         end if
-        if (argument == '-sort' .and. nra >= i+2) then
+        if (argument == '-sort'.and.nra >= i+2) then
           ctmp = arg2
           if (ctmp(1:1) .ne. '-') then
             processedarg(i+2) = .true.
@@ -979,7 +986,7 @@ subroutine parseflags(env,arg,nra)
     processedarg(1) = .true.
   end if
 !> For sorting runtypes, fall back to the input file if no ensemble was set explicitly
-  if (env%crestver == crest_sorting .and. len_trim(env%ensemblename) == 0) then
+  if (env%crestver == crest_sorting.and.len_trim(env%ensemblename) == 0) then
     env%ensemblename = env%inputcoords
   end if
 

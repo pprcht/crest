@@ -433,7 +433,6 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   if (len_trim(dirname) > 0) subdir = .true.
 
 !>-- create a calculation object locally, modify calc dir
-!$omp critical
   calctmp = env%calc
   calctmp%pr_energies = .false. !> never do that!
   mol%nat = nat
@@ -452,7 +451,6 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   nfreq = 3*nat
   allocate (freq(nfreq),source=0.0_wp)
   allocate (hess(nfreq,nfreq),source=0.0_wp)
-!$omp end critical
 
 !>-- numerical Hessian
 
@@ -469,27 +467,20 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   end if
 
 !>-- project and get frequencies
-!$omp critical
-  !>-- Projects and mass-weights the Hessian
   call prj_mw_hess(mol%nat,mol%at,nfreq,mol%xyz,hess)
-  !>-- Computes the Frequencies
   call frequencies(mol%nat,mol%at,mol%xyz,nfreq,hess,freq,io)
-!$omp end critical
 
 !>--- get thermodynamics
-!$omp critical
   et = 0.0_wp
   ht = 0.0_wp
   gt = 0.0_wp
   stot = 0.0_wp
-
   ithr = env%thermo%ithr
   fscal = env%thermo%fscal
   sthr = env%thermo%sthr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,pr,ithr,fscal,sthr, &
   &    nt,temps,et,ht,gt,stot,stdout,emodel=env%thermo%emodel)
   deallocate (hess,freq)
-!$omp end critical
   call initsignal()
   return
 end subroutine thermo_wrap_new
@@ -501,10 +492,11 @@ subroutine calcSrrhoav(env,ensname)
 !*******************************************************
 !* Calculate S_RRHO averages for a given ensemlbe
 !*******************************************************
-  use crest_parameters
+  use crest_parameters,only:wp,stdout,autokcal,aatoau
   use crest_data
   use strucrd
   use iomod
+  use parallel_interface
   implicit none
   !> INPUT
   type(systemdata) :: env
@@ -530,24 +522,17 @@ subroutine calcSrrhoav(env,ensname)
   real(wp) :: psum,emin,sdum
   real(wp) :: quick_rmsd,rmsdval
   integer :: eloc,ploc
-  logical :: avbhess
-
   integer :: nt
   real(wp),allocatable :: temps(:)
   real(wp),allocatable :: et(:)
   real(wp),allocatable :: ht(:)
   real(wp),allocatable :: gt(:)
-  real(wp),allocatable :: stot(:)
-  real(wp),allocatable :: c0(:,:)
   real(wp),allocatable :: sref(:)
   character(len=64) :: atmp
-  integer :: i,j,k,ich,io,popf,ii,T,Tn
+  integer :: i,j,k,ich,io,popf,ii
   logical :: ex
-  logical :: niceprint
-  real(wp) :: percent
-  character(len=52) :: bar
-  integer :: ncalc,vz,nlimit,nav
-  character(len=512) :: thispath,tmppath
+  integer :: ncalc,nlimit,nav
+  character(len=512) :: tmppath
 
   real(wp),parameter :: Tref = 298.15  !> room temperature is reference
   real(wp),parameter :: kcal = autokcal
@@ -642,70 +627,24 @@ subroutine calcSrrhoav(env,ensname)
 !>--- calculate Hessians for ncalc lowest structures
   allocate (gatt(nall,nt),satt(nall,nt),source=0.0_wp)
 
-  io = makedir('HESSIANS')
-  call getcwd(thispath)
-  inquire (file='gfnff_topo',exist=ex)
-
-  call chdir('HESSIANS')
-  if (env%legacy) then
-    if (env%gfnver == '--gff'.and.ex) then
-      call getcwd(tmppath)
-      io = sylnk(trim(thispath)//'/'//'gfnff_topo',trim(tmppath)//'/'//'gfnff_topo')
-    end if
-    if (index(env%fixfile,'none selected') .eq. 0) then
-      io = sylnk(trim(thispath)//'/'//env%fixfile,trim(tmppath)//'/'//env%fixfile)
-    end if
-  end if
-
-  k = 0
-  niceprint = env%niceprint
-
-!>--- OMP stuff
-  call new_ompautoset(env,'auto',ncalc,T,Tn)
-
-!>--- the parallel loop
-  avbhess = env%thermo%avbhess
-  write (stdout,'(1x,a,i0,a)') 'Running ',ncalc,' calculations ...'
-  call crest_oloop_pr_progress(env,ncalc,0)
-!$omp parallel &
-!$omp shared( vz,tmppath,ncalc,percent,k,bar,niceprint) &
-!$omp shared( env,nat,at,xyz,c0,et,ht,gt,stot,temps,nt,gatt,satt,avbhess,pindex )
-!$omp single
-  allocate (et(nt),ht(nt),gt(nt),stot(nt))
-  allocate (c0(3,nat))
-  do i = 1,ncalc
-    call initsignal()
-    vz = pindex(i) !> restore index
-    !$omp task firstprivate( vz ) private( tmppath,et,ht,gt,stot,c0 )
-    call initsignal()
-    !$omp critical
-    write (tmppath,'(''hess'',i0)') vz
-    c0(1:3,1:nat) = xyz(1:3,1:nat,vz)
-    !$omp end critical
-
-    call thermo_wrap(env,.false.,nat,at,c0,tmppath, &
-    &    nt,temps,et,ht,gt,stot,avbhess)
-
-    !$omp critical
-    gatt(vz,1:nt) = gt(1:nt)
-    satt(vz,1:nt) = stot(1:nt)
-    !$omp end critical
-    if (.not.env%keepModef) call rmrf(trim(tmppath))
-
-    !$omp critical
-    k = k+1
-    call crest_oloop_pr_progress(env,ncalc,k)
-    !$omp end critical
-    !$omp end task
-  end do
-  deallocate (c0)
-  deallocate (stot,gt,ht,et)
-!$omp taskwait
-!$omp end single
-!$omp end parallel
-  call crest_oloop_pr_progress(env,ncalc,-1)
-  call chdir(thispath)
-  if (.not.env%keepModef) call rmrf('HESSIANS')
+! ── build coordinate subset and call parallel Hessian loop ───────
+  block
+    integer :: ii
+    real(wp),allocatable :: xyz_calc(:,:,:),er_calc(:)
+    real(wp),allocatable :: gt_out(:,:),stot_out(:,:)
+    allocate (xyz_calc(3,nat,ncalc),er_calc(ncalc))
+    allocate (gt_out(ncalc,nt),stot_out(ncalc,nt))
+    do ii = 1,ncalc
+      xyz_calc(:,:,ii) = xyz(:,:,pindex(ii))*aatoau  !> Å → Bohr
+    end do
+    write (stdout,'(1x,a,i0,a)') 'Running ',ncalc,' calculations ...'
+    call crest_hessloop(env,nat,ncalc,at,xyz_calc,er_calc,gt_out,stot_out)
+    do ii = 1,ncalc
+      gatt(pindex(ii),1:nt) = gt_out(ii,1:nt)
+      satt(pindex(ii),1:nt) = stot_out(ii,1:nt)
+    end do
+    deallocate (xyz_calc,er_calc,gt_out,stot_out)
+  end block
 
 !========================================================================================!
 !>--- process the calculated free energies and entropies into accurate populations
