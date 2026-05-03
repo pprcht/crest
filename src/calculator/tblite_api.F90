@@ -23,7 +23,6 @@
 !====================================================!
 
 module tblite_api
-!  use iso_fortran_env,only:wp => real64,stdout => output_unit
   use crest_parameters
   use strucrd
 #ifdef WITH_TBLITE
@@ -42,6 +41,8 @@ module tblite_api
   use tblite_wavefunction_mulliken,only:get_molecular_dipole_moment
   use tblite_ceh_singlepoint,only:ceh_singlepoint
   use tblite_ceh_ceh,only:new_ceh_calculator
+  use tblite_spin,only:spin_polarization,new_spin_polarization
+  use tblite_container,only:container_type
 #endif
   use wiberg_mayer
   implicit none
@@ -73,10 +74,11 @@ module tblite_api
     real(wp) :: accuracy = 1.0_wp
     character(len=:),allocatable :: paramfile
     type(wavefunction_type)              :: wfn
-    type(wavefunction_type),allocatable :: wfn_aux
+    type(wavefunction_type),allocatable  :: wfn_aux
     type(xtb_calculator)        :: calc
     type(tblite_ctx)            :: ctx
     type(tblite_resultstype)    :: res
+    logical :: spin_polarized = .false.
   end type tblite_data
   public :: tblite_data
 
@@ -145,7 +147,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: etemp_au,energy
     real(wp),allocatable :: grad(:,:)
     logical :: pr
-    integer :: io
+    integer :: io,nspin
 
     pr = (tblite%ctx%verbosity > 0)
 
@@ -201,8 +203,9 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>-- setup wavefunction object
     etemp_au = etemp*ktoau
+    nspin = merge(2,1,tblite%spin_polarized)
     call new_wavefunction(tblite%wfn,mol%nat,tblite%calc%bas%nsh,  &
-    &              tblite%calc%bas%nao,1,etemp_au)
+    &              tblite%calc%bas%nao,nspin,etemp_au)
 #ifdef WITH_GXTB
     if (tblite%lvl == xtblvl%gxtb) then
       call sad_guess(mctcmol,tblite%calc,tblite%wfn)
@@ -212,12 +215,26 @@ contains  !> MODULE PROCEDURES START HERE
       call tblite_internal_ceh_guess(mctcmol,tblite)
     end if
 
+!>--- spin-polarization setup (spGFN2-xTB etc.)
+    if (tblite%spin_polarized) then
+      block
+        class(container_type),allocatable :: cont
+        type(spin_polarization),allocatable :: spin
+        real(wp),allocatable :: wll(:,:,:)
+        allocate (spin)
+        call get_spin_constants(wll,mctcmol,tblite%calc%bas)
+        call new_spin_polarization(spin,mctcmol,wll,tblite%calc%bas%nsh_id)
+        call move_alloc(spin,cont)
+        call tblite%calc%push_back(cont)
+      end block
+    end if
+
 !>--- for methods with an auxiliary charge model (e.g., gxTB), pre-allocate wfn_aux.
 !>--- Charges are updated at each singlepoint call (geometry-dependent).
 #ifdef WITH_GXTB
     if (allocated(tblite%calc%charge_model)) then
-      if (allocated(tblite%wfn_aux)) deallocate(tblite%wfn_aux)
-      allocate(tblite%wfn_aux)
+      if (allocated(tblite%wfn_aux)) deallocate (tblite%wfn_aux)
+      allocate (tblite%wfn_aux)
       call new_wavefunction(tblite%wfn_aux,mctcmol%nat,tblite%calc%bas%nsh,0,1,0.0_wp,.true.)
     end if
 #endif
@@ -338,10 +355,6 @@ contains  !> MODULE PROCEDURES START HERE
       return
     end select
 
-    !str = 'tblite> WARNING: implicit solvation energies are not entirely '// &
-    !&'consistent with the xtb implementation.'
-    !if (pr) call tblite%ctx%message(str)
-
 !>--- add electrostatic (Born part) to calculator
     call new_solvation(solv,mctcmol,solv_inp,error,method)
     if (allocated(error)) then
@@ -445,8 +458,8 @@ contains  !> MODULE PROCEDURES START HERE
         &                    energy,gradient,sigma,verbosity,results=tblite%res)
       end if
 #else
-        call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
-        &                    energy,gradient,sigma,verbosity,results=tblite%res)
+      call xtb_singlepoint(tblite%ctx,mctcmol,tblite%calc,tblite%wfn,tblite%accuracy, &
+      &                    energy,gradient,sigma,verbosity,results=tblite%res)
 #endif
     case (xtblvl%ceh)
       call ceh_singlepoint(tblite%ctx,tblite%calc,mctcmol,tblite%wfn, &
@@ -756,19 +769,19 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: verbosity,uhf_loc
     logical :: pr_loc
     real(wp),parameter :: etemp_guess_au = 4000.0_wp*ktoau
-    real(wp),parameter :: accuracy=1.0_wp
+    real(wp),parameter :: accuracy = 1.0_wp
 
     pr_loc = .false.
-    if(present(pr)) pr_loc = pr
+    if (present(pr)) pr_loc = pr
     verbosity = 0
-    if(pr_loc) verbosity = 2
+    if (pr_loc) verbosity = 2
 
-    allocate(q(mol%nat), source=0.0_wp) 
+    allocate (q(mol%nat),source=0.0_wp)
 
 #ifdef WITH_TBLITE
     uhf_loc = 0
     if (present(uhf)) uhf_loc = uhf
-    if(present(prch)) ctx%unit=prch
+    if (present(prch)) ctx%unit = prch
 
     !>--- make an mctcmol object from mol
     call tblite_mol2mol(mol,chrg,uhf_loc,mctcmol)
@@ -801,6 +814,31 @@ contains  !> MODULE PROCEDURES START HERE
     error stop
 #endif
   end subroutine tblite_quick_ceh_q
+
+! ══════════════════════════════════════════════════════════════════════════════
+#ifdef WITH_TBLITE
+  subroutine get_spin_constants(wll,mol,bas)
+    use tblite_basis_type,only:basis_type
+    use tblite_data_spin,only:get_spin_constant
+    real(wp),allocatable,intent(out) :: wll(:,:,:)
+    type(structure_type),intent(in) :: mol
+    type(basis_type),intent(in) :: bas
+
+    integer :: izp,ish,jsh,il,jl
+
+    allocate (wll(bas%nsh,bas%nsh,mol%nid),source=0.0_wp)
+
+    do izp = 1,mol%nid
+      do ish = 1,bas%nsh_id(izp)
+        il = bas%cgto(ish,izp)%ang
+        do jsh = 1,bas%nsh_id(izp)
+          jl = bas%cgto(jsh,izp)%ang
+          wll(jsh,ish,izp) = get_spin_constant(jl,il,mol%num(izp))
+        end do
+      end do
+    end do
+  end subroutine get_spin_constants
+#endif
 
 !========================================================================================!
 !========================================================================================!
