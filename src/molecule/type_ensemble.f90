@@ -433,7 +433,8 @@ contains  !> MODULE PROCEDURES START HERE
     type(extxyz_properties) :: ext_props
     real(wp),allocatable :: exyz(:,:),egrd(:,:),lat(:,:)
     integer,allocatable :: eat(:)
-    reaL(wp) :: energy
+    real(wp) :: energy
+    character(len=32) :: eu,fu
 
     is_extxyz = sgrep(fname,'Properties=',casesensitive=.false.)
 
@@ -446,12 +447,18 @@ contains  !> MODULE PROCEDURES START HERE
       !>-- extended xyz case
       open (newunit=iunit,file=trim(fname))
       do ii = 1,nall
-        call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success)
+        call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success, &
+        &                      energy_units=eu,forces_units=fu)
         if (success) then
-          energy = energy / autoeV
+          select case (trim(eu))
+          case ('hartree','ha','au')
+            ! energy already in Hartree, no conversion needed
+          case default  !> 'ev' and anything unrecognised
+            energy = energy/autoeV
+          end select
           call get_at_from_ext(ext_props,eat)
-          call get_xyz_from_ext(ext_props,exyz)  !> converts AA to Bohr
-          call get_grad_from_ext(ext_props,egrd) !> converts eV/AA to Ha/Bohr
+          call get_xyz_from_ext(ext_props,exyz)
+          call get_grad_from_ext(ext_props,egrd,forces_units=fu)
           if (allocated(eat)) call move_alloc(eat,structures(ii)%at)
           if(allocated(exyz)) call move_alloc(exyz,structures(ii)%xyz)
           if (allocated(lat)) call move_alloc(lat,structures(ii)%lat)

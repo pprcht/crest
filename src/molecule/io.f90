@@ -1006,7 +1006,8 @@ contains  !> MODULE PROCEDURES START HERE
 
 ! ──────────────────────────────────────────────────────────────────────────────
 
-  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success)
+  subroutine read_extxyz_frame(iunit,ext_sigs,ext_props,nat,energy,lat,success, &
+  &                            energy_units,forces_units)
     implicit none
 
     ! Formal Arguments
@@ -1017,6 +1018,8 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(out) :: energy
     real(wp),intent(out),allocatable :: lat(:,:)
     logical,intent(out)         :: success
+    character(len=32),intent(out),optional :: energy_units
+    character(len=32),intent(out),optional :: forces_units
 
     ! Internal variables
     integer                      :: i,ierr,total_fields
@@ -1048,6 +1051,19 @@ contains  !> MODULE PROCEDURES START HERE
     ! Extract Energy
     call get_key_value(comment_line,"energy",val_str,found,case_sensitive=.false.)
     if (found) read (val_str,*) energy
+
+    ! Extract optional unit specifications (defaults: eV for energy, eV/Ang for forces)
+    ! Values are stored lowercase so callers can do case-insensitive comparisons.
+    if (present(energy_units)) then
+      energy_units = 'ev'
+      call get_key_value(comment_line,"energy_units",val_str,found,case_sensitive=.false.)
+      if (found) energy_units = lowerCase(trim(adjustl(val_str)))
+    end if
+    if (present(forces_units)) then
+      forces_units = 'ev/ang'
+      call get_key_value(comment_line,"forces_units",val_str,found,case_sensitive=.false.)
+      if (found) forces_units = lowerCase(trim(adjustl(val_str)))
+    end if
 
     ! Extract Lattice
     call get_key_value(comment_line,"lattice",val_str,found,case_sensitive=.false.)
@@ -1167,11 +1183,15 @@ contains  !> MODULE PROCEDURES START HERE
     end do
   end subroutine get_xyz_from_ext
 
-  subroutine get_grad_from_ext(ext_props,grad)
+  subroutine get_grad_from_ext(ext_props,grad,forces_units)
     implicit none
     type(extxyz_properties) :: ext_props
     real(wp),intent(out),allocatable :: grad(:,:)
+    character(len=32),intent(in),optional :: forces_units
     integer :: ii,jj,nat
+    character(len=32) :: units_loc
+    units_loc = 'eV/Ang'
+    if (present(forces_units)) units_loc = forces_units
     do ii = 1,ext_props%n_props
       associate (prop => ext_props%props(ii))
         select case (trim(prop%signat%name))
@@ -1179,7 +1199,12 @@ contains  !> MODULE PROCEDURES START HERE
           nat = prop%natoms
           allocate (grad(3,nat),source=0.0_wp)
           do jj = 1,nat
-            grad(:,jj) = prop%R(:,jj)*(-autoaa/autoeV)
+            select case (trim(units_loc))
+            case ('ha/bohr','hartree/bohr','au')
+              grad(:,jj) = prop%R(:,jj)*(-1.0_wp)  ! forces → gradient (sign flip only)
+            case default                             ! 'ev/ang' and anything unrecognised
+              grad(:,jj) = prop%R(:,jj)*(-autoaa/autoeV)
+            end select
           end do
         end select
       end associate

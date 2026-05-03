@@ -181,6 +181,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: i,j,k,ich,io,iunit
     logical :: ex,success
     real(wp) :: en
+    character(len=32) :: eu,fu
     type(extxyz_signatures) :: ext_sigs
     type(extxyz_properties) :: ext_props
 
@@ -205,13 +206,19 @@ contains  !> MODULE PROCEDURES START HERE
 
       case (coordtype%extxyz)
         open (newunit=iunit,file=fname)
-        call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,en,lat,success)
+        call read_extxyz_frame(iunit,ext_sigs,ext_props,nat,en,lat,success, &
+        &                      energy_units=eu,forces_units=fu)
         close (iunit)
         if (success) then
-          en = en / autoeV
+          select case (trim(eu))
+          case ('hartree','ha','au')
+            ! energy already in Hartree, no conversion needed
+          case default  !> 'ev' and anything unrecognised
+            en = en/autoeV
+          end select
           call get_at_from_ext(ext_props,at)
-          call get_xyz_from_ext(ext_props,xyz)  !> converts AA to Bohr
-          call get_grad_from_ext(ext_props,grad) !> converts eV/AA to Ha/Bohr
+          call get_xyz_from_ext(ext_props,xyz)
+          call get_grad_from_ext(ext_props,grad,forces_units=fu)
           if (allocated(lat)) call move_alloc(lat,self%lat)
           if (allocated(grad)) call move_alloc(grad,self%gradient)
         end if
@@ -396,30 +403,31 @@ contains  !> MODULE PROCEDURES START HERE
 ! ══════════════════════════════════════════════════════════════════════════════
 
   subroutine write_extxyz(self,iunit)
-!************************************************************************
-!* Write an extended xyz file from the coord object.                    *
-!* By convention energies will be in eV for extxyz!                     *
-!* By convention (and if present), forces will be in eV/Ang for extxyz! *
-!************************************************************************
+!***********************************************************************
+!* Write an extended xyz file from the coord object.                   *
+!* Energies are written in Hartree, tagged with energy_units=Hartree.  *
+!* Forces (if present) are written in Ha/Bohr, tagged forces_units.    *
+!***********************************************************************
     class(coord) :: self
-    integer,intent(in) :: iunit !> assue the unit is open for writing
+    integer,intent(in) :: iunit !> assume the unit is open for writing
 
     character(len=200) :: atmp
-    real(wp) :: eeV
     integer :: ii
-    real(wp),parameter :: grad2force = -autoeV/autoaa
 
     !> print number of atoms
     write (iunit,'(i10)') self%nat
 
     !> construct ext comment line bit by bit
-    eeV = self%energy*autoeV
-    write (atmp,'(f20.10)') eeV
+    write (atmp,'(f20.10)') self%energy
     write (iunit,'(a,a)',advance='no') trim('energy='//adjustl(atmp)),' '
+    write (iunit,'(a)',advance='no') 'energy_units=Hartree '
     if (allocated(self%lat)) then
       write (iunit,'(a)',advance='no') 'Lattice="'
       write (iunit,'(9f15.8)',advance='no') reshape(self%lat, [9])
-      write (iunit,'(a)',advance='no') '"  pbc="T T T"'
+      write (iunit,'(a)',advance='no') '"  pbc="T T T"  '
+    end if
+    if (allocated(self%gradient)) then
+      write (iunit,'(a)',advance='no') 'forces_units=Ha/Bohr '
     end if
     if (allocated(self%extxyz)) then
       call assemble_properties_tag(self%extxyz,atmp)
@@ -437,8 +445,9 @@ contains  !> MODULE PROCEDURES START HERE
       call exit(1)
     else if (allocated(self%gradient)) then
       do ii = 1,self%nat
+        !> positions in Ang, forces in Ha/Bohr (sign flip: forces = -gradient)
         write (iunit,'(1x,a2,1x,6f20.10)')  &
-        &  i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa,self%gradient(1:3,ii)*grad2force
+        &  i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa,self%gradient(1:3,ii)*(-1.0_wp)
       end do
     else
       do ii = 1,self%nat

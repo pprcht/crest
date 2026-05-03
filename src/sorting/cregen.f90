@@ -219,14 +219,12 @@ subroutine newcregen(env,quickset,infile,structurelist)
 
 !>--- write new file with ALL remaining structures
   if (newfile) then
-    structures(:)%wrextxyz = .false. 
     call cregen_file_wr(env,oname,structures)
 !>--- track ensemble for restart
 !    call trackensemble(oname,nat,nall,at,xyz,comments)
   end if
 !>--- write a file containing only conformers (no rotamers)
   if (conffile) then
-    structures(:)%wrextxyz = .false. 
     call cregen_conffile(env,cname,structures,ng,degen)
   end if
   if (saveelow) then
