@@ -1060,7 +1060,7 @@ subroutine crest_no_runtype_selected()
   write (stdout,'(5x,a,t30,a)') '--sp','Single-point energy calculation'
   write (stdout,'(5x,a,t30,a)') '--opt','Structure optimization'
   write (stdout,'(5x,a,t30,a)') '--md','Molecular dynamics simulation'
-  write (stdout,'(5x,a,t30,a)') '--v3','iMTD-GC conformational search' 
+  write (stdout,'(5x,a,t30,a)') '--imtdgc/--v3','iMTD-GC conformational search' 
   write (stdout,'(5x,a,t30,a)') '--entropy','Entropy/free-energy sampling'
   write (stdout,'(5x,a,t30,a)') '--mdopt','Ensemble optimization (no sorting)'
   write (stdout,'(5x,a,t30,a)') '--screen','Ensemble screening'
