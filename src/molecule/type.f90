@@ -403,31 +403,44 @@ contains  !> MODULE PROCEDURES START HERE
 ! ══════════════════════════════════════════════════════════════════════════════
 
   subroutine write_extxyz(self,iunit)
-!***********************************************************************
-!* Write an extended xyz file from the coord object.                   *
-!* Energies are written in Hartree, tagged with energy_units=Hartree.  *
-!* Forces (if present) are written in Ha/Bohr, tagged forces_units.    *
-!***********************************************************************
+!*************************************************************************
+!* Write an extended xyz file from the coord object.                     *
+!* Output units are controlled by the module variable extxyz_units_global*
+!* (default 'Hartree'). Set to 'eV' to use eV/Ang conventions instead.  *
+!*************************************************************************
     class(coord) :: self
     integer,intent(in) :: iunit !> assume the unit is open for writing
 
     character(len=200) :: atmp
     integer :: ii
+    logical :: use_hartree
+
+    use_hartree = (trim(extxyz_units_global) .ne. 'ev')
 
     !> print number of atoms
     write (iunit,'(i10)') self%nat
 
     !> construct ext comment line bit by bit
-    write (atmp,'(f20.10)') self%energy
-    write (iunit,'(a,a)',advance='no') trim('energy='//adjustl(atmp)),' '
-    write (iunit,'(a)',advance='no') 'energy_units=Hartree '
+    if (use_hartree) then
+      write (atmp,'(f20.10)') self%energy
+      write (iunit,'(a,a)',advance='no') trim('energy='//adjustl(atmp)),' '
+      write (iunit,'(a)',advance='no') 'energy_units=Hartree '
+    else
+      write (atmp,'(f20.10)') self%energy*autoeV
+      write (iunit,'(a,a)',advance='no') trim('energy='//adjustl(atmp)),' '
+      write (iunit,'(a)',advance='no') 'energy_units=eV '
+    end if
     if (allocated(self%lat)) then
       write (iunit,'(a)',advance='no') 'Lattice="'
       write (iunit,'(9f15.8)',advance='no') reshape(self%lat, [9])
       write (iunit,'(a)',advance='no') '"  pbc="T T T"  '
     end if
     if (allocated(self%gradient)) then
-      write (iunit,'(a)',advance='no') 'forces_units=Ha/Bohr '
+      if (use_hartree) then
+        write (iunit,'(a)',advance='no') 'forces_units=Ha/Bohr '
+      else
+        write (iunit,'(a)',advance='no') 'forces_units=eV/Ang '
+      end if
     end if
     if (allocated(self%extxyz)) then
       call assemble_properties_tag(self%extxyz,atmp)
@@ -444,11 +457,19 @@ contains  !> MODULE PROCEDURES START HERE
       write (stdout,*) '**ERROR** This extxyz write function is TODO'
       call exit(1)
     else if (allocated(self%gradient)) then
-      do ii = 1,self%nat
-        !> positions in Ang, forces in Ha/Bohr (sign flip: forces = -gradient)
-        write (iunit,'(1x,a2,1x,6f20.10)')  &
-        &  i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa,self%gradient(1:3,ii)*(-1.0_wp)
-      end do
+      if (use_hartree) then
+        do ii = 1,self%nat
+          !> positions in Ang, forces in Ha/Bohr (sign flip: forces = -gradient)
+          write (iunit,'(1x,a2,1x,6f20.10)')  &
+          &  i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa,self%gradient(1:3,ii)*(-1.0_wp)
+        end do
+      else
+        do ii = 1,self%nat
+          !> positions in Ang, forces in eV/Ang
+          write (iunit,'(1x,a2,1x,6f20.10)')  &
+          &  i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa,self%gradient(1:3,ii)*(-autoeV/autoaa)
+        end do
+      end if
     else
       do ii = 1,self%nat
         write (iunit,'(1x,a2,1x,3f20.10)') i2e(self%at(ii)),self%xyz(1:3,ii)*autoaa

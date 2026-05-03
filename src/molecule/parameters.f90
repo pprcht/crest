@@ -31,6 +31,9 @@ module molecule_parameters
   real(wp),parameter,public :: autokcal = 627.509541_wp
   real(wp),parameter,public :: autoeV   = 27.211324570273_wp
 
+!>--- global extxyz output unit preference (mutable, set at runtime via TOML)
+  character(len=32),public :: extxyz_units_global = 'hartree'
+
 !>-- filetypes as integers
   type ,private:: enum_coordtype
     integer :: unknown    = 0

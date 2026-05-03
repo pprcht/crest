@@ -28,6 +28,7 @@ module parse_maindata
   use crest_data
   use crest_restartlog
   use strucrd,only:coord
+  use molecule_parameters,only:extxyz_units_global
   !> modules used for parsing the root_object
   use parse_keyvalue,only:keyvalue,valuetypes
   use parse_block,only:datablock
@@ -284,6 +285,8 @@ contains   !> MODULE PROCEDURES START HERE
     case ('watlist','wat')
       env%potatlist = val
       env%wallsetup = .true.
+    case ('extxyz_units')
+      extxyz_units_global = trim(val)
     case default
       rd = .false.
     end select
