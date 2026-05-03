@@ -1431,6 +1431,10 @@ contains  !>--- Module routines start here
       write (atmp,*) 'UHF parameter'
       write (iunit,fmt1) atmp,self%uhf
     end if
+    if (self%id == jobtype%tblite .and. self%spin_polarized) then
+      write (atmp,*) 'Spin-polarization'
+      write (iunit,fmt3) atmp,'yes'
+    end if
 
     if (allocated(self%solvmodel)) then
       write (atmp,*) 'Solvation model'
