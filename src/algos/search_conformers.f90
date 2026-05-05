@@ -62,7 +62,7 @@ subroutine crest_search_imtdgc(env,tim)
   logical :: start,lower
 !===========================================================!
   type(restart_data) :: rdat
-  logical :: do_restart,skip_mtdloop,firstiter
+  logical :: do_restart,skip_mtdloop,skip_collect,firstiter,fex
 !===========================================================!
 !>--- printout header
   write (stdout,*)
@@ -74,13 +74,15 @@ subroutine crest_search_imtdgc(env,tim)
 ! ── restart detection ─────────────────────────────────────────────
   do_restart = .false.
   skip_mtdloop = .false.
+  skip_collect = .false.
   if (env%allowrestart .and. restart_file_exists()) then
     call read_restart_log(rdat)
     if (rdat%runtype == crest_imtd .and. rdat%stage /= 'done') then
       do_restart = .true.
       call print_restart_info(rdat)
-      !> skip entire mtdloop only when CREGEN collection already ran
+      !> skip entire mtdloop and collectcre only when past the MTD loop
       skip_mtdloop = (rdat%stage == 'post_collect')
+      skip_collect = (rdat%stage == 'post_collect')
     end if
   end if
 
@@ -138,32 +140,46 @@ subroutine crest_search_imtdgc(env,tim)
     if (.not.skip_mtdloop) then
     mtdloop: do i = 1,env%Maxrestart
 
-! ── restart: skip already-completed MTD iterations ────────────────
-      if (do_restart .and. i <= rdat%mtd_iter) cycle mtdloop
+! ── restart: skip based on stage ──────────────────────────────────
+      if (do_restart) then
+        if (rdat%stage == 'mtd_loop' .and. i <= rdat%mtd_iter) cycle mtdloop
+        if (rdat%stage == 'mtd_trj'  .and. i <  rdat%mtd_iter) cycle mtdloop
+      end if
 
       write (stdout,*)
       write (stdout,'(1x,a)') '------------------------------'
       write (stdout,'(1x,a,i0)') 'Meta-Dynamics Iteration ',i
       write (stdout,'(1x,a)') '------------------------------'
 
-      nsim = -1 !>--- enambles automatic MTD setup in init routines
-      call crest_search_multimd_init(env,mol,mddat,nsim)
-      allocate (mddats(nsim),source=mddat)
-      call crest_search_multimd_init2(env,mddats,nsim)
+!==========================================================!
+!>--- MTD run (skipped for mtd_trj restart: trajectory already exists)
+      if (do_restart .and. i == rdat%mtd_iter .and. &
+        &  rdat%stage == 'mtd_trj') then
+        write (stdout,'(1x,a,i0,a)') 'Restarting iteration ',i, &
+          & ' from existing trajectory/ensemble'
+        ensnam = trim(rdat%last_file)
+      else
+        nsim = -1 !>--- enambles automatic MTD setup in init routines
+        call crest_search_multimd_init(env,mol,mddat,nsim)
+        allocate (mddats(nsim),source=mddat)
+        call crest_search_multimd_init2(env,mddats,nsim)
 
-      call tim%start(2,'Metadynamics (MTD)')
-      call crest_search_multimd(env,mol,mddats,nsim)
-      call tim%stop(2)
+        call tim%start(2,'Metadynamics (MTD)')
+        call crest_search_multimd(env,mol,mddats,nsim)
+        call tim%stop(2)
 !>--- a file called crest_dynamics.trj.xyz should have been written
-      ensnam = 'crest_dynamics.trj.xyz'
-!>--- deallocate for next iteration
-      if (allocated(mddats)) deallocate (mddats)
+        ensnam = 'crest_dynamics.trj.xyz'
+        if (allocated(mddats)) deallocate (mddats)
+!>--- checkpoint: trajectory ready, optimization about to start
+        call write_restart_log(crest_imtd,'mtd_trj',env%nreset,i, &
+          &  env%nmetadyn,env%elowest,env%eprivious,ensnam)
+      end if
 
 !==========================================================!
 !>--- Reoptimization of trajectories
       call tim%start(3,'Geometry optimization')
       call optlev_to_multilev(env%optlev,multilevel)
-      call crest_multilevel_oloop(env,ensnam,multilevel)
+      call crest_multilevel_oloop(env,ensnam,multilevel,i)
       call tim%stop(3)
       if (env%iostatus_meta .ne. 0) return
 
@@ -207,18 +223,32 @@ subroutine crest_search_imtdgc(env,tim)
     do_restart = .false.
 !=========================================================!
 !>--- collect all ensembles from mtdloop and merge
-    write (stdout,*)
-    write (stdout,'(''========================================'')')
-    write (stdout,'(''           MTD Simulations done         '')')
-    write (stdout,'(''========================================'')')
-    write (stdout,'(1x,''Collecting ensmbles.'')')
+    if (skip_collect) then
+!>--- post_collect restart: collectcre already ran, reuse last file
+      inquire(file=trim(rdat%last_file),exist=fex)
+      if (.not.fex) then
+        write (stdout,'(/,a)') '**ERROR** restart ensemble not found: ' &
+          &  //trim(rdat%last_file)
+        write (stdout,'(a,/)') ' Delete crest.restart and rerun from scratch.'
+        call creststop(status_safety)
+      end if
+      atmp = trim(rdat%last_file)
+      write (stdout,'(1x,a,a)') 'Restarting from ensemble: ',trim(atmp)
+      skip_collect = .false.
+    else
+      write (stdout,*)
+      write (stdout,'(''========================================'')')
+      write (stdout,'(''           MTD Simulations done         '')')
+      write (stdout,'(''========================================'')')
+      write (stdout,'(1x,''Collecting ensmbles.'')')
 !>-- collecting all ensembles saved as ".cre_*.xyz"
-    call collectcre(env)
-    call newcregen(env,0)
-    call checkname_xyz(crefile,atmp,btmp)
+      call collectcre(env)
+      call newcregen(env,0)
+      call checkname_xyz(crefile,atmp,btmp)
 !>--- checkpoint after collection and CREGEN
-    call write_restart_log(crest_imtd,'post_collect',env%nreset,0, &
-      &  env%nmetadyn,env%elowest,env%eprivious,trim(atmp))
+      call write_restart_log(crest_imtd,'post_collect',env%nreset,0, &
+        &  env%nmetadyn,env%elowest,env%eprivious,trim(atmp))
+    end if
 !>--- remaining number of structures
     call remaining_in(atmp,env%ewin,nallout)
 
@@ -335,15 +365,17 @@ subroutine crest_multilevel_wrap(env,ensnam,level)
     k = max(1,k)
     multilevel(k) = .true.
   end select
-  call crest_multilevel_oloop(env,ensnam,multilevel)
+  call crest_multilevel_oloop(env,ensnam,multilevel,0)
 end subroutine crest_multilevel_wrap
 
 !========================================================================================!
-subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
+subroutine crest_multilevel_oloop(env,ensnam,multilevel_in,mtd_iter_in)
 !*******************************************************
 !* multilevel optimization loop.
 !* construct consecutive optimizations starting with
-!* crude thresholds to very tight ones
+!* crude thresholds to very tight ones.
+!* mtd_iter_in: when > 0, writes a mtd_trj restart
+!* checkpoint after each CREGEN step (pass 0 to skip).
 !*******************************************************
   use crest_parameters,only:wp,stdout,bohr
   use crest_data
@@ -352,10 +384,12 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
   use optimize_module
   use utilities
   use parallel_interface
+  use crest_restartlog
   implicit none
   type(systemdata) :: env
   character(len=*),intent(in) :: ensnam
   logical,intent(in) :: multilevel_in(6)
+  integer,intent(in) :: mtd_iter_in
   integer :: nat,nall
   real(wp),allocatable :: eread(:)
   real(wp),allocatable :: xyz(:,:,:)
@@ -463,6 +497,11 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
       !>--- CREGEN sorting
       call sort_and_check(env,trim(inpnam))
       call checkname_xyz(crefile,inpnam,outnam)
+! ── restart checkpoint: intermediate ensemble after this opt. level ──
+      if (mtd_iter_in > 0) then
+        call write_restart_log(env%crestver,'mtd_trj',env%nreset, &
+          &  mtd_iter_in,env%nmetadyn,env%elowest,env%eprivious,trim(inpnam))
+      end if
       !>--- check for empty ensemble content (again)
       call rdensembleparam(trim(inpnam),nat,nall)
       if (nall .lt. 1) then
@@ -686,7 +725,7 @@ subroutine crest_newcross3(env)
     else
       multilevel(4) = .true.
     end if
-    call crest_multilevel_oloop(env,'confcross.xyz',multilevel)
+    call crest_multilevel_oloop(env,'confcross.xyz',multilevel,0)
     if (env%iostatus_meta .ne. 0) return
 
 !>-- append optimized crossed structures and original to a single file

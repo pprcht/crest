@@ -64,7 +64,7 @@ subroutine crest_search_entropy(env,tim)
   integer :: bref,dum,eit,eit2
 !===========================================================!
   type(restart_data) :: rdat
-  logical :: do_restart,skip_mtdloop,firstiter
+  logical :: do_restart,skip_mtdloop,skip_collect,skip_emtdcopy0,firstiter,fex
 !===========================================================!
 !>--- printout header
   write (stdout,*)
@@ -80,13 +80,20 @@ subroutine crest_search_entropy(env,tim)
 ! ── restart detection ─────────────────────────────────────────────
   do_restart = .false.
   skip_mtdloop = .false.
+  skip_collect = .false.
+  skip_emtdcopy0 = .false.
   if (env%allowrestart .and. restart_file_exists()) then
     call read_restart_log(rdat)
-    if (rdat%runtype == crest_imtd2 .and. rdat%stage /= 'done') then
+    if (rdat%runtype == env%crestver .and. rdat%stage /= 'done') then
       do_restart = .true.
       call print_restart_info(rdat)
-      !> skip entire mtdloop only when CREGEN collection already ran
-      skip_mtdloop = (rdat%stage == 'post_collect')
+      !> skip entire mtdloop and collectcre when past the MTD loop
+      skip_mtdloop = (rdat%stage == 'post_collect' .or. &
+        &              rdat%stage == 'entropy_smtd')
+      skip_collect = (rdat%stage == 'post_collect' .or. &
+        &              rdat%stage == 'entropy_smtd')
+      !> additionally skip emtdcopy(iter=0) when that call already ran
+      skip_emtdcopy0 = (rdat%stage == 'entropy_smtd')
     end if
   end if
 
@@ -144,32 +151,46 @@ subroutine crest_search_entropy(env,tim)
     if (.not.skip_mtdloop) then
     mtdloop: do i = 1,env%Maxrestart
 
-! ── restart: skip already-completed MTD iterations ────────────────
-      if (do_restart .and. i <= rdat%mtd_iter) cycle mtdloop
+! ── restart: skip based on stage ──────────────────────────────────
+      if (do_restart) then
+        if (rdat%stage == 'mtd_loop' .and. i <= rdat%mtd_iter) cycle mtdloop
+        if (rdat%stage == 'mtd_trj'  .and. i <  rdat%mtd_iter) cycle mtdloop
+      end if
 
       write (stdout,*)
       write (stdout,'(1x,a)') '------------------------------'
       write (stdout,'(1x,a,i0)') 'Meta-Dynamics Iteration ',i
       write (stdout,'(1x,a)') '------------------------------'
 
-      nsim = -1 !>--- enambles automatic MTD setup in init routines
-      call crest_search_multimd_init(env,mol,mddat,nsim)
-      allocate (mddats(nsim),source=mddat)
-      call crest_search_multimd_init2(env,mddats,nsim)
+!==========================================================!
+!>--- MTD run (skipped for mtd_trj restart: trajectory already exists)
+      if (do_restart .and. i == rdat%mtd_iter .and. &
+        &  rdat%stage == 'mtd_trj') then
+        write (stdout,'(1x,a,i0,a)') 'Restarting iteration ',i, &
+          & ' from existing trajectory/ensemble'
+        ensnam = trim(rdat%last_file)
+      else
+        nsim = -1 !>--- enambles automatic MTD setup in init routines
+        call crest_search_multimd_init(env,mol,mddat,nsim)
+        allocate (mddats(nsim),source=mddat)
+        call crest_search_multimd_init2(env,mddats,nsim)
 
-      call tim%start(2,'Metadynamics (MTD)')
-      call crest_search_multimd(env,mol,mddats,nsim)
-      call tim%stop(2)
+        call tim%start(2,'Metadynamics (MTD)')
+        call crest_search_multimd(env,mol,mddats,nsim)
+        call tim%stop(2)
 !>--- a file called crest_dynamics.trj.xyz should have been written
-      ensnam = 'crest_dynamics.trj.xyz'
-!>--- deallocate for next iteration
-      if (allocated(mddats)) deallocate (mddats)
+        ensnam = 'crest_dynamics.trj.xyz'
+        if (allocated(mddats)) deallocate (mddats)
+!>--- checkpoint: trajectory ready, optimization about to start
+        call write_restart_log(env%crestver,'mtd_trj',env%nreset,i, &
+          &  env%nmetadyn,env%elowest,env%eprivious,ensnam)
+      end if
 
 !==========================================================!
 !>--- Reoptimization of trajectories
       call tim%start(3,'Geometry optimization')
       call optlev_to_multilev(env%optlev,multilevel)
-      call crest_multilevel_oloop(env,ensnam,multilevel)
+      call crest_multilevel_oloop(env,ensnam,multilevel,i)
       call tim%stop(3)
       if(env%iostatus_meta .ne. 0 ) return
 
@@ -197,7 +218,7 @@ subroutine crest_search_entropy(env,tim)
         call clean_V2i
       end if
 !>--- checkpoint after this MTD iteration (nmetadyn already updated above)
-      call write_restart_log(crest_imtd2,'mtd_loop',env%nreset,i, &
+      call write_restart_log(env%crestver,'mtd_loop',env%nreset,i, &
         &  env%nmetadyn,env%elowest,env%eprivious,trim(str))
 !>-- always do two cycles of MTDs
       if (firstiter) cycle mtdloop
@@ -213,18 +234,32 @@ subroutine crest_search_entropy(env,tim)
     do_restart = .false.
 !=========================================================!
 !>--- collect all ensembles from mtdloop and merge
-    write (stdout,*)
-    write (stdout,'(''========================================'')')
-    write (stdout,'(''           MTD Simulations done         '')')
-    write (stdout,'(''========================================'')')
-    write (stdout,'(1x,''Collecting ensmbles.'')')
+    if (skip_collect) then
+!>--- post_collect restart: collectcre already ran, reuse last file
+      inquire(file=trim(rdat%last_file),exist=fex)
+      if (.not.fex) then
+        write (stdout,'(/,a)') '**ERROR** restart ensemble not found: ' &
+          &  //trim(rdat%last_file)
+        write (stdout,'(a,/)') ' Delete crest.restart and rerun from scratch.'
+        call creststop(status_safety)
+      end if
+      atmp = trim(rdat%last_file)
+      write (stdout,'(1x,a,a)') 'Restarting from ensemble: ',trim(atmp)
+      skip_collect = .false.
+    else
+      write (stdout,*)
+      write (stdout,'(''========================================'')')
+      write (stdout,'(''           MTD Simulations done         '')')
+      write (stdout,'(''========================================'')')
+      write (stdout,'(1x,''Collecting ensmbles.'')')
 !>-- collecting all ensembles saved as ".cre_*.xyz"
-    call collectcre(env)
-    call newcregen(env,0)
-    call checkname_xyz(crefile,atmp,btmp)
+      call collectcre(env)
+      call newcregen(env,0)
+      call checkname_xyz(crefile,atmp,btmp)
 !>--- checkpoint after collection and CREGEN
-    call write_restart_log(crest_imtd2,'post_collect',env%nreset,0, &
-      &  env%nmetadyn,env%elowest,env%eprivious,trim(atmp))
+      call write_restart_log(env%crestver,'post_collect',env%nreset,0, &
+        &  env%nmetadyn,env%elowest,env%eprivious,trim(atmp))
+    end if
 !>--- remaining number of structures
     call remaining_in(atmp,env%ewin,nallout)
 
@@ -235,7 +270,17 @@ subroutine crest_search_entropy(env,tim)
 !>--- and other entropy mode parameters
       call adjustnormmd(env)
       call mtdatoms(env)
-      call emtdcopy(env,0,stopiter,fail)
+      if (.not.skip_emtdcopy0) then
+        call emtdcopy(env,0,stopiter,fail)
+! ── checkpoint: entropy rotamer file written, sMTD iterations about to start ──
+        if (env%crestver == crest_imtd2) then
+          write (btmp,'(a,i0,a)') 'crest_smtd_',0,'.xyz'
+        else
+          write (btmp,'(a,i0,a)') 'crest_entropy_rotamer_',0,'.xyz'
+        end if
+        call write_restart_log(env%crestver,'entropy_smtd',env%nreset,0, &
+          &  env%nmetadyn,env%elowest,env%eprivious,trim(btmp))
+      end if
       bref = env%emtd%nbias
 
 !>--- sMTD iterations, done until max iterations or convergence
@@ -267,7 +312,7 @@ subroutine crest_search_entropy(env,tim)
             call checkname_xyz(crefile,atmp,btmp)
             call tim%start(3,'Geometry optimization')
             multilevel = (/.true.,.false.,.false.,.false.,.false.,.true./)
-            call crest_multilevel_oloop(env,trim(atmp),multilevel)
+            call crest_multilevel_oloop(env,trim(atmp),multilevel,0)
             call tim%stop(3)
             if(env%iostatus_meta .ne. 0 ) return
 
@@ -282,6 +327,14 @@ subroutine crest_search_entropy(env,tim)
             eit2 = eit
             call emtdcopy(env,eit2,stopiter,fail)
             env%emtd%iterlast = eit2
+! ── checkpoint: update last_file to current entropy rotamer file ──────
+            if (env%crestver == crest_imtd2) then
+              write (btmp,'(a,i0,a)') 'crest_smtd_',eit2,'.xyz'
+            else
+              write (btmp,'(a,i0,a)') 'crest_entropy_rotamer_',eit2,'.xyz'
+            end if
+            call write_restart_log(env%crestver,'entropy_smtd',env%nreset,0, &
+              &  env%nmetadyn,env%elowest,env%eprivious,trim(btmp))
           end if
 
           if (.not.lower.and.fail.and..not.stopiter) then
@@ -305,7 +358,7 @@ subroutine crest_search_entropy(env,tim)
 
 !==========================================================!
 !>--- checkpoint: run is complete
-  call write_restart_log(crest_imtd2,'done',env%nreset,0, &
+  call write_restart_log(env%crestver,'done',env%nreset,0, &
     &  env%nmetadyn,env%elowest,env%eprivious,conformerfile)
 
 !==========================================================!
