@@ -34,6 +34,7 @@ subroutine crest_search_imtdgc(env,tim)
   use iomod
   use utilities
   use cregen_interface
+  use crest_restartlog
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -60,12 +61,28 @@ subroutine crest_search_imtdgc(env,tim)
   logical :: multilevel(6)
   logical :: start,lower
 !===========================================================!
+  type(restart_data) :: rdat
+  logical :: do_restart,skip_mtdloop,firstiter
+!===========================================================!
 !>--- printout header
   write (stdout,*)
   write (stdout,'(10x,"┍",49("━"),"┑")')
   write (stdout,'(10x,"│",14x,a,13x,"│")') "CREST iMTD-GC SAMPLING"
   write (stdout,'(10x,"┕",49("━"),"┙")')
   write (stdout,*)
+
+! ── restart detection ─────────────────────────────────────────────
+  do_restart = .false.
+  skip_mtdloop = .false.
+  if (env%allowrestart .and. restart_file_exists()) then
+    call read_restart_log(rdat)
+    if (rdat%runtype == crest_imtd .and. rdat%stage /= 'done') then
+      do_restart = .true.
+      call print_restart_info(rdat)
+      !> skip entire mtdloop only when CREGEN collection already ran
+      skip_mtdloop = (rdat%stage == 'post_collect')
+    end if
+  end if
 
 !===========================================================!
 !>--- setup
@@ -95,9 +112,20 @@ subroutine crest_search_imtdgc(env,tim)
 !>--- Start mainloop
   env%nreset = 0
   start = .true.
+! ── apply restart state ───────────────────────────────────────────
+  if (do_restart) then
+    env%nreset   = rdat%main_iter
+    env%elowest  = rdat%elowest
+    env%eprivious = rdat%eprivious
+    env%nmetadyn = rdat%nmetadyn
+    start = .false.
+  end if
   MAINLOOP: do
     call printiter
-    if (.not.start) then
+    if (do_restart) then
+!>--- restart: preserve .cre_*.xyz files, skip cleanup
+      continue
+    else if (.not.start) then
 !>--- clean Dir for new iterations, but leave iteration backup files
       call clean_V2i
       env%nreset = env%nreset+1
@@ -106,8 +134,12 @@ subroutine crest_search_imtdgc(env,tim)
       call V2cleanup(.false.)
     end if
 !===========================================================!
-!>--- Meta-dynamics loop
+!>--- Meta-dynamics loop (skipped on restart to use existing .cre_*.xyz)
+    if (.not.skip_mtdloop) then
     mtdloop: do i = 1,env%Maxrestart
+
+! ── restart: skip already-completed MTD iterations ────────────────
+      if (do_restart .and. i <= rdat%mtd_iter) cycle mtdloop
 
       write (stdout,*)
       write (stdout,'(1x,a)') '------------------------------'
@@ -144,8 +176,9 @@ subroutine crest_search_imtdgc(env,tim)
       call rename('cregen.out.tmp',btmp)
 
 !=========================================================!
-!>--- cleanup after first iteration and prepare next
-      if (i .eq. 1.and.start) then
+!>--- cleanup and state update after first iteration (before checkpoint)
+      firstiter = (i .eq. 1 .and. start)
+      if (firstiter) then
         start = .false.
 !>-- obtain a first lowest energy as reference
         env%eprivious = env%elowest
@@ -156,9 +189,12 @@ subroutine crest_search_imtdgc(env,tim)
         end if
 !>-- the cleanup
         call clean_V2i
-!>-- and always do two cycles of MTDs
-        cycle mtdloop
       end if
+!>--- checkpoint after this MTD iteration (nmetadyn already updated above)
+      call write_restart_log(crest_imtd,'mtd_loop',env%nreset,i, &
+        &  env%nmetadyn,env%elowest,env%eprivious,trim(str))
+!>-- always do two cycles of MTDs
+      if (firstiter) cycle mtdloop
 !=========================================================!
 !>--- Check for lowest energy
       call elowcheck(lower,env)
@@ -166,6 +202,9 @@ subroutine crest_search_imtdgc(env,tim)
         exit mtdloop
       end if
     end do mtdloop
+    end if !> end skip_mtdloop guard
+    skip_mtdloop = .false.
+    do_restart = .false.
 !=========================================================!
 !>--- collect all ensembles from mtdloop and merge
     write (stdout,*)
@@ -177,6 +216,9 @@ subroutine crest_search_imtdgc(env,tim)
     call collectcre(env)
     call newcregen(env,0)
     call checkname_xyz(crefile,atmp,btmp)
+!>--- checkpoint after collection and CREGEN
+    call write_restart_log(crest_imtd,'post_collect',env%nreset,0, &
+      &  env%nmetadyn,env%elowest,env%eprivious,trim(atmp))
 !>--- remaining number of structures
     call remaining_in(atmp,env%ewin,nallout)
 
@@ -243,6 +285,11 @@ subroutine crest_search_imtdgc(env,tim)
   if (env%iostatus_meta .ne. 0) return
 
 !==========================================================!
+!>--- checkpoint: run is complete
+  call write_restart_log(crest_imtd,'done',env%nreset,0, &
+    &  env%nmetadyn,env%elowest,env%eprivious,conformerfile)
+
+!==========================================================!
 !>--- final ensemble sorting
 !  call newcregen(env,0)
 !> this is actually done within the last crest_multilevel_
@@ -304,7 +351,6 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in)
   use strucrd
   use optimize_module
   use utilities
-  use crest_restartlog
   use parallel_interface
   implicit none
   type(systemdata) :: env

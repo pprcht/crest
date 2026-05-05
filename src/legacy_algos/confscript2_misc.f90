@@ -990,15 +990,12 @@ end subroutine append_INPUT_to
 subroutine remaining_in(filename,ewin,nall)
   use crest_data
   use crest_parameters
-  use crest_restartlog, only: restart_write_dummy
   use strucrd,only:rdensembleparam,rdensemble
   implicit none
   integer :: nall
   real(wp) :: ewin
   character(len=*) :: filename
   integer :: k,nat,io
-
-  call restart_write_dummy(trim(filename))
 
   open (newunit=k,file=trim(filename))
   read (k,*,iostat=io) nat

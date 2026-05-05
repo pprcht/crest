@@ -25,7 +25,6 @@ program CREST
   use crest_parameters !> Datatypes and constants
   use crest_data !> module for the main data storage (imports systemdata and timer)
   use crest_calculator
-  use crest_restartlog
   USE,INTRINSIC :: IEEE_EXCEPTIONS
   implicit none
   type(systemdata) :: env  !> MAIN STORAGE OF SYSTEM DATA
@@ -59,7 +58,6 @@ program CREST
   end do
   call parseflags(env,arg,args)
   deallocate (arg)
-  call restart_save_env(env)
 !=========================================================================================!
 !> scratch dir handling
 

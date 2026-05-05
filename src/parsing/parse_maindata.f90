@@ -26,7 +26,6 @@ module parse_maindata
   use crest_parameters
   !> modules for data storage in crest
   use crest_data
-  use crest_restartlog
   use strucrd,only:coord
   use molecule_parameters,only:extxyz_units_global
   !> modules used for parsing the root_object
@@ -308,10 +307,6 @@ contains   !> MODULE PROCEDURES START HERE
       env%checktopo = val
     case ('notopo')
       env%checktopo = .not.val
-    case ('restart')
-      if (val) then
-        call read_restart(env)
-      end if
     case ('multilevelopt')
       env%multilevelopt = val
     case ('refine_presort')

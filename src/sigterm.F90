@@ -59,7 +59,7 @@ end subroutine creststop
   subroutine wsigint() !> Ctrl+C
 #endif
     use crest_parameters,only:stderr,stdout
-    use crest_restartlog,only:dump_restart
+
     use ConfSolv_module
     integer :: myunit,io
     write (*,*)
@@ -76,7 +76,7 @@ end subroutine creststop
   subroutine wsigquit() !> Ctrl+D
 #endif
     use crest_parameters,only:stderr,stdout
-    use crest_restartlog,only:dump_restart
+
     use ConfSolv_module
     integer :: myunit,io
     write (*,*)
@@ -93,7 +93,7 @@ end subroutine creststop
   subroutine wsigterm() !> Recieved by the "kill" pid command
 #endif
     use crest_parameters,only:stderr,stdout
-    use crest_restartlog,only:dump_restart
+
     use ConfSolv_module
     integer :: io
     write (stdout,*)
@@ -110,7 +110,7 @@ end subroutine creststop
   subroutine wsigkill()
 #endif
     use crest_parameters,only:stderr,stdout
-    use crest_restartlog,only:dump_restart
+
     use ConfSolv_module
     integer :: io
     !call dump_restart()

@@ -40,7 +40,6 @@ subroutine newcregen(env,quickset,infile,structurelist)
 !****************************************************************************************
   use crest_parameters
   use crest_data
-  use crest_restartlog
   use strucrd
   use cregen_subroutines
   implicit none
@@ -92,9 +91,6 @@ subroutine newcregen(env,quickset,infile,structurelist)
 !>--- printout directions
   integer :: prch  !> the main printout channel
   logical :: pr1,pr2,pr3,pr4
-
-!>--- restart skip & tracking
-  if (trackrestart(env)) return
 
 !====================================================================!
 !>  S E T T I N G S
@@ -372,7 +368,7 @@ subroutine cregen_files(env,fname,oname,cname,simpleset,userinput,ensembleinput,
 
   inquire (file=fname,exist=ex)
   if (.not.ex.and..not.ensembleinput) then
-    write (stdout,'(a)') 'CREGEN> **WARNING** file ',trim(fname),' does not exist!'
+    write (stdout,'(a,a,a)') 'CREGEN> **WARNING** file ',trim(fname),' does not exist!'
     error stop
   end if
 

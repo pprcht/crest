@@ -57,7 +57,6 @@ module parallel_interface
       use strucrd
       use optimize_module
       use iomod,only:makedir,directory_exist,remove
-      use crest_restartlog,only:trackrestart,restart_write_dummy
       implicit none
       type(systemdata),target,intent(inout) :: env
       real(wp),intent(inout) :: xyz(3,nat,nall)
@@ -501,7 +500,6 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   use strucrd
   use optimize_module
   use iomod,only:makedir,directory_exist,remove
-  use crest_restartlog,only:trackrestart,restart_write_dummy
   implicit none
   type(systemdata),target,intent(inout) :: env
   real(wp),intent(inout) :: xyz(3,nat,nall)
@@ -525,12 +523,6 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   type(timer) :: profiler
   integer :: T,Tn  !> threads and threads per core
   logical :: nested
-
-!>--- decide wether to skip this call
-  if (trackrestart(env)) then
-    call restart_write_dummy(ensemblefile)
-    return
-  end if
 
 !>--- check which calc to use
   if (present(customcalc)) then
@@ -767,7 +759,6 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
   use dynamics_module
   use iomod,only:makedir,directory_exist,remove
   use omp_lib
-  use crest_restartlog,only:trackrestart,restart_write_dummy
   implicit none
   type(systemdata),intent(inout) :: env
   type(mddata) :: mddats(nsim)
@@ -787,12 +778,6 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
   real(wp),allocatable :: grdtmp(:,:)
   type(timer) :: profiler
 !===========================================================!
-!>--- decide wether to skip this call
-  if (trackrestart(env)) then
-    call restart_write_dummy('crest_dynamics.trj.xyz')
-    return
-  end if
-
 !>--- check if we have any MD & calculation settings allocated
   if (.not.env%mddat%requested) then
     write (stdout,*) 'MD requested, but no MD settings present.'
@@ -1076,7 +1061,6 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
   use shake_module
   use iomod,only:makedir,directory_exist,remove
   use omp_lib
-  use crest_restartlog,only:trackrestart,restart_write_dummy
   implicit none
   !> INPUT
   type(systemdata),intent(inout) :: env
@@ -1095,12 +1079,6 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
   integer :: vz,job,thread_id
   type(timer) :: profiler
 !===========================================================!
-!>--- decide wether to skip this call
-  if (trackrestart(env)) then
-    call restart_write_dummy('crest_dynamics.trj.xyz')
-    return
-  end if
-
 !>--- check if we have any MD & calculation settings allocated
   if (.not.env%mddat%requested) then
     write (stdout,*) 'MD requested, but no MD settings present.'
