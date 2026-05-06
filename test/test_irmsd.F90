@@ -171,7 +171,7 @@ contains  !> Unit tests for rmsd and irmsd
     real(wp) :: rmsdval
     call get_testmol('caffeine',mol)
     rmsdval = rmsd(mol,mol)
-    if (abs(rmsdval) > thr) &
+    if (abs(rmsdval) > 1.0e-6_wp) &
       call test_failed(error,'RMSD(mol,mol) should be 0, got: '//to_str(rmsdval))
   end subroutine test_rmsd_self
 

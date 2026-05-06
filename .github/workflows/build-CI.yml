@@ -32,30 +32,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ---- Linux GCC + OpenBLAS — CMake debug --------------------------
-          - { os: ubuntu-latest, build-type: debug,
-              toolchain: { compiler: gcc, version: '12', build: cmake } }
-          - { os: ubuntu-latest, build-type: debug,
+          # ---- Linux GCC 14 + OpenBLAS — CMake debugoptimized --------------
+          - { os: ubuntu-latest, build-type: debugoptimized,
               toolchain: { compiler: gcc, version: '14', build: cmake } }
-
-          # ---- Linux GCC + OpenBLAS — Meson debugoptimized -----------------
-          - { os: ubuntu-latest, build-type: debugoptimized,
-              toolchain: { compiler: gcc, version: '12', build: meson } }
-          - { os: ubuntu-latest, build-type: debugoptimized,
-              toolchain: { compiler: gcc, version: '14', build: meson } }
-
-          # ---- Linux Intel (ifx/icx) + MKL — CMake debug ------------------
-          - { os: ubuntu-latest, build-type: debug,
-              toolchain: { compiler: intel, version: '2025.1', mkl_version: '2025.1', build: cmake } }
 
           # ---- Linux Intel (ifx/icx) + MKL — Meson debugoptimized ---------
           - { os: ubuntu-latest, build-type: debugoptimized,
               toolchain: { compiler: intel, version: '2025.1', mkl_version: '2025.1', build: meson } }
 
-          # ---- macOS GCC + OpenBLAS — CMake debug (GNU only) ---------------
-          - { os: macos-latest, build-type: debug,
-              toolchain: { compiler: gcc, version: '12', build: cmake } }
-          - { os: macos-latest, build-type: debug,
+          # ---- macOS GCC 14 + OpenBLAS — CMake debugoptimized --------------
+          - { os: macos-latest, build-type: debugoptimized,
               toolchain: { compiler: gcc, version: '14', build: cmake } }
 
     defaults:
@@ -209,7 +195,7 @@ jobs:
         run: ninja -C ${{ env.BUILD_DIR }}
 
       - name: Run unit tests (ctest)
-        if: ${{ matrix.toolchain.build == 'cmake' && contains(matrix.toolchain.compiler, 'gcc') }}
+        if: ${{ matrix.toolchain.build == 'cmake' }}
         run: |
           ctest --output-on-failure --parallel 2 -R '^crest/'
         working-directory: ${{ env.BUILD_DIR }}
