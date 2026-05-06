@@ -255,6 +255,7 @@ subroutine confscript_morehelp(flag)
     fw = 22
     call help_section('Constraints (applied to ALL calculations):')
     call help_opt('-cinp <file>',fw,'Read constraints file  (xtb format; formerly ".constrains")')
+    call help_opt('-freeze <atoms>',fw,'Freeze atoms in optimizations/MD  (indices, ranges, or element symbols)')
     call help_opt('-cbonds [<fc>]',fw,'Constrain all bonds globally  (set up from topology)')
     call help_opt('-cbonds_md [<fc>]',fw,'Constrain all bonds during MDs/MTDs only')
     call help_opt('-nocbonds',fw,'Disable automatic bond constraints')

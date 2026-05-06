@@ -62,6 +62,7 @@ subroutine parseflags(env,arg,nra)
   logical :: ex,bondconst
   character(len=:),allocatable :: argument
   logical,allocatable :: processedarg(:)
+  logical,allocatable :: atlist(:)
   character(len=:),allocatable :: arg1,arg2,arg3
 
   allocate (xx(10),floats(3),strings(3))
@@ -1804,6 +1805,19 @@ subroutine parseflags(env,arg,nra)
         ctmp = arg1
         call quick_constrain_file('coord',env%nat,env%ref%at,ctmp)
         processedarg(i+1) = .true.
+
+      case ('-freeze')               !> freeze atoms during optimization/MD
+        processedarg(i) = .true.
+        if (i+1 .le. nra) then
+          ctmp = arg1
+          call get_atlist(env%ref%nat,atlist,ctmp,env%ref%at)
+          env%calc%nfreeze = count(atlist)
+          call move_alloc(atlist,env%calc%freezelist)
+          processedarg(i+1) = .true.
+          write (stdout,'(2x,a,1x,i0,1x,a)') '-freeze :',env%calc%nfreeze,'atoms frozen'
+        else
+          call parseflags_missing(argument)
+        end if
 
       case ('-nocbonds')
         processedarg(i) = .true.
