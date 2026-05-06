@@ -361,6 +361,10 @@ program CREST
   call custom_cleanup(env)
 
 !=========================================================================================!
+!> Print a summary of output files written in this run
+  call crest_output_summary(env)
+
+!=========================================================================================!
 !> Evaluate and print timings, then stop the program
   call eval_timer(tim)
   call creststop(env%iostatus_meta)

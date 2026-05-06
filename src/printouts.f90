@@ -142,10 +142,9 @@ subroutine help_section(title)
   character(len=*),intent(in) :: title
   integer :: n
   n = len_trim(title)
-  write(stdout,'(/,1x,a)') colorify(trim(title),'yellow')
-  write(stdout,'(1x,a)') colorify(repeat('─',n),'yellow')
+  write (stdout,'(/,1x,a)') colorify(trim(title),'yellow')
+  write (stdout,'(1x,a)') colorify(repeat('─',n),'yellow')
 end subroutine help_section
-
 
 subroutine help_opt(flag,fw,desc)
   !*********************************************************************
@@ -160,7 +159,7 @@ subroutine help_opt(flag,fw,desc)
   integer :: fl,pad
   fl = len_trim(flag)
   pad = max(fw-fl,1)
-  write(stdout,'(a,a,a,a,a)') '   ',colorify(trim(flag),'green'), &
+  write (stdout,'(a,a,a,a,a)') '   ',colorify(trim(flag),'green'), &
     & repeat(' ',pad),' : ',trim(desc)
 end subroutine help_opt
 
@@ -171,20 +170,20 @@ subroutine confscript_help()
   use crest_parameters,only:stdout
   implicit none
 
-  write(stdout,'(/,1x,a)') colorify(repeat('─',76),'gold')
-  write(stdout,'(1x,a,a)') colorify('Usage:','yellow'),'  crest [INPUT] [OPTIONS]'
-  write(stdout,'(1x,a)') colorify(repeat('─',76),'gold')
-  write(stdout,*)
-  write(stdout,'(1x,a)') 'The '//colorify('[INPUT]','blue')//' argument CAN be a coordinate file in the'
-  write(stdout,'(1x,a)') 'TM (coord, Bohr) or Xmol (*.xyz, Ang.) format.'
-  write(stdout,'(1x,a)') 'If no such file is present as the first argument, crest will'
-  write(stdout,'(1x,a)') 'automatically search for a file called "coord" in the TM format.'
-  write(stdout,*)
-  write(stdout,'(1x,a)') colorify('Versions >3.0 allow specifying detailed input instructions via','green')
-  write(stdout,'(1x,a)') colorify('input files in the TOML format.','green')
-  write(stdout,'(1x,a)') colorify('*.toml files can be ','green')//colorify(' [INPUT]','blue')// &
+  write (stdout,'(/,1x,a)') colorify(repeat('─',76),'gold')
+  write (stdout,'(1x,a,a)') colorify('Usage:','yellow'),'  crest [INPUT] [OPTIONS]'
+  write (stdout,'(1x,a)') colorify(repeat('─',76),'gold')
+  write (stdout,*)
+  write (stdout,'(1x,a)') 'The '//colorify('[INPUT]','blue')//' argument CAN be a coordinate file in the'
+  write (stdout,'(1x,a)') 'TM (coord, Bohr) or Xmol (*.xyz, Ang.) format.'
+  write (stdout,'(1x,a)') 'If no such file is present as the first argument, crest will'
+  write (stdout,'(1x,a)') 'automatically search for a file called "coord" in the TM format.'
+  write (stdout,*)
+  write (stdout,'(1x,a)') colorify('Versions >3.0 allow specifying detailed input instructions via','green')
+  write (stdout,'(1x,a)') colorify('input files in the TOML format.','green')
+  write (stdout,'(1x,a)') colorify('*.toml files can be ','green')//colorify(' [INPUT]','blue')// &
     colorify(' or specified via "--input <file>"','green')
-  write(stdout,*)
+  write (stdout,*)
   call confscript_morehelp2()
   stop '   [-h] displayed. exit.'
 end subroutine confscript_help
@@ -196,11 +195,11 @@ subroutine confscript_morehelp(flag)
   character(len=*),intent(in) :: flag
   integer :: fw
 
-  write(stdout,'(/,1x,a)') colorify(repeat('─',76),'gold')
-  write(stdout,*)
+  write (stdout,'(/,1x,a)') colorify(repeat('─',76),'gold')
+  write (stdout,*)
   select case (flag)
 
-  ! ── General / technical ──────────────────────────────────────────────
+    ! ── General / technical ──────────────────────────────────────────────
   case default
     fw = 16
     call help_section('Run modes:')
@@ -219,7 +218,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-msreact',fw,'MS fragment generator  (see --help msreact)')
     call help_opt('-bh/-GMIN',fw,'Basin-hopping global optimization')
     call help_opt('-sort',fw,'Ensemble sorting via CREGEN  (see --help compare)')
-    write(stdout,*)
+    write (stdout,*)
     fw = 22
     call help_section('Method selection:')
     call help_opt('-gfn2',fw,'Use GFN2-xTB  [default]')
@@ -230,9 +229,9 @@ subroutine confscript_morehelp(flag)
     call help_opt('-gfn2//gfnff',fw,'GFN-FF trajectories with GFN2-xTB energy reweighting')
     call help_opt('-refine <method>',fw,'Post-process conformers at a higher level')
     call help_opt('-optlev <level>',fw,'Optimization convergence level for ALL semiempirical calculations')
-    write(stdout,'(9x,a)') '<level> = crude, vloose, loose, normal, tight, vtight, extreme'
+    write (stdout,'(9x,a)') '<level> = crude, vloose, loose, normal, tight, vtight, extreme'
     call help_opt('-dscal [<factor>]',fw,'Scale dispersion energy in MD/MTD simulations')
-    write(stdout,*)
+    write (stdout,*)
     fw = 22
     call help_section('Molecular system:')
     call help_opt('-T <int>',fw,'Number of CPU threads (or read from OMP_NUM_THREADS)')
@@ -243,7 +242,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-alpb <solvent>',fw,'ALPB implicit solvation')
     call help_opt('-efield <x> <y> <z>',fw,'External electric field in V/Ang along x, y, z')
     call help_opt('-charges [<file>]',fw,'Read atomic partial charges from file  [default: "charges"]')
-    write(stdout,*)
+    write (stdout,*)
     fw = 22
     call help_section('Technical:')
     call help_opt('--input <file>',fw,'Specify TOML input file with detailed settings')
@@ -252,7 +251,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-niceprint',fw,'Show progress bar during optimizations')
     call help_opt('-dry',fw,'Parse args, print resolved settings, then exit')
     call help_opt('-legacy',fw,'Force CREST < 3.0 behavior')
-    write(stdout,*)
+    write (stdout,*)
     fw = 22
     call help_section('Constraints (applied to ALL calculations):')
     call help_opt('-cinp <file>',fw,'Read constraints file  (xtb format; formerly ".constrains")')
@@ -260,14 +259,14 @@ subroutine confscript_morehelp(flag)
     call help_opt('-cbonds_md [<fc>]',fw,'Constrain all bonds during MDs/MTDs only')
     call help_opt('-nocbonds',fw,'Disable automatic bond constraints')
     call help_opt('-fc <float>',fw,'Global force constant for bond constraints')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── Ensemble comparison / CREGEN ─────────────────────────────────────
+    ! ── Ensemble comparison / CREGEN ─────────────────────────────────────
   case ('compare','cregen')
     fw = 20
     call help_section('Options for ensemble comparisons:')
     call help_opt('-cregen [file]',fw,'Run CREGEN standalone to sort an ensemble file.')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Thresholds:')
     call help_opt('-ewin <real>',fw,'Energy window in kcal/mol  [default: 6.0]')
     call help_opt('-rthr <real>',fw,'RMSD threshold in Ang  [default: 0.125]')
@@ -275,7 +274,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-bthr <real>',fw,'Rotational constant threshold  [default: 0.01 = 1%]')
     call help_opt('-pthr <real>',fw,'Boltzmann population threshold (0-1)  [default: 0.05]')
     call help_opt('-temp <real>',fw,'Boltzmann temperature in K  [default: 298.15]')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Algorithm options:')
     call help_opt('-topo/-notopo',fw,'Enable/disable topology change check')
     call help_opt('-ezcheck',fw,'Enable E/Z double-bond isomer check')
@@ -283,14 +282,14 @@ subroutine confscript_morehelp(flag)
     call help_opt('-allrot',fw,'Use all three rotational constants (A, B, C)')
     call help_opt('-eqv/-nmr',fw,'NMR nuclear equivalence analysis (requires rotamers)')
     call help_opt('-cluster <int>',fw,'PCA + k-Means clustering  (<int> = number of clusters)')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Output:')
     call help_opt('-prsc',fw,'Write scoord.* file for each conformer')
     call help_opt('-nowr',fw,"Skip writing the sorted ensemble file")
     call help_opt('-osdf',fw,'Also write output ensemble in SDF format')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── Conformer search / sampling ──────────────────────────────────────
+    ! ── Conformer search / sampling ──────────────────────────────────────
   case ('conf','sampling')
     fw = 20
     call help_section('Conformer search algorithms:')
@@ -298,7 +297,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-v4',fw,'iMTD-sMTD (entropy-focused search)')
     call help_opt('-entropy',fw,'Same as -v4, specialized for conformational entropy')
 
-    write(stdout,*)
+    write (stdout,*)
     call help_section('MD / MTD parameters:')
     call help_opt('-len/-mdlen <t>[x]',fw,'MD/MTD length in ps; append "x" for a scaling factor')
     call help_opt('-tstep <float>',fw,'MD timestep in fs  [default: 5 fs]')
@@ -308,7 +307,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-mddump <int>',fw,'Trajectory dump interval in fs  [default: 100]')
     call help_opt('-vbdump <real>',fw,'Vbias dump frequency in ps  [default: 1.0]')
     call help_opt('-nmtd <int>',fw,'Number of MTD simulations per cycle')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Search control:')
     call help_opt('-cross/-nocross',fw,'Enable/disable genetic structure crossing  [cross=default]')
     call help_opt('-gcmax <int>',fw,'Max structures fed into genetic crossing')
@@ -321,14 +320,14 @@ subroutine confscript_morehelp(flag)
     call help_opt('-wscal <float>',fw,'Scale wall potential sphere radius')
     call help_opt('-hflip/-noflip',fw,'OH proton flip after MTD  [default: OFF]')
     call help_opt('-maxflip <int>',fw,'Max OH flip attempts  [default: 1000]')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── Thermochemistry / entropy ─────────────────────────────────────────
+    ! ── Thermochemistry / entropy ─────────────────────────────────────────
   case ('thermo','entropy')
     fw = 28
     call help_section('Thermostatistical options:')
     call help_opt('-trange <Tmin> <Tmax> <Tstep>',fw,'Temperature range in K for entropy output')
-    write(stdout,'(9x,a)') '[default: 280-380 K in 10 K steps]'
+    write (stdout,'(9x,a)') '[default: 280-380 K in 10 K steps]'
     call help_opt('-tread <file>',fw,'Read temperatures (one per line) from file')
     call help_opt('-fscal <float>',fw,'Frequency scaling factor  [default: 1.0]')
     call help_opt('-sthr/-rotorcut <float>',fw,'Rotor cutoff in cm^-1 (free-rotor interpolation)  [default: 25.0]')
@@ -337,15 +336,15 @@ subroutine confscript_morehelp(flag)
     call help_opt('-pcap <int>',fw,'Max structures used in property calculations')
     call help_opt('-printpop',fw,'Print Boltzmann populations at every temperature')
     call help_opt('-avbhess',fw,'Use Boltzmann-averaged Hessian in rrhoav')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── QCG ──────────────────────────────────────────────────────────────
+    ! ── QCG ──────────────────────────────────────────────────────────────
   case ('qcg')
     fw = 20
     call help_section('Quantum Cluster Growth (QCG)')
-    write(stdout,'(1x,a)') 'General usage:  crest <solute> -qcg <solvent> [options]'
-    write(stdout,'(1x,a)') 'Options (in addition to general / iMTD-GC options):'
-    write(stdout,*)
+    write (stdout,'(1x,a)') 'General usage:  crest <solute> -qcg <solvent> [options]'
+    write (stdout,'(1x,a)') 'Options (in addition to general / iMTD-GC options):'
+    write (stdout,*)
     call help_section('Cluster growth:')
     call help_opt('-grow',fw,'Cluster generation run type')
     call help_opt('-nsolv <int>',fw,'Number of solvent molecules to add')
@@ -359,7 +358,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-samerand',fw,'Use same random seed for every xtbiff run')
     call help_opt('-directed <file>',fw,'Directed solvation at positions in <file>')
     call help_opt('-fin_opt_gfn2',fw,'Final GFN2-xTB optimization for grow and ensemble')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Ensemble generation:')
     call help_opt('-ensemble',fw,'Ensemble generation run type')
     call help_opt('-qcgmtd',fw,'NCI-MTD CREST ensemble generation  [default]')
@@ -368,7 +367,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-md',fw,'Normal MD for QCG ensemble search')
     call help_opt('-enslvl [method]',fw,'Method for ensemble search (all GFN methods supported)')
     call help_opt('-clustering',fw,'Clustering for ensemble search  (qcgmtd/ncimtd only)')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Solvation free energy:')
     call help_opt('-esolv',fw,'Solvation energy  (reference cluster generation)')
     call help_opt('-gsolv',fw,'Solvation free energy  (reference cluster generation)')
@@ -377,14 +376,14 @@ subroutine confscript_morehelp(flag)
     call help_opt('-freqscal',fw,'Frequency scale factor  (output only)')
     call help_opt('-freqlvl [method]',fw,'Method for frequency computation')
     call help_opt('-keepdir',fw,'Keep temporary directories')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── MSReact ──────────────────────────────────────────────────────────
+    ! ── MSReact ──────────────────────────────────────────────────────────
   case ('msreact')
     fw = 22
     call help_section('Mass spectral fragment generator (msreact)')
-    write(stdout,'(1x,a)') 'General usage:  crest <input> -msreact [options]'
-    write(stdout,*)
+    write (stdout,'(1x,a)') 'General usage:  crest <input> -msreact [options]'
+    write (stdout,*)
     call help_opt('-msnoattrh',fw,'Deactivate H–LMO attractive potential')
     call help_opt('-msnshifts <int>',fw,'n optimizations with randomly shifted atoms  [default: 0]')
     call help_opt('-msnshifts2 <int>',fw,'Same but with bond-repulsive potential  [default: 0]')
@@ -398,7 +397,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-chrg <int>',fw,"Molecular charge")
     call help_opt('-ewin <real>',fw,'Energy window for fragment sorting in kcal/mol  [default: 200.0]')
     call help_opt('-msinput <file>',fw,'Read special settings from input file')
-    write(stdout,*)
+    write (stdout,*)
     fw = 22
     call help_section('msreact input file keywords:')
     call help_opt('fragdist <real>',fw,'Inter-fragment distance increase  [default: 0.0 Ang]')
@@ -407,9 +406,9 @@ subroutine confscript_morehelp(flag)
     call help_opt('fc_rep <real>',fw,'Repulsive potential force constant  [default: 0.5]')
     call help_opt('fc_attr <real>',fw,'H–LMO attractive force constant  [default: -0.5]')
     call help_opt('etemp <real>',fw,'Electronic temperature in xTB optimizations')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── Standalone tools ─────────────────────────────────────────────────
+    ! ── Standalone tools ─────────────────────────────────────────────────
   case ('other')
     fw = 26
     call help_section('Single-structure calculations:')
@@ -418,8 +417,8 @@ subroutine confscript_morehelp(flag)
     call help_opt('-hess/-numhess',fw,'Numerical Hessian / vibrational frequencies')
     call help_opt('-dynamics/-dyn',fw,'Stand-alone MD run')
     call help_opt('-thermo <file>',fw,'Thermochemistry from existing Hessian data')
-    write(stdout,'(9x,a)') '(also requires "vibspectrum" in TM format)'
-    write(stdout,*)
+    write (stdout,'(9x,a)') '(also requires "vibspectrum" in TM format)'
+    write (stdout,*)
     call help_section('Ensemble tools:')
     call help_opt('-mdopt <file>',fw,'Optimize every structure in an ensemble (XYZ)')
     call help_opt('-screen <file>',fw,'Multi-level energy screening of an ensemble')
@@ -428,45 +427,45 @@ subroutine confscript_morehelp(flag)
     call help_opt('-symmetries',fw,'Symmetry analysis of all structures in an ensemble')
     call help_opt('-printboltz',fw,'Print Boltzmann population weights')
     call help_opt('-compare <f1> <f2>',fw,'Compare two ensembles for structural overlap')
-    write(stdout,'(9x,a)') colorify('-maxcomp <int>','green')//' : max conformers per ensemble  [default: 10]'
+    write (stdout,'(9x,a)') colorify('-maxcomp <int>','green')//' : max conformers per ensemble  [default: 10]'
     call help_opt('-splitfile <f> [i] [j]',fw,'Split ensemble into per-structure directories (SPLIT/)')
     call help_opt('-rmsd <f1> <f2>',fw,'RMSD between two structures (auto-converted to Ang)')
     call help_opt('-rmsdheavy <f1> <f2>',fw,'Heavy-atom RMSD between two structures')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Protonation / tautomerization:')
     call help_opt('-protonate',fw,"Find a molecule's protomers  (LMO π/LP-center approach)")
     call help_opt('-deprotonate',fw,"Find a molecule's deprotomers")
     call help_opt('-tautomerize',fw,'Find prototropic tautomers  (protonation + deprotonation)')
-    write(stdout,'(9x,a)') colorify('-trev','green')//'         : deprotonate first, then protonate  (reverse order)'
-    write(stdout,'(9x,a)') colorify('-iter <int>','green')//'    : number of prot/deprot cycles  [default: 2]'
-    write(stdout,*)
+    write (stdout,'(9x,a)') colorify('-trev','green')//'         : deprotonate first, then protonate  (reverse order)'
+    write (stdout,'(9x,a)') colorify('-iter <int>','green')//'    : number of prot/deprot cycles  [default: 2]'
+    write (stdout,*)
     call help_section('Miscellaneous:')
     call help_opt('-cregen [file]',fw,'CREGEN ensemble sorting (see also --help compare)')
     call help_opt('-zsort',fw,'Z-matrix sorting of the input coord file')
     call help_opt('-testtopo <file>',fw,'Topology / bond connectivity analysis')
     call help_opt('-constrain <atoms>',fw,'Write example constraint file ".xcontrol.sample"')
-    write(stdout,*)
+    write (stdout,*)
 
-  ! ── TOML input files ─────────────────────────────────────────────────
+    ! ── TOML input files ─────────────────────────────────────────────────
   case ('toml')
     call help_section('TOML input files')
-    write(stdout,'(1x,a)') 'CREST (v3+) accepts a TOML file as a flexible alternative to CLI flags.'
-    write(stdout,'(1x,a)') 'Pass it as the first argument or explicitly with --input:'
-    write(stdout,*)
-    write(stdout,'(3x,a)') colorify('crest structure.xyz --input settings.toml','green')
-    write(stdout,'(3x,a)') colorify('crest settings.toml','green')//'  (structure path given inside the file)'
-    write(stdout,*)
+    write (stdout,'(1x,a)') 'CREST (v3+) accepts a TOML file as a flexible alternative to CLI flags.'
+    write (stdout,'(1x,a)') 'Pass it as the first argument or explicitly with --input:'
+    write (stdout,*)
+    write (stdout,'(3x,a)') colorify('crest structure.xyz --input settings.toml','green')
+    write (stdout,'(3x,a)') colorify('crest settings.toml','green')//'  (structure path given inside the file)'
+    write (stdout,*)
     call help_section('Minimal example:')
-    write(stdout,'(3x,a)') colorify('input','yellow')//'   = "struc.xyz"'
-    write(stdout,'(3x,a)') colorify('runtype','yellow')//' = "iMTD-GC"'
-    write(stdout,'(3x,a)') colorify('threads','yellow')//' = 4'
-    write(stdout,*)
-    write(stdout,'(3x,a)') colorify('[calculation]','yellow')
-    write(stdout,'(5x,a)') colorify('[[calculation.level]]','yellow')
-    write(stdout,'(7x,a)') 'method = "gfn2"'
-    write(stdout,'(7x,a)') 'chrg   = 0'
-    write(stdout,'(7x,a)') 'gbsa   = "h2o"'
-    write(stdout,*)
+    write (stdout,'(3x,a)') colorify('input','yellow')//'   = "struc.xyz"'
+    write (stdout,'(3x,a)') colorify('runtype','yellow')//' = "iMTD-GC"'
+    write (stdout,'(3x,a)') colorify('threads','yellow')//' = 4'
+    write (stdout,*)
+    write (stdout,'(3x,a)') colorify('[calculation]','yellow')
+    write (stdout,'(5x,a)') colorify('[[calculation.level]]','yellow')
+    write (stdout,'(7x,a)') 'method = "gfn2"'
+    write (stdout,'(7x,a)') 'chrg   = 0'
+    write (stdout,'(7x,a)') 'gbsa   = "h2o"'
+    write (stdout,*)
     call help_section('Key root-level settings:')
     fw = 20
     call help_opt('input / structure',fw,'Input coordinate file')
@@ -474,27 +473,27 @@ subroutine confscript_morehelp(flag)
     call help_opt('threads',fw,'Number of CPU threads')
     call help_opt('preopt',fw,'Pre-optimize input structure  (true/false)')
     call help_opt('constraints',fw,'Path to an xtb-format constraint file')
-    write(stdout,*)
+    write (stdout,*)
     call help_section('Main blocks:')
     ! ── padding = 30 - visible_len, so ' — ' aligns at column 30 ──
-    write(stdout,'(3x,a,a)') colorify('[calculation]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('[calculation]','yellow'), &
       & repeat(' ',17)//' — method, charge, solvent, …'
-    write(stdout,'(3x,a,a)') colorify('  [[calculation.level]]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('  [[calculation.level]]','yellow'), &
       & repeat(' ',7)//' — one or more calculation levels'
-    write(stdout,'(3x,a,a)') colorify('  [[calculation.constraint]]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('  [[calculation.constraint]]','yellow'), &
       & repeat(' ',2)//' — geometric constraints'
-    write(stdout,'(3x,a,a)') colorify('[dynamics]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('[dynamics]','yellow'), &
       & repeat(' ',20)//' — MD length, timestep, temperature, …'
-    write(stdout,'(3x,a,a)') colorify('  [[dynamics.meta]]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('  [[dynamics.meta]]','yellow'), &
       & repeat(' ',11)//' — metadynamics bias settings'
-    write(stdout,'(3x,a,a)') colorify('[cregen]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('[cregen]','yellow'), &
       & repeat(' ',22)//' — ensemble sorting thresholds'
-    write(stdout,'(3x,a,a)') colorify('[thermo]','yellow'), &
+    write (stdout,'(3x,a,a)') colorify('[thermo]','yellow'), &
       & repeat(' ',22)//' — thermochemistry settings'
-    write(stdout,*)
-    write(stdout,'(1x,a)') 'Full TOML keyword reference:'
-    write(stdout,'(3x,a)') colorify('https://crest-lab.github.io/crest-docs/','blue')
-    write(stdout,*)
+    write (stdout,*)
+    write (stdout,'(1x,a)') 'Full TOML keyword reference:'
+    write (stdout,'(3x,a)') colorify('https://crest-lab.github.io/crest-docs/','blue')
+    write (stdout,*)
 
   end select
   call confscript_morehelp2()
@@ -505,18 +504,18 @@ subroutine confscript_morehelp2
   use iomod,only:colorify
   use crest_parameters,only:stdout
   implicit none
-  write(stdout,'(/,1x,a)') 'For detailed help on option groups, use:'
-  write(stdout,'(3x,a)') colorify('--help general','gold')//'    '// &
+  write (stdout,'(/,1x,a)') 'For detailed help on option groups, use:'
+  write (stdout,'(3x,a)') colorify('--help general','gold')//'    '// &
     & colorify('--help compare','gold')//'    '//colorify('--help conf','gold')
-  write(stdout,'(3x,a)') colorify('--help thermo','gold')//'     '// &
+  write (stdout,'(3x,a)') colorify('--help thermo','gold')//'     '// &
     & colorify('--help qcg','gold')//'        '//colorify('--help msreact','gold')
-  write(stdout,'(3x,a)') colorify('--help other','gold')//'      '// &
+  write (stdout,'(3x,a)') colorify('--help other','gold')//'      '// &
     & colorify('--help toml','gold')
-  write(stdout,*)
-  write(stdout,'(1x,a,a)') 'View literature references with ',colorify('--cite','green')
-  write(stdout,'(1x,a)') 'For detailed documentation refer to:'
-  write(stdout,'(3x,a)') colorify('https://crest-lab.github.io/crest-docs/','blue')
-  write(stdout,*)
+  write (stdout,*)
+  write (stdout,'(1x,a,a)') 'View literature references with ',colorify('--cite','green')
+  write (stdout,'(1x,a)') 'For detailed documentation refer to:'
+  write (stdout,'(3x,a)') colorify('https://crest-lab.github.io/crest-docs/','blue')
+  write (stdout,*)
 end subroutine confscript_morehelp2
 
 !CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
@@ -849,7 +848,7 @@ subroutine construct_boxed_headline(str,width,bold)
   strlen2 = wid+2
   k = strlen2-strlen
   j = k/2
-  jj = k-j-2 
+  jj = k-j-2
   if (bold) then
     write (stdout,'(a)') "┃"//repeat(" ",j)//trim(str)//repeat(" ",jj)//"┃"
     write (stdout,'(a)') "┗"//repeat("━",wid)//"┛"
@@ -871,7 +870,7 @@ subroutine print_crest_metadata()
   write (*,'(2x,a,t22,":   ",a)') 'CREST version    ',version
   write (*,'(2x,a,t22,":   ",a)') 'timestamp        ',date
   write (*,'(2x,a,t22,":   ",a)') 'commit           ',commit
-  l = len_trim(author) 
+  l = len_trim(author)
   if (author(1:2) .eq. "'@") then
     write (*,'(2x,a,t22,":   ",a)') 'compiled by      ',"usr"//author(2:l-1)
   else
@@ -888,7 +887,6 @@ subroutine print_crest_metadata()
   write (*,'(2x,a,t22,":   ",a)') '-DWITH_LWONIOM   ',lwoniomvar
   write (*,'(2x,a,t22,":   ",a)') '-DWITH_FMLIP_RELAY',fmliprelayvar
 end subroutine print_crest_metadata
-
 
 subroutine cat_mod(ch,pre,fname,post)
   implicit none
@@ -1040,6 +1038,29 @@ subroutine gxtb_dev_warning
 end subroutine gxtb_dev_warning
 
 !========================================================================================!
+
+subroutine gxtb_syscall_warning
+!*************************************************************
+!* Warn the user that this build runs g-xTB by invoking the
+!* xtb binary via system calls (slow, temporary workaround).
+!* Printed only when compiled with WITH_GXTB.
+!* A proper tblite-native implementation is pending.
+!*************************************************************
+  use crest_parameters,only:stdout
+  use tblite_api,only:have_gxtb
+  implicit none
+  if (have_gxtb) return
+  write (stdout,*)
+  write (stdout,'(1x,a)') repeat('!',68)
+  write (stdout,'(1x,a)') '! Note: g-xTB is currently invoked via the xtb binary              !'
+  write (stdout,'(1x,a)') '!       (system calls). This is a temporary implementation and     !'
+  write (stdout,'(1x,a)') '!       may be slow. A native interface via the tblite package     !'
+  write (stdout,'(1x,a)') '!       is planned for an upcoming release.                        !'
+  write (stdout,'(1x,a)') repeat('!',68)
+  write (stdout,*)
+end subroutine gxtb_syscall_warning
+
+!========================================================================================!
 !========================================================================================!
 
 subroutine crest_no_runtype_selected()
@@ -1049,6 +1070,7 @@ subroutine crest_no_runtype_selected()
   !*****************************************************
   use crest_parameters,only:stdout
   use crest_data,only:status_safety
+  use iomod,only:colorify
   implicit none
   write (stdout,*)
   write (stdout,'(1x,a)') repeat('=',60)
@@ -1061,14 +1083,14 @@ subroutine crest_no_runtype_selected()
   write (stdout,'(5x,a,t30,a)') '--sp','Single-point energy calculation'
   write (stdout,'(5x,a,t30,a)') '--opt','Structure optimization'
   write (stdout,'(5x,a,t30,a)') '--md','Molecular dynamics simulation'
-  write (stdout,'(5x,a,t30,a)') '--imtdgc/--v3','iMTD-GC conformational search' 
+  write (stdout,'(5x,a,t30,a)') '--imtdgc/--v3','iMTD-GC conformational search '//colorify('(PREVIOUS DEFAULT)','gold')
   write (stdout,'(5x,a,t30,a)') '--entropy','Entropy/free-energy sampling'
   write (stdout,'(5x,a,t30,a)') '--mdopt','Ensemble optimization (no sorting)'
   write (stdout,'(5x,a,t30,a)') '--screen','Ensemble screening'
   write (stdout,'(5x,a,t30,a)') '--protonate','Protonation site search'
   write (stdout,'(5x,a,t30,a)') '--deprotonate','Deprotonation site search'
   write (stdout,'(5x,a,t30,a)') '--tautomerize','Tautomer generation'
-  write (stdout,'(5x,a,t30,a)') '--qcg','QCG workflows' 
+  write (stdout,'(5x,a,t30,a)') '--qcg','QCG workflows'
   write (stdout,'(5x,a,t30,a)') '--msreact','MSREACT workflows'
   write (stdout,'(5x,a,t30,a)') '--bh','Basin-hopping global optimization'
   write (stdout,'(5x,a,t30,a)') '--sort','Ensemble sorting (CREGEN)'
@@ -1078,3 +1100,101 @@ subroutine crest_no_runtype_selected()
   write (stdout,*)
   call creststop(status_safety)
 end subroutine crest_no_runtype_selected
+
+!========================================================================================!
+
+subroutine crest_output_summary(env)
+!**************************************************
+!* Print a table of output files written by CREST *
+!* and a short description of their contents.     *
+!* Which files are listed depends on the runtype. *
+!**************************************************
+  use crest_parameters,only:stdout
+  use crest_data
+  implicit none
+  type(systemdata),intent(in) :: env
+  character(len=72),parameter :: hbar = repeat('-',80)
+
+  select case (env%crestver)
+  case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
+      & crest_sorting,crest_optimize,crest_trialopt,crest_rigcon, &
+      & crest_moldyn,crest_bh,crest_bhpt,crest_protonate,crest_deprotonate, &
+      & crest_tautomerize)
+    write (stdout,*)
+    write (stdout,*)
+    write (stdout,'(2x,a)') 'Important files written by CREST during this run'
+    write (stdout,'(1x,a)') hbar
+  end select
+
+  select case (env%crestver)
+    ! ── iMTD-GC / sMTD-iMTD conformer search ─────
+  case (crest_imtd,crest_imtd2)
+    call wfe('crest_conformers.xyz','unique conformers (1 per rotamer group), energy-sorted')
+    call wfe('crest_rotamers.xyz','all structures including rotamers, with Boltzmann weights')
+    call wfe('crest_best.xyz','lowest-energy conformer')
+    call wfe('cregen.full','full CREGEN output (written when terminal output is abbreviated)')
+    call wfe('crest.restart','restart/checkpoint file for the iMTD-GC algorithm')
+
+    ! ── ensemble screening / MDOPT ────────────────
+  case (crest_screen)
+    call wfe('crest_ensemble.xyz','ensemble output')
+    call wfe('crest_conformers.xyz','unique conformers (1 per rotamer group), energy-sorted')
+    call wfe('crest_rotamers.xyz','all structures including rotamers')
+    call wfe('crest_best.xyz','lowest-energy structure')
+
+  case (crest_mdopt)
+    call wfe('crest_ensemble.xyz','ensemble output with optimized geometries')
+
+    ! ── standalone CREGEN sorting ─────────────────
+  case (crest_sorting)
+    call wfe('crest_conformers.xyz','unique conformers (1 per rotamer group), energy-sorted')
+    call wfe('crest_rotamers.xyz','all structures including rotamers')
+    call wfe('crest_best.xyz','lowest-energy structure')
+    call wfe('cregen.full','full CREGEN output (written when terminal output is abbreviated)')
+
+    ! ── geometry optimization ─────────────────────
+  case (crest_optimize,crest_trialopt,crest_rigcon)
+    call wfe('crestopt.xyz','final optimized geometry')
+    call wfe('crestopt.log.xyz','step-by-step optimization trajectory')
+
+    ! ── molecular dynamics ────────────────────────
+  case (crest_moldyn)
+    call wfe('crest_dynamics.trj.xyz','MD trajectory (snapshots)')
+
+    ! ── basin-hopping ─────────────────────────────
+  case (crest_bh,crest_bhpt)
+    call wfe('crest_conformers.xyz','unique conformers found by basin-hopping, energy-sorted')
+    call wfe('crest_rotamers.xyz','all accepted structures including rotamers')
+    call wfe('crest_best.xyz','lowest-energy structure')
+
+    ! ── protonation / deprotonation / tautomers ───
+  case (crest_protonate)
+    call wfe('crest_protonated.xyz','unique site candidates, energy-sorted')
+    call wfe('crest_best.xyz','lowest-energy structure')
+  case (crest_deprotonate)
+    call wfe('crest_deprotonated.xyz','unique site candidates, energy-sorted')
+    call wfe('crest_best.xyz','lowest-energy structure')
+  case (crest_tautomerize)
+    call wfe('crest_tautomers.xyz','unique site candidates, energy-sorted')
+    call wfe('crest_best.xyz','lowest-energy structure')
+
+  case default
+    ! no dedicated file summary for this runtype
+
+  end select
+
+  select case (env%crestver)
+  case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
+      & crest_sorting,crest_optimize,crest_trialopt,crest_rigcon, &
+      & crest_moldyn,crest_bh,crest_bhpt,crest_protonate,crest_deprotonate, &
+      & crest_tautomerize)
+
+    write (stdout,'(1x,a)') hbar
+  end select
+
+contains
+  subroutine wfe(fname,descr)
+    character(len=*),intent(in) :: fname,descr
+    write (stdout,'(1x,a,t26,''│ '',a)') fname,trim(descr)
+  end subroutine wfe
+end subroutine crest_output_summary

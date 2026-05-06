@@ -1430,6 +1430,7 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%gfnver = '--gxtb'
         write (stdout,'(2x,a,'' : Use of g-xTB requested.'')') env%gfnver
+        call gxtb_syscall_warning()
 
       case ('-gxtb_dev')
         processedarg(i) = .true.

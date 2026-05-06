@@ -1235,7 +1235,7 @@ subroutine parallel_md_block_printout(MD,vz)
     end if
   end if
   if (allocated(MD%active_potentials)) then
-    write (stdout,'(2x,"|   active potentials    :",i4," potential    |")') size(MD%active_potentials,1)
+    write (stdout,'(2x,"|   active potentials     :",i4," potential   |")') size(MD%active_potentials,1)
   end if
   if (MD%simtype == type_mtd) then
     if (MD%cvtype(1) == cv_rmsd) then
