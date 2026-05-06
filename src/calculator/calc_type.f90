@@ -145,6 +145,7 @@ module calc_type
 !>--- API constructs
     integer  :: tblitelvl = 2
     real(wp) :: etemp = 300.0_wp
+    logical  :: etemp_user_set = .false.
     real(wp) :: accuracy = 1.0_wp
     logical  :: apiclean = .true.
     integer  :: maxscc = 500
@@ -1125,6 +1126,7 @@ contains  !>--- Module routines start here
 
     self%tblitelvl = 2
     self%etemp = 300.0_wp
+    self%etemp_user_set = .false.
     self%accuracy = 1.0_wp
     self%apiclean = .false.
     self%maxscc = 500
@@ -1204,7 +1206,8 @@ contains  !>--- Module routines start here
 
 ! ── API / backend settings ───────────────────────────────────────────────────
     self%tblitelvl  = src%tblitelvl
-    self%etemp      = src%etemp
+    self%etemp          = src%etemp
+    self%etemp_user_set = src%etemp_user_set
     self%accuracy   = src%accuracy
     self%apiclean   = src%apiclean
     self%maxscc     = src%maxscc

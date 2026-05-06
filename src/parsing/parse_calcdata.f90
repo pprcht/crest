@@ -182,6 +182,7 @@ contains !> MODULE PROCEDURES START HERE
 !>--- floats
     case ('etemp')
       job%etemp = kv%value_f
+      job%etemp_user_set = .true.
     case ('accuracy')
       job%accuracy = kv%value_f
     case ('weight')
