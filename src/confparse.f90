@@ -46,6 +46,7 @@ subroutine parseflags(env,arg,nra)
   use optimize_module
   use parse_inputfile
   use crest_restartlog
+  use parse_hybrid
 
   implicit none
   type(systemdata),intent(inout) :: env
@@ -64,6 +65,8 @@ subroutine parseflags(env,arg,nra)
   logical,allocatable :: processedarg(:)
   logical,allocatable :: atlist(:)
   character(len=:),allocatable :: arg1,arg2,arg3
+  character(len=:),allocatable :: hybrid_quality,hybrid_workhorse
+  character(len=4) :: hybrid_mode
 
   allocate (xx(10),floats(3),strings(3))
   ctmp = ''
@@ -1009,6 +1012,7 @@ subroutine parseflags(env,arg,nra)
       argument = argument(2:)
     end if
     if (argument .ne. '') then
+
 !========================================================================================!
 !-------- switch between legacy (systemcall) and new code (API) implementations
 !========================================================================================!
@@ -1438,58 +1442,6 @@ subroutine parseflags(env,arg,nra)
         env%gfnver = '--gxtb'
         write (stdout,'(2x,a)') 'Note: --gxtb_dev is deprecated, redirecting to --gxtb.'
 
-      case ('-gfn2@gfn0','-gfn2@gfn1','-gfn2@gff','-gfn2@ff','-gfn2@gfnff')
-        processedarg(i) = .true.
-        if (.not.env%legacy) then !TODO
-          write (stdout,'("> ",a,1x,a)') argument,'option not yet available with new calculator'
-          error stop
-        end if
-        select case (argument) !> GFN2ON
-        case ('-gfn2@gfn0')
-          env%gfnver = '--gfn0'
-        case ('-gfn2@gfn1')
-          env%gfnver = '--gfn1'
-        case ('-gfn2@gff','-gfn2@ff','-gfn2@gfnff')
-          env%gfnver = '--gff'
-          env%mdstep = 2.0d0
-        case default
-          env%gfnver = '--gfn2'
-        end select !> GFN2ON
-        env%gfnver2 = '--gfn2'
-        call env%addjob(51)
-        call env%checkhy()
-        env%reweight = .false.
-
-      case ('-gfn2//gfnff')
-        processedarg(i) = .true.
-        if (.not.env%legacy) then !TODO
-          write (stdout,'("> ",a,1x,a)') argument,'option only available with TOML setup in new calculator'// &
-            & " or the --refine flag"
-          error stop
-        end if
-        env%gfnver = '--gff'
-        env%mdstep = 2.0d0
-        env%gfnver2 = '--gfn2'
-        env%reweight = .true.
-        env%mdstep = 2.0d0
-        env%hmass = 4.0d0
-        ctype = 1 !> bond constraint
-        bondconst = .true.
-        env%cts%cbonds_md = .true.
-        env%checkiso = .true.
-        if (i+1 .le. nra) then
-          ctmp = arg1
-        else
-          ctmp = ''
-        end if
-        if (ctmp(1:1) .ne. '-'.and.index(ctmp,'opt') .ne. 0) then
-          processedarg(i+1) = .true.
-          env%altopt = .true.
-          write (stdout,'(2x,a,a)') argument,' : GFN-FF MDs + GFN2 opt.'
-        else
-          write (stdout,'(2x,a,a)') argument,' : energy reweighting'
-        end if
-
       case ('-refine','-rsp','-ropt') !> add one refinement step (via cmd only one is possible)
         processedarg(i) = .true.
         env%legacy = .false. !> new calculators only!
@@ -1498,6 +1450,18 @@ subroutine parseflags(env,arg,nra)
           write (stdout,'(2x,a,1x,a,a)') argument,trim(env%gfnver2), &
           & ' : adding refinement step (singlepoint on optimized structures)'
           processedarg(i+1) = .true.
+        end if
+
+      case default !> catch composite method arguments: A@B, A//B, A/sp/B, A/opt/B
+        if (argument(1:1) == '-') then
+          call parse_hybrid_argument(argument(2:),hybrid_quality,hybrid_workhorse, &
+            &                        hybrid_mode,io)
+          if (io == 0) then
+            processedarg(i) = .true.
+            env%legacy = .false.
+            call setup_hybrid_calc(env,trim(hybrid_workhorse), &
+              &                    trim(hybrid_quality),trim(hybrid_mode))
+          end if
         end if
 
       case ('-charges') !> read charges from file for GFN-FF calcs.
@@ -2951,8 +2915,6 @@ subroutine parseflags(env,arg,nra)
       case ('-keepscratch')
         processedarg(i) = .true.
         env%keepScratch = .true.
-      case default
-        continue
       end select !> ARGPARSER1
 !========================================================================================!
     end if
@@ -3477,6 +3439,9 @@ subroutine inputcoords(env,arg)
 
   return
 end subroutine inputcoords
+
+!========================================================================================!
+!========================================================================================!
 
 !========================================================================================!
 !========================================================================================!

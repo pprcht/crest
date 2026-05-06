@@ -144,6 +144,9 @@ module crest_data
     integer :: geoopt      = 3
     integer :: ConfSolv    = 4
     integer :: deltaG      = 5
+    !> post_opt (= 10): post-search re-optimization via pqueue job 51 (e.g. A@B)
+    !> Values 6-9 reserved for future inline stages.
+    integer :: post_opt    = 10
   end type refine_type
   type(refine_type), parameter,public :: refine = refine_type()
 

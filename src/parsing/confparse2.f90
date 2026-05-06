@@ -216,6 +216,7 @@ subroutine env_calcdat_specialcases(env)
     do i = 1,env%calc%ncalculations
       refine_lvl = env%calc%calcs(i)%refine_lvl
       if (refine_lvl <= 0) cycle
+      if (refine_lvl >= refine%post_opt) cycle  !> post-search calcs handled via pqueue
       if (allocated(env%refine_queue)) then
         if (any(env%refine_queue(:) == refine_lvl)) cycle
       end if

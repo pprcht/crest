@@ -221,6 +221,10 @@ subroutine env2calc_modify(env)
     env%calc%emodel = env%thermo%emodel
   end if
 
+! ── apply GFN-FF special cases for CLI-only setups ───────────────
+!   Also a safety net for refine_queue; duplicate-level guard is idempotent.
+  call env_calcdat_specialcases(env)
+
 end subroutine env2calc_modify
 
 !================================================================================!

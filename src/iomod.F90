@@ -867,6 +867,25 @@ contains !> MODULE PROCEDURES START HERE
 !=========================================================================================!
 
   subroutine drawbox(prch,str,width,charset,padl,padr,ltab,procedual,color)
+  !***********************************************************************
+  !* Print a text string inside a drawn box to Fortran unit prch.
+  !*
+  !* Arguments:
+  !*   prch      - Fortran output unit (e.g. stdout)
+  !*   str       - text to display on the centre line
+  !*   charset   - border style (default 1):
+  !*                 1 → ******   2 → +-+|++   3 → === ==
+  !*                 4 → ┌─┐│└┘  5 → ┏━┓┃┗┛   6 → ╔═╗║╚╝
+  !*                 7 → ┍━┑│┕┙  (mixed: flat top/bottom, straight sides)
+  !*   width     - total box width including borders; if omitted, box is
+  !*               sized to str + padding
+  !*   padl/padr - inner padding spaces left/right of str (default 1 each);
+  !*               when width is given, padl is auto-centred and padr fills
+  !*   ltab      - leading spaces before the box (default 0)
+  !*   procedual - which lines to emit: -1=all three (default),
+  !*               0=top only, 1=centre line only, 2=bottom only
+  !*   color     - optional border colour name passed to colorify()
+  !***********************************************************************
     implicit none
     integer,intent(in) :: prch
     character(len=*),intent(in) :: str

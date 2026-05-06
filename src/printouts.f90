@@ -226,8 +226,11 @@ subroutine confscript_morehelp(flag)
     call help_opt('-gfn0',fw,'Use GFN0-xTB')
     call help_opt('-gff/-gfnff',fw,'Use GFN-FF  (bond constraints applied automatically)')
     call help_opt('-gxtb',fw,'Use g-xTB  (requires special build)')
-    call help_opt('-gfn2//gfnff',fw,'GFN-FF trajectories with GFN2-xTB energy reweighting')
-    call help_opt('-refine <method>',fw,'Post-process conformers at a higher level')
+    call help_opt('-A//B  -A/sp/B',fw,'sampling at B; inline SP re-ranking at A  (e.g. -gfn2//gfnff)')
+    call help_opt('-A/opt/B',fw,'sampling at B; inline geometry refinement at A')
+    call help_opt('-A@B',fw,'sampling at B; post-search re-optimization of ensemble at A')
+    write(stdout,'(9x,a)') 'A, B in: gfn0, gfn1, gfn2, gxtb, gfnff'
+    call help_opt('-refine <method>',fw,'Post-process conformers at a higher level (single step)')
     call help_opt('-optlev <level>',fw,'Optimization convergence level for ALL semiempirical calculations')
     write (stdout,'(9x,a)') '<level> = crude, vloose, loose, normal, tight, vtight, extreme'
     call help_opt('-dscal [<factor>]',fw,'Scale dispersion energy in MD/MTD simulations')
