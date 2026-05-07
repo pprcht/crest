@@ -526,26 +526,8 @@ subroutine parseflags(env,arg,nra)
         write (stdout,'(2x,''Note: Use of GFN-FF required for stereoisomer generation.'')')
         exit
 
-      case ('-forall','-for') !> property mode with ensemble as input
-        processedarg(i) = .true.
-        env%properties = p_propcalc
-        atmp = ''
-        env%ensemblename = 'none selected'
-        if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
-        if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
-          env%ensemblename = trim(atmp)
-          processedarg(i+1) = .true.
-        end if
-        inquire (file=env%ensemblename,exist=ex)
-        if (.not.ex) then
-          write (stdout,'(1x,a,a,a)') 'invalid ensemble file <',trim(env%ensemblename),'>. exit.'
-          error stop
-        end if
-        call xyz2coord(env%ensemblename,'coord') !> write coord from lowest structure
-        env%inputcoords = env%ensemblename !> just for a printout
-        if (argument == '-forall') then
-          env%protb%alldivers = .true.
-        end if
+      case ('-forall','-for') !> property mode with ensemble as input (deprecated)
+        call parseflags_deprecated(argument)
         exit
 
       case ('-rrhoav')  !> Hessians along given ensemble and average
@@ -3134,10 +3116,18 @@ subroutine parseflags_missing(arg)
 end subroutine parseflags_missing
 
 subroutine parseflags_deprecated(arg)
+  !**********************************************
+  !* Print a deprecation error and stop.
+  !**********************************************
   use crest_parameters
+  use crest_data
   implicit none
   character(len=*),intent(in) :: arg
-  write (stdout,'(a)') '** WARNING ** '//trim(arg)//' is deprecated!'
+  write (stdout,'(/,a)') repeat('!',60)
+  write (stdout,'(a)') '  DEPRECATED FLAG: '//trim(arg)
+  write (stdout,'(a)') '  This flag has been removed. Please update your input.'
+  write (stdout,'(a,/)') repeat('!',60)
+  call creststop(status_safety)
 end subroutine parseflags_deprecated
 
 subroutine parseflags_cli_summary(nra,args,processedarg)
