@@ -91,6 +91,7 @@ module crest_data
   integer,parameter,public :: crest_bh         = 274
   integer,parameter,public :: crest_bhpt       = 275
   integer,parameter,public :: crest_dryrun     = 276
+  integer,parameter,public :: crest_ensemblehess = 277
 !>> <<!
   integer,parameter,public :: crest_test       = 456
 
@@ -120,6 +121,7 @@ module crest_data
   integer,parameter,public :: p_prop_hess        =   1  !> Hessian for all conformers
   integer,parameter,public :: p_prop_autoir      =   2  !> IR spectrum averaging
   integer,parameter,public :: p_prop_ohess       =  10  !> Optimization + Hessian
+  integer,parameter,public :: p_prop_finalhess   =  11  !> Hessian+thermo for final conformer ensemble
   integer,parameter,public :: p_prop_gsolv       =  13  !> Free energy in solvation (2-step)
   integer,parameter,public :: p_prop_reopt       =  20  !> Vtight reoptimization
   integer,parameter,public :: p_prop_multilevel  =  50  !> Multilevel/hybrid reopt base (range 50:59)

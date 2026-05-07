@@ -450,3 +450,87 @@ subroutine thermo_standalone(env)
   deallocate (stot,gt,ht,et,temps)
 end subroutine thermo_standalone
 
+!========================================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!========================================================================================!
+
+subroutine crest_ensemble_hessians(env,tim)
+!***********************************************
+!* subroutine crest_ensemble_hessians
+!* Standalone runtype: numerical Hessian +
+!* thermochemistry for every structure in an
+!* ensemble file. eread is overwritten with
+!* Gibbs free energies (default temperature).
+!* Input file : env%ensemblename
+!* Output file: crest_ensemble.xyz (ensemblefile)
+!***********************************************
+  use crest_parameters,only:wp,stdout,bohr
+  use crest_data
+  use crest_calculator
+  use strucrd
+  use parallel_interface
+  use utilities,only:dumpenergies
+  implicit none
+  type(systemdata),intent(inout) :: env
+  type(timer),intent(inout)      :: tim
+  character(len=:),allocatable :: ensnam
+  integer :: nat,nall,T,Tn
+  real(wp),allocatable :: xyz(:,:,:),eread(:),etmp(:)
+  integer,allocatable  :: at(:)
+  logical :: ex
+!========================================================================================!
+  write(stdout,*)
+  inquire(file=env%ensemblename,exist=ex)
+  if (ex) then
+    ensnam = env%ensemblename
+  else
+    write(stdout,*) '**ERROR** no ensemble file provided.'
+    env%iostatus_meta = status_input
+    return
+  end if
+
+  call tim%start(14,'Ensemble Hessians')
+
+  call rdensembleparam(ensnam,nat,nall)
+  if (nall < 1) then
+    write(stdout,*) '**ERROR** empty ensemble file.'
+    env%iostatus_meta = status_input
+    return
+  end if
+  allocate(xyz(3,nat,nall),at(nat),eread(nall),etmp(nall))
+  call rdensemble(ensnam,nat,nall,at,xyz,eread)
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!>--- Important: crest_hessloop requires coordinates in Bohr
+  xyz = xyz/bohr
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+
+  call new_ompautoset(env,'auto',nall,T,Tn)
+
+!========================================================================================!
+  write(stdout,*)
+  write(stdout,'(10x,"┍",49("━"),"┑")')
+  write(stdout,'(10x,"│",16x,a,16x,"│")') "ENSEMBLE HESSIANS"
+  write(stdout,'(10x,"┕",49("━"),"┙")')
+  write(stdout,*)
+  write(stdout,'(1x,a,i0,a,1x,a)') 'Evaluating all ',nall,' structures of file ',trim(ensnam)
+
+  call crest_hessloop(env,nat,nall,at,xyz,etmp)
+  eread(:) = eread(:) + etmp(:)
+
+!========================================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!>--- Back to Angstrom
+  xyz = xyz*bohr
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+  call wrensemble(ensemblefile,nat,nall,at,xyz,eread)
+  write(stdout,'(/,a,a,a)') 'Ensemble with Gibbs free energies written to <',ensemblefile,'>'
+
+  call dumpenergies('crest.energies',eread)
+  write(stdout,'(/,a,a,a)') 'List of free energies written to <','crest.energies','>'
+
+  deallocate(eread,at,xyz)
+!========================================================================================!
+  call tim%stop(14)
+  return
+end subroutine crest_ensemble_hessians
+

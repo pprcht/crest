@@ -442,7 +442,23 @@ subroutine parseflags(env,arg,nra)
         exit
 
       case ('-mdsp','-ensemblesp') !> Singlepoints along ensemble
+        processedarg(i) = .true.
         env%crestver = crest_ensemblesp
+        atmp = ''
+        env%preopt = .false.
+        env%ensemblename = 'none selected'
+        if (nra .ge. (i+1)) atmp = adjustl(arg(i+1))
+        if ((atmp(1:1) /= '-').and.(len_trim(atmp) .ge. 1)) then
+          processedarg(i+1) = .true.
+          env%ensemblename = trim(atmp)
+          call xyz2coord(env%ensemblename,'coord') !> write coord from lowest structure
+          env%inputcoords = env%ensemblename !> just for a printout
+        end if
+        exit
+
+      case ('-mdhess','-ensemblehess') !> Hessians + thermochemistry along ensemble
+        processedarg(i) = .true.
+        env%crestver = crest_ensemblehess
         atmp = ''
         env%preopt = .false.
         env%ensemblename = 'none selected'
@@ -1455,6 +1471,13 @@ subroutine parseflags(env,arg,nra)
           write (stdout,'(2x,a,1x,a,a)') argument,trim(env%reopt_lvl), &
             & ' : post-search re-optimization of conformer ensemble'
         end if
+
+      case ('-finalhess')
+        processedarg(i) = .true.
+        env%legacy = .false.
+        call env%addjob(p_prop_finalhess)
+        write (stdout,'(2x,a,a)') argument, &
+          & ' : post-search Hessian + free-energy re-ranking of conformer ensemble'
 
       case default !> catch composite method arguments: A@B, A//B, A/sp/B, A/opt/B
         if (argument(1:1) == '-') then
@@ -3392,7 +3415,8 @@ subroutine inputcoords(env,arg)
   if (.not.allocated(env%inputcoords)) env%inputcoords = 'coord'
   call mol%open('coord')
 !>-- shift to CMA and/or align according to rot.const. We have to be careful about this.
-  if (any((/crest_sp,crest_optimize,crest_numhessian,crest_trialopt/) == env%crestver)) then
+  if (any((/crest_sp,crest_optimize,crest_numhessian,crest_trialopt, &
+  &         crest_ensemblesp,crest_ensemblehess/) == env%crestver)) then
     !> some runtypes should only do a CMA translation, but no rotation
     call CMAtrf(mol%nat,mol%nat,mol%at,mol%xyz)
   else if (env%crestver == crest_solv) then

@@ -270,6 +270,9 @@ program CREST
     case (crest_ensemblesp) !> singlepoints along ensemble
       call crest_ensemble_singlepoints(env,tim)
 
+    case (crest_ensemblehess) !> Hessians + thermochemistry along ensemble
+      call crest_ensemble_hessians(env,tim)
+
     case (crest_protonate)
       call protonate(env,tim)
 
@@ -323,7 +326,7 @@ program CREST
     do i = 1,env%npq
       j = env%pqueue(i)
       select case (j)
-      case (p_prop_hess,p_prop_autoir,p_prop_ohess,p_prop_reopt,p_prop_dipole)
+      case (p_prop_hess,p_prop_autoir,p_prop_ohess,p_prop_reopt,p_prop_dipole,p_prop_finalhess)
         call propcalc(conformerfile,j,env,tim)
       case (45)
         call tim%start(15,'Conf. entropy evaluation')

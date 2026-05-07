@@ -262,6 +262,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
 !* Concurrent numerical Hessian evaluations for an ensemble.
 !* Input eread is overwritten with Gibbs free energies.
 !* xyz must be in Bohrs.
+!* eread contains only the gt@RT on output!
 !* Optional gt_out/stot_out return G and S at all temperatures
 !* from env%thermo; requires pre-allocated (nall,nt) arrays.
 !*
@@ -298,7 +299,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
 
   integer :: nt,nrt
   real(wp),allocatable :: temps(:,:),et(:,:),ht(:,:),gt(:,:),stot(:,:)
-  real(wp) :: ithr,sthr,fscal
+  real(wp) :: ithr,sthr,fscal,rt
   character(len=:),allocatable :: emodel
 
   type(timer) :: profiler
@@ -360,10 +361,13 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
     do i = 1,T
       temps(:,i) = env%thermo%temps(:)
     end do
+    rt = env%thermo%get_close_rt(nrt)
   else
     nt = 1
     allocate (temps(nt,T),et(nt,T),ht(nt,T),gt(nt,T),stot(nt,T),source=0.0_wp)
-    temps = env%thermo%get_close_rt(nrt)
+    rt = env%thermo%get_close_rt(nrt)
+    temps = rt
+    nrt = 1
   end if
 
 !>--- printout directions and timer initialization
@@ -384,7 +388,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
   grads(:,:,:) = 0.0_wp
 !>--- loop over ensemble
   !$omp parallel &
-  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
+  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr,nrt) &
   !$omp shared(mols,nested,Tn,freqs,hess,temps,et,ht,gt,stot,nat3,ithr,fscal,sthr,nt,emodel)
   !$omp single
   do i = 1,nall
@@ -432,7 +436,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
     !$omp critical
     if (io == 0) then
       c = c+1
-      eread(zcopy) = gt(1,job)
+      eread(zcopy) = gt(nrt,job)
       if (present(gt_out))   gt_out(zcopy,:)   = gt(:,job)
       if (present(stot_out)) stot_out(zcopy,:) = stot(:,job)
     else

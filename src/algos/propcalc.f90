@@ -43,6 +43,9 @@ subroutine propcalc(iname,imode,env,tim)
     !> TODO: Free energy in solvation, 2-step (was: xtb --sp + xtb --ohess)
   case (p_prop_reopt)
     !> TODO: Vtight reoptimization for all conformers (was: xtb --opt vtight)
+  case (p_prop_finalhess)
+    call crest_finalhess(iname,env,tim)
+
   case (p_prop_multilevel:p_prop_multilevel+9)
     !> Post-search processing of the conformer ensemble at a higher level.
     !> Dispatched by job number; input is typically crest_rotamers.xyz.
@@ -227,3 +230,85 @@ subroutine crest_rerank_sp(iname,env,tim)
   deallocate(xyz,at,eread)
   call tim%stop(16)
 end subroutine crest_rerank_sp
+
+!========================================================================================!
+
+subroutine crest_finalhess(iname,env,tim)
+!*******************************************************************
+!* Run Hessians + thermochemistry on the final conformer ensemble,
+!* then re-sort via CREGEN using Gibbs free energies.
+!* Falls back from crest_conformers.xyz to crest_ensemble.xyz.
+!* Uses the main calculator as-is (no separate refine level).
+!* Input:
+!*   iname  - primary input file (crest_conformers.xyz)
+!* Output:
+!*   crest_hess.xyz (intermediate), then CREGEN overwrites
+!*   crest_conformers.xyz / crest_ensemble.xyz sorted by Gfree
+!*******************************************************************
+  use crest_parameters,only:wp,stdout,bohr
+  use crest_data
+  use crest_calculator
+  use strucrd
+  use parallel_interface
+  use cregen_interface
+  use iomod,only:drawbox,catdel
+  implicit none
+  character(len=*),intent(in) :: iname
+  type(systemdata),intent(inout) :: env
+  type(timer),intent(inout) :: tim
+  character(len=:),allocatable :: infile
+  integer :: nat,nall,T,Tn
+  real(wp),allocatable :: xyz(:,:,:),eread(:),etmp(:)
+  integer,allocatable  :: at(:)
+  character(len=*),parameter :: outname = 'crest_hess.xyz'
+  logical :: ex
+
+! ── select input file with fallback to crest_ensemble.xyz ────────
+  inquire(file=iname,exist=ex)
+  if (ex) then
+    infile = iname
+  else
+    inquire(file=ensemblefile,exist=ex)
+    if (ex) then
+      infile = ensemblefile
+    else
+      write(stdout,'(a)') '**WARNING** no conformer ensemble found, skipping --finalhess'
+      return
+    end if
+  end if
+
+  call tim%start(16,'Final ensemble Hessians')
+
+  call rdensembleparam(infile,nat,nall)
+  if (nall < 1) then
+    write(stdout,*) '**WARNING** empty ensemble, skipping --finalhess'
+    call tim%stop(16)
+    return
+  end if
+  allocate(xyz(3,nat,nall),at(nat),eread(nall),etmp(nall))
+  call rdensemble(infile,nat,nall,at,xyz,eread)
+! ── crest_hessloop requires coordinates in Bohr ──────────────────
+  xyz = xyz/bohr
+
+  call new_ompautoset(env,'auto',nall,T,Tn)
+
+  write(stdout,*)
+  call drawbox(stdout,'FINAL ENSEMBLE HESSIANS',charset=7,width=51,ltab=10)
+  write(stdout,'(1x,a,i0,a,1x,a)') &
+    & 'Computing Hessians for ',nall,' structures of file ',trim(infile)
+
+  call crest_hessloop(env,nat,nall,at,xyz,etmp)
+  eread(:) = eread(:) + etmp(:)
+
+! ── back to Angstrom, write intermediate file ─────────────────────
+  xyz = xyz*bohr
+  call wrensemble(outname,nat,nall,at,xyz,eread)
+  write(stdout,'(/,a,a,a)') 'Hessian ensemble written to <',outname,'>'
+
+! ── sort via CREGEN using Gibbs free energies ────────────────────
+  call newcregen(env,0,outname)
+  call catdel('cregen.out.tmp')
+
+  deallocate(xyz,at,eread)
+  call tim%stop(16)
+end subroutine crest_finalhess
