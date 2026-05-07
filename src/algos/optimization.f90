@@ -21,8 +21,11 @@ subroutine crest_optimization(env,tim)
 !***********************************************
 !* subroutine crest_optimization
 !* This routine implements a standalone runtype
-!* to perform geometry optimization for the 
-!* specified input file (read from env%ref)
+!* to perform geometry optimization for the
+!* specified input file (read from env%ref).
+!* An optional inline refinement step is run
+!* after geometry optimization when refine_queue
+!* is allocated (e.g. set by --A//B or --refine).
 !***********************************************
   use crest_parameters,only:wp,stdout,bohr
   use crest_data
@@ -88,8 +91,31 @@ subroutine crest_optimization(env,tim)
     call calculation_summary(calc,mol,energy,grad,molnew)
 
     write (stdout,*)
-    write (stdout,'(a)') '> Optimized geometry written to crestopt.xyz'
     gnorm = norm2(grad)
+
+! ── optional inline refinement (e.g. --A//B or --refine) ─────────
+    if (allocated(env%refine_queue)) then
+      do i = 1,size(env%refine_queue,1)
+        select case (env%refine_queue(i))
+        case (refine%singlepoint)
+          write (stdout,'(a)') '> Running SP refinement ...'
+          calc%refine_stage = refine%singlepoint
+          call engrad(molnew,calc,energy,grad,io)
+          calc%refine_stage = 0
+          gnorm = norm2(grad)
+          if (io == 0) write (stdout,'(1x,a,f20.10,a)') 'Refined energy: ',energy,' Eh'
+        case (refine%geoopt)
+          write (stdout,'(a)') '> Re-optimizing at higher level ...'
+          mol = molnew
+          calc%refine_stage = refine%geoopt
+          call optimize_geometry(mol,molnew,calc,energy,grad,pr,wr,io)
+          calc%refine_stage = 0
+          gnorm = norm2(grad)
+        end select
+      end do
+    end if
+
+    write (stdout,'(a)') '> Optimized geometry written to crestopt.xyz'
     write (atmp,'(1x,"Etot=",f16.10,1x,"g norm=",f12.8)') energy,gnorm
     molnew%comment = trim(atmp)
 

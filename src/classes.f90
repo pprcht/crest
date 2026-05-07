@@ -845,7 +845,7 @@ contains  !> MODULE PROCEDURES START HERE
       allocate (qdum(idum+1))
       qdum(1:idum) = self%refine_queue(1:idum)
       qdum(idum+1) = refinetype
-      call move_alloc(qdum,self%pqueue)
+      call move_alloc(qdum,self%refine_queue)
     end if
     return
   end subroutine add_to_refinequeue

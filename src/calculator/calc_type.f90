@@ -1424,7 +1424,22 @@ contains  !>--- Module routines start here
     end if
     if (self%refine_lvl > 0) then
       write (atmp,*) 'refinement stage'
-      write (iunit,fmt1) atmp,self%refine_lvl
+      block
+        character(len=20) :: rtmp
+        select case (self%refine_lvl)
+        case (1);  rtmp = 'singlepoint'
+        case (2);  rtmp = 'correction'
+        case (3);  rtmp = 'geoopt'
+        case (4);  rtmp = 'ConfSolv'
+        case (5);  rtmp = 'deltaG'
+        case (10); rtmp = 'post_opt'
+        case (11); rtmp = 'post_sp'
+        case (12); rtmp = 'post_reopt'
+        case default
+          write (rtmp,'(i0)') self%refine_lvl
+        end select
+        write (iunit,fmt3) atmp,trim(rtmp)
+      end block
     end if
 
     !> system data
