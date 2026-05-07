@@ -31,15 +31,17 @@ jobs:
 
           # Linux x86_64 — Intel LLVM static (Meson; better ifx static support)
           - { os: ubuntu-latest,   build-type: static,
-              toolchain: { compiler: intel, version: '2025.1', mkl_version: '2025.1', build: meson } }
+              toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # Linux aarch64 — GNU static (CMake; Intel oneAPI is x86-only)
           - { os: ubuntu-24.04-arm, build-type: static,
               toolchain: { compiler: gcc,   version: '14',       build: cmake } }
 
-          # macOS arm64 — GNU mostly-static (CMake)
-          # Note: macOS does not support fully-static executables; system libs remain dynamic.
-          - { os: macos-latest,    build-type: static,
+          # macOS arm64 — dynamic release (CMake)
+          # macOS has no static libpthread/libSystem, so fully-static builds are
+          # not possible. This produces a dynamic binary; users need Homebrew GCC
+          # and OpenBLAS (see release notes).
+          - { os: macos-latest,    build-type: release,
               toolchain: { compiler: gcc,   version: '14',       build: cmake } }
 
     defaults:
@@ -147,6 +149,16 @@ jobs:
           -DCMAKE_INSTALL_LIBDIR=lib
           -DWITH_TESTS=OFF
           -DSTATICBUILD=ON
+
+      - name: Configure build (CMake, macOS dynamic release)
+        if: ${{ matrix.toolchain.build == 'cmake' && matrix.build-type == 'release' }}
+        run: >
+          cmake -B${{ env.BUILD_DIR }}
+          -GNinja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_INSTALL_PREFIX=$PWD/_dist
+          -DCMAKE_INSTALL_LIBDIR=lib
+          -DWITH_TESTS=OFF
 
       - name: Configure build (Meson, Intel static)
         if: ${{ matrix.toolchain.build == 'meson' && matrix.build-type == 'static' }}

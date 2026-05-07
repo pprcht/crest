@@ -1,9 +1,7 @@
 name: Static builds (experimental branch)
 
 on:
-  push:
-    branches:
-      - experimental
+  workflow_dispatch:
 
 env:
   BUILD_DIR: _build
