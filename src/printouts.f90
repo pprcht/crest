@@ -230,6 +230,8 @@ subroutine confscript_morehelp(flag)
     call help_opt('-A/opt/B',fw,'sampling at B; inline geometry refinement at A')
     call help_opt('-A@B',fw,'sampling at B; post-search re-optimization of ensemble at A')
     write(stdout,'(9x,a)') 'A, B in: gfn0, gfn1, gfn2, gxtb, gfnff'
+    call help_opt('-rerank <method>',fw,'Post-search SP re-ranking of conformer ensemble at <method>')
+    call help_opt('-reopt <method>',fw,'Post-search geometry optimization of conformer ensemble at <method>')
     call help_opt('-refine <method>',fw,'Post-process conformers at a higher level (single step)')
     call help_opt('-optlev <level>',fw,'Optimization convergence level for ALL semiempirical calculations')
     write (stdout,'(9x,a)') '<level> = crude, vloose, loose, normal, tight, vtight, extreme'

@@ -144,9 +144,13 @@ module crest_data
     integer :: geoopt      = 3
     integer :: ConfSolv    = 4
     integer :: deltaG      = 5
-    !> post_opt (= 10): post-search re-optimization via pqueue job 51 (e.g. A@B)
+    !> post_opt   (= 10): post-search re-optimization via pqueue job 51 (e.g. A@B)
+    !> post_sp    (= 11): post-search SP reranking       via pqueue job 52 (--rerank)
+    !> post_reopt (= 12): post-search geo-opt standalone via pqueue job 53 (--reopt)
     !> Values 6-9 reserved for future inline stages.
     integer :: post_opt    = 10
+    integer :: post_sp     = 11
+    integer :: post_reopt  = 12
   end type refine_type
   type(refine_type), parameter,public :: refine = refine_type()
 
@@ -411,6 +415,8 @@ module crest_data
     character(len=:),allocatable :: solv !> the entrie gbsa flag including solvent
     character(len=20)  :: gfnver = ''        !> GFN version
     character(len=20)  :: gfnver2 = ''       !> GFN version (multilevel)
+    character(len=40)  :: rerank_lvl = ''    !> method for post-search SP reranking (--rerank)
+    character(len=40)  :: reopt_lvl  = ''    !> method for post-search geo-opt standalone (--reopt)
     character(len=20)  :: lmover = ''        !> GFN version for LMO computation in xtb_lmo subroutine
     character(len=512) :: ProgName = ''      !> name of the xtb executable (+ path)
     character(len=512) :: ProgIFF = ''       !> name of xtbiff for QCG-mode
@@ -1218,6 +1224,8 @@ contains  !> MODULE PROCEDURES START HERE
     self%solvent       = src%solvent
     self%gfnver        = src%gfnver
     self%gfnver2       = src%gfnver2
+    self%rerank_lvl    = src%rerank_lvl
+    self%reopt_lvl     = src%reopt_lvl
     self%lmover        = src%lmover
     self%ProgName      = src%ProgName
     self%ProgIFF       = src%ProgIFF

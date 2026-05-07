@@ -44,9 +44,25 @@ subroutine propcalc(iname,imode,env,tim)
   case (p_prop_reopt)
     !> TODO: Vtight reoptimization for all conformers (was: xtb --opt vtight)
   case (p_prop_multilevel:p_prop_multilevel+9)
-    !> Post-search re-optimization of the conformer ensemble at the higher level.
-    !> Input iname is typically crest_rotamers.xyz; output is crest_reopt.xyz.
-    call crest_multilevel_reopt(iname,env,tim)
+    !> Post-search processing of the conformer ensemble at a higher level.
+    !> Dispatched by job number; input is typically crest_rotamers.xyz.
+    block
+      integer :: saved_stage
+      saved_stage = env%calc%refine_stage
+      select case (imode)
+      case (p_prop_multilevel+1)  !> A@B post-search geo-opt (existing)
+        env%calc%refine_stage = refine%post_opt
+        call crest_multilevel_reopt(iname,env,tim)
+      case (p_prop_multilevel+2)  !> --rerank post-search SP re-ranking
+        call crest_rerank_sp(iname,env,tim)
+      case (p_prop_multilevel+3)  !> --reopt post-search geo-opt (standalone)
+        env%calc%refine_stage = refine%post_reopt
+        call crest_multilevel_reopt(iname,env,tim)
+      case default
+        write (stdout,'(a,i0,a)') 'propcalc: multilevel mode ',imode,' not implemented'
+      end select
+      env%calc%refine_stage = saved_stage
+    end block
   case (p_prop_dipole)
     !> TODO: Singlepoint + dipole extraction (was: xtb --sp, grep molecular dipole)
   case (p_prop_rerank)
@@ -62,11 +78,11 @@ end subroutine propcalc
 subroutine crest_multilevel_reopt(iname,env,tim)
 !*******************************************************************
 !* Read the ensemble iname, optimize all structures using the
-!* calculator tagged with refine_lvl == refine%post_opt (set by the
-!* A@B hybrid keyword), sort via CREGEN, and write crest_reopt.xyz.
+!* calculator whose refine_lvl matches env%calc%refine_stage,
+!* sort via CREGEN, and write crest_reopt.xyz.
 !*
-!* The refine_stage mechanism in calculator.F90 is used to activate
-!* only the post-search calculator during crest_oloop.
+!* The caller is responsible for setting env%calc%refine_stage
+!* to the desired level before this routine is called.
 !*
 !* Input:
 !*   iname  - path to input ensemble (e.g. crest_rotamers.xyz)
@@ -84,7 +100,7 @@ subroutine crest_multilevel_reopt(iname,env,tim)
   character(len=*),intent(in) :: iname
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout) :: tim
-  integer :: nat,nall,T,Tn,old_stage
+  integer :: nat,nall,T,Tn
   real(wp),allocatable :: xyz(:,:,:),eread(:)
   integer,allocatable  :: at(:)
   character(len=*),parameter :: outname = 'crest_reopt.xyz'
@@ -116,13 +132,8 @@ subroutine crest_multilevel_reopt(iname,env,tim)
   write(stdout,'(1x,a,i0,a,1x,a)') &
     & 'Re-optimizing ',nall,' structures of file ',trim(iname)
 
-! ── activate only the post-search calculator ─────────────────────
-  old_stage = env%calc%refine_stage
-  env%calc%refine_stage = refine%post_opt
-
+! ── refine_stage is set by the caller; run geo-opt ───────────────
   call crest_oloop(env,nat,nall,at,xyz,eread,.true.)
-
-  env%calc%refine_stage = old_stage
 
 ! ── back to Angstrom, write output ───────────────────────────────
   xyz = xyz*bohr
@@ -137,3 +148,82 @@ subroutine crest_multilevel_reopt(iname,env,tim)
   deallocate(xyz,at,eread)
   call tim%stop(16)
 end subroutine crest_multilevel_reopt
+
+!========================================================================================!
+
+subroutine crest_rerank_sp(iname,env,tim)
+!*******************************************************************
+!* Read the ensemble iname, run single-point energies using the
+!* calculator tagged with refine_lvl == refine%post_sp (= 11,
+!* set by the --rerank keyword), re-sort via CREGEN, and write
+!* crest_reopt.xyz. Geometries are not changed.
+!*
+!* Input:
+!*   iname  - path to input ensemble (e.g. crest_rotamers.xyz)
+!* Output:
+!*   crest_reopt.xyz (ensemble re-ranked by higher-level SP energies)
+!*******************************************************************
+  use crest_parameters,only:wp,stdout,bohr
+  use crest_data
+  use crest_calculator
+  use strucrd
+  use parallel_interface
+  use cregen_interface
+  use iomod,only:drawbox,catdel
+  implicit none
+  character(len=*),intent(in) :: iname
+  type(systemdata),intent(inout) :: env
+  type(timer),intent(inout) :: tim
+  integer :: nat,nall,T,Tn,old_stage
+  real(wp),allocatable :: xyz(:,:,:),eread(:)
+  integer,allocatable  :: at(:)
+  character(len=*),parameter :: outname = 'crest_reopt.xyz'
+  logical :: ex
+
+  inquire(file=iname,exist=ex)
+  if (.not.ex) then
+    write(stdout,'(a,a,a)') '**WARNING** ',trim(iname),' not found, skipping SP rerank'
+    return
+  end if
+
+  call tim%start(16,'Post-search SP rerank')
+
+  call rdensembleparam(iname,nat,nall)
+  if (nall < 1) then
+    write(stdout,*) '**WARNING** empty ensemble, skipping SP rerank'
+    call tim%stop(16)
+    return
+  end if
+  allocate(xyz(3,nat,nall),at(nat),eread(nall))
+  call rdensemble(iname,nat,nall,at,xyz,eread)
+! ── crest_sploop requires coordinates in Bohr ────────────────────
+  xyz = xyz/bohr
+
+  call new_ompautoset(env,'auto',nall,T,Tn)
+
+  write(stdout,*)
+  call drawbox(stdout,'POST-SEARCH SP RE-RANKING',charset=7,width=51,ltab=10)
+  write(stdout,'(1x,a,i0,a,1x,a)') &
+    & 'Re-ranking ',nall,' structures of file ',trim(iname)
+
+! ── activate only the SP reranking calculator ────────────────────
+  old_stage = env%calc%refine_stage
+  env%calc%refine_stage = refine%post_sp
+
+  call crest_sploop(env,nat,nall,at,xyz,eread)
+
+  env%calc%refine_stage = old_stage
+
+! ── back to Angstrom, write output ───────────────────────────────
+  xyz = xyz*bohr
+  call wrensemble(outname,nat,nall,at,xyz,eread)
+
+  write(stdout,'(/,a,a,a)') 'Re-ranked ensemble written to <',outname,'>'
+
+! ── sort via CREGEN ──────────────────────────────────────────────
+  call newcregen(env,0,outname)
+  call catdel('cregen.out.tmp')
+
+  deallocate(xyz,at,eread)
+  call tim%stop(16)
+end subroutine crest_rerank_sp

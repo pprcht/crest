@@ -331,7 +331,6 @@ program CREST
         call tim%stop(15)
       case (p_prop_multilevel:p_prop_multilevel+9)  !hybrid reoptimization (e.g. gfn2@gff)
         call propcalc(infile,j,env,tim)
-        infile = 'crest_reopt.xyz'
       case (70) !PCA and clustering
         call ccegen(env,.true.,conformerfile)
       case (555)

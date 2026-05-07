@@ -1452,6 +1452,28 @@ subroutine parseflags(env,arg,nra)
           processedarg(i+1) = .true.
         end if
 
+      case ('-rerank') !> post-search SP reranking at a higher level (pqueue job 52)
+        processedarg(i) = .true.
+        env%legacy = .false.
+        if (i+1 .le. nra) then
+          env%rerank_lvl = lowercase(trim(arg1))
+          processedarg(i+1) = .true.
+          call env%addjob(p_prop_multilevel+2)
+          write (stdout,'(2x,a,1x,a,a)') argument,trim(env%rerank_lvl), &
+            & ' : post-search SP re-ranking of conformer ensemble'
+        end if
+
+      case ('-reopt') !> post-search geometry re-optimization (standalone, pqueue job 53)
+        processedarg(i) = .true.
+        env%legacy = .false.
+        if (i+1 .le. nra) then
+          env%reopt_lvl = lowercase(trim(arg1))
+          processedarg(i+1) = .true.
+          call env%addjob(p_prop_multilevel+3)
+          write (stdout,'(2x,a,1x,a,a)') argument,trim(env%reopt_lvl), &
+            & ' : post-search re-optimization of conformer ensemble'
+        end if
+
       case default !> catch composite method arguments: A@B, A//B, A/sp/B, A/opt/B
         if (argument(1:1) == '-') then
           call parse_hybrid_argument(argument(2:),hybrid_quality,hybrid_workhorse, &

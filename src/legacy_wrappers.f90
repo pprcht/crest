@@ -35,7 +35,7 @@ subroutine env2calc(env,calc,molin)
   !> OUTPUT
   type(calcdata) :: calc
   !> LOCAL
-  type(calculation_settings) :: cal,cal2
+  type(calculation_settings) :: cal,cal2,cal_rerank,cal_reopt
   type(coord) :: mol
 
 !>--- Calculator level
@@ -103,6 +103,36 @@ subroutine env2calc(env,calc,molin)
     call calc%add(cal2)
     if (allocated(env%refine_queue)) deallocate (env%refine_queue)
     call env%addrefine(refine%singlepoint)
+  end if
+
+!>--- Post-search SP reranking level (--rerank)
+  if (trim(env%rerank_lvl) .ne. '') then
+    call cal_rerank%create(trim(env%rerank_lvl))
+    cal_rerank%chrg = cal%chrg
+    cal_rerank%uhf  = cal%uhf
+    cal_rerank%spin_polarized = cal%spin_polarized
+    if (env%gbsa) then
+      cal_rerank%solvmodel = cal%solvmodel
+      cal_rerank%solvent   = cal%solvent
+    end if
+    call cal_rerank%autocomplete(2)
+    cal_rerank%refine_lvl = refine%post_sp
+    call calc%add(cal_rerank)
+  end if
+
+!>--- Post-search geometry re-optimization level (--reopt)
+  if (trim(env%reopt_lvl) .ne. '') then
+    call cal_reopt%create(trim(env%reopt_lvl))
+    cal_reopt%chrg = cal%chrg
+    cal_reopt%uhf  = cal%uhf
+    cal_reopt%spin_polarized = cal%spin_polarized
+    if (env%gbsa) then
+      cal_reopt%solvmodel = cal%solvmodel
+      cal_reopt%solvent   = cal%solvent
+    end if
+    call cal_reopt%autocomplete(2)
+    cal_reopt%refine_lvl = refine%post_reopt
+    call calc%add(cal_reopt)
   end if
 
   if (.not.allocated(env%calc%temperatures)) then
