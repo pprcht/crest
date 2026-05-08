@@ -486,6 +486,7 @@ subroutine crest_queue_reconstruct(env,tim)
   env%calc => env%splitheap%origincalc
   call chdir(env%splitheap%origindir)
 
+  call env%splitheap%fill_inverse_depth()
   call recusrive_construct(env,env%splitheap,1)
   nall = env%splitheap%layer(1)%nmols
   allocate (structures(nall))
@@ -529,7 +530,8 @@ subroutine crest_queue_reconstruct(env,tim)
 
 contains
   recursive subroutine recusrive_construct(env,heap,targetlayer)
-    use irmsd_module,only:irmsd,rmsd,rmsd_cache,rmsd_core_cache
+    use irmsd_module,only:irmsd,rmsd,rmsd_cache,rmsd_core_cache,min_rmsd
+    use canonical_mod
     use omp_lib
     implicit none
     type(systemdata),intent(inout) :: env
@@ -541,14 +543,16 @@ contains
     character(len=:),allocatable :: basefile,sidefile
     type(coord),allocatable :: structures_b(:)
     type(coord),allocatable :: structures_s(:)
-    type(coord) :: mol
+    type(coord) :: mol,moltmp
     integer :: nall_b,nall_s,id_b,id_s,nallsq,sss
     integer :: iliml,ilimu,jliml,jlimu,rr,io
     integer :: duplicates
     logical :: ex,clash,duplicate
-    real(wp) :: RTHR,rmsval,ETHR,deltaE
-    type(rmsd_cache) :: rcache
+    real(wp) :: RTHR,rmsval,ETHR,deltaE,depthlimit
+    real(wp) :: layerfactor_b,layerfactor_s,weight_s,weight_b
+    type(rmsd_cache),allocatable :: rcache(:)
     type(rmsd_core_cache),allocatable :: ccache(:)
+    type(canonical_sorter) :: canref
     real(wp),allocatable :: xyzscratch(:,:,:,:)
     logical,allocatable :: mask(:)
     integer :: T,Tn,tt
@@ -566,6 +570,7 @@ contains
         stop
       end if
 
+      layer%inverse_depth = layer%inverse_depth+1.0_wp
       do ii = 1,layer%nnodes
         if (allocated(layer%childlayer)) then
           jj = layer%childlayer(ii)
@@ -591,6 +596,7 @@ contains
             write (stdout,'(1x,a,i0,a)') '--> ',nall_b,' structure(s)'
 
           end if
+          layerfactor_b = 1.0_wp
 
         else if (jj == 0.and.ii == 2) then
 
@@ -610,6 +616,7 @@ contains
             call rdensemble(subdirfile,nall_s,structures_s)
             write (stdout,'(1x,a,i0,a)') '--> ',nall_s,' structure(s)'
           end if
+          layerfactor_s = 1.0_wp
 
         else
           call recusrive_construct(env,heap,jj)
@@ -619,6 +626,8 @@ contains
             do kk = 1,nall_b
               structures_b(kk) = heap%layer(jj)%mols(kk)
             end do
+            layerfactor_b = heap%layer(jj)%inverse_depth
+
           else if (ii == 2) then
 
             nall_s = heap%layer(jj)%nmols
@@ -626,10 +635,13 @@ contains
             do kk = 1,nall_s
               structures_s(kk) = heap%layer(jj)%mols(kk)
             end do
+            layerfactor_s = heap%layer(jj)%inverse_depth
             !deallocate (heap%layer(jj)%mols)
           end if
         end if
       end do
+      weight_s = layerfactor_s/(layerfactor_s+layerfactor_b)
+      weight_b = layerfactor_b/(layerfactor_s+layerfactor_b)
 
       write (stdout,*)
       write (stdout,'(a,i0)') 'Reconstructing layer : ',targetlayer
@@ -640,8 +652,11 @@ contains
       write (stdout,'(2x,a,f7.5,a)') 'ΔE threshold (ETHR)     : ',env%ethr,' kcal/mol'
 
       layer%nmols = 0
-      kk = nint(min(real(nall_b,wp)*real(nall_s,wp),real(env%queue_maxreconstruct,wp)))
+      depthlimit = real(env%queue_maxreconstruct,wp)*(env%queue_depthfac**real(targetlayer-1,wp))
+      kk = nint(min(real(nall_b,wp)*real(nall_s,wp),depthlimit))
       allocate (layer%mols(kk))
+      write (stdout,'(2x,a,i0)') 'Capping limit           : ',env%queue_maxreconstruct
+      write (stdout,'(2x,a,f4.2,a)') 'Depth factor            : ',env%queue_depthfac,'^(layer-1)'
       write (stdout,'(2x,a,i0)') 'Max. new structs stored : ',kk
 
       RTHR = env%rthr*aatoau   !> RMSD threshold in Bohr
@@ -651,14 +666,22 @@ contains
       call new_ompautoset(env,'max',kk,T,Tn)
       write (stdout,'(2x,a,i0)') 'OpenMP threads          : ',T
       allocate (ccache(T))
+      allocate (rcache(T))
       allocate (mask(layer%refmol%nat),source=.true.)
+      call canref%init(layer%refmol,invtype='apsp+',heavy=.false.)
+
       do tt = 1,T
         call ccache(tt)%allocate(layer%refmol%nat,scratch=.true.)
+        call rcache(tt)%allocate(layer%refmol%nat)
+        rcache(tt)%stereocheck = .not. (canref%hasstereo(layer%refmol))
+        rcache(tt)%rank(:,1) = canref%rank(:)
+        rcache(tt)%rank(:,2) = canref%rank(:)
       end do
       do ii = 1,layer%refmol%nat
         if (layer%refmol%at(ii) == 1) mask(ii) = .false.
       end do
-      write (stdout,'(2x,a)') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
+!      write (stdout,'(2x,a)') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
+      write (stdout,'(2x,a)') 'Recombining under iRMSD consideration (this may take a while) ... '
       call crest_oloop_pr_progress(env,kk,0)
 
       call profiler%init(1)
@@ -674,14 +697,20 @@ contains
       !> 3. if we have space left, increase sampling
 
       nallsq = nint(sqrt(real(kk,wp)))
-      if (nall_b > nall_s) then
+      if (nall_b < nall_s) then
         sssloop: do sss = 1,3
           select case (sss)
           case (1)
             iliml = 1
             jliml = 1
-            ilimu = min(nall_b,nallsq)
-            jlimu = min(nall_s,nallsq)
+            ilimu = min(nall_b,nint(nallsq*weight_b))
+            if (ilimu < nint(nallsq*weight_b)) then
+              jlimu = nint(real(kk/ilimu,wp))
+              jlimu = min(nall_s,jlimu)
+            else
+              jlimu = min(nall_s,nint(nallsq*weight_s))
+            end if
+
           case (2)
             if (jlimu == nall_s) then
               iliml = ilimu+1
@@ -707,16 +736,19 @@ contains
                 duplicate = .false.
 
                 !$omp parallel &
-                !$omp shared(duplicate,duplicates,mol,ccache,mask,ETHR) &
-                !$omp private(rr,tt,deltaE,rmsval)
+                !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR) &
+                !$omp private(rr,tt,deltaE,rmsval,moltmp)
                 !$omp do schedule(dynamic)
                 rrloop: do rr = 2,layer%nmols
                   if (duplicate) cycle
                   tt = omp_get_thread_num()+1
                   deltaE = abs(mol%energy-layer%mols(rr)%energy)
                   if (deltaE < ETHR) then
-!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache,topocheck=.false.,allcanon=.true.)
-                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
+                    call moltmp%copy(layer%mols(rr))
+!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache(tt),topocheck=.false.,allcanon=.true.)
+!                    call min_rmsd(mol,layer%mols(rr),rcache=rcache(tt),rmsdout=rmsval,align=.false.)
+                    call min_rmsd(mol,moltmp,rcache=rcache(tt),rmsdout=rmsval,align=.false.)
+!                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
                     !$omp critical
                     if (rmsval < RTHR.and..not.duplicate) then
                       duplicate = .true.
@@ -739,15 +771,21 @@ contains
             end do jjloop
           end do iiloop
         end do sssloop
-      else ! i.e., nall_b <= nall_s
+      else ! i.e., nall_b >= nall_s
         sssloop2: do sss = 1,3
 
           select case (sss)
           case (1)
             iliml = 1
             jliml = 1
-            ilimu = min(nall_b,nallsq)
-            jlimu = min(nall_s,nallsq)
+            !ilimu = min(nall_b,nallsq)
+            jlimu = min(nall_s,nint(nallsq*weight_s))
+            if (jlimu < nint(nallsq*weight_s)) then
+              ilimu = nint(real(kk/jlimu,wp))
+              ilimu = min(nall_b,ilimu)
+            else
+              ilimu = min(nall_b,nint(nallsq*weight_b))
+            end if
           case (2)
             if (ilimu == nall_b) then
               jliml = jlimu+1
@@ -773,16 +811,19 @@ contains
                 duplicate = .false.
 
                 !$omp parallel &
-                !$omp shared(duplicate,duplicates,mol,ccache,mask,ETHR) &
-                !$omp private(rr,tt,deltaE,rmsval)
+                !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR) &
+                !$omp private(rr,tt,deltaE,rmsval,moltmp)
                 !$omp do schedule(dynamic)
                 rrloop2: do rr = 2,layer%nmols
                   if (duplicate) cycle
                   tt = omp_get_thread_num()+1
                   deltaE = abs(mol%energy-layer%mols(rr)%energy)
                   if (deltaE < ETHR) then
-!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache,topocheck=.false.,allcanon=.true.)
-                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
+                    call moltmp%copy(layer%mols(rr))
+!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache(tt),topocheck=.false.,allcanon=.true.)
+!                    call min_rmsd(mol,layer%mols(rr),rcache=rcache(tt),rmsdout=rmsval,align=.false.)
+                    call min_rmsd(mol,moltmp,rcache=rcache(tt),rmsdout=rmsval,align=.false.)
+!                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
                     !$omp critical
                     if (rmsval < RTHR) then
                       duplicate = .true.

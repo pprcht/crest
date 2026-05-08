@@ -24,6 +24,7 @@ module molbuilder_construct_list
     integer :: parent = 0
     integer :: parentnode = 0
     integer :: nnodes = 0
+    real(wp) :: inverse_depth = 0.0_wp
     type(coord),allocatable :: node(:)
     integer,allocatable :: childlayer(:)
     integer,allocatable :: alignmap(:,:)
@@ -64,6 +65,7 @@ module molbuilder_construct_list
     procedure find_current_position
     procedure count_endpoints
     procedure setup_queue
+    procedure fill_inverse_depth
   end type construct_heap
 
   !> exported types
@@ -256,5 +258,50 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
   end subroutine setup_queue
+
+  subroutine fill_inverse_depth(heap)
+    !*****************************************************
+    !* Precompute inverse_depth for all layers by        *
+    !* recursing from each root layer (parent == 0).     *
+    !*****************************************************
+    implicit none
+    class(construct_heap),intent(inout) :: heap
+    integer :: ii
+    do ii = 1,heap%nlayer
+      if (heap%layer(ii)%parent == 0) then
+        call fill_inverse_depth_layer(heap,ii)
+      end if
+    end do
+  end subroutine fill_inverse_depth
+
+  recursive subroutine fill_inverse_depth_layer(heap,layerid)
+    !*************************************************************
+    !* Recursively assign inverse_depth to layer layerid and all *
+    !* its descendants. Leaves get 1.0; internal layers get the  *
+    !* sum of their children's inverse_depth values.             *
+    !*************************************************************
+    implicit none
+    type(construct_heap),intent(inout) :: heap
+    integer,intent(in) :: layerid
+    integer :: jj,childid
+    real(wp) :: s
+    associate (lyr => heap%layer(layerid))
+      if (.not.allocated(lyr%childlayer)) then
+        lyr%inverse_depth = 1.0_wp
+        return
+      end if
+      s = 0.0_wp
+      do jj = 1,lyr%nnodes
+        childid = lyr%childlayer(jj)
+        if (childid == 0) then
+          s = s+1.0_wp
+        else
+          call fill_inverse_depth_layer(heap,childid)
+          s = s+heap%layer(childid)%inverse_depth
+        end if
+      end do
+      lyr%inverse_depth = s
+    end associate
+  end subroutine fill_inverse_depth_layer
 
 end module molbuilder_construct_list

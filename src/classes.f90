@@ -490,8 +490,9 @@ module crest_data
     logical :: substructure_queue = .false.
     type(split_atms),allocatable :: splitqueue(:)
     type(construct_heap) :: splitheap
-    integer :: queue_iter = 0
-    integer :: queue_maxreconstruct = 7500
+    integer  :: queue_iter = 0
+    integer  :: queue_maxreconstruct = 7500
+    real(wp) :: queue_depthfac = 0.85_wp
 
     !>--- QCG data
     integer :: qcg_runtype = 0      !> Default is grow, 1= ensemble & opt, 2= e_solv, 3= g_solv
@@ -1320,6 +1321,7 @@ contains  !> MODULE PROCEDURES START HERE
     self%substructure_queue    = src%substructure_queue
     self%queue_iter            = src%queue_iter
     self%queue_maxreconstruct  = src%queue_maxreconstruct
+    self%queue_depthfac        = src%queue_depthfac
 !   splitqueue (split_atms) and splitheap (construct_heap): placeholder
     if (allocated(src%splitqueue)) self%splitqueue = src%splitqueue
     self%splitheap = src%splitheap
