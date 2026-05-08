@@ -2082,6 +2082,9 @@ subroutine parseflags(env,arg,nra)
             env%alkylizeskip = .false.
             write (stdout,'(a,1x)',advance='no') ctmp
             processedarg(i+1) = .true.
+          case ('simple')
+            write (stdout,'(a,1x)',advance='no') ctmp
+            processedarg(i+1) = .true.
           end select
         end if
         write (stdout,'(a)') ': automatic alkyl group dispatch'
