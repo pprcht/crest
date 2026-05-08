@@ -544,8 +544,12 @@ contains
     type(coord),allocatable :: structures_b(:)
     type(coord),allocatable :: structures_s(:)
     type(coord) :: mol,moltmp
-    integer :: nall_b,nall_s,id_b,id_s,nallsq,sss
-    integer :: iliml,ilimu,jliml,jlimu,rr,io
+    integer :: nall_b,nall_s,id_b,id_s
+    integer :: rr,io,rg,nregions,max_structs
+    integer :: reg_blo(3),reg_bhi(3),reg_slo(3),reg_shi(3)
+    integer :: target_bhi,target_shi
+    integer :: outer_lo,outer_hi,inner_lo,inner_hi,outer_idx,inner_idx
+    logical :: base_is_outer
     integer :: duplicates
     logical :: ex,clash,duplicate
     real(wp) :: RTHR,rmsval,ETHR,deltaE,depthlimit
@@ -653,17 +657,17 @@ contains
 
       layer%nmols = 0
       depthlimit = real(env%queue_maxreconstruct,wp)*(env%queue_depthfac**real(targetlayer-1,wp))
-      kk = nint(min(real(nall_b,wp)*real(nall_s,wp),depthlimit))
-      allocate (layer%mols(kk))
+      max_structs = nint(min(real(nall_b,wp)*real(nall_s,wp),depthlimit))
+      allocate (layer%mols(max_structs))
       write (stdout,'(2x,a,i0)') 'Capping limit           : ',env%queue_maxreconstruct
       write (stdout,'(2x,a,f4.2,a)') 'Depth factor            : ',env%queue_depthfac,'^(layer-1)'
-      write (stdout,'(2x,a,i0)') 'Max. new structs stored : ',kk
+      write (stdout,'(2x,a,i0)') 'Max. new structs stored : ',max_structs
 
       RTHR = env%rthr*aatoau   !> RMSD threshold in Bohr
       ETHR = env%ethr/autokcal !> deltaE threshold in hartree
       duplicates = 0
       T = 1
-      call new_ompautoset(env,'max',kk,T,Tn)
+      call new_ompautoset(env,'max',max_structs,T,Tn)
       write (stdout,'(2x,a,i0)') 'OpenMP threads          : ',T
       allocate (ccache(T))
       allocate (rcache(T))
@@ -682,174 +686,128 @@ contains
       end do
 !      write (stdout,'(2x,a)') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
       write (stdout,'(2x,a)') 'Recombining under iRMSD consideration (this may take a while) ... '
-      call crest_oloop_pr_progress(env,kk,0)
+      call crest_oloop_pr_progress(env,max_structs,0)
 
       call profiler%init(1)
       call profiler%start(1)
 
-      !> NOTE:
-      !> we want a balanced amount of combinations, sourcing
-      !> roughly equal amounts of structures from base and
-      !> side chain ensembles.
-      !> We implement some additional logic to do so:
-      !> 1. decide on size which is the inner loop (the smaller one)
-      !> 2. limit loops to square of max allowed output combis (kk)
-      !> 3. if we have space left, increase sampling
+      ! ── Precompute sampling regions ──────────────────────────────
+      !> Region 1 targets max_structs combinations in the correct
+      !> weight ratio.  Regions 2–3 expand into remaining structures.
+      base_is_outer = (nall_b <= nall_s)
+      nregions = 0
 
-      nallsq = nint(sqrt(real(kk,wp)))
-      if (nall_b < nall_s) then
-        sssloop: do sss = 1,3
-          select case (sss)
-          case (1)
-            iliml = 1
-            jliml = 1
-            ilimu = min(nall_b,nint(nallsq*weight_b))
-            if (ilimu < nint(nallsq*weight_b)) then
-              jlimu = nint(real(kk/ilimu,wp))
-              jlimu = min(nall_s,jlimu)
-            else
-              jlimu = min(nall_s,nint(nallsq*weight_s))
-            end if
+      target_bhi = nint(sqrt(real(max_structs,wp)*weight_b/weight_s))
+      target_shi = nint(sqrt(real(max_structs,wp)*weight_s/weight_b))
 
-          case (2)
-            if (jlimu == nall_s) then
-              iliml = ilimu+1
-              ilimu = nall_b
-            else
-              jliml = jlimu+1
-              jlimu = nall_s
-            end if
-          case (3)
-            iliml = ilimu+1
-            ilimu = nall_b
-            jliml = 1
-          end select
-          iiloop: do ii = iliml,ilimu
-            jjloop: do jj = jliml,jlimu
-              call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
-              & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
-              & clash=clash,reficn=layer%reficn)
-              !> proxy energy as sum of fragments
-              mol%energy = structures_b(ii)%energy+structures_s(jj)%energy
-              if (.not.clash) then
-                !> check for duplicates
-                duplicate = .false.
-
-                !$omp parallel &
-                !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR) &
-                !$omp private(rr,tt,deltaE,rmsval,moltmp)
-                !$omp do schedule(dynamic)
-                rrloop: do rr = 2,layer%nmols
-                  if (duplicate) cycle
-                  tt = omp_get_thread_num()+1
-                  deltaE = abs(mol%energy-layer%mols(rr)%energy)
-                  if (deltaE < ETHR) then
-                    call moltmp%copy(layer%mols(rr))
-!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache(tt),topocheck=.false.,allcanon=.true.)
-!                    call min_rmsd(mol,layer%mols(rr),rcache=rcache(tt),rmsdout=rmsval,align=.false.)
-                    call min_rmsd(mol,moltmp,rcache=rcache(tt),rmsdout=rmsval,align=.false.)
-!                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
-                    !$omp critical
-                    if (rmsval < RTHR.and..not.duplicate) then
-                      duplicate = .true.
-                      duplicates = duplicates+1
-                      !exit rrloop
-                    end if
-                    !$omp end critical
-                  end if
-                end do rrloop
-                !$omp end do
-                !$omp end parallel
-
-                if (.not.duplicate) then
-                  layer%nmols = layer%nmols+1
-                  layer%mols(layer%nmols) = mol
-                  call crest_oloop_pr_progress(env,kk,layer%nmols)
-                  if (layer%nmols == kk) exit sssloop
-                end if
-              end if
-            end do jjloop
-          end do iiloop
-        end do sssloop
-      else ! i.e., nall_b >= nall_s
-        sssloop2: do sss = 1,3
-
-          select case (sss)
-          case (1)
-            iliml = 1
-            jliml = 1
-            !ilimu = min(nall_b,nallsq)
-            jlimu = min(nall_s,nint(nallsq*weight_s))
-            if (jlimu < nint(nallsq*weight_s)) then
-              ilimu = nint(real(kk/jlimu,wp))
-              ilimu = min(nall_b,ilimu)
-            else
-              ilimu = min(nall_b,nint(nallsq*weight_b))
-            end if
-          case (2)
-            if (ilimu == nall_b) then
-              jliml = jlimu+1
-              jlimu = nall_s
-            else
-              iliml = ilimu+1
-              ilimu = nall_b
-            end if
-          case (3)
-            jliml = jlimu+1
-            jlimu = nall_s
-            iliml = 1
-          end select
-          jjloop2: do jj = jliml,jlimu
-            iiloop2: do ii = iliml,ilimu
-              call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
-              & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
-              & clash=clash,reficn=layer%reficn)
-              !> proxy energy as sum of fragments
-              mol%energy = structures_b(ii)%energy+structures_s(jj)%energy
-              if (.not.clash) then
-                !> check for duplicates
-                duplicate = .false.
-
-                !$omp parallel &
-                !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR) &
-                !$omp private(rr,tt,deltaE,rmsval,moltmp)
-                !$omp do schedule(dynamic)
-                rrloop2: do rr = 2,layer%nmols
-                  if (duplicate) cycle
-                  tt = omp_get_thread_num()+1
-                  deltaE = abs(mol%energy-layer%mols(rr)%energy)
-                  if (deltaE < ETHR) then
-                    call moltmp%copy(layer%mols(rr))
-!                    rmsval = irmsd(layer%mols(rr),mol,rcache=rcache(tt),topocheck=.false.,allcanon=.true.)
-!                    call min_rmsd(mol,layer%mols(rr),rcache=rcache(tt),rmsdout=rmsval,align=.false.)
-                    call min_rmsd(mol,moltmp,rcache=rcache(tt),rmsdout=rmsval,align=.false.)
-!                    rmsval = rmsd(layer%mols(rr),mol,ccache=ccache(tt),mask=mask)
-                    !$omp critical
-                    if (rmsval < RTHR) then
-                      duplicate = .true.
-                      duplicates = duplicates+1
-                      !exit rrloop2
-                    end if
-                    !$omp end critical
-                  end if
-                end do rrloop2
-                !$omp end do
-                !$omp end parallel
-                if (.not.duplicate) then
-                  layer%nmols = layer%nmols+1
-                  layer%mols(layer%nmols) = mol
-                  call crest_oloop_pr_progress(env,kk,layer%nmols)
-                  if (layer%nmols == kk) exit sssloop2
-                end if
-              end if
-            end do iiloop2
-          end do jjloop2
-        end do sssloop2
+      reg_blo(1) = 1
+      reg_slo(1) = 1
+      reg_bhi(1) = min(nall_b,target_bhi)
+      reg_shi(1) = min(nall_s,target_shi)
+      !> reciprocal fill if one dimension was capped
+      if (reg_bhi(1) < target_bhi.and.reg_bhi(1) > 0) then
+        reg_shi(1) = min(nall_s,nint(real(max_structs,wp)/real(reg_bhi(1),wp)))
+      else if (reg_shi(1) < target_shi.and.reg_shi(1) > 0) then
+        reg_bhi(1) = min(nall_b,nint(real(max_structs,wp)/real(reg_shi(1),wp)))
       end if
-      if (layer%nmols < kk) then
+      nregions = 1
+
+      !> Region 2: expand whichever dimension wasn't exhausted
+      if (reg_shi(1) == nall_s.and.reg_bhi(1) < nall_b) then
+        nregions = 2
+        reg_blo(2) = reg_bhi(1)+1
+        reg_bhi(2) = nall_b
+        reg_slo(2) = 1
+        reg_shi(2) = nall_s
+      else if (reg_bhi(1) == nall_b.and.reg_shi(1) < nall_s) then
+        nregions = 2
+        reg_blo(2) = 1
+        reg_bhi(2) = nall_b
+        reg_slo(2) = reg_shi(1)+1
+        reg_shi(2) = nall_s
+      else if (reg_bhi(1) < nall_b.and.reg_shi(1) < nall_s) then
+        !> Neither exhausted: expand larger dim first, then the other
+        nregions = 3
+        if (base_is_outer) then
+          reg_blo(2) = 1
+          reg_bhi(2) = reg_bhi(1)
+          reg_slo(2) = reg_shi(1)+1
+          reg_shi(2) = nall_s
+          reg_blo(3) = reg_bhi(1)+1
+          reg_bhi(3) = nall_b
+          reg_slo(3) = 1
+          reg_shi(3) = nall_s
+        else
+          reg_blo(2) = reg_bhi(1)+1
+          reg_bhi(2) = nall_b
+          reg_slo(2) = 1
+          reg_shi(2) = reg_shi(1)
+          reg_blo(3) = 1
+          reg_bhi(3) = nall_b
+          reg_slo(3) = reg_shi(1)+1
+          reg_shi(3) = nall_s
+        end if
+      end if
+
+      ! ── Reconstruct by iterating over regions ───────────────────
+      regionloop: do rg = 1,nregions
+        if (base_is_outer) then
+          outer_lo = reg_blo(rg); outer_hi = reg_bhi(rg)
+          inner_lo = reg_slo(rg); inner_hi = reg_shi(rg)
+        else
+          outer_lo = reg_slo(rg); outer_hi = reg_shi(rg)
+          inner_lo = reg_blo(rg); inner_hi = reg_bhi(rg)
+        end if
+        do outer_idx = outer_lo,outer_hi
+          do inner_idx = inner_lo,inner_hi
+            if (base_is_outer) then
+              ii = outer_idx; jj = inner_idx
+            else
+              ii = inner_idx; jj = outer_idx
+            end if
+
+            call attach(structures_b(ii),structures_s(jj),layer%alignmap,mol, &
+            & remove_lastx=layer%ncapped,original_map=layer%position_mapping, &
+            & clash=clash,reficn=layer%reficn)
+            mol%energy = structures_b(ii)%energy+structures_s(jj)%energy
+            if (.not.clash) then
+              duplicate = .false.
+
+              !$omp parallel &
+              !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR) &
+              !$omp private(rr,tt,deltaE,rmsval,moltmp)
+              !$omp do schedule(dynamic)
+              do rr = 1,layer%nmols
+                if (duplicate) cycle
+                tt = omp_get_thread_num()+1
+                deltaE = abs(mol%energy-layer%mols(rr)%energy)
+                if (deltaE < ETHR) then
+                  call moltmp%copy(layer%mols(rr))
+                  call min_rmsd(mol,moltmp,rcache=rcache(tt),rmsdout=rmsval,align=.false.)
+                  !$omp critical
+                  if (rmsval < RTHR.and..not.duplicate) then
+                    duplicate = .true.
+                    duplicates = duplicates+1
+                  end if
+                  !$omp end critical
+                end if
+              end do
+              !$omp end do
+              !$omp end parallel
+
+              if (.not.duplicate) then
+                layer%nmols = layer%nmols+1
+                layer%mols(layer%nmols) = mol
+                call crest_oloop_pr_progress(env,max_structs,layer%nmols)
+                if (layer%nmols == max_structs) exit regionloop
+              end if
+            end if
+          end do
+        end do
+      end do regionloop
+      if (layer%nmols < max_structs) then
         call crest_oloop_pr_progress(env,1,1)
       end if
-      !call crest_oloop_pr_progress(env,kk,-1)
       write (stdout,'(2x,a)') 'done!'
       if (duplicates > 0) then
         write (stdout,'(2x,a,i0)') 'Avoided duplicates       : ',duplicates
