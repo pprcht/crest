@@ -350,7 +350,7 @@ subroutine crest_ensemble_screening(env,tim)
 !>--- call the loop
   call rmrfw('crest_rotamers_')
   call optlev_to_multilev(3.0d0,multilevel)
-  call crest_multilevel_oloop(env,ensnam,multilevel)
+  call crest_multilevel_oloop(env,ensnam,multilevel,0)
   if(env%iostatus_meta .ne. 0 ) return
 
 !>--- printout

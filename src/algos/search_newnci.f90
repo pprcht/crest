@@ -128,7 +128,7 @@ subroutine crest_search_newnci(env,tim)
 !>--- Reoptimization of trajectories
       call tim%start(3,'Geometry optimization')
       call optlev_to_multilev(env%optlev,multilevel)
-      call crest_multilevel_oloop(env,ensnam,multilevel)
+      call crest_multilevel_oloop(env,ensnam,multilevel,i)
       call tim%stop(3)
       if(env%iostatus_meta .ne. 0 ) return
 

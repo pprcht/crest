@@ -510,7 +510,7 @@ subroutine crest_queue_reconstruct(env,tim)
     call crest_optimization(env,timtmp)
   case default
     call optlev_to_multilev(env%optlev,multilevel)
-    call crest_multilevel_oloop(env,recfile,multilevel)
+    call crest_multilevel_oloop(env,recfile,multilevel,0)
     if (env%iostatus_meta .ne. 0) return
 
     call smallheadline('FINAL GEOMETRY OPTIMIZATION IN QUEUE RECONSTRUCTION')
@@ -619,7 +619,6 @@ contains
             do kk = 1,nall_b
               structures_b(kk) = heap%layer(jj)%mols(kk)
             end do
-            !deallocate (heap%layer(jj)%mols)
           else if (ii == 2) then
 
             nall_s = heap%layer(jj)%nmols
@@ -645,7 +644,7 @@ contains
       allocate (layer%mols(kk))
       write (stdout,'(2x,a,i0)') 'Max. new structs stored : ',kk
 
-      RTHR = env%rthr*aatoau !> RMSD threshold in Bohr
+      RTHR = env%rthr*aatoau   !> RMSD threshold in Bohr
       ETHR = env%ethr/autokcal !> deltaE threshold in hartree
       duplicates = 0
       T = 1
