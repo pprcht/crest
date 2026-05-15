@@ -287,7 +287,7 @@ contains
     write (stdout,*)
     write (stdout,*) 'WARNING WARNING WARNING'
     write (stdout,*) ' The use of xtbiff in QCG is deprecated and is disabled'
-    write (stdout,*) ' following CREST 3.0.3, in favor of the aISS algorithm.'
+    write (stdout,*) ' following CREST 3.1.0, in favor of the aISS algorithm.'
     write (stdout,*) ' This requires a current version of the xtb program.'
     write (stdout,*)
     call creststop(status_safety)
