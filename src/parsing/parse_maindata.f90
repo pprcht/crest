@@ -221,6 +221,7 @@ contains   !> MODULE PROCEDURES START HERE
         env%autozsort = .false.
         env%performCross = .false.
         env%rotamermds = .false.
+        env%crestver = crest_imtd
       case ('bh','gmin')
         env%crestver = crest_bh
       case ('entropy','imtd-smtd','entropy_search')
