@@ -116,11 +116,11 @@ subroutine parseflags(env,arg,nra)
     end if
     if (index(arg(i),'-newversion') .ne. 0) then !> as in CREST version >= 3.0
       env%legacy = .false.
-      processedarg(i) = .true.
+      !processedarg(i) = .true.
     end if
     if (index(arg(i),'-legacy') .ne. 0) then  !> as in CREST version <3.0
       env%legacy = .true.
-      processedarg(i) = .true.
+      !processedarg(i) = .true.
     end if
     if (index(arg(i),'-dry') .ne. 0) then   !> "dry" run to print settings
       env%dryrun = .true.
@@ -515,7 +515,7 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%properties = p_protonate
         env%crestver = crest_protonate
-        env%legacy = .true. !> TODO, set active at later version
+        env%legacy = .false.
         write (stdout,'(2x,a,'' : automated protonation script'')') trim(arg(i))
         exit
 
@@ -523,7 +523,7 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%properties = p_deprotonate
         env%crestver = crest_deprotonate
-        env%legacy = .true. !> TODO, set active at later version
+        env%legacy = .false. 
         write (stdout,'(2x,a,'' : automated deprotonation script'')') trim(arg(i))
         exit
 
@@ -531,7 +531,7 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%properties = p_tautomerize
         env%crestver = crest_tautomerize
-        env%legacy = .true. !> TODO, set active at later version
+        env%legacy = .false. 
         write (stdout,'(2x,a,'' : automated tautomerization script'')') trim(arg(i))
         exit
 
