@@ -1178,13 +1178,13 @@ subroutine crest_output_summary(env)
 
     ! ── protonation / deprotonation / tautomers ───
   case (crest_protonate)
-    call wfe('crest_protonated.xyz','unique site candidates, energy-sorted')
+    call wfe('protonated.xyz','unique site candidates, energy-sorted')
     call wfe('crest_best.xyz','lowest-energy structure')
   case (crest_deprotonate)
-    call wfe('crest_deprotonated.xyz','unique site candidates, energy-sorted')
+    call wfe('deprotonated.xyz','unique site candidates, energy-sorted')
     call wfe('crest_best.xyz','lowest-energy structure')
   case (crest_tautomerize)
-    call wfe('crest_tautomers.xyz','unique site candidates, energy-sorted')
+    call wfe('tautomers.xyz','unique site candidates, energy-sorted')
     call wfe('crest_best.xyz','lowest-energy structure')
 
   case default
