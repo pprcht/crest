@@ -1,11 +1,6 @@
-# Note: standalone CREGEN sorting (-cregen CLI flag) has no TOML runtype equivalent.
-# The [cregen] block below shows the CREGEN duplicate-detection thresholds
-# that are used during a full iMTD-GC conformer search.
-runtype = "imtd-gc"
-input   = "struc.xyz"   # input structure file (1-propanol)
-
-[[calculation.level]]
-method = "gfnff"        # GFN-FF for sampling
+# Standalone CREGEN ensemble sorting
+runtype  = "cregen"
+ensemble = "xtb.trj"    # ensemble/trajectory file to sort
 
 [cregen]
 ewin  = 100.0           # energy window for conformer selection (kcal/mol)

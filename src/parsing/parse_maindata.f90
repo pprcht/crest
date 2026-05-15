@@ -257,10 +257,19 @@ contains   !> MODULE PROCEDURES START HERE
         env%properties = p_tautomerize
         env%crestver = crest_tautomerize
 
-      case ('thermo') 
+      case ('thermo')
         env%properties = p_thermo
         env%crestver = crest_none
         env%preopt = .false.
+
+      case ('cregen','sort')
+        env%preopt    = .false.
+        env%crestver  = crest_sorting
+        env%autozsort = .false.
+        if (val .eq. 'cregen') then
+          env%sortmode = 'cregen'
+          env%confgo   = .true.
+        end if
 
       case default
         !>--- keyword was recognized, but invalid argument supplied
