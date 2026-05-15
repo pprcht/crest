@@ -1,0 +1,14 @@
+# Note: standalone CREGEN sorting (-cregen CLI flag) has no TOML runtype equivalent.
+# The [cregen] block below shows the CREGEN duplicate-detection thresholds
+# that are used during a full iMTD-GC conformer search.
+runtype = "imtd-gc"
+input   = "struc.xyz"   # input structure file (1-propanol)
+
+[[calculation.level]]
+method = "gfnff"        # GFN-FF for sampling
+
+[cregen]
+ewin  = 100.0           # energy window for conformer selection (kcal/mol)
+rthr  = 0.125           # RMSD threshold for duplicate detection (Å)
+ethr  = 0.05            # energy threshold for duplicate detection (kcal/mol)
+bthr  = 15.0            # rotational constant threshold (MHz)
