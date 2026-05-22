@@ -977,6 +977,7 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
   type(coord),pointer :: ref,mol
   real(wp) :: rmsdval,RTHR,ediff,eii,avmom,rsq,frac
   real(wp),allocatable :: rot(:,:)
+  real(wp),allocatable :: xyz_aa(:,:)
   integer,allocatable :: prune_table(:)
   real(wp),allocatable :: enuc(:)
   logical :: l1,l2
@@ -1104,10 +1105,12 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
   !> Prepare axis comparison
   !> axis alignment and rotational constant calculation
   allocate (rot(3,nall),source=0.0_wp)
+  allocate (xyz_aa(3,nat),source=0.0_wp)
   do ii = 1,nall
     mol => structures(ii)
     call axis(mol%nat,mol%at,mol%xyz) !> all coordinates to CMA
-    call axis(mol%nat,mol%at,moL%xyz*autoaa,rot(1:3,ii),avmom)!> B_0 in MHz
+    xyz_aa = mol%xyz*autoaa
+    call axis(mol%nat,mol%at,xyz_aa,rot(1:3,ii),avmom) !> B_0 in MHz
   end do
 
   !> Scaled sum of atom-atom-distances (empirical measure)
