@@ -1550,6 +1550,7 @@ contains  !>--- Module routines start here
       if (have_gxtb) then
         self%id = jobtype%tblite
         self%tblitelvl = xtblvl%gxtb
+        self%etemp = 0.0_wp  ! g-xTB uses integer occupations (T=0)
       else
         self%id = jobtype%xtbsys
         self%other = '--gxtb'

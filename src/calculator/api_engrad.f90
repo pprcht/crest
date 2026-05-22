@@ -97,13 +97,7 @@ contains    !> MODULE PROCEDURES START HERE
 
 !>-- populate parameters and wavefunction
     if (loadnew) then
-! ── resolve effective Fermi temperature (gxtb defaults to 0 K) ───────
-      block
-        real(wp) :: etemp_eff
-        etemp_eff = calc%etemp
-        if (calc%tblitelvl == xtblvl%gxtb .and. .not. calc%etemp_user_set) etemp_eff = 0.0_wp
-        call tblite_setup(mol,calc%chrg,calc%uhf,calc%tblitelvl,etemp_eff,calc%tblite,calc%ceh_guess)
-      end block
+      call tblite_setup(mol,calc%chrg,calc%uhf,calc%tblitelvl,calc%etemp,calc%tblite,calc%ceh_guess)
 
       call tblite_addsettings(calc%tblite,calc%maxscc,calc%rdwbo,calc%saveint,calc%accuracy)
 
