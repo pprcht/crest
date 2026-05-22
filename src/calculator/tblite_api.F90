@@ -527,7 +527,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,intent(in) :: saveint
     real(wp),intent(in) :: accuracy
 #ifdef WITH_TBLITE
-    tblite%calc%max_iter = maxscc
+    tblite%calc%iterator%max_iter = maxscc
     tblite%calc%save_integrals = (rdwbo.or.saveint)
     tblite%accuracy = accuracy
 #endif
@@ -830,9 +830,9 @@ contains  !> MODULE PROCEDURES START HERE
 
     do izp = 1,mol%nid
       do ish = 1,bas%nsh_id(izp)
-        il = bas%cgto(ish,izp)%ang
+        il = bas%cgto(ish,izp)%raw%ang
         do jsh = 1,bas%nsh_id(izp)
-          jl = bas%cgto(jsh,izp)%ang
+          jl = bas%cgto(jsh,izp)%raw%ang
           wll(jsh,ish,izp) = get_spin_constant(jl,il,mol%num(izp))
         end do
       end do
