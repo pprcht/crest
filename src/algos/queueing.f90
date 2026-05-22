@@ -545,6 +545,7 @@ contains
     type(coord),allocatable :: structures_b(:)
     type(coord),allocatable :: structures_s(:)
     type(coord) :: mol,moltmp
+    type(coord),allocatable :: moltmp_arr(:)
     integer :: nall_b,nall_s,id_b,id_s
     integer :: rr,io,rg,nregions,max_structs
     integer :: reg_blo(3),reg_bhi(3),reg_slo(3),reg_shi(3)
@@ -672,6 +673,7 @@ contains
       write (stdout,'(2x,a,i0)') 'OpenMP threads          : ',T
       allocate (ccache(T))
       allocate (rcache(T))
+      allocate (moltmp_arr(T))
       allocate (mask(layer%refmol%nat),source=.true.)
       call canref%init(layer%refmol,invtype='apsp+',heavy=.false.)
 
@@ -777,16 +779,16 @@ contains
               duplicate = .false.
 
               !$omp parallel &
-              !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR) &
-              !$omp private(rr,tt,deltaE,rmsval,moltmp)
+              !$omp shared(duplicate,duplicates,mol,ccache,rcache,mask,ETHR,moltmp_arr) &
+              !$omp private(rr,tt,deltaE,rmsval)
               !$omp do schedule(dynamic)
               do rr = 1,layer%nmols
                 if (duplicate) cycle
                 tt = omp_get_thread_num()+1
                 deltaE = abs(mol%energy-layer%mols(rr)%energy)
                 if (deltaE < ETHR) then
-                  call moltmp%copy(layer%mols(rr))
-                  call min_rmsd(mol,moltmp,rcache=rcache(tt),rmsdout=rmsval,align=.false.)
+                  call moltmp_arr(tt)%copy(layer%mols(rr))
+                  call min_rmsd(mol,moltmp_arr(tt),rcache=rcache(tt),rmsdout=rmsval,align=.false.)
                   !$omp critical
                   if (rmsval < RTHR.and..not.duplicate) then
                     duplicate = .true.
