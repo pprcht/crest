@@ -610,17 +610,26 @@ contains  !> MODULE PROCEDURES STARTE HERE
 !############################################################################!
 !============================================================================!
 !> PRINTOUT ROUTINES
-  subroutine print_vib_spectrum(nat,at,nat3,xyz,freq,dir,fname)
-!*********************************************************************
-!* Prints the frequencies in Turbomoles "vibspectrum" format
-!* The intensity is only artficially set to 1000 for every vibration!!
-!**********************************************************************
+  subroutine print_vib_spectrum(nat,at,nat3,xyz,freq,dir,fname,ir_int)
+!******************************************************************
+!* Prints the frequencies in Turbomole "vibspectrum" format.
+!* When ir_int is provided, genuine intensities (km/mol) and
+!* a threshold-based IR-activity flag are written; otherwise a
+!* dummy intensity of 1000 km/mol is used for all active modes.
+!* Input:
+!*   ir_int (optional) - IR intensities in km/mol, shape (nat3)
+!******************************************************************
     integer,intent(in) :: nat,nat3
     integer :: at(nat),i,ich
     real(wp) ::  xyz(3,nat)
     real(wp) ::  freq(nat3),thr
+    real(wp),intent(in),optional :: ir_int(nat3)
     character(len=*) :: fname
     character(len=*) :: dir
+    !> IR-activity threshold in km/mol
+    real(wp),parameter :: ir_thr = 1.0_wp
+    real(wp) :: irint_i
+    character(len=3) :: ir_flag
 
     thr = 0.01_wp
     if (len_trim(dir) .eq. 0) then
@@ -642,8 +651,19 @@ contains  !> MODULE PROCEDURES STARTE HERE
         write (ich,'(i6,9x,    f18.2,f16.5,7x," - ",5x," - ")') &
           i,freq(i),0.0_wp
       else
-        write (ich,'(i6,8x,"a",f18.2,f16.5,7x,"YES",5x,"YES")') &
-          i,freq(i),1000.0_wp
+        if (present(ir_int)) then
+          irint_i = ir_int(i)
+          if (irint_i >= ir_thr) then
+            ir_flag = 'YES'
+          else
+            ir_flag = 'NO '
+          end if
+        else
+          irint_i = 1000.0_wp
+          ir_flag = 'YES'
+        end if
+        write (ich,'(i6,8x,"a",f18.2,f16.5,7x,a3,5x,"YES")') &
+          i,freq(i),irint_i,ir_flag
       end if
     end do
 
@@ -655,18 +675,23 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
 !=========================================================================================!
 
-  subroutine print_g98_fake(nat,at,nat3,xyz,freq,hess,dir,fname)
-!****************************************************************
-!* Prints the vibration spectrum of the a system as a g98.out.
+  subroutine print_g98_fake(nat,at,nat3,xyz,freq,hess,dir,fname,ir_int)
+!******************************************************************
+!* Prints the vibration spectrum of a system as a g98.out file.
 !* Routine is adapted from the xtb code.
-!****************************************************************
+!* When ir_int is provided, genuine IR intensities (km/mol) are
+!* written; otherwise a dummy value of 99 km/mol is used.
+!* Input:
+!*   ir_int (optional) - IR intensities in km/mol, shape (nat3)
+!******************************************************************
     integer,intent(in) :: nat,nat3
     integer :: at(nat)
     integer  :: gu,i,j,ka,kb,kc,la,lb,k
 
     real(wp) ::  xyz(3,nat)
     real(wp),intent(in) :: hess(nat3,nat3)
-    real(wp) ::  freq(nat3),red_mass(nat3),force(nat3),ir_int(nat3),zero(1),f2(nat3),u(nat3,nat3)
+    real(wp),intent(in),optional :: ir_int(nat3)
+    real(wp) ::  freq(nat3),red_mass(nat3),force(nat3),ir_f(nat3),zero(1),f2(nat3),u(nat3,nat3)
 
     character(len=2) :: irrep
     character(len=*) :: fname
@@ -676,7 +701,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
 
     red_mass = 99.0
     force = 99.0
-    ir_int = 99.0
+    ir_f = 99.0
     zero = 0.0
 
     k = 0
@@ -686,6 +711,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
         k = k+1
         u(1:nat3,k) = hess(1:nat3,i)
         f2(k) = freq(i)
+        if (present(ir_int)) ir_f(k) = ir_int(i)
       end if
     end do
 
@@ -740,7 +766,7 @@ contains  !> MODULE PROCEDURES STARTE HERE
     write (gu,110) ' Frequencies --', (f2(j),j=ka,kb)
     write (gu,110) ' Red. masses --', (red_mass(j),j=ka,kb)
     write (gu,110) ' Frc consts  --', (force(j),j=ka,kb)
-    write (gu,110) ' IR Inten    --', (ir_int(j),j=ka,kb)
+    write (gu,110) ' IR Inten    --', (ir_f(j),j=ka,kb)
     write (gu,110) ' Raman Activ --', (zero,j=ka,kb)
     write (gu,110) ' Depolar     --', (zero,j=ka,kb)
     write (gu,*) 'Atom AN      X      Y      Z        X      Y', &

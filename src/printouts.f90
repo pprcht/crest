@@ -1128,7 +1128,7 @@ subroutine crest_output_summary(env)
   case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
       & crest_sorting,crest_optimize,crest_trialopt,crest_rigcon, &
       & crest_moldyn,crest_bh,crest_bhpt,crest_protonate,crest_deprotonate, &
-      & crest_tautomerize)
+      & crest_tautomerize,crest_numhessian,crest_ensemblehess)
     write (stdout,*)
     write (stdout,*)
     write (stdout,'(2x,a)') 'Important files written by CREST during this run'
@@ -1165,6 +1165,23 @@ subroutine crest_output_summary(env)
   case (crest_optimize,crest_trialopt,crest_rigcon)
     call wfe('crestopt.xyz','final optimized geometry')
     call wfe('crestopt.log.xyz','step-by-step optimization trajectory')
+    if (env%crest_ohess) then
+      call wfe('numhess','Hessian matrix in Turbomole format (2nd derivatives, a.u.)')
+      call wfe('vibspectrum','vibrational frequencies (cm⁻¹) and IR intensities (km/mol)')
+      call wfe('g98.out','frequencies and normal modes in Gaussian 98 output format')
+    end if
+
+    ! ── numerical Hessian ─────────────────────────
+  case (crest_numhessian)
+    call wfe('numhess','Hessian matrix in Turbomole format (2nd derivatives, a.u.)')
+    call wfe('vibspectrum','vibrational frequencies (cm⁻¹) and IR intensities (km/mol)')
+    call wfe('g98.out','frequencies and normal modes in Gaussian 98 output format')
+    call wfe('dipgrad','Cartesian dipole gradient ∂μ/∂x (a.u.), if available')
+
+    ! ── ensemble Hessians ─────────────────────────
+  case (crest_ensemblehess)
+    call wfe('crest_ensemble.xyz','input ensemble with Gibbs free energies as comments')
+    call wfe('crest.energies','plain list of total Gibbs free energies (Eh)')
 
     ! ── molecular dynamics ────────────────────────
   case (crest_moldyn)
@@ -1196,7 +1213,7 @@ subroutine crest_output_summary(env)
   case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
       & crest_sorting,crest_optimize,crest_trialopt,crest_rigcon, &
       & crest_moldyn,crest_bh,crest_bhpt,crest_protonate,crest_deprotonate, &
-      & crest_tautomerize)
+      & crest_tautomerize,crest_numhessian,crest_ensemblehess)
 
     write (stdout,'(1x,a)') hbar
   end select

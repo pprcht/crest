@@ -36,6 +36,7 @@ subroutine crest_numhess(env,tim)
   use gradreader_module
   use xtb_sc
   use oniom_hessian
+  use ir_spectrum
   implicit none
 
   type(systemdata),intent(inout) :: env
@@ -48,6 +49,7 @@ subroutine crest_numhess(env,tim)
   real(wp) :: energy
   real(wp),allocatable :: hess(:,:,:),freq(:,:),grad(:),grad1(:,:),grad2(:,:),heff(:,:)
   real(wp),allocatable :: ohess(:,:),ofreq(:),grad0(:,:),energies0(:)
+  real(wp),allocatable :: ir_int(:)
   character(len=60) :: atmp
 !========================================================================================!
   call tim%start(15,'Numerical Hessian')
@@ -115,6 +117,11 @@ subroutine crest_numhess(env,tim)
     allocate (hess(nat3,nat3,calc%ncalculations),source=0.0_wp)
     allocate (freq(nat3,n_freqs),source=0.0_wp)
 
+! ── auto-enable dipole gradient for single tblite level ──────────────────────
+    if (calc%ncalculations == 1) then
+      if (calc%calcs(1)%id == jobtype%tblite) calc%calcs(1)%rddip = .true.
+    end if
+
 !*********************************************************************************
 !>--- Computes numerical Hessians and stores them individually for each level
     call numhess2(mol%nat,mol%at,mol%xyz,calc,hess,io)
@@ -177,13 +184,19 @@ subroutine crest_numhess(env,tim)
 
       else
 
-        write (atmp,*) i
+        !> omit numeric suffix when there is only one calculation level
+        if (calc%ncalculations == 1) then
+          atmp = ''
+        else
+          write (atmp,*) i
+          atmp = trim(adjustl(atmp))
+        end if
 
         !>-- Prints Hessian
-        call print_hessian(hess(:,:,i),nat3,'','numhess'//trim(adjustl(atmp)))
+        call print_hessian(hess(:,:,i),nat3,'','numhess'//trim(atmp))
 
         !>--- Print dipole gradients (if they exist)
-        call calc%calcs(i)%dumpdipgrad('dipgrad'//trim(adjustl(atmp)))
+        call calc%calcs(i)%dumpdipgrad('dipgrad'//trim(atmp))
 
         !>-- Projects and mass-weights the Hessian
         call prj_mw_hess(mol%nat,mol%at,nat3,mol%xyz,hess(:,:,i))
@@ -195,16 +208,24 @@ subroutine crest_numhess(env,tim)
           write (stdout,*) 'FAILED!'
         else
 
-          !>-- Prints vibspectrum with artifical intensities
+! ── project dipole gradient onto normal modes → IR intensities ───────────
+          if (allocated(calc%calcs(i)%dipgrad)) then
+            allocate(ir_int(nat3),source=0.0_wp)
+            call ir_intensities(mol%nat,mol%at,nat3,hess(:,:,i), &
+            &                   calc%calcs(i)%dipgrad,ir_int)
+          end if
+
+          !>-- Prints vibspectrum
           call print_vib_spectrum(mol%nat,mol%at,nat3,mol%xyz,freq(:,i), &
-          &    '','vibspectrum'//trim(adjustl(atmp)))
+          &    '','vibspectrum'//trim(atmp),ir_int=ir_int)
 
-          !>-- Prints g98.out format file
+          !>-- Prints g98.out format file (suffix prevents overwrite for empty calcspace)
           call print_g98_fake(mol%nat,mol%at,nat3,mol%xyz,freq(:,i),hess(:,:,i), &
-          &    calc%calcs(i)%calcspace,'g98.out')
+          &    calc%calcs(i)%calcspace,'g98'//trim(atmp)//'.out',ir_int=ir_int)
 
-          write (atmp,*) i
-          call smallhead("Thermo contributions for [[calculation.level]] "//trim(adjustl(atmp)))
+          if (allocated(ir_int)) deallocate(ir_int)
+
+          call smallhead("Thermo contributions for [[calculation.level]] "//trim(atmp))
           call numhess_thermostat(env,mol,nat3,hess(:,:,i),freq(:,i),energies0(i))
 
         end if
@@ -284,12 +305,9 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
   !> LOCAL
   real(wp) :: ithr,fscal,sthr
   character(len=:),allocatable :: emodel
-  integer :: nt,nfreq,nrt
+  integer :: nt,nrt
   real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
   real(wp) :: zpve
-  character(len=*),parameter :: outfmt = &
-  &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
-  integer :: iunit
 
   !> inversion threshold
   ithr = env%thermo%ithr
@@ -313,21 +331,10 @@ subroutine numhess_thermostat(env,mol,nat3,hess,freq,etot)
 
   !> calcthermo wants input in Bohr
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
-  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,emodel=emodel) !> THIS HAS IUNIT IN IT!!!!
+  & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,emodel=emodel)
 
-  !> printoutgeometr
   zpve = et(nrt)-ht(nrt)
-  write (stdout,*)
-  write (stdout,'(10x,a)') repeat(':',50)
-  write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
-  write (stdout,'(10x,a)') repeat(':',50)
-  write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
-  write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
-  write (stdout,outfmt) 'total energy     ',etot,'Eh'
-  write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
-  write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
-  write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
-  write (stdout,'(10x,a)') repeat(':',50)
+  call print_thermo_summary(stdout,temps(nrt),etot,zpve,gt(nrt))
 
   deallocate (stot,gt,ht,et,temps)
 end subroutine numhess_thermostat
@@ -355,12 +362,10 @@ subroutine thermo_standalone(env)
   real(wp) :: etot
   real(wp) :: ithr,fscal,sthr
   character(len=:),allocatable :: emodel
-  integer :: nt,nfreq,nrt
+  integer :: nt,nrt
   real(wp),allocatable :: temps(:),et(:),ht(:),stot(:),gt(:)
   real(wp) :: zpve
-  integer :: ich,i,iunit
-  character(len=*),parameter :: outfmt = &
-  &  '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
+  integer :: ich,i
 
   !> header
   write (stdout,'(t10,a)') " _   _                               "
@@ -424,19 +429,8 @@ subroutine thermo_standalone(env)
   call calcthermo(mol%nat,mol%at,mol%xyz,freq,.true., &
   & ithr,fscal,sthr,nt,temps,et,ht,gt,stot,stdout,emodel=emodel)
 
-  !> printout
   zpve = et(nrt)-ht(nrt)
-  write (stdout,*)
-  write (stdout,'(10x,a)') repeat(':',50)
-  write (stdout,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temps(nrt),'K'
-  write (stdout,'(10x,a)') repeat(':',50)
-  write (stdout,outfmt) 'TOTAL FREE ENERGY',etot+gt(nrt),'Eh'
-  write (stdout,'(10x,a)') '::'//repeat('-',46)//'::'
-  write (stdout,outfmt) 'total energy     ',etot,'Eh'
-  write (stdout,outfmt) 'ZPVE             ',zpve,'Eh'
-  write (stdout,outfmt) 'G(RRHO) w/o ZPVE ',gt(nrt)-zpve,'Eh'
-  write (stdout,outfmt) 'G(RRHO) total    ',gt(nrt),'Eh'
-  write (stdout,'(10x,a)') repeat(':',50)
+  call print_thermo_summary(stdout,temps(nrt),etot,zpve,gt(nrt))
 
   !> for plotting temperature dependencies etc.
   write (stdout,*)
@@ -449,6 +443,31 @@ subroutine thermo_standalone(env)
 
   deallocate (stot,gt,ht,et,temps)
 end subroutine thermo_standalone
+
+!========================================================================================!
+
+subroutine print_thermo_summary(iunit,temp,etot,zpve,grrho)
+!**********************************************************
+!* Print the standard THERMODYNAMICS summary box.
+!* Called from numhess_thermostat and thermo_standalone.
+!**********************************************************
+  use crest_parameters,only:wp,stdout
+  implicit none
+  integer,intent(in) :: iunit
+  real(wp),intent(in) :: temp,etot,zpve,grrho
+  character(len=*),parameter :: outfmt = '(10x,"::",1x,a,f24.12,1x,a,1x,"::")'
+  write (iunit,*)
+  write (iunit,'(10x,a)') repeat(':',50)
+  write (iunit,'(10x,"::",7x,a,f12.2,1x,a,8x,"::")') "THERMODYNAMICS at",temp,'K'
+  write (iunit,'(10x,a)') repeat(':',50)
+  write (iunit,outfmt) 'TOTAL FREE ENERGY',etot+grrho,'Eh'
+  write (iunit,'(10x,a)') '::'//repeat('-',46)//'::'
+  write (iunit,outfmt) 'total energy     ',etot,'Eh'
+  write (iunit,outfmt) 'ZPVE             ',zpve,'Eh'
+  write (iunit,outfmt) 'G(RRHO) w/o ZPVE ',grrho-zpve,'Eh'
+  write (iunit,outfmt) 'G(RRHO) total    ',grrho,'Eh'
+  write (iunit,'(10x,a)') repeat(':',50)
+end subroutine print_thermo_summary
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
