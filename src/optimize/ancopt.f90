@@ -348,7 +348,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: lambda,gnorm,dnorm,eold,xdum,estart,acc,e_in
     real(wp) :: depred,echng,dummy,maxd,alp,alpold,gchng,gnold
     real(wp),allocatable :: gold(:)
-    real(wp),allocatable :: displ(:),gint(:)
+    real(wp),allocatable :: displ(:),gint(:),dxold(:)
     real(wp),allocatable :: eaug(:)
     real(wp),allocatable :: Uaug(:,:)
     real(wp),allocatable :: Aaug(:)
@@ -364,7 +364,7 @@ contains  !> MODULE PROCEDURES START HERE
     iostatus = 0
 
     !$omp critical
-    allocate (gold(OPT%nvar),displ(OPT%nvar),gint(OPT%nvar),source=0.0_wp)
+    allocate (gold(OPT%nvar),displ(OPT%nvar),gint(OPT%nvar),dxold(OPT%nvar),source=0.0_wp)
 
     gnorm = 0.0_wp
     depred = 0.0_wp
@@ -395,9 +395,10 @@ contains  !> MODULE PROCEDURES START HERE
       eold = energy
 !>--- calc predicted energy change based on E = E0 + delta * G + delta^2 * H
       alpold = alp
+      dxold = displ*alpold
 
       if (ii > 1) then
-        call prdechng(OPT%nvar,gold,displ*alpold,OPT%hess,depred)
+        call prdechng(OPT%nvar,gold,dxold,OPT%hess,depred)
       end if
 
 !>------------------------------------------------------------------------
@@ -475,15 +476,15 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- Hessian update, but only after first iteration (ii > 1)
         select case (iupdat)
         case (0)
-          call bfgs(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
+          call bfgs(OPT%nvar,gnorm,gint,gold,dxold,OPT%hess)
         case (1)
-          call powell(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
+          call powell(OPT%nvar,gnorm,gint,gold,dxold,OPT%hess)
         case (2)
-          call sr1(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
+          call sr1(OPT%nvar,gnorm,gint,gold,dxold,OPT%hess)
         case (3)
-          call bofill(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
+          call bofill(OPT%nvar,gnorm,gint,gold,dxold,OPT%hess)
         case (4)
-          call schlegel(OPT%nvar,gnorm,gint,gold,displ*alpold,OPT%hess)
+          call schlegel(OPT%nvar,gnorm,gint,gold,dxold,OPT%hess)
         case default
           write (*,*) 'invalid hessian update selection'
           stop
