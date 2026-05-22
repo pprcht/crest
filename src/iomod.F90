@@ -883,7 +883,8 @@ contains !> MODULE PROCEDURES START HERE
   !*               when width is given, padl is auto-centred and padr fills
   !*   ltab      - leading spaces before the box (default 0)
   !*   procedual - which lines to emit: -1=all three (default),
-  !*               0=top only, 1=centre line only, 2=bottom only
+  !*               0=top only, 1=centre line only, 2=bottom only,
+  !*               3=separator (T-intersection) line only
   !*   color     - optional border colour name passed to colorify()
   !***********************************************************************
     implicit none
@@ -904,7 +905,7 @@ contains !> MODULE PROCEDURES START HERE
     character(len=*),parameter :: set7 = '┍━┑│┕┙'
 
     integer :: ul,ho,ur,ve,ll,lr,d
-    character(len=:),allocatable ::  boxchars
+    character(len=:),allocatable :: boxchars,sepchars
 
     ul = 1; ho = 2; ur = 3; ve = 4; ll = 5; lr = 6; d = 0
     if (present(charset)) then
@@ -915,21 +916,29 @@ contains !> MODULE PROCEDURES START HERE
       select case (charset)
       case (2)
         boxchars = set2
+        sepchars = '++'
       case (3)
         boxchars = set3
+        sepchars = '=='
       case (4)
         boxchars = set4
+        sepchars = '├┤'
       case (5)
         boxchars = set5
+        sepchars = '┣┫'
       case (6)
         boxchars = set6
+        sepchars = '╠╣'
       case (7)
         boxchars = set7
+        sepchars = '┝┥'
       case default
         boxchars = set1
+        sepchars = '**'
       end select
     else
       boxchars = set1
+      sepchars = '**'
     end if
 
     strlen = len(str)
@@ -988,6 +997,15 @@ contains !> MODULE PROCEDURES START HERE
         write (prch,'(a)') colorify(boxchars(ll:ll+d)//repeat(boxchars(ho:ho+d),wid)//boxchars(lr:lr+d),color)
       else
         write (prch,'(a)') boxchars(ll:ll+d)//repeat(boxchars(ho:ho+d),wid)//boxchars(lr:lr+d)
+      end if
+    end if
+
+    if (procc == 3) then
+      write (prch,'(a)',advance='no') repeat(' ',ltabb)
+      if (present(color)) then
+        write (prch,'(a)') colorify(sepchars(1:1+d)//repeat(boxchars(ho:ho+d),wid)//sepchars(2+d:2*(1+d)),color)
+      else
+        write (prch,'(a)') sepchars(1:1+d)//repeat(boxchars(ho:ho+d),wid)//sepchars(2+d:2*(1+d))
       end if
     end if
 

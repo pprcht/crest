@@ -1219,12 +1219,12 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
 
   if (prlvl > 0) then
     !if (prlvl > 1 .and.prch == stdout) then
-    if (prlvl > 1) then
+    if (prlvl > 1 .and.prch == stdout) then
       !  call progress_update(ps,nall,nall)
       !  call progress_finish(ps)
       write (prch,'(a)') 'done.'
     else
-      write (stdout,'(a)') 'done.'
+      write (stdout,'(a)') ' done.'
     end if
   end if
 

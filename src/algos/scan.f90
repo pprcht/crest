@@ -190,8 +190,6 @@ contains
       deallocate (tmppoints)
     end do
 
-    write(*,*) 'constraints',calc%nconstraints
-
     !>--- set calculations to 1 for the geometry generation
     calc%ncalculations = 1
 

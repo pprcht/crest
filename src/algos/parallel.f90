@@ -1158,14 +1158,15 @@ subroutine parallel_md_block_printout(MD,vz)
   use strucrd
   use dynamics_module
   use shake_module
-  use iomod,only:to_str
+  use iomod,only:to_str,drawbox
   implicit none
   type(mddata),intent(in) :: MD
   integer,intent(in) :: vz
-  character(len=40) :: atmp
-  integer :: il
+  character(len=60) :: atmp
+  integer,parameter :: bw = 54
   !$omp critical
 
+  ! ── title ────────────────────────────────────────────────────
   if (MD%simtype == type_md) then
     write (atmp,'(a,1x,i3)') 'starting MD',vz
   else if (MD%simtype == type_mtd) then
@@ -1175,39 +1176,42 @@ subroutine parallel_md_block_printout(MD,vz)
       write (atmp,'(a,1x,i4)') 'starting MTD',vz
     end if
   end if
-  il = (44-len_trim(atmp))/2
-  write (stdout,'(2x,a,1x,a,1x,a)') repeat(':',il),trim(atmp),repeat(':',il)
+  call drawbox(stdout,trim(atmp),width=bw,charset=4,ltab=1,procedual=0)
+  call drawbox(stdout,trim(atmp),width=bw,charset=4,ltab=1,procedual=1)
+  call drawbox(stdout,trim(atmp),width=bw,charset=4,ltab=1,procedual=3)
 
-  write (stdout,'(2x,"|   MD simulation time   :",f8.1," ps       |")') MD%length_ps
-  write (stdout,'(2x,"|   target T             :",f8.1," K        |")') MD%tsoll
-  write (stdout,'(2x,"|   timestep dt          :",f8.1," fs       |")') MD%tstep
-  write (stdout,'(2x,"|   dump interval(trj)   :",f8.1," fs       |")') MD%dumpstep
+  ! ── simulation parameters ────────────────────────────────────
+  write (stdout,'(1x,"│   MD simulation time   :",f8.1," ps",16x,"│")') MD%length_ps
+  write (stdout,'(1x,"│   target T             :",f8.1," K",17x,"│")') MD%tsoll
+  write (stdout,'(1x,"│   timestep dt          :",f8.1," fs",16x,"│")') MD%tstep
+  write (stdout,'(1x,"│   dump interval(trj)   :",f8.1," fs",16x,"│")') MD%dumpstep
   if (MD%shake.and.MD%shk%shake_mode > 0) then
     if (MD%shk%shake_mode == 2) then
-      write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (all bonds) |")') to_str(MD%shake)
+      write (stdout,'(1x,"│   SHAKE algorithm      :",a5," (all bonds)",10x,"│")') to_str(MD%shake)
     else
-      write (stdout,'(2x,"|   SHAKE algorithm      :",a5," (H only)    |")') to_str(MD%shake)
+      write (stdout,'(1x,"│   SHAKE algorithm      :",a5," (H only)",13x,"│")') to_str(MD%shake)
     end if
   end if
   if (allocated(MD%active_potentials)) then
-    write (stdout,'(2x,"|   active potentials     :",i4," potential   |")') size(MD%active_potentials,1)
+    write (stdout,'(1x,"│   active potentials    :",i4," potential(s)",10x,"│")') size(MD%active_potentials,1)
   end if
   if (MD%simtype == type_mtd) then
     if (MD%cvtype(1) == cv_rmsd) then
-      write (stdout,'(2x,"|   dump interval(Vbias) :",f8.2," ps       |")') &
+      write (stdout,'(1x,"│   dump interval(Vbias) :",f8.2," ps",16x,"│")') &
           & MD%mtd(1)%cvdump_fs/1000.0_wp
     end if
-    write (stdout,'(2x,"|   Vbias prefactor (k)  :",f8.4," Eh       |")') &
-      &  MD%mtd(1)%kpush
+    write (stdout,'(1x,"│   Vbias prefactor (k)  :",f8.4," Eh",16x,"│")') MD%mtd(1)%kpush
     if (MD%cvtype(1) == cv_rmsd.or.MD%cvtype(1) == cv_rmsd_static) then
-      write (stdout,'(2x,"|   Vbias exponent (α)   :",f8.4," bohr⁻²   |")') MD%mtd(1)%alpha
+      write (stdout,'(1x,"│   Vbias exponent (α)   :",f8.4," bohr⁻²",12x,"│")') MD%mtd(1)%alpha
     else
-      write (stdout,'(2x,"|   Vbias exponent (α)   :",f8.4,"          |")') MD%mtd(1)%alpha
+      write (stdout,'(1x,"│   Vbias exponent (α)   :",f8.4,19x,"│")') MD%mtd(1)%alpha
     end if
     if (allocated(MD%mtd(1)%atinclude)) then
-      write (stdout,'(2x,"|   # active atoms      :",i9," atoms    |")') count(MD%mtd(1)%atinclude,1)
+      write (stdout,'(1x,"│   # active atoms       :",i9," atoms",12x,"│")') count(MD%mtd(1)%atinclude,1)
     end if
   end if
+
+  call drawbox(stdout,'',width=bw,charset=4,ltab=1,procedual=2)
 
   !$omp end critical
 
