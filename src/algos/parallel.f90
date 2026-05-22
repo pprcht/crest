@@ -109,6 +109,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   use strucrd
   use optimize_module
   use iomod,only:makedir,directory_exist,remove
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata),intent(inout) :: env
   real(wp),intent(inout) :: xyz(3,nat,nall)
@@ -169,8 +170,10 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   call profiler%init(1)
   call profiler%start(1)
 
-!>--- first progress printout (initializes progress variables)
-  call crest_oloop_pr_progress(env,nall,0)
+!>--- initialize progress bar
+  call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,nall)
 
 !>--- shared variables
   allocate (grads(3,nat,T),source=0.0_wp)
@@ -218,7 +221,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
     end if
     k = k+1
     !>--- print progress
-    call crest_oloop_pr_progress(env,nall,k)
+    call progress_update(env%ps,k,nall)
     !$omp end critical
     !$omp end task
   end do
@@ -227,7 +230,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   !$omp end parallel
 
 !>--- finalize progress printout
-  call crest_oloop_pr_progress(env,nall,-1)
+  call progress_finish(env%ps)
 
 !>--- stop timer
   call profiler%stop(1)
@@ -277,6 +280,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
   use optimize_module
   use thermochem_module
   use iomod,only:makedir,directory_exist,remove
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata),intent(inout) :: env
   real(wp),intent(inout) :: xyz(3,nat,nall)
@@ -376,8 +380,10 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
   call profiler%init(1)
   call profiler%start(1)
 
-!>--- first progress printout (initializes progress variables)
-  call crest_oloop_pr_progress(env,nall,0)
+!>--- initialize progress bar
+  call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,nall)
 
 !>--- shared variables
   allocate (grads(3,nat,T),source=0.0_wp)
@@ -443,7 +449,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
       eread(zcopy) = big
     end if
     k = k+1
-    call crest_oloop_pr_progress(env,nall,k)
+    call progress_update(env%ps,k,nall)
     !$omp end critical
     !$omp end task
   end do
@@ -452,7 +458,7 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
   !$omp end parallel
 
 !>--- finalize progress printout
-  call crest_oloop_pr_progress(env,nall,-1)
+  call progress_finish(env%ps)
 
 !>--- stop timer
   call profiler%stop(1)
@@ -504,6 +510,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   use strucrd
   use optimize_module
   use iomod,only:makedir,directory_exist,remove
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata),target,intent(inout) :: env
   real(wp),intent(inout) :: xyz(3,nat,nall)
@@ -581,8 +588,10 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   call profiler%init(1)
   call profiler%start(1)
 
-!>--- first progress printout (initializes progress variables)
-  call crest_oloop_pr_progress(env,nall,0)
+!>--- initialize progress bar
+  call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,nall)
 
 !>--- shared variables
   allocate (grads(3,nat,T),source=0.0_wp)
@@ -647,7 +656,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
     end if
     k = k+1
     !>--- print progress
-    call crest_oloop_pr_progress(env,nall,k)
+    call progress_update(env%ps,k,nall)
     !$omp end critical
     !$omp end task
   end do
@@ -656,7 +665,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   !$omp end parallel
 
 !>--- finalize progress printout
-  call crest_oloop_pr_progress(env,nall,-1)
+  call progress_finish(env%ps)
 
 !>--- stop timer
   call profiler%stop(1)
@@ -686,64 +695,6 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   if (allocated(molsnew)) deallocate (molsnew)
   return
 end subroutine crest_oloop
-
-!========================================================================================!
-subroutine crest_oloop_pr_progress(env,total,current)
-!*********************************************
-!* subroutine crest_oloop_pr_progress
-!* A subroutine to print and track progress of
-!* concurrent geometry optimizations
-!*********************************************
-  use crest_parameters,only:wp,stdout
-  use crest_data
-  use iomod,only:to_str
-  implicit none
-  type(systemdata),intent(inout) :: env
-  integer,intent(in) :: total,current
-  real(wp) :: percent
-  character(len=5) :: atmp
-  real(wp),save :: increment
-  real(wp),save :: progressbarrier
-
-  percent = float(current)/float(total)*100.0_wp
-  if (current == 0) then !> as a wrapper to start the printout
-    progressbarrier = 0.0_wp
-    if (env%niceprint) then
-      percent = 0.0_wp
-      call printprogbar(percent)
-    end if
-    increment = 10.0_wp
-    if (total > 1000) increment = 7.5_wp
-    if (total > 5000) increment = 5.0_wp
-    if (total > 10000) increment = 2.5_wp
-    if (total > 20000) increment = 1.0_wp
-
-  else if (current <= total.and.current > 0) then !> the regular printout case
-    if (env%niceprint) then
-      call printprogbar(percent)
-
-    else if (.not.env%legacy) then
-      if (percent >= progressbarrier) then
-        write (atmp,'(f5.1)') percent
-        write (stdout,'(1x,a)',advance='no') '|>'//trim(adjustl(atmp))//'%'
-        progressbarrier = progressbarrier+increment
-        progressbarrier = min(progressbarrier,100.0_wp)
-        flush (stdout)
-      end if
-    else
-      write (stdout,'(1x,i0)',advance='no') current
-      flush (stdout)
-    end if
-
-  else !> as a wrapper to finalize the printout
-    if (.not.env%niceprint) then
-      write (stdout,'(/,1x,a)') 'done.'
-    else
-      write (stdout,*)
-    end if
-  end if
-
-end subroutine crest_oloop_pr_progress
 
 !========================================================================================!
 !========================================================================================!

@@ -37,4 +37,5 @@ srcs += files(
   'deform_opt_hess.f90',
   'dryrun.f90',
   'propcalc.f90',
+  'term_ui.f90',
 )

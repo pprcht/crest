@@ -444,6 +444,7 @@ subroutine protonation_prep_canonical(env,refmol,fname)
   use iomod,only:remove
   use adjacency
   use cregen_interface
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata) :: env
   type(coord),intent(in) :: refmol 
@@ -482,7 +483,9 @@ subroutine protonation_prep_canonical(env,refmol,fname)
   allocate (canon(nall))
 
   write (stdout,'(a,i0,a)') '> Setting up canonical atom order for ',nall,' structures via CN-based molecular graphs ...'
-  call crest_oloop_pr_progress(env,nall,0)
+  call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,nall)
   do i = 1,nall
     call canon(i)%init(structures(i),invtype='apsp+')
     call canon(i)%stereo(structures(i))
@@ -490,9 +493,9 @@ subroutine protonation_prep_canonical(env,refmol,fname)
     !call canon(i)%rankprint(structures(i))
     call canon(i)%shrink()
 
-    call crest_oloop_pr_progress(env,nall,i)
+    call progress_update(env%ps,i,nall)
   end do
-  call crest_oloop_pr_progress(env,nall,-1)
+  call progress_finish(env%ps)
 
 !>--- grouping loop
   allocate (group(nall),source=0)

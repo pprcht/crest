@@ -676,6 +676,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
   use iomod
   use crest_data
   use strucrd
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
 
   type(systemdata)                :: env
@@ -747,7 +748,11 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
   end if
 
   k = 0 !counting the finished jobs
-  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
+  if (pr) then
+    call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+      &                suffix="",show_time=.true.,show_eta=.false.)
+    call progress_update(env%ps,0,NTMP)
+  end if
 !___________________________________________________________________________________
 
 !$omp parallel &
@@ -761,9 +766,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
     !$omp critical
     k = k+1
     percent = real(k)/real(NTMP)*100
-    if (pr) then
-      call crest_oloop_pr_progress(env,NTMP,k)
-    end if
+    if (pr) call progress_update(env%ps,k,NTMP)
     !$omp end critical
     !$omp end task
   end do
@@ -790,7 +793,11 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
   end if
 
   k = 0 !counting the finished jobs
-  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
+  if (pr) then
+    call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+      &                suffix="",show_time=.true.,show_eta=.false.)
+    call progress_update(env%ps,0,NTMP)
+  end if
 !___________________________________________________________________________________
 
 !$omp parallel &
@@ -804,9 +811,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
     !$omp critical
     k = k+1
     percent = real(k)/real(NTMP)*100
-    if (pr) then
-      call crest_oloop_pr_progress(env,NTMP,k)
-    end if
+    if (pr) call progress_update(env%ps,k,NTMP)
     !$omp end critical
     !$omp end task
   end do
@@ -827,10 +832,7 @@ subroutine cff_opt(pr,env,fname,n12,NTMP,TMPdir,conv,nothing_added,eread)
     call chdirdbug(trim(thispath))
   end do
 
-  if (pr) then
-    write (stdout,*) ''
-    write (stdout,'(2x,"done.")')
-  end if
+  if (pr) call progress_finish(env%ps)
 
 end subroutine cff_opt
 
@@ -842,6 +844,7 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
   use strucrd
   use crest_calculator
   use optimize_module
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
 
   type(systemdata)                :: env
@@ -934,7 +937,11 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
   !> therefore, just optimize them serially.
 
   k = 0 !counting the finished jobs
-  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
+  if (pr) then
+    call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+      &                suffix="",show_time=.true.,show_eta=.false.)
+    call progress_update(env%ps,0,NTMP)
+  end if
 !___________________________________________________________________________________
 
   do i = 1,NTMP
@@ -953,12 +960,11 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
 
     k = k+1
     percent = real(k)/real(NTMP)*100.0_wp
-    if (pr) then
-      call crest_oloop_pr_progress(env,NTMP,k)
-    end if
+    if (pr) call progress_update(env%ps,k,NTMP)
 
     deallocate (grd)
   end do
+  if (pr) call progress_finish(env%ps)
   !> clear up space
   deallocate (newcalcs)
 !__________________________________________________________________________________
@@ -980,7 +986,11 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
   end do
 
   k = 0 !counting the finished jobs
-  if (pr) call crest_oloop_pr_progress(env,NTMP,k)
+  if (pr) then
+    call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+      &                suffix="",show_time=.true.,show_eta=.false.)
+    call progress_update(env%ps,0,NTMP)
+  end if
 !___________________________________________________________________________________
 
   do i = 1,NTMP
@@ -992,12 +1002,11 @@ subroutine cff_opt_calculator(pr,env,fname,n12,NTMP,TMPdir, &
 
     k = k+1
     percent = real(k)/real(NTMP)*100.0_wp
-    if (pr) then
-      call crest_oloop_pr_progress(env,NTMP,k)
-    end if
+    if (pr) call progress_update(env%ps,k,NTMP)
 
     deallocate (grd)
   end do
+  if (pr) call progress_finish(env%ps)
 !___________________________________________________________________________________
 
   !> for compatibility reasons, let's write the optimized geometries
@@ -1099,6 +1108,7 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
   use iomod
   use crest_data
   use strucrd
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
 
   type(systemdata)                :: env
@@ -1135,7 +1145,9 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
   &    trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),trim(pipe)
 
   k = 0 !counting the finished jobs
-  call crest_oloop_pr_progress(env,NTMP,k)
+  call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,NTMP)
 
 !___________________________________________________________________________________
 
@@ -1153,7 +1165,7 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
     !$omp critical
     k = k+1
     percent = real(k)/real(NTMP)*100
-    call crest_oloop_pr_progress(env,NTMP,k)
+    call progress_update(env%ps,k,NTMP)
     !$omp end critical
     !$omp end task
   end do
@@ -1169,8 +1181,7 @@ subroutine ens_sp(env,fname,NTMP,TMPdir)
     call remove('xtbrestart')
     call chdirdbug(trim(thispath))
   end do
-  write (stdout,*) ''
-  write (stdout,'(2x,"done.")')
+  call progress_finish(env%ps)
 
 end subroutine ens_sp
 
@@ -1184,6 +1195,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
   use iomod
   use crest_data
   use strucrd
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
 
   type(systemdata)                :: env
@@ -1219,7 +1231,9 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
   end if
 
   k = 0 !counting the finished jobs
-  call crest_oloop_pr_progress(env,NTMP,k)
+  call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,NTMP)
 
 !--- Jobcall
   if (.not.opt) then
@@ -1243,7 +1257,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
     !$omp critical
     k = k+1
     percent = real(k)/real(NTMP)*100
-    call crest_oloop_pr_progress(env,NTMP,k)
+    call progress_update(env%ps,k,NTMP)
     !$omp end critical
     !$omp end task
   end do
@@ -1259,8 +1273,7 @@ subroutine ens_freq(env,fname,NTMP,TMPdir,opt)
     call remove('xtbrestart')
     call chdirdbug(trim(thispath))
   end do
-  write (stdout,*) ''
-  write (stdout,'(2x,"done.")')
+  call progress_finish(env%ps)
 
 end subroutine ens_freq
 
@@ -1272,6 +1285,7 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
   use crest_calculator
   use thermochem_module
   use optimize_module
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
 
   type(systemdata)                :: env
@@ -1315,7 +1329,9 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
   end if
 
   k = 0 !counting the finished jobs
-  call crest_oloop_pr_progress(env,NTMP,k)
+  call progress_init(env%ps,NTMP,width=50,prefix=" ↳ ", &
+    &                suffix="",show_time=.true.,show_eta=.false.)
+  call progress_update(env%ps,0,NTMP)
 
 !--- Jobcall
   if (.not.opt) then
@@ -1387,14 +1403,13 @@ subroutine ens_freq_calculator(env,fname,NTMP,TMPdir,opt)
 
     deallocate (freq,hess,tmpgrd)
     k = k+1
-    call crest_oloop_pr_progress(env,NTMP,k)
+    call progress_update(env%ps,k,NTMP)
     call chdirdbug(trim(thispath))
   end do
 
 !__________________________________________________________________________________
 
-  write (stdout,*)
-  write (stdout,'(2x,"done.")')
+  call progress_finish(env%ps)
 end subroutine ens_freq_calculator
 
 !============================================================!

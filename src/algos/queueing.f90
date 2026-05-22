@@ -455,6 +455,7 @@ subroutine crest_queue_reconstruct(env,tim)
   use iomod
   use crest_calculator
   use utilities,only:checkname_xyz
+  use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata),intent(inout) ::  env
   type(timer),intent(inout) :: tim
@@ -686,7 +687,9 @@ contains
       end do
 !      write (stdout,'(2x,a)') 'Recombining under heavy-atom RMSD consideration (this may take a while) ... '
       write (stdout,'(2x,a)') 'Recombining under iRMSD consideration (this may take a while) ... '
-      call crest_oloop_pr_progress(env,max_structs,0)
+      call progress_init(env%ps,max_structs,width=50,prefix=" ↳ ", &
+        &                suffix="",show_time=.true.,show_eta=.false.)
+      call progress_update(env%ps,0,max_structs)
 
       call profiler%init(1)
       call profiler%start(1)
@@ -798,7 +801,7 @@ contains
               if (.not.duplicate) then
                 layer%nmols = layer%nmols+1
                 layer%mols(layer%nmols) = mol
-                call crest_oloop_pr_progress(env,max_structs,layer%nmols)
+                call progress_update(env%ps,layer%nmols,max_structs)
                 if (layer%nmols == max_structs) exit regionloop
               end if
             end if
@@ -806,8 +809,9 @@ contains
         end do
       end do regionloop
       if (layer%nmols < max_structs) then
-        call crest_oloop_pr_progress(env,1,1)
+        call progress_update(env%ps,1,1)
       end if
+      call progress_finish(env%ps)
       write (stdout,'(2x,a)') 'done!'
       if (duplicates > 0) then
         write (stdout,'(2x,a,i0)') 'Avoided duplicates       : ',duplicates

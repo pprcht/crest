@@ -30,6 +30,7 @@ module crest_data
   use crest_type_timer,only:timer
   use lwoniom_module,only:lwoniom_input
   use molbuilder_construct_list !> from molbuilder dir
+  use term_ui,only:progress_state
   implicit none
 
   public :: systemdata
@@ -668,6 +669,7 @@ module crest_data
     logical :: water = .false.       !> true if water is used as solvent (only QCG)
     logical :: wallsetup = .false.   !> set up a wall potential?
     logical :: wbotopo = .false.     !> set up topo with WBOs
+    type(progress_state) :: ps  !> terminal progress bar state
   contains
     procedure :: allocate => allocate_metadyn
     procedure :: deallocate => deallocate_metadyn
