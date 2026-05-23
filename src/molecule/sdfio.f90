@@ -1,7 +1,7 @@
 !================================================================================!
 ! This file is part of crest.
 !
-! Copyright (C) 2018-2020 Philipp Pracht
+! Copyright (C) 2018-2025 Philipp Pracht
 !
 ! crest is free software: you can redistribute it and/or modify it under
 ! the terms of the GNU Lesser General Public License as published by
@@ -39,85 +39,108 @@ subroutine inpsdf(env,fname)
   return
 end subroutine inpsdf
 
+!================================================================================!
+
 subroutine new_wrsdfens(env,fname,oname,conf)
-  use iso_fortran_env,only:wp => real64
-  use iomod
+  !***********************************************************************
+  !* Write a conformer ensemble as an SDF file.
+  !* Bond orders (WBO) are obtained via a singlepoint calculation using
+  !* the calculator configured in env.
+  !*
+  !* Input:
+  !*  env  -  crest's systemdata object (provides calculator and charge)
+  !*  fname - input XYZ ensemble file
+  !*  oname - output SDF file name
+  !*  conf  - if .true., run a separate SP for each structure (loopwbo)
+  !***********************************************************************
+  use crest_parameters
   use crest_data
+  use crest_calculator
   use strucrd
-  use zdata,only:readwbo
   implicit none
-  type(systemdata) :: env
+  type(systemdata),intent(inout) :: env
   character(len=*),intent(in) :: fname
   character(len=*),intent(in) :: oname
-  logical,intent(in),optional :: conf
-  integer  :: nat,nall
-  integer,allocatable  :: at(:)
-  real(wp),allocatable :: eread(:)
-  real(wp),allocatable :: xyz(:,:,:)
-  real(wp),allocatable :: c0(:,:)
+  logical,intent(in) :: conf
+  !> local
+  type(coord),allocatable :: structures(:)
+  type(calcdata) :: tmpcalc
+  type(calculation_settings) :: cal
   real(wp),allocatable :: wbo(:,:)
+  real(wp),allocatable :: grad(:,:)
   real(wp),allocatable :: icharges(:)
-  integer :: i,j,ich
-  real(wp) :: er
-  logical :: ex,loopwbo,atmchrg
+  integer :: nall,nat,ich,io,i
+  real(wp) :: energy,er
+  logical :: loopwbo,atmchrg
   character(len=120) :: sdfcomment
-  loopwbo = .false.
-  atmchrg = .false.
-  if (present(conf)) loopwbo = conf
-  !>--- read existing ensemble
-  call rdensembleparam(fname,nat,nall)
-  allocate (at(nat),eread(nat),xyz(3,nat,nall))
-  call rdensemble(fname,nat,nall,at,xyz,eread)
-  allocate (wbo(nat,nat),c0(3,nat),source=0.0_wp)
-  !>--- determine how to obtain wbos
-  wbo = 0.0_wp
-  inquire (file='wbo',exist=ex)
-  if (ex.and..not.loopwbo) then
-    call readwbo('wbo',nat,wbo)
-  elseif (.not.ex.and..not.loopwbo) then
-    call xtbsp(env,0) !> gfn0 singlepoint
-    call readwbo('wbo',nat,wbo)
-  end if
-  !>--- (optional) some special settings
-  if (env%properties == p_protonate) atmchrg = .true.
 
+  atmchrg = .false.
+  loopwbo = conf
+
+  ! ── read ensemble as array of coord objects (xyz in Bohr) ─────────────
+  call rdensemble(fname,nall,structures)
+  nat = structures(1)%nat
+
+  ! ── set up a minimal GFN0 singlepoint calculator for WBOs ─────────────
+  call cal%create('gfn0')
+  cal%chrg = env%chrg
+  cal%uhf = env%uhf
+  cal%rdwbo = .true.
+  call cal%autocomplete(1)
+  call tmpcalc%add(cal)
+  allocate (wbo(nat,nat),grad(3,nat),source=0.0_wp)
+  energy = 0.0_wp
+
+  ! ── for non-loopwbo: one SP on the first structure, WBO reused for all ─
+  if (.not.loopwbo) then
+    call engrad(structures(1),tmpcalc,energy,grad,io)
+    if (allocated(tmpcalc%calcs(1)%wbo)) wbo = tmpcalc%calcs(1)%wbo
+  end if
+
+  ! ── (optional) special per-atom charge handling ───────────────────────
+  if (env%properties == p_protonate) atmchrg = .true.
   if (atmchrg) allocate (icharges(nat),source=0.0_wp)
 
-  !>--- open sdf output file
+  ! ── write SDF output ──────────────────────────────────────────────────
   open (newunit=ich,file=oname)
   do i = 1,nall
     write (sdfcomment,'(a,i0,a,i0)') 'structure ',i,' of ',nall
-    c0(1:3,1:nat) = xyz(1:3,1:nat,i)
-    er = eread(i)
+    er = structures(i)%energy
     if (loopwbo) then
-      call wrxyz('tmpstruc.xyz',nat,at,c0)
-      call xtbsp2('tmpstruc.xyz',env) !> singlepoint for wbos
-      call readwbo('wbo',nat,wbo)
+      ! ── per-structure SP for bond orders (protonation/tautomer modes) ─
+      wbo = 0.0_wp
+      call engrad(structures(i),tmpcalc,energy,grad,io)
+      if (allocated(tmpcalc%calcs(1)%wbo)) wbo = tmpcalc%calcs(1)%wbo
     end if
     if (atmchrg) then
       if (env%properties == p_protonate) then
         call set_prot_icharges(nat,wbo,icharges)
       end if
-      call wrsdf(ich,nat,at,c0,er,env%chrg,wbo,sdfcomment,icharges)
+      !> wrsdf expects Angstrom: multiply Bohr coordinates by bohr (Å/bohr)
+      call wrsdf(ich,nat,structures(i)%at,structures(i)%xyz*bohr, &
+      &          er,env%chrg,wbo,sdfcomment,icharges)
     else
-      call wrsdf(ich,nat,at,c0,er,env%chrg,wbo,sdfcomment)
+      call wrsdf(ich,nat,structures(i)%at,structures(i)%xyz*bohr, &
+      &          er,env%chrg,wbo,sdfcomment)
     end if
   end do
   close (ich)
 
+  call tmpcalc%reset()
   if (allocated(icharges)) deallocate (icharges)
-  deallocate (c0,wbo,xyz,eread,at)
+  deallocate (wbo,grad,structures)
 
 contains
   subroutine set_prot_icharges(nat,wbo,icharges)
-    !>--- special routine for protonation mode
-    !     find the atom on which the proton was set
-    !     and set its charge to 1. The added proton is
-    !     always the last in the list, k=nat
+    !***********************************************
+    !* For protonation mode: locate the heavy atom
+    !* bonded to the added proton (last in list)
+    !* and assign it a formal charge of +1.
+    !***********************************************
     integer,intent(in) :: nat
     real(wp),intent(in) :: wbo(nat,nat)
     real(wp),intent(out) :: icharges(nat)
-    integer :: i,j,k
+    integer :: i,k
     icharges = 0.0_wp
     k = nat
     do i = 1,nat
@@ -125,6 +148,32 @@ contains
         icharges(i) = 1.0_wp
       end if
     end do
-    return
   end subroutine set_prot_icharges
 end subroutine new_wrsdfens
+
+!================================================================================!
+
+subroutine crest_ensemble_reformat(env)
+  !***************************************************************
+  !* Reformat the conformer ensemble into requested alternative
+  !* file formats (currently SDF) after the run completes.
+  !*
+  !* Input:
+  !*  env  -  crest's systemdata object
+  !***************************************************************
+  use crest_parameters
+  use crest_data
+  implicit none
+  type(systemdata),intent(inout) :: env
+
+  ! ── SDF ensemble output ───────────────────────────────────────
+  if (env%outputsdf .or. env%sdfformat) then
+    if (any((/crest_mfmdgc,crest_imtd,crest_imtd2/) == env%crestver)) then
+      call new_wrsdfens(env,conformerfile,conformerfilebase//'.sdf',.false.)
+    end if
+    if (any((/crest_screen,crest_mdopt/) == env%crestver)) then
+      call new_wrsdfens(env,'crest_ensemble.xyz','crest_ensemble.sdf',.false.)
+    end if
+  end if
+
+end subroutine crest_ensemble_reformat

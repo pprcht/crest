@@ -309,14 +309,7 @@ program CREST
 !=========================================================================================!
 !>        ADDITIONAL OUTPUT FORMATTING
 !=========================================================================================!
-  if (env%outputsdf.or.env%sdfformat) then
-    if (any((/crest_mfmdgc,crest_imtd,crest_imtd2/) == env%crestver)) then
-      call new_wrsdfens(env,conformerfile,conformerfilebase//'.sdf',.false.)
-    end if
-    if (any((/crest_screen,crest_mdopt/) == env%crestver)) then
-      call new_wrsdfens(env,'crest_ensemble.xyz','crest_ensemble.sdf',.false.)
-    end if
-  end if
+  call crest_ensemble_reformat(env)
 
 !=========================================================================================!
 !>        POST-CONFSEARCH PROPERTY CALCS
