@@ -1430,7 +1430,6 @@ contains  !>--- Module routines start here
         case (1);  rtmp = 'singlepoint'
         case (2);  rtmp = 'correction'
         case (3);  rtmp = 'geoopt'
-        case (4);  rtmp = 'ConfSolv'
         case (5);  rtmp = 'deltaG'
         case (10); rtmp = 'post_opt'
         case (11); rtmp = 'post_sp'

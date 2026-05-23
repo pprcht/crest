@@ -145,7 +145,6 @@ module crest_data
     integer :: singlepoint = 1
     integer :: correction  = 2
     integer :: geoopt      = 3
-    integer :: ConfSolv    = 4
     integer :: deltaG      = 5
     !> post_opt   (= 10): post-search re-optimization via pqueue job 51 (e.g. A@B)
     !> post_sp    (= 11): post-search SP reranking       via pqueue job 52 (--rerank)

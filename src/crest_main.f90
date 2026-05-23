@@ -352,13 +352,6 @@ program CREST
   end if
 
 !=========================================================================================!
-!> shout down hosted subprocesses
-  block
-    use ConfSolv_module
-    call cs_shutdown(io)
-  end block
-
-!=========================================================================================!
 !> one final cleanup
   call custom_cleanup(env)
 

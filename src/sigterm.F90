@@ -59,13 +59,9 @@ end subroutine creststop
   subroutine wsigint() !> Ctrl+C
 #endif
     use crest_parameters,only:stderr,stdout
-
-    use ConfSolv_module
-    integer :: myunit,io
     write (*,*)
     write (stderr,'(" recieved SIGINT, trying to terminate CREST...")')
     !call dump_restart()
-    call cs_shutdown(io)
     call exit(130)
     error stop
   end subroutine wsigint
@@ -76,13 +72,9 @@ end subroutine creststop
   subroutine wsigquit() !> Ctrl+D
 #endif
     use crest_parameters,only:stderr,stdout
-
-    use ConfSolv_module
-    integer :: myunit,io
     write (*,*)
     write (stderr,'(" recieved SIGQUIT, trying to terminate CREST...")')
     !call dump_restart()
-    call cs_shutdown(io)
     call exit(131)
     error stop
   end subroutine wsigquit
@@ -93,13 +85,9 @@ end subroutine creststop
   subroutine wsigterm() !> Recieved by the "kill" pid command
 #endif
     use crest_parameters,only:stderr,stdout
-
-    use ConfSolv_module
-    integer :: io
     write (stdout,*)
     write (stderr,'(" recieved SIGTERM, trying to terminate CREST...")')
     !call dump_restart()
-    call cs_shutdown(io)
     call exit(143)
     error stop
   end subroutine wsigterm
@@ -110,11 +98,7 @@ end subroutine creststop
   subroutine wsigkill()
 #endif
     use crest_parameters,only:stderr,stdout
-
-    use ConfSolv_module
-    integer :: io
     !call dump_restart()
-    call cs_shutdown(io)
     call exit(137)
     error stop 'CREST recieved SIGKILL.'
   end subroutine wsigkill

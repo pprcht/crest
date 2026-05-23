@@ -28,7 +28,6 @@ srcs += files(
   'setuptest.f90',
   'sorting.f90',
   'protonate.f90',
-  'ConfSolv.F90',
   'search_conformers.f90',
   'search_entropy.f90',
   'parallel.f90', 

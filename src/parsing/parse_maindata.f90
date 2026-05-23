@@ -344,8 +344,6 @@ contains   !> MODULE PROCEDURES START HERE
     select case (blk%header)
     case ('cregen')
       call parse_cregen(env,blk,istat)
-    case ('confsolv')
-      call parse_confsolv(env,blk,istat)
     case ('thermo')
       call parse_thermo(env,blk,istat)
     case ('protonation')
@@ -385,57 +383,6 @@ contains   !> MODULE PROCEDURES START HERE
       end select
     end do
   end subroutine parse_cregen
-
-!========================================================================================!
-  subroutine parse_confsolv(env,blk,istat)
-    use ConfSolv_module
-    implicit none
-    type(systemdata) :: env
-    type(datablock) :: blk
-    type(keyvalue) :: kv
-    integer,intent(inout) :: istat
-    integer :: i
-!>--- add ConfSolv as refinement level to give a ΔΔGsoln
-    call env%addrefine(refine%ConfSolv)
-    env%ewin = 100.0_wp
-
-!>--- parse the arguments
-    do i = 1,blk%nkv
-      kv = blk%kv_list(i)
-      select case (kv%key)
-      case ('pid')
-        if (.not.allocated(cs_pid)) allocate (cs_pid)
-        cs_pid = kv%value_i
-      case ('bin')
-        cs_bin = trim(kv%value_c)
-      case ('port')
-        if (.not.allocated(cs_port)) allocate (cs_port)
-        cs_port = kv%value_i
-      case ('solvent')
-        !> to define a single solvent like: solvent = ['water','O']
-        if (kv%na == 2) then
-          cs_solvent = trim(kv%value_rawa(1))
-          cs_smiles = trim(kv%value_rawa(2))
-        else if (index(kv%value_c,'.csv') .ne. 0) then
-          cs_solvfile = kv%value_c
-        else
-          cs_solvent = kv%value_c
-        end if
-      case ('solvent_csv','solvfile')
-        cs_solvfile = kv%value_c
-      case ('solvent_name')
-        cs_solvent = kv%value_c
-      case ('solvent_smiles')
-        cs_smiles = kv%value_c
-      case ('model_path','param','checkpoint')
-        cs_param = kv%value_c
-      case default
-        !>--- unrecognized keyword
-        istat = istat+1
-        write (stdout,fmturk) '[confsolv]-block',kv%key
-      end select
-    end do
-  end subroutine parse_confsolv
 
 !========================================================================================!
 
