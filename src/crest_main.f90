@@ -141,10 +141,6 @@ program CREST
     call calcSrrhoav(env,env%ensemblename)
     call tim%stop(4)
     call propquit(tim)
-!>--- to PCA and k-Means clustering for given file
-  case (p_cluster)
-    call ccegen(env,.true.,env%ensemblename)
-    call propquit(tim)
 !>--- properties for enesemble file
   case (p_propcalc)
     call propcalc(env%ensemblename,env%properties2,env,tim)

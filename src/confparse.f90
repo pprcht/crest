@@ -2793,8 +2793,8 @@ subroutine parseflags(env,arg,nra)
           !>--- for standalone use
           env%properties = p_cluster
         elseif (env%crestver == crest_sorting) then
-          !>--- as extension for CREGEN/sorting
-          env%cluster = .true.
+          !>--- standalone clustering via --sort --cluster
+          env%sortmode = 'cluster'
         else if (any((/crest_imtd,crest_imtd2/) == env%crestver)) then
           !>--- works as an extensiton to the conformational search
           env%properties = abs(p_cluster)

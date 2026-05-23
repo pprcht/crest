@@ -93,6 +93,7 @@ subroutine CCEGEN(env,pr,fname)
   real(wp),allocatable :: eclust(:)
   integer,allocatable :: clustbest(:),ind(:)
   real(wp),allocatable :: statistics(:,:)
+  integer,allocatable :: clust_sizes(:)
   logical,allocatable :: extrema(:,:)
   logical :: autolimit
   real(wp) :: fraclimit
@@ -148,6 +149,11 @@ subroutine CCEGEN(env,pr,fname)
   autolimit = .true. !if the ensemble is very large, take only a fraction to speed up things
   !(only for predefined clustersizes with "-cluster N" )
   fraclimit = 0.25d0 !if autolimit=true, 1/4 of the ensemble is taken
+
+  !>--- override pcthr and csthr based on clustering level
+  if (env%maxcluster == 0) then
+    call clustleveval(env,nclustmax,csthr,SSRSSTthr,pcthr)
+  end if
 
   !>--- 1. topology for reference strucuture
   if (env%wbotopo) then
@@ -332,19 +338,21 @@ subroutine CCEGEN(env,pr,fname)
         do j = 1,ntaken
           do k = 1,3
             l = l+1
-            measure(j,l) = xyznew(k,j,i)
+            if (l > mn) exit
+            measure(l,i) = xyznew(k,j,i)
           end do
+          if (l > mn) exit
         end do
       end do
       !==========================================================================!
     case default !case( 'zmat','zmatrix' )
       if (pr) then
-        write (stdout,'(1x,a)') 'Using ZMATRIX as descriptors:'
+        write (stdout,'(1x,a)') 'Using ZMATRIX as descriptors (sin/cos of dihedrals):'
       end if
-      !>-- dihedral angles
-      mn = ntaken-3 !>--- first three dihedral angles are zero
-      mn = min(mm,mn) !>--- no more descriptors than structures for SVD!
-      if (mn < 1) then !> we need at least 2 dihedral angles, and therefore 5 descriptors
+      !>-- dihedral angles, sin/cos transformed for periodicity
+      l = ntaken-3 !>--- first three dihedral angles are zero
+      mn = min(mm,2*l) !>--- two descriptors per dihedral, no more than structures
+      if (mn < 2) then !> we need at least 1 dihedral angle (2 descriptors)
         if (pr) then
           write (stdout,*) "Not enough descriptors for PCA!"
           return
@@ -357,30 +365,31 @@ subroutine CCEGEN(env,pr,fname)
         na = 0; nb = 0; nc = 0
         geo = 0.0d0
         call xyzint(xyznew(1:3,1:ntaken,i),ntaken,na,nb,nc,rad,geo)
-        do j = 1,mn
+        do j = 1,mn/2
           k = j+3
-          measure(j,i) = geo(3,k)
+          dum = geo(3,k)/rad !> convert degrees to radians
+          measure(2*j-1,i) = sin(dum)
+          measure(2*j,i) = cos(dum)
         end do
       end do
       deallocate (nc,nb,na,geo)
       !=========================================================================!
     case ('dihedral')
-      mn = min(mm,ntaken) !>--- no more descriptors than structures for SVD!
+      mn = min(mm,2*ntaken) !>--- two descriptors per dihedral (sin/cos)
       allocate (measure(mn,mm),diedr(ndied))
       if (pr) then
-        write (stdout,'(1x,a)') 'Using DIHEDRAL ANGLES as descriptors:'
-        do i = 1,mn
+        write (stdout,'(1x,a)') 'Using DIHEDRAL ANGLES as descriptors (sin/cos transformed):'
+        do i = 1,ntaken
           write (stdout,'(1x,a,4i6)') 'Atoms: ',diedat(1:4,i)
         end do
         write (stdout,*)
       end if
       do i = 1,mm
         call calc_dieders(zens%nat,zens%xyz(:,:,i),ndied,diedat,diedr)
-        do j = 1,mn
-          !   if(i<5 .and. pr)then
-          !   write(*,'(1x,4i6,1x,f8.2)') diedat(1:4,j),diedr(j)
-          !   endif
-          measure(j,i) = diedr(j)
+        do j = 1,min(ntaken,mn/2)
+          dum = diedr(j)/rad !> convert degrees to radians
+          measure(2*j-1,i) = sin(dum)
+          measure(2*j,i) = cos(dum)
         end do
       end do
       if (allocated(diedat)) deallocate (diedat)
@@ -520,7 +529,7 @@ subroutine CCEGEN(env,pr,fname)
 !-----------------------------------------------------------------------!
   if (env%maxcluster == 0) then
     !nclustmax=100  !some random default value
-    call clustleveval(env,nclustmax,csthr,SSRSSTthr) ! defaults
+    call clustleveval(env,nclustmax,csthr,SSRSSTthr,pcthr) ! defaults
     nclustmax = min(mm,nclustmax)
     !SSRSSTthr=0.90  !exit if this value is reached  for SSR/SST
   else
@@ -537,6 +546,7 @@ subroutine CCEGEN(env,pr,fname)
   end if
 
   allocate (statistics(3,nclustmax),source=0.0d0)
+  allocate (clust_sizes(nclustmax),source=0)
   CLUSTERSIZES: do nclustiter = nclustmin,nclustmax
 
     !>-- regular case: test continuous cluster sizes
@@ -547,6 +557,7 @@ subroutine CCEGEN(env,pr,fname)
       dum2 = dum*float(nclustiter)
       nclust = nint(dum2)
     end if
+    clust_sizes(nclustiter) = nclust
 
     allocate (centroid(npc,nclust),source=0.0_ap)
     centroid = 0.0_ap
@@ -566,9 +577,9 @@ subroutine CCEGEN(env,pr,fname)
     call ctimer%stop(3)
     deallocate (centroid)
 
-    statistics(1,nclust) = DBI
-    statistics(2,nclust) = pSF
-    statistics(3,nclust) = SSRSST
+    statistics(1,nclustiter) = DBI
+    statistics(2,nclustiter) = pSF
+    statistics(3,nclustiter) = SSRSST
 
     if (nclust == env%nclust) exit
     if (SSRSST > SSRSSTthr) exit
@@ -584,15 +595,15 @@ subroutine CCEGEN(env,pr,fname)
       write (stdout,'(1x,a)') 'Higher SSR/SST vaules indicate more distinct clusters.'
       write (stdout,'(1x,a)') 'Analyzing statistical values ...'
     end if
-    k = nclust
+    k = min(nclustiter, nclustmax) !> last completed iteration index
     allocate (extrema(2,k))
     call ctimer%start(3,'statistics')
-    call statanal(k,nclustmax,statistics,extrema,pr)
+    call statanal(k,nclustmax,statistics,extrema,pr,clust_sizes)
     if (pr) call statwarning(fname)
     !>-- determine a suggested cluster size (smallest suggested cluster with good SSR/SST)
     do i = 2,k
       if ((extrema(1,i).or.extrema(2,i)).and.(statistics(3,i) > csthr)) then
-        nclust = i
+        nclust = clust_sizes(i)
         exit
       end if
     end do
@@ -616,7 +627,7 @@ subroutine CCEGEN(env,pr,fname)
       write (stdout,'(1x,a,i0,a)') 'Ensemble partitioning into ',nclust,' clsuters.'
     end if
   end if
-  deallocate (statistics)
+  deallocate (statistics,clust_sizes)
 
   deallocate (q,p,dist)
   !>-- finally, assign a representative structure to each group (based on lowest energy)
@@ -704,7 +715,11 @@ end subroutine CCEGEN
 !=======================================================================================!
 ! set clustering level defaults
 !=======================================================================================!
-subroutine clustleveval(env,maxclust,csthr,SSRSSTthr)
+subroutine clustleveval(env,maxclust,csthr,SSRSSTthr,pcthr)
+  !*********************************************************
+  !* Set clustering level defaults for maxclust, csthr,    *
+  !* SSRSSTthr, and pcthr based on the clustering level.   *
+  !*********************************************************
   use crest_parameters,idp => dp
   use crest_data
   implicit none
@@ -713,6 +728,7 @@ subroutine clustleveval(env,maxclust,csthr,SSRSSTthr)
   integer :: maxclust
   real(wp) :: csthr
   real(wp) :: SSRSSTthr
+  real(wp) :: pcthr
 
   SSRSSTthr = 0.90  !exit if this value is reached  for SSR/SST
 
@@ -725,19 +741,23 @@ subroutine clustleveval(env,maxclust,csthr,SSRSSTthr)
   case (-1) !-- loose
     maxclust = 25
     csthr = 0.80d0
+    pcthr = 0.80d0
   case (1)  !-- tight
     maxclust = 400
     if (env%clustlev >= 10) maxclust = 50
     csthr = 0.85d0
+    pcthr = 0.90d0
   case (2)  !-- vtight
     maxclust = 400
     if (env%clustlev >= 10) maxclust = 100
     csthr = 0.9d0
+    pcthr = 0.95d0
     SSRSSTthr = 0.92d0
   case default !-- normal
     maxclust = 100
     if (env%clustlev >= 10) maxclust = 25
     csthr = 0.80d0
+    pcthr = 0.85d0
   end select
 
   return
@@ -905,6 +925,8 @@ subroutine kmeans(nclust,npc,mm,centroid,pcvec,ndist,dist,member)
   integer,intent(inout) :: member(mm)  ! membership for each structure
   real(ap),intent(inout):: centroid(npc,nclust)
   integer,allocatable :: refmember(:)
+  integer :: iter
+  integer,parameter :: maxiter = 300
 
   if (nclust .le. 1) return !no singular clusters!
 
@@ -913,7 +935,7 @@ subroutine kmeans(nclust,npc,mm,centroid,pcvec,ndist,dist,member)
   !>-- determine seeds for the centroids (i.e., initial positions)
   call kmeans_seeds(nclust,npc,mm,centroid,pcvec,ndist,dist)
 
-  do
+  do iter = 1,maxiter
     !>-- determine cluster membership for all structures
     !>   (by shortest Euc. distance to the respective centroid)
     member = 0 !reset
@@ -988,8 +1010,8 @@ subroutine kmeans_seeds(nclust,npc,mm,centroid,pcvec,ndist,dist)
         distsum = distsum+eucdist(npc,p,q)
       end do
       !$OMP CRITICAL
-      if (.not.any(taken == j)) then
-        if (distsum .gt. maxdistsum) then
+      if (distsum .gt. maxdistsum) then
+        if (.not.any(taken == j)) then
           maxdistsum = distsum
           c = j
           taken(i) = c
@@ -1206,15 +1228,16 @@ end subroutine cluststat
 ! analyze the statistical values DBI and pSF to get the
 ! respective extrema
 !==============================================================!
-subroutine statanal(n,nmax,statistics,extrema,pr)
+subroutine statanal(n,nmax,statistics,extrema,pr,clust_sizes)
   use crest_parameters
   implicit none
   integer :: n,nmax
   real(wp) :: statistics(3,nmax)
   logical,intent(inout) :: extrema(2,n)
   logical :: pr
+  integer,intent(in),optional :: clust_sizes(n)
   real(wp) :: last,next,current
-  integer :: i
+  integer :: i,csize
 
   extrema = .false.
 !>--- identify local extrema of the DBI and pSF
@@ -1234,16 +1257,23 @@ subroutine statanal(n,nmax,statistics,extrema,pr)
       extrema(2,i) = .true.
     end if
   end do
+  !>--- boundary check: last cluster count (one-sided comparison)
+  if (n >= 2) then
+    if (statistics(1,n) < statistics(1,n-1)) extrema(1,n) = .true.
+    if (statistics(2,n) > statistics(2,n-1)) extrema(2,n) = .true.
+  end if
 
   if (pr) then
     write (stdout,*)
     write (stdout,'(1x,a,/)') 'Suggestions for cluster sizes:'
     do i = 1,n
       if (extrema(1,i).or.extrema(2,i)) then
+        csize = i
+        if (present(clust_sizes)) csize = clust_sizes(i)
         if (extrema(1,i).and.extrema(2,i)) then
-          write (stdout,'(1x,i8,''*'',3x,a,f8.4)') i,'SSR/SST',statistics(3,i)
+          write (stdout,'(1x,i8,''*'',3x,a,f8.4)') csize,'SSR/SST',statistics(3,i)
         else
-          write (stdout,'(1x,i8,4x,a,f8.4)') i,'SSR/SST',statistics(3,i)
+          write (stdout,'(1x,i8,4x,a,f8.4)') csize,'SSR/SST',statistics(3,i)
         end if
       end if
     end do
@@ -1271,11 +1301,11 @@ subroutine statwarning(fname)
   write (stdout,'(2x,a)') 'the DBI and pSF values for the given data.'
   write (stdout,*)
   write (stdout,'(2x,a)') 'If other cluster sizes are desired, rerun CREST with'
-  write (stdout,'(2x,3a)') '"crest --for ',trim(fname),' --cluster <number of clusters>"'
+  write (stdout,'(2x,3a)') '"crest --sort ',trim(fname),' --cluster <number of clusters>"'
   write (stdout,*)
   write (stdout,'(2x,a)') 'Other default evaluation settings can be chosen with the'
   write (stdout,'(2x,a)') 'keywords "loose","normal", and "tight" as <level> via'
-  write (stdout,'(2x,3a)') '"crest --for ',trim(fname),' --cluster <level>"'
+  write (stdout,'(2x,3a)') '"crest --sort ',trim(fname),' --cluster <level>"'
   write (stdout,'(1x,a)') '!--------------------------------------------------------------!'
 end subroutine statwarning
 
@@ -1364,7 +1394,7 @@ subroutine calc_dieders(nat,xyz,ndied,diedat,diedr)
     coords(1:3,4) = xyz(1:3,d)
     call DIHED(coords,1,2,3,4,angle)
     angle = abs(angle)*rad2degree
-    if (abs(angle-360.0_wp) < tol) angle = 0.0_wp
+    !if (abs(angle-360.0_wp) < tol) angle = 0.0_wp
     diedr(i) = angle
   end do
 

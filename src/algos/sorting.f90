@@ -39,6 +39,7 @@ subroutine crest_sort(env,tim)
   type(coord) :: mol,molnew
   integer :: i,j,k,l,io,ich
   logical :: pr,wr
+  external :: CCEGEN
 !========================================================================================!
   integer :: nall
   type(coord),allocatable :: structures(:)
@@ -56,6 +57,8 @@ subroutine crest_sort(env,tim)
     write (stdout,'(a,a)',advance='no') '> Reading files ',trim(env%ensemblename)
     flush (stdout)
     write (stdout,'(a,a)') ' and ',trim(env%ensemblename2)
+  case ('cluster')
+    continue !> ccegen reads the ensemble internally
   end select
   write (stdout,*)
 
@@ -96,6 +99,10 @@ subroutine crest_sort(env,tim)
 !>--- the original CREGEN procedure
     call newcregen(env,structurelist=structures)
     call catdel('cregen.out.tmp')
+
+  case ('cluster')
+!>--- PCA and k-means clustering
+    call CCEGEN(env,.true.,env%ensemblename)
 
   case default
 !>--- all unique pairs of the ensemble (only suitable for small ensembles)
