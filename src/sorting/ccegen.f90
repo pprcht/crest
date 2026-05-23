@@ -50,8 +50,9 @@ subroutine CCEGEN(env,pr,fname)
   integer,allocatable :: inc(:)
   logical :: heavyonly
   integer :: i,j,k,l,ich,c
+  integer :: nat,nall
   real(wp) :: dum,dum2
-  type(ensemble) :: zens
+  type(coord),allocatable :: mols(:)
 
   character(len=:),allocatable :: measuretype
 
@@ -100,9 +101,6 @@ subroutine CCEGEN(env,pr,fname)
 
   !>--- printout and params
   real(wp) :: emin,erel
-  real(wp),parameter :: kcal = 627.5095d0
-  !real(wp),parameter :: pi =  3.14159265358979D0
-  real(wp),parameter :: rad = 180.0d0/pi
 
   call ctimer%init(20)
   if (pr) then
@@ -119,19 +117,20 @@ subroutine CCEGEN(env,pr,fname)
 ! Prepare a coordinate ensemble for the clustering
 !=========================================================!
   !>--- 0. Set defaults, read ensemble
-  call zens%open(fname) !read in the ensemble
-  if (zens%nall < 1) then
+  call rdensemble(fname,nall,mols)
+  if (nall < 1) then
     error stop "Ensemble is empty! must stop"
-  else if (zens%nall == 1) then
+  end if
+  nat = mols(1)%nat
+  if (nall == 1) then
     if (pr) then
       write (stdout,*) 'Only one structure in ensemble!'
       write (stdout,*) 'Write structure to ',clusterfile,' and skip PCA parts'
     end if
     open (newunit=ich,file=clusterfile)
-    dum = zens%er(1)
-    call wrxyz(ich,zens%nat,zens%at,zens%xyz(:,:,1),dum)
+    call mols(1)%append(ich)
     close (ich)
-    call zens%deallocate()
+    deallocate (mols)
     return
   end if
 
@@ -155,15 +154,13 @@ subroutine CCEGEN(env,pr,fname)
     call clustleveval(env,nclustmax,csthr,SSRSSTthr,pcthr)
   end if
 
-  !>--- 1. topology for reference strucuture
+  !>--- 1. topology for reference structure
   if (env%wbotopo) then
     env%wbofile = 'wbo'
   else
     env%wbofile = 'none given'
   end if
-  zens%xyz = zens%xyz/bohr  !ANG to Bohr for topo
-  call simpletopo(zens%nat,zens%at,zens%xyz,zmol,pr,.false.,env%wbofile)
-  zens%xyz = zens%xyz*bohr  !Bohr to ANG
+  call simpletopo(nat,mols(1)%at,mols(1)%xyz,zmol,pr,.false.,env%wbofile)
   allocate (inc(zmol%nat),source=0)
 
 !===========================================================!
@@ -241,26 +238,25 @@ subroutine CCEGEN(env,pr,fname)
 
     !>-- for very large ensemble files limit the clustering
     if (autolimit) then
-      if ((env%nclust /= 0).and.(env%nclust*100 < zens%nall)) then
-        dum = float(zens%nall)*fraclimit
+      if ((env%nclust /= 0).and.(env%nclust*100 < nall)) then
+        dum = float(nall)*fraclimit
         dum2 = float(env%nclust)
         nallnew = nint(max(dum,dum2))
       else
-        nallnew = zens%nall
+        nallnew = nall
       end if
     else
-      nallnew = zens%nall
+      nallnew = nall
     end if
 
     !>--- 5. Transfer the relevant atoms to a new array
-    allocate (xyznew(3,ntaken,nallnew))!,atnew(ntaken))
+    allocate (xyznew(3,ntaken,nallnew))
     do i = 1,nallnew
       k = 0
-      do j = 1,zens%nat
+      do j = 1,nat
         if (inc(j) == 1) then
           k = k+1
-          xyznew(:,k,i) = zens%xyz(:,j,i)
-          !atnew(k) = zens%at(j)
+          xyznew(:,k,i) = mols(i)%xyz(:,j)
         end if
       end do
     end do
@@ -271,15 +267,15 @@ subroutine CCEGEN(env,pr,fname)
 
     !-- for very large ensemble files limit the clustering
     if (autolimit) then
-      if ((env%nclust /= 0).and.(env%nclust*100 < zens%nall)) then
-        dum = float(zens%nall)*fraclimit
+      if ((env%nclust /= 0).and.(env%nclust*100 < nall)) then
+        dum = float(nall)*fraclimit
         dum2 = float(env%nclust)
         nallnew = nint(max(dum,dum2))
       else
-        nallnew = zens%nall
+        nallnew = nall
       end if
     else
-      nallnew = zens%nall
+      nallnew = nall
     end if
 
     inc = 1
@@ -303,7 +299,6 @@ subroutine CCEGEN(env,pr,fname)
       write (stdout,*)
       call smallhead('PRINCIPAL COMPONENT ANALYSIS')
     end if
-    !mm = zens%nall
     mm = nallnew
     select case (measuretype)
       !==========================================================================!
@@ -364,10 +359,10 @@ subroutine CCEGEN(env,pr,fname)
       do i = 1,mm
         na = 0; nb = 0; nc = 0
         geo = 0.0d0
-        call xyzint(xyznew(1:3,1:ntaken,i),ntaken,na,nb,nc,rad,geo)
+        call xyzint(xyznew(1:3,1:ntaken,i),ntaken,na,nb,nc,radtodeg,geo)
         do j = 1,mn/2
           k = j+3
-          dum = geo(3,k)/rad !> convert degrees to radians
+          dum = geo(3,k)*degtorad
           measure(2*j-1,i) = sin(dum)
           measure(2*j,i) = cos(dum)
         end do
@@ -385,11 +380,10 @@ subroutine CCEGEN(env,pr,fname)
         write (stdout,*)
       end if
       do i = 1,mm
-        call calc_dieders(zens%nat,zens%xyz(:,:,i),ndied,diedat,diedr)
+        call calc_dieders(mols(i),ndied,diedat,diedr)
         do j = 1,min(ntaken,mn/2)
-          dum = diedr(j)/rad !> convert degrees to radians
-          measure(2*j-1,i) = sin(dum)
-          measure(2*j,i) = cos(dum)
+          measure(2*j-1,i) = sin(diedr(j))
+          measure(2*j,i) = cos(diedr(j))
         end do
       end do
       if (allocated(diedat)) deallocate (diedat)
@@ -411,9 +405,8 @@ subroutine CCEGEN(env,pr,fname)
     write (stdout,*) 'There are not enough descriptors for a PCA!'
     write (stdout,*) 'Taking all structures as representative and writing ',clusterfile
     open (newunit=ich,file=clusterfile)
-    do i = 1,zens%nall
-      dum = zens%er(i)
-      call wrxyz(ich,zens%nat,zens%at,zens%xyz(:,:,i),dum)
+    do i = 1,nall
+      call mols(i)%append(ich)
     end do
     close (ich)
     return
@@ -595,7 +588,7 @@ subroutine CCEGEN(env,pr,fname)
       write (stdout,'(1x,a)') 'Higher SSR/SST vaules indicate more distinct clusters.'
       write (stdout,'(1x,a)') 'Analyzing statistical values ...'
     end if
-    k = min(nclustiter, nclustmax) !> last completed iteration index
+    k = min(nclustiter,nclustmax) !> last completed iteration index
     allocate (extrema(2,k))
     call ctimer%start(3,'statistics')
     call statanal(k,nclustmax,statistics,extrema,pr,clust_sizes)
@@ -652,7 +645,7 @@ subroutine CCEGEN(env,pr,fname)
   iiincb: do i = 1,ncb
     do j = 1,mm
       if (member(j) == i) then
-        eclust(i) = zens%er(j)
+        eclust(i) = mols(j)%energy
         clustbest(i) = j
         cycle iiincb
       end if
@@ -665,8 +658,8 @@ subroutine CCEGEN(env,pr,fname)
     do j = 1,mm
       if (member(j) == i) then
         c = c+1
-        if (zens%er(j) < eclust(i)) then
-          eclust(i) = zens%er(j)
+        if (mols(j)%energy < eclust(i)) then
+          eclust(i) = mols(j)%energy
           clustbest(i) = j
         end if
       end if
@@ -683,10 +676,10 @@ subroutine CCEGEN(env,pr,fname)
   do i = 1,ncb
     k = clustbest(ind(i))
     if (k > 0) then
-      dum = zens%er(k)
-      call wrxyz(ich,zens%nat,zens%at,zens%xyz(:,:,k),dum)
+      dum = mols(k)%energy
+      call mols(k)%append(ich)
       if (pr) then
-        erel = (dum-emin)*kcal
+        erel = (dum-emin)*autokcal
         write (stdout,'(1x,i6,1x,i6,3x,i6,1x,f16.8,1x,f16.4)') i,k,member(k),dum,erel
       end if
     end if
@@ -700,7 +693,7 @@ subroutine CCEGEN(env,pr,fname)
       write (stdout,'(1x,a,i0,a)') '(',ncb-ancb,' clusters discarded due to cluster merge)'
     end if
   end if
-  call zens%deallocate()
+  if (allocated(mols)) deallocate (mols)
 
   if (pr) then
     write (stdout,*)
@@ -979,7 +972,7 @@ subroutine kmeans_seeds(nclust,npc,mm,centroid,pcvec,ndist,dist)
   ddum = 0.0_sp
   do kiter = 1,ndist
     if (dist(kiter) > ddum) then
-      ddum=dist(kiter)
+      ddum = dist(kiter)
       k = kiter
     end if
   end do
@@ -1153,7 +1146,7 @@ subroutine cluststat(nclust,npc,mm,centroid,pcvec,member,DBI,pSF,SSRSST)
   SST = 0.0d0
   p = 0.0d0
   do c = 1,nclust
-    weight = real(count(member(:)==c,1),wp)/real(mm,wp)
+    weight = real(count(member(:) == c,1),wp)/real(mm,wp)
     p(1:npc) = p(1:npc)+centroid(1:npc,c)*weight
   end do
   !p = p/float(nclust)
@@ -1365,37 +1358,25 @@ subroutine getdiederatoms(zmol,nat,inc,nb,diedat,ndied)
   return
 end subroutine getdiederatoms
 
-subroutine calc_dieders(nat,xyz,ndied,diedat,diedr)
+subroutine calc_dieders(mol,ndied,diedat,diedr)
+  !*****************************************************
+  !* Calculate dihedral angles for selected atom       *
+  !* quartets. Results are in radians (-pi, pi).       *
+  !*****************************************************
   use crest_parameters,idp => dp
-  use crest_data
-  use zdata
   use strucrd
   implicit none
-  integer :: nat,ndied
-  real(wp) :: xyz(3,nat)
-  integer :: diedat(4,ndied)
+  type(coord),intent(in) :: mol
+  integer,intent(in) :: ndied
+  integer,intent(in) :: diedat(4,ndied)
   real(wp),intent(out) :: diedr(ndied)
   integer :: i
-  integer :: a,b,c,d
-  real(wp) :: coords(3,4)
-  real(wp) :: angle
-  real(wp),parameter :: rad2degree = 57.29578_wp
-  real(wp),parameter :: tol = 5.0_wp !tolerance for almost 360 degree
 
   diedr = 0.0_wp
   do i = 1,ndied
-    a = diedat(2,i)
-    b = diedat(3,i)
-    c = diedat(1,i)
-    d = diedat(4,i)
-    coords(1:3,1) = xyz(1:3,c)
-    coords(1:3,2) = xyz(1:3,a)
-    coords(1:3,3) = xyz(1:3,b)
-    coords(1:3,4) = xyz(1:3,d)
-    call DIHED(coords,1,2,3,4,angle)
-    angle = abs(angle)*rad2degree
-    !if (abs(angle-360.0_wp) < tol) angle = 0.0_wp
-    diedr(i) = angle
+    !> diedat: (1)=neighbour of a, (2)=a, (3)=b, (4)=neighbour of b
+    diedr(i) = mol%dihedral(diedat(1,i),diedat(2,i), &
+    &                       diedat(3,i),diedat(4,i))
   end do
 
   return
