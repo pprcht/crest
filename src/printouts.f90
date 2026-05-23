@@ -301,7 +301,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-rmsdheavy <f1> <f2>',fw,'Heavy-atom RMSD between two structures')
     call help_opt('-irmsd <f1> <f2>',fw,'iRMSD (iterative RMSD with atom permutation)')
     call help_opt('-compare <f1> <f2>',fw,'Compare two ensembles for structural overlap')
-    write (stdout,'(11x,a)') colorify('-maxcomp <int>','green')//' : max conformers per ensemble  [default: 10]'
+    write (stdout,'(11x,a)') colorify('-maxcomp <int>','green')//' : max structures per ensemble  [default: 100]'
     write (stdout,*)
     call help_section('PCA / k-Means clustering (CCEGEN):')
     call help_opt('-sort <file> --cluster',fw,'Standalone PCA clustering of an ensemble')

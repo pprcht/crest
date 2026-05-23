@@ -206,7 +206,7 @@ subroutine parseflags(env,arg,nra)
   env%multilevelopt = .true.   !> perform multilevel optimization
   env%trackorigin = .true.     !> for v2 track generation step by default
   env%compareens = .false.     !> compare two given ensembles
-  env%maxcompare = 10          !> maximum number of (lowest) conformers to compare when using "-compare"
+  env%maxcompare = 100         !> maximum number of (lowest) structures to compare when using "-compare"
   env%QCG = .false.          !> special QCG usage
 
 !>--- The following settings are mainly for v.1 (MF-MD-GC)
@@ -489,8 +489,9 @@ subroutine parseflags(env,arg,nra)
       case ('-compare')   !> flag for comparing two ensembles, analysis tool
         processedarg(i) = .true.
         env%compareens = .true.
-        env%crestver = 5
-        env%properties = p_compare
+        env%crestver = crest_sorting
+        env%sortmode = 'compare'
+        env%preopt = .false.
         env%ensemblename = 'none selected'
         env%ensemblename2 = 'none selected'
         if (nra .ge. (i+2)) then
@@ -2118,7 +2119,7 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%compareens = .true.
 
-      case ('-maxcomp')          !> maximum number of lowest conformers to compare with "-compare"
+      case ('-maxcomp')          !> maximum number of lowest structures to compare with "-compare"
         processedarg(i) = .true.
         call readl(arg1,xx,j)
         if (j > 0) then

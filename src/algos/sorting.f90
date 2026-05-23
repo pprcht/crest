@@ -80,6 +80,9 @@ subroutine crest_sort(env,tim)
     call irmsd_tool(trim(env%ensemblename),trim(env%ensemblename2),env%iinversion)
     stop
 
+  case ('compare')
+    call compare_ensembles(env)
+
   case ('isort')
 !>--- Assigning structures to conformers based on RTHR,with canonical atom IDs
     call underline('Assigning conformers based on iRMSD and RTHR')

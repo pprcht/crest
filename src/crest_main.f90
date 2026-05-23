@@ -89,7 +89,7 @@ program CREST
 !> SOME I/O STUFF
 !=========================================================================================!
 !>--- check for the coord file in the working directory
-  if (env%crestver /= crest_solv) then
+  if (env%crestver /= crest_solv.and.env%crestver /= crest_sorting) then
     inquire (file='coord',exist=ex)
     if (.not.ex) then
       error stop 'No coord file found. Exit.'
@@ -108,11 +108,6 @@ program CREST
     write (*,*) 'The sorted file in TM format is called "zcoord"'
     write (*,*)
     write (*,*) 'exit.'
-    call propquit(tim)
-
-!>--- only ensemble comparison
-  case (p_compare)
-    call compare_ensembles(env)
     call propquit(tim)
 
 !>--- extended tautomerization
