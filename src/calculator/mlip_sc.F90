@@ -74,6 +74,13 @@ contains  !>--- Module routines start here
       call creststop(20)
     end if
 
+    ! ── fast path: instance already running, nothing to do ───────────────────
+    call mlip_ping(iid,io)
+    if (io == MLIP_OK) then
+      MPAR%iid = iid
+      return
+    end if
+
     call checkprog_silent(basebin,verbose=.false.,iostat=io)
     if (io .ne. 0) then
       write (stdout,*)
@@ -81,12 +88,6 @@ contains  !>--- Module routines start here
       write (stdout,*) ' Make sure you install it from the fmlip_relay subproject via pip'
       write (stdout,*)
       call creststop(20)
-    end if
-
-    !> check for already running instances that may need reinitialization
-    !> or rather, shutdown first
-    if (MPAR%iid .ne. 0) then
-      call mlip_finalize(MPAR%iid,io)
     end if
 
     !> check if we have limitations for parallelity
@@ -116,7 +117,7 @@ contains  !>--- Module routines start here
           & 'mace','--model',trim(MPAR%modelpath),trim(cmd_1)
       else
         cmd_0 = ''
-        if (allocated(MPAR%modelsize)) write (cmd_0,'(a,1x,a)') '--mace_model',trim(MPAR%modelsize)
+        if (allocated(MPAR%modelsize)) write (cmd_0,'(a,1x,a)') '--mace-model',trim(MPAR%modelsize)
         write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a),1x,a)') basebin,'--port',tmpport,'--backend', &
         & trim(MPAR%backend),trim(cmd_0),'',trim(cmd_1)
       end if
@@ -139,18 +140,14 @@ contains  !>--- Module routines start here
       end if
     end select
 
-    !> check if this particular server is already running by pinging it
-    call mlip_ping(iid,io)
+    !> spawn the server and verify
+    call mlip_init(iid,tmpport,trim(cmd)//' 2>/dev/null',MPAR%TIMEOUT_SEC,io)
     if (io /= MLIP_OK) then
-      call mlip_init(iid,tmpport,trim(cmd)//' 2>/dev/null',MPAR%TIMEOUT_SEC,io)
-      if (io /= MLIP_OK) then
-        write (stdout,*)
-        write (stdout,*) '** ERROR ** failed to initialize MLIP server'
-        write (stdout,*)
-        call creststop(1)
-      end if
+      write (stdout,*)
+      write (stdout,*) '** ERROR ** failed to initialize MLIP server'
+      write (stdout,*)
+      call creststop(1)
     end if
-    !> Test it
     call mlip_ping(iid,io)
     if (io /= MLIP_OK) then
       write (stdout,*)
@@ -169,16 +166,17 @@ contains  !>--- Module routines start here
   end subroutine fmlip_relay_init
 
   subroutine mlip_engrad_core(mol,MPAR,energy,gradient,iostatus, &
-      &                       charge,spin)
+      &                       charge,spin,iid)
     type(coord),intent(in) :: mol
     type(mlip_params),intent(in)    :: MPAR
     integer,intent(in),optional :: charge
     integer,intent(in),optional :: spin
+    integer,intent(in),optional :: iid
     real(wp),intent(out)   :: energy
     real(wp),intent(out)   :: gradient(3,mol%nat)
     integer,intent(out)    :: iostatus
 
-    integer :: chrg,spn
+    integer :: chrg,spn,instance_id
     real(wp) :: stress(3,3)
 
     energy = 0.0_wp
@@ -189,13 +187,15 @@ contains  !>--- Module routines start here
     spn = 1
     if (present(charge)) chrg = chrg
     if (present(spin)) spn = spin
+    instance_id = MPAR%iid
+    if (present(iid)) instance_id = iid
 
 #ifdef WITH_FMLIP_RELAY
     if (allocated(mol%lat)) then
-      call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,mol%lat,allpbc,0,chrg,spn, &
+      call mlip_compute(instance_id,mol%nat,mol%at,mol%xyz*autoaa,mol%lat,allpbc,0,chrg,spn, &
       &                 energy,gradient,stress,iostatus)
     else
-      call mlip_compute(MPAR%iid,mol%nat,mol%at,mol%xyz*autoaa,bigcell,nopbc,0,chrg,spn, &
+      call mlip_compute(instance_id,mol%nat,mol%at,mol%xyz*autoaa,bigcell,nopbc,0,chrg,spn, &
       &                 energy,gradient,stress,iostatus)
     end if
 

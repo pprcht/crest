@@ -182,6 +182,8 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   z = 0  !> counter to perform optimization in right order (1...nall)
   eread(:) = 0.0_wp
   grads(:,:,:) = 0.0_wp
+!>--- pre-start server-based calculators before forking OMP threads
+  call preinit_mlip_parallel(calculations,T)
 !>--- loop over ensemble
   !$omp parallel &
   !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
@@ -392,6 +394,8 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
   z = 0  !> counter to perform optimization in right order (1...nall)
   eread(:) = 0.0_wp
   grads(:,:,:) = 0.0_wp
+!>--- pre-start server-based calculators before forking OMP threads
+  call preinit_mlip_parallel(calculations,T)
 !>--- loop over ensemble
   !$omp parallel &
   !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr,nrt) &
@@ -600,6 +604,8 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   z = 0  !> counter to perform optimization in right order (1...nall)
   eread(:) = 0.0_wp
   grads(:,:,:) = 0.0_wp
+!>--- pre-start server-based calculators before forking OMP threads
+  call preinit_mlip_parallel(calculations,T)
 !>--- loop over ensemble
   !$omp parallel &
   !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr,dump) &
@@ -775,6 +781,8 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
   pr = .false.
   call profiler%init(nsim)
 
+!>--- pre-start server-based calculators before forking OMP threads
+  call preinit_mlip_parallel(calculations,T)
   !>--- run the MDs
   !$omp parallel &
   !$omp shared(env,calculations,mddats,mol,pr,percent,ich, nsim, moltmps, nested,Tn) &
@@ -1070,6 +1078,8 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
   pr = .false.
   call profiler%init(nsim)
 
+!>--- pre-start server-based calculators before forking OMP threads
+  call preinit_mlip_parallel(calculations,T)
 !>--- run the MDs
   !$omp parallel &
   !$omp shared(env,calculations,mddats,mols,pr,percent,ich, moltmps,profiler, nested,Tn)

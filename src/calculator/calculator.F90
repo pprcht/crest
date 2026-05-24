@@ -56,6 +56,7 @@ module crest_calculator
 !>--- public module routines
   public :: potential_core
   public :: engrad
+  public :: preinit_mlip_parallel
   interface engrad
     module procedure :: engrad_mol
   end interface engrad

@@ -281,6 +281,9 @@ subroutine parallel_basinhopping_core(env,mol,calc,structuredump)
     !$omp end critical
   end do
 
+!>--- pre-start server-based calculators before forking OMP threads
+  call preinit_mlip_parallel(calcp,T)
+
   write (stdout,'(a)') '> Starting parallel Basin-Hopping execution'
   write (stdout,*)
 

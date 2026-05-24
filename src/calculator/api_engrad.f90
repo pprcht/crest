@@ -51,6 +51,7 @@ module api_engrad
   public :: modelhessian_engrad
   public :: rmsd_engrad
   public :: mlip_engrad
+  public :: preinit_mlip_parallel
 
 !=========================================================================================!
 !=========================================================================================!
@@ -482,6 +483,29 @@ contains    !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
+  subroutine preinit_mlip_parallel(calculations,T)
+!***********************************************************************
+!* Serially start one fmlip-relay server instance per OMP thread.
+!* Must be called before the OMP parallel region to avoid fork() inside
+!* a live thread team (triggers OMP Warning #191).
+!* Input:  calculations - per-thread calcdata array (size >= T)
+!*         T            - number of OMP threads / instances to start
+!***********************************************************************
+    implicit none
+    type(calcdata),intent(inout) :: calculations(:)
+    integer,intent(in)           :: T
+    integer :: i,j
+    do i = 1,T
+      do j = 1,calculations(i)%ncalculations
+        if (calculations(i)%calcs(j)%id == jobtype%mlip) then
+          call fmlip_relay_init(calculations(i)%calcs(j)%MPAR,i)
+        end if
+      end do
+    end do
+  end subroutine preinit_mlip_parallel
+
+!========================================================================================!
+
   subroutine mlip_engrad(mol,calc,energy,grad,iostatus)
 !**************************************************************************
 !* MLIP singlepoint through persistent python socket
@@ -499,22 +523,19 @@ contains    !> MODULE PROCEDURES START HERE
     logical :: ex
     iostatus = 0
     pr = .false.
+!>--- each OpenMP thread owns one server instance; init is a no-op if running
+    iid = OMP_GET_THREAD_NUM()+1
     !$omp critical
-!>--- setup system call information
-    if (calc%MPAR%iid == 0) then
-      iid = OMP_GET_THREAD_NUM()+1
-      call fmlip_relay_init(calc%MPAR,iid)
-    end if
+    call fmlip_relay_init(calc%MPAR,iid)
 !>--- printout handling
     call api_handle_output(calc,'mlip.out',mol,pr)
-!>--- populate parameters
     !$omp end critical
     if (iostatus /= 0) return
 
 !>--- do the engrad call
     call initsignal()
     call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus, &
-      &                   charge=calc%chrg,spin=calc%uhf)
+      &                   charge=calc%chrg,spin=calc%uhf,iid=iid)
     if (iostatus /= 0) return
 
 !>--- printout
