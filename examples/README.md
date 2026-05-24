@@ -47,3 +47,4 @@ It is assumed that the `crest` binary is available in `$PATH`.
 | **13** | Protonation site sampling | uracil |
 | **14** | Metal/ion adducts (Cs+) | alpha-D-glucose |
 | **15** | Tautomer screening | guanine |
+| **16** | fmlip-relay: geometry optimisation with LJ potential | Ar4 cluster |

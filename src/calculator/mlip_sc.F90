@@ -130,10 +130,13 @@ contains  !>--- Module routines start here
           write (stdout,*)
           call creststop(20)
         end if
+        write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a),1x,a)') basebin,'--port',tmpport,'--backend', &
+          & trim(MPAR%backend),'--model',trim(MPAR%modelpath),trim(cmd_1)
+      else
+        !> no model path (e.g. lj, dummy backends that need no model file)
+        write (cmd,'(a,1x,a,1x,i0,1x,a,1x,a,1x,a)') basebin,'--port',tmpport, &
+          & '--backend',trim(MPAR%backend),trim(cmd_1)
       end if
-
-      write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a),1x,a)') basebin,'--port',tmpport,'--backend', &
-        & trim(MPAR%backend),'--model',trim(MPAR%modelpath),trim(cmd_1)
     end select
 
     !> check if this particular server is already running by pinging it
