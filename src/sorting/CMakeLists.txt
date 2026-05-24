@@ -30,8 +30,7 @@ list(APPEND srcs
   "${dir}/ls_rmsd.f90"
   "${dir}/quicksort.f90"
   "${dir}/rotcompare.f90"
-  "${dir}/sortens.f90"
-  "${dir}/unionize.f90"
+"${dir}/unionize.f90"
   "${dir}/zdata.f90"
   "${dir}/ztopology.f90"
 )

@@ -241,18 +241,6 @@ subroutine countnonh(nat,iz,n)    !count all non-hydrogen atoms
   end do
 end subroutine countnonh
 
-subroutine counth(nat,iz,n)    !count all hydrogen atoms
-  implicit none
-  integer :: nat,iz(nat),n,i
-  n = 0
-  do i = 1,nat
-    if (iz(i) .eq. 1) then
-      cycle
-    else
-      n = n+1
-    end if
-  end do
-end subroutine counth
 
 subroutine countnonh2(icn,idarr,n2)
   implicit none

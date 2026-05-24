@@ -49,7 +49,6 @@ srcs += files(
   'flexi.F90',
   'freqmasses.f90',
   'geo.f90',
-  'identifiers.f90',
   'internals.f90', 
   'internals2.f90',
   'iomod.F90',

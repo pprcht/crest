@@ -52,7 +52,6 @@ list(APPEND srcs
   "${dir}/flexi.F90"
   "${dir}/freqmasses.f90"
   "${dir}/geo.f90"
-  "${dir}/identifiers.f90"
   "${dir}/internals.f90"
   "${dir}/internals2.f90"
   "${dir}/iomod.F90"
