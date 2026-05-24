@@ -16,6 +16,8 @@
 
 srcs += files(
   'canonical.f90',
+  'ccegen_interface.f90',
+  'ccegen_utils.f90',
   'ccegen.f90',
   'cregen_interfaces.f90',
   'cregen.f90',

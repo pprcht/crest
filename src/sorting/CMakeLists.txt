@@ -18,6 +18,8 @@ set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
   "${dir}/canonical.f90"
+  "${dir}/ccegen_interface.f90"
+  "${dir}/ccegen_utils.f90"
   "${dir}/ccegen.f90"
   "${dir}/cregen_interfaces.f90"
   "${dir}/cregen.f90"

@@ -1137,6 +1137,7 @@ subroutine crest_output_summary(env)
   implicit none
   type(systemdata),intent(in) :: env
   character(len=72),parameter :: hbar = repeat('-',80)
+  logical :: lexists
 
   select case (env%crestver)
   case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
@@ -1182,7 +1183,7 @@ subroutine crest_output_summary(env)
     if (env%crest_ohess) then
       call wfe('numhess','Hessian matrix in Turbomole format (2nd derivatives, a.u.)')
       call wfe('vibspectrum','vibrational frequencies (cm⁻¹) and IR intensities (km/mol)')
-      call wfe('g98.out','frequencies and normal modes in Gaussian 98 output format')
+      call wfe('g98.out','frequencies and normal modes in Gaussian output format')
     end if
 
     ! ── numerical Hessian ─────────────────────────
@@ -1221,6 +1222,13 @@ subroutine crest_output_summary(env)
   case default
     ! no dedicated file summary for this runtype
 
+  end select
+
+  ! ── if PCA clustering was performed, report the cluster file ─────────────────
+  select case (env%crestver)
+  case (crest_imtd,crest_imtd2,crest_sorting)
+    inquire(file=clusterfile,exist=lexists)
+    if (lexists) call wfe(clusterfile,'representative structures from PCA/k-means clustering')
   end select
 
   select case (env%crestver)
