@@ -74,7 +74,7 @@ subroutine crest_scan(env,tim)
 
 !========================================================================================!
   allocate (grad(3,mol%nat),source=0.0_wp)
-  calc = env%calc
+  call calc%copy(env%calc)
   calcclean = env%calc
 
   !>--- initialize scanning

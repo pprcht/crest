@@ -32,6 +32,7 @@ subroutine crest_optimization(env,tim)
   use crest_calculator
   use strucrd
   use optimize_module
+  use iomod, only:colorify
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -46,6 +47,19 @@ subroutine crest_optimization(env,tim)
 
   character(len=80) :: atmp
   character(len=*),parameter :: partial = '∂E/∂'
+
+! ══════════════════════════════════════════════════════════════════════════════
+  write (stdout,*)
+  write (stdout,*) colorify("                    ██   ██             ██               ","gold")
+  write (stdout,*) colorify("          ██████   ░██  ░░             ░░                ","gold")
+  write (stdout,*) colorify("  ██████ ░██░░░██ ██████ ██ ██████████  ██ ██████  █████ ","gold")
+  write (stdout,*) colorify(" ██░░░░██░██  ░██░░░██░ ░██░░██░░██░░██░██░░░░██  ██░░░██","gold")
+  write (stdout,*) colorify("░██   ░██░██████   ░██  ░██ ░██ ░██ ░██░██   ██  ░███████","gold")
+  write (stdout,*) colorify("░██   ░██░██░░░    ░██  ░██ ░██ ░██ ░██░██  ██   ░██░░░░ ","gold")
+  write (stdout,*) colorify("░░██████ ░██       ░░██ ░██ ███ ░██ ░██░██ ██████░░██████","gold")
+  write (stdout,*) colorify(" ░░░░░░  ░░         ░░  ░░ ░░░  ░░  ░░ ░░ ░░░░░░  ░░░░░░ ","gold")
+  write (stdout,*)
+
 !========================================================================================!
   call new_ompautoset(env,'max',0,T,Tn)
   call ompprint_intern()
@@ -60,15 +74,15 @@ subroutine crest_optimization(env,tim)
 !========================================================================================!
 
   allocate (grad(3,mol%nat),source=0.0_wp)
-  calc = env%calc
+  call calc%copy(env%calc)
 !>--- check if we have any calculation settings allocated
   if (calc%ncalculations < 1) then
     write (stdout,*) 'no calculations allocated'
     return
   else
-    call calc%info( stdout )
+    call calc%info(stdout)
   end if
-  write(stdout,'(a)') repeat('-',80)
+  write (stdout,'(a)') repeat('-',80)
 
 !>-- geometry optimization
   pr = .true. !> stdout printout
@@ -83,7 +97,7 @@ subroutine crest_optimization(env,tim)
     write (stdout,*) 'SUCCESS!'
     write (stdout,*) 'geometry successfully optimized!'
     write (stdout,*)
-    write(stdout,'(a)') repeat('-',80)
+    write (stdout,'(a)') repeat('-',80)
 
     write (stdout,*)
     write (stdout,'(1x,a)') 'FINAL CALCULATION SUMMARY'
@@ -125,7 +139,7 @@ subroutine crest_optimization(env,tim)
   else
     write (stdout,*) 'geometry optimization FAILED!'
     env%iostatus_meta = status_failed
-  endif
+  end if
 
   write (stdout,*)
   write (stdout,'(a)') repeat('=',42)
@@ -133,9 +147,9 @@ subroutine crest_optimization(env,tim)
   write (stdout,'(1x,a,f20.10,a)') 'GRADIENT NORM  ',norm2(grad),' Eh/a0'
   write (stdout,'(a)') repeat('=',42)
 
-   if(io /= 0)then
+  if (io /= 0) then
     write (stdout,*) 'WARNING: geometry optimization FAILED!'
-   endif
+  end if
 
   deallocate (grad)
 !========================================================================================!
@@ -143,19 +157,19 @@ subroutine crest_optimization(env,tim)
 
 !========================================================================================!
 !>--- append numerical hessian calculation
-  if( io == 0 .and. env%crest_ohess )then
+  if (io == 0.and.env%crest_ohess) then
     call env%ref%load(molnew)      !> load the optimized geometry
     call crest_numhess(env,tim) !> run the numerical hessian
-  endif
+  end if
 
 !========================================================================================!
 
 !========================================================================================!
 !>--- append deform opt hessian calculation
-  if( io == 0 .and. calc%deform_opt_hess) then !.and. calc%do_HR )then
+  if (io == 0.and.calc%deform_opt_hess) then !.and. calc%do_HR )then
     call env%ref%load(molnew)      !> load the optimized geometry
     call deform_opt_hess(calc,molnew) !> run the hessian reconstruction
-  endif
+  end if
 
 !========================================================================================!
 
@@ -216,16 +230,16 @@ subroutine crest_ensemble_optimization(env,tim)
 
 !>---- read the input ensemble
   call rdensembleparam(ensnam,nat,nall)
-  if (nall .lt. 1)then
+  if (nall .lt. 1) then
     write (stdout,*) '**ERROR** empty ensemble file.'
     env%iostatus_meta = status_input
     return
-  endif
+  end if
   allocate (xyz(3,nat,nall),at(nat),eread(nall))
   call rdensemble(ensnam,nat,nall,at,xyz,eread)
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- Important: crest_oloop requires coordinates in Bohrs
-  xyz = xyz / bohr
+  xyz = xyz/bohr
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 
 !>--- set OMP parallelization
@@ -244,29 +258,29 @@ subroutine crest_ensemble_optimization(env,tim)
 
 !========================================================================================!
 !>--- output
-  write(stdout,'(/,a,a,a)') 'Rewriting ',ensemblefile,' in the correct order'// &
+  write (stdout,'(/,a,a,a)') 'Rewriting ',ensemblefile,' in the correct order'// &
   & ' (failed optimizations are assigned an energy of +1.0)'
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- Back to Angstroem
-  xyz = xyz * bohr
+  xyz = xyz*bohr
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-  allocate(comments(nall))
-  do i=1,nall
-     comments(i) = ''
-     if(eread(i) > 0.0_wp) comments(i) = '!failed'
-  enddo
+  allocate (comments(nall))
+  do i = 1,nall
+    comments(i) = ''
+    if (eread(i) > 0.0_wp) comments(i) = '!failed'
+  end do
   call wrensemble(ensemblefile,nat,nall,at,xyz,eread,comments)
 
   deallocate (eread,at,xyz)
-  write(stdout,'(/,a,a,a)') 'Optimized ensemble written to <',ensemblefile,'>'
+  write (stdout,'(/,a,a,a)') 'Optimized ensemble written to <',ensemblefile,'>'
 
 !========================================================================================!
 !>--- (optional) refinement step
   if (allocated(env%refine_queue)) then
-    write(stdout,*)
+    write (stdout,*)
     call crest_refine(env,ensemblefile,ensemblefile//'.refine')
-    write(stdout,'(/,a,a,a)') 'Refined ensemble written to <',ensemblefile,'.refine>'
-  endif 
+    write (stdout,'(/,a,a,a)') 'Refined ensemble written to <',ensemblefile,'.refine>'
+  end if
 
 !========================================================================================!
   call tim%stop(14)
@@ -288,7 +302,7 @@ subroutine crest_ensemble_screening(env,tim)
   use crest_calculator
   use strucrd
   use optimize_module
-  use iomod 
+  use iomod
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -327,11 +341,11 @@ subroutine crest_ensemble_screening(env,tim)
 
 !>---- read the input ensemble
   call rdensembleparam(ensnam,nat,nall)
-  if (nall .lt. 1)then
+  if (nall .lt. 1) then
     write (stdout,*) '**ERROR** empty ensemble file.'
     env%iostatus_meta = status_input
     return
-  endif
+  end if
 !>--- set OMP parallelization
   call new_ompautoset(env,'auto',nall,T,Tn)
 
@@ -351,7 +365,7 @@ subroutine crest_ensemble_screening(env,tim)
   call rmrfw('crest_rotamers_')
   call optlev_to_multilev(3.0d0,multilevel)
   call crest_multilevel_oloop(env,ensnam,multilevel,0)
-  if(env%iostatus_meta .ne. 0 ) return
+  if (env%iostatus_meta .ne. 0) return
 
 !>--- printout
   call catdel('cregen.out.tmp')
@@ -361,7 +375,6 @@ subroutine crest_ensemble_screening(env,tim)
 
 !>--- clean up
   call screen_cleanup
-
 
 !========================================================================================!
   call tim%stop(14)

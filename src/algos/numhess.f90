@@ -37,6 +37,7 @@ subroutine crest_numhess(env,tim)
   use xtb_sc
   use oniom_hessian
   use ir_spectrum
+  use iomod, only: colorify
   implicit none
 
   type(systemdata),intent(inout) :: env
@@ -54,13 +55,16 @@ subroutine crest_numhess(env,tim)
 !========================================================================================!
   call tim%start(15,'Numerical Hessian')
 !========================================================================================!
-  !call system('figlet numhess')
+
   write (stdout,*)
-  write (stdout,*) "                       _                   "
-  write (stdout,*) " _ __  _   _ _ __ ___ | |__   ___  ___ ___ "
-  write (stdout,*) "| '_ \| | | | '_ ` _ \| '_ \ / _ \/ __/ __|"
-  write (stdout,*) "| | | | |_| | | | | | | | | |  __/\__ \__ \"
-  write (stdout,*) "|_| |_|\__,_|_| |_| |_|_| |_|\___||___/___/"
+  write (stdout,*) colorify("                              ██                              ","gold")
+  write (stdout,*) colorify("                             ░██                              ","gold")
+  write (stdout,*) colorify(" ███████  ██   ██ ██████████ ░██       █████   ██████  ██████ ","gold")
+  write (stdout,*) colorify("░░██░░░██░██  ░██░░██░░██░░██░██████  ██░░░██ ██░░░░  ██░░░░  ","gold")
+  write (stdout,*) colorify(" ░██  ░██░██  ░██ ░██ ░██ ░██░██░░░██░███████░░█████ ░░█████  ","gold")
+  write (stdout,*) colorify(" ░██  ░██░██  ░██ ░██ ░██ ░██░██  ░██░██░░░░  ░░░░░██ ░░░░░██ ","gold")
+  write (stdout,*) colorify(" ███  ░██░░██████ ███ ░██ ░██░██  ░██░░██████ ██████  ██████  ","gold")
+  write (stdout,*) colorify("░░░   ░░  ░░░░░░ ░░░  ░░  ░░ ░░   ░░  ░░░░░░ ░░░░░░  ░░░░░░   ","gold")
   write (stdout,*)
 
   call env%ref%to(mol)
@@ -70,7 +74,7 @@ subroutine crest_numhess(env,tim)
   write (stdout,*)
 !========================================================================================!
 
-  calc = env%calc
+  call calc%copy(env%calc)
 
   !>--- print some info about the calculation
   call calc%info(stdout)
@@ -210,7 +214,7 @@ subroutine crest_numhess(env,tim)
 
 ! ── project dipole gradient onto normal modes → IR intensities ───────────
           if (allocated(calc%calcs(i)%dipgrad)) then
-            allocate(ir_int(nat3),source=0.0_wp)
+            allocate (ir_int(nat3),source=0.0_wp)
             call ir_intensities(mol%nat,mol%at,nat3,hess(:,:,i), &
             &                   calc%calcs(i)%dipgrad,ir_int)
           end if
@@ -223,7 +227,7 @@ subroutine crest_numhess(env,tim)
           call print_g98_fake(mol%nat,mol%at,nat3,mol%xyz,freq(:,i),hess(:,:,i), &
           &    calc%calcs(i)%calcspace,'g98'//trim(atmp)//'.out',ir_int=ir_int)
 
-          if (allocated(ir_int)) deallocate(ir_int)
+          if (allocated(ir_int)) deallocate (ir_int)
 
           call smallhead("Thermo contributions for [[calculation.level]] "//trim(atmp))
           call numhess_thermostat(env,mol,nat3,hess(:,:,i),freq(:,i),energies0(i))
@@ -498,12 +502,12 @@ subroutine crest_ensemble_hessians(env,tim)
   integer,allocatable  :: at(:)
   logical :: ex
 !========================================================================================!
-  write(stdout,*)
-  inquire(file=env%ensemblename,exist=ex)
+  write (stdout,*)
+  inquire (file=env%ensemblename,exist=ex)
   if (ex) then
     ensnam = env%ensemblename
   else
-    write(stdout,*) '**ERROR** no ensemble file provided.'
+    write (stdout,*) '**ERROR** no ensemble file provided.'
     env%iostatus_meta = status_input
     return
   end if
@@ -512,11 +516,11 @@ subroutine crest_ensemble_hessians(env,tim)
 
   call rdensembleparam(ensnam,nat,nall)
   if (nall < 1) then
-    write(stdout,*) '**ERROR** empty ensemble file.'
+    write (stdout,*) '**ERROR** empty ensemble file.'
     env%iostatus_meta = status_input
     return
   end if
-  allocate(xyz(3,nat,nall),at(nat),eread(nall),etmp(nall))
+  allocate (xyz(3,nat,nall),at(nat),eread(nall),etmp(nall))
   call rdensemble(ensnam,nat,nall,at,xyz,eread)
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- Important: crest_hessloop requires coordinates in Bohr
@@ -526,15 +530,15 @@ subroutine crest_ensemble_hessians(env,tim)
   call new_ompautoset(env,'auto',nall,T,Tn)
 
 !========================================================================================!
-  write(stdout,*)
-  write(stdout,'(10x,"┍",49("━"),"┑")')
-  write(stdout,'(10x,"│",16x,a,16x,"│")') "ENSEMBLE HESSIANS"
-  write(stdout,'(10x,"┕",49("━"),"┙")')
-  write(stdout,*)
-  write(stdout,'(1x,a,i0,a,1x,a)') 'Evaluating all ',nall,' structures of file ',trim(ensnam)
+  write (stdout,*)
+  write (stdout,'(10x,"┍",49("━"),"┑")')
+  write (stdout,'(10x,"│",16x,a,16x,"│")') "ENSEMBLE HESSIANS"
+  write (stdout,'(10x,"┕",49("━"),"┙")')
+  write (stdout,*)
+  write (stdout,'(1x,a,i0,a,1x,a)') 'Evaluating all ',nall,' structures of file ',trim(ensnam)
 
   call crest_hessloop(env,nat,nall,at,xyz,etmp)
-  eread(:) = eread(:) + etmp(:)
+  eread(:) = eread(:)+etmp(:)
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
@@ -542,12 +546,12 @@ subroutine crest_ensemble_hessians(env,tim)
   xyz = xyz*bohr
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
   call wrensemble(ensemblefile,nat,nall,at,xyz,eread)
-  write(stdout,'(/,a,a,a)') 'Ensemble with Gibbs free energies written to <',ensemblefile,'>'
+  write (stdout,'(/,a,a,a)') 'Ensemble with Gibbs free energies written to <',ensemblefile,'>'
 
   call dumpenergies('crest.energies',eread)
-  write(stdout,'(/,a,a,a)') 'List of free energies written to <','crest.energies','>'
+  write (stdout,'(/,a,a,a)') 'List of free energies written to <','crest.energies','>'
 
-  deallocate(eread,at,xyz)
+  deallocate (eread,at,xyz)
 !========================================================================================!
   call tim%stop(14)
   return

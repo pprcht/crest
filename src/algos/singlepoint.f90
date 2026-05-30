@@ -35,6 +35,7 @@ subroutine crest_singlepoint(env,tim)
   use crest_calculator
   use strucrd
   use gradreader_module,only:write_engrad
+  use iomod,only:colorify
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -52,13 +53,14 @@ subroutine crest_singlepoint(env,tim)
   character(len=*),parameter :: partial = '∂E/∂'
 !========================================================================================!
   write (stdout,*)
-  !call system('figlet singlepoint')
-  write (stdout,*) "     _             _                  _       _   "
-  write (stdout,*) " ___(_)_ __   __ _| | ___ _ __   ___ (_)_ __ | |_ "
-  write (stdout,*) "/ __| | '_ \ / _` | |/ _ \ '_ \ / _ \| | '_ \| __|"
-  write (stdout,*) "\__ \ | | | | (_| | |  __/ |_) | (_) | | | | | |_ "
-  write (stdout,*) "|___/_|_| |_|\__, |_|\___| .__/ \___/|_|_| |_|\__|"
-  write (stdout,*) "             |___/       |_|                      "
+  write (stdout,*) colorify("         ██                   ██                          ██            ██  ","gold")
+  write (stdout,*) colorify("        ░░            █████  ░██         ██████          ░░            ░██  ","gold")
+  write (stdout,*) colorify("  ██████ ██ ███████  ██░░░██ ░██  █████ ░██░░░██  ██████  ██ ███████  ██████","gold")
+  write (stdout,*) colorify(" ██░░░░ ░██░░██░░░██░██  ░██ ░██ ██░░░██░██  ░██ ██░░░░██░██░░██░░░██░░░██░ ","gold")
+  write (stdout,*) colorify("░░█████ ░██ ░██  ░██░░██████ ░██░███████░██████ ░██   ░██░██ ░██  ░██  ░██  ","gold")
+  write (stdout,*) colorify(" ░░░░░██░██ ░██  ░██ ░░░░░██ ░██░██░░░░ ░██░░░  ░██   ░██░██ ░██  ░██  ░██  ","gold")
+  write (stdout,*) colorify(" ██████ ░██ ███  ░██  █████  ███░░██████░██     ░░██████ ░██ ███  ░██  ░░██ ","gold")
+  write (stdout,*) colorify("░░░░░░  ░░ ░░░   ░░  ░░░░░  ░░░  ░░░░░░ ░░       ░░░░░░  ░░ ░░░   ░░    ░░  ","gold")
   write (stdout,*)
 !========================================================================================!
   call new_ompautoset(env,'max',0,T,Tn)
@@ -76,7 +78,7 @@ subroutine crest_singlepoint(env,tim)
   write (stdout,'(a)')
 
   allocate (grad(3,mol%nat),source=0.0_wp)
-  calc = env%calc
+  call calc%copy(env%calc)
   calc%calcs(:)%prstdout = .true.
 
 !>--- print some info about the calculation
@@ -183,7 +185,7 @@ subroutine crest_xtbsp(env,xtblevel,molin)
 !>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<!
 !>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<!
   if (io .ne. 0) then
-    write(stdout,'(a)') 'crest_xtbsp() failed'
+    write (stdout,'(a)') 'crest_xtbsp() failed'
     call creststop(status_error)
   end if
 
@@ -250,11 +252,11 @@ subroutine crest_ensemble_singlepoints(env,tim)
 
 !>---- read the input ensemble
   call rdensembleparam(ensnam,nat,nall)
-  if (nall .lt. 1)then
+  if (nall .lt. 1) then
     write (stdout,*) '**ERROR** empty ensemble file.'
     env%iostatus_meta = status_input
     return
-  endif
+  end if
   allocate (xyz(3,nat,nall),at(nat),eread(nall))
   call rdensemble(ensnam,nat,nall,at,xyz,eread)
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

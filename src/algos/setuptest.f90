@@ -88,7 +88,7 @@ subroutine trialMD_calculator(env)
   if (allocated(env%ref%wbo)) then  !> should be allocated from main program
     MDSTART%shk%wbo = env%ref%wbo
   else !> otherwise, obtain from scratch
-    tmpcalc = env%calc
+    call tmpcalc%copy(env%calc)
     mol = molstart
     tmpcalc%calcs(1)%rdwbo = .true. !> obtain WBOs
     allocate (grd(3,mol%nat))
@@ -128,9 +128,6 @@ subroutine trialMD_calculator(env)
 
 !>--- Restore initial starting geometry
     mol = molstart
-!>--- Restore clean calculation state
-    !env%calc = calcstart
-    !call env%calc%copy(calcstart)
 
 !>--- Modify MD output trajectory
     MD = MDSTART
@@ -312,7 +309,7 @@ subroutine trialOPT_calculator(env)
   call env%ref%to(mol)
   call env%ref%to(molopt)
   allocate (grd(3,mol%nat),source=0.0_wp)
-  tmpcalc = env%calc  !> create copy of calculator
+  call tmpcalc%copy(env%calc)  !> create copy of calculator
   tmpcalc%optlev = -1 !> set loose convergence thresholds
 
 !>--- perform geometry optimization

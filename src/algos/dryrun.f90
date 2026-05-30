@@ -54,7 +54,7 @@ subroutine crest_dry_run(env,tim)
   if (ex) then
     write (stdout,*)
   else
-    write(stdout,'(1x,"( ",a," )")') colorify('NOT FOUND','red')
+    write (stdout,'(1x,"( ",a," )")') colorify('NOT FOUND','red')
   end if
   write (stdout,*)
 
@@ -81,7 +81,11 @@ subroutine crest_dry_run(env,tim)
   case (crest_sp)
     write (stdout,'(2x,a)') 'Standalone singlepoint calculation'
   case (crest_optimize)
-    write (stdout,'(2x,a)') 'Standalone geometry optimization'
+    if (.not.env%crest_ohess) then
+      write (stdout,'(2x,a)') 'Standalone geometry optimization'
+    else
+      write (stdout,'(2x,a)') 'Standalone geometry optimization followed by numerical Hessian' 
+    end if
   case (crest_moldyn)
     write (stdout,'(2x,a)') 'Standalone molecular dynamics simulation'
   case (crest_s1)
@@ -128,11 +132,20 @@ subroutine crest_dry_run(env,tim)
 !========================================================================================!
   call drawbox(stdout,'Optimization settings',charset=4,padl=2,padr=2)
   write (stdout,*)
+
   write (stdout,'(2x,a,t35,": ",a,1x,"(",i0,")")') 'Optimization level',optlevflag(env%optlev),nint(env%optlev)
   if (associated(env%calc)) then
+    block
+      use optimize_utils,only:get_optthr
+      real(wp) :: ethr,gthr
+      integer :: nat,iolev
+      nat = env%ref%nat
+      iolev = nint(env%optlev)
+      call get_optthr(nat,iolev,env%calc,ethr,gthr)
       write (stdout,'(2x,a,t35,": ",i0)') 'Max cycles (calc obj)',env%calc%maxcycle
-    write (stdout,'(2x,a,t35,": ",es12.4)') 'Energy convergence  [Eh]',env%calc%ethr_opt
-    write (stdout,'(2x,a,t35,": ",es12.4)') 'Gradient convergence [Eh/a0]',env%calc%gthr_opt
+      write (stdout,'(2x,a,t35,": ",es12.4)') 'Energy convergence  [Eh]',ethr
+      write (stdout,'(2x,a,t35,": ",es12.4)') 'Gradient convergence [Eh/a0]',gthr
+    end block
   end if
   write (stdout,*)
 
