@@ -37,7 +37,7 @@ subroutine crest_numhess(env,tim)
   use xtb_sc
   use oniom_hessian
   use ir_spectrum
-  use iomod, only: colorify
+  use iomod,only:colorify
   implicit none
 
   type(systemdata),intent(inout) :: env
@@ -52,20 +52,22 @@ subroutine crest_numhess(env,tim)
   real(wp),allocatable :: ohess(:,:),ofreq(:),grad0(:,:),energies0(:)
   real(wp),allocatable :: ir_int(:)
   character(len=60) :: atmp
-!========================================================================================!
-  call tim%start(15,'Numerical Hessian')
+
 !========================================================================================!
 
   write (stdout,*)
-  write (stdout,*) colorify("                              ██                              ","gold")
-  write (stdout,*) colorify("                             ░██                              ","gold")
-  write (stdout,*) colorify(" ███████  ██   ██ ██████████ ░██       █████   ██████  ██████ ","gold")
-  write (stdout,*) colorify("░░██░░░██░██  ░██░░██░░██░░██░██████  ██░░░██ ██░░░░  ██░░░░  ","gold")
-  write (stdout,*) colorify(" ░██  ░██░██  ░██ ░██ ░██ ░██░██░░░██░███████░░█████ ░░█████  ","gold")
-  write (stdout,*) colorify(" ░██  ░██░██  ░██ ░██ ░██ ░██░██  ░██░██░░░░  ░░░░░██ ░░░░░██ ","gold")
-  write (stdout,*) colorify(" ███  ░██░░██████ ███ ░██ ░██░██  ░██░░██████ ██████  ██████  ","gold")
-  write (stdout,*) colorify("░░░   ░░  ░░░░░░ ░░░  ░░  ░░ ░░   ░░  ░░░░░░ ░░░░░░  ░░░░░░   ","gold")
+  write (stdout,*) " ------------------------------------------------ "
+  write (stdout,*) " #    # #    # #    # #    # ######  ####   ###   "
+  write (stdout,*) " ##   # #    # ##  ## #    # #      #      #      "
+  write (stdout,*) " # #  # #    # # ## # ###### #####   ####   ####  "
+  write (stdout,*) " #  # # #    # #    # #    # #           #      # "
+  write (stdout,*) " #   ## #    # #    # #    # #      #    # #    # "
+  write (stdout,*) " #    #  ####  #    # #    # ######  ####   ####  "
+  write (stdout,*) " ------------------------------------------------ "
   write (stdout,*)
+
+!========================================================================================!
+  call tim%start(15,'Numerical Hessian')
 
   call env%ref%to(mol)
   write (stdout,*)

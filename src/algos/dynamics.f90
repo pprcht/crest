@@ -24,7 +24,7 @@ subroutine crest_moleculardynamics(env,tim)
   use strucrd
   use dynamics_module
   use shake_module
-  use iomod, only: colorify
+  use iomod,only:colorify
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -43,14 +43,14 @@ subroutine crest_moleculardynamics(env,tim)
   character(len=*),parameter :: trjf = 'crest_dynamics.trj.xyz'
 !========================================================================================!
   write (stdout,*)
-  write (stdout,*) colorify("      ██                                         ██                ","gold")
-  write (stdout,*) colorify("     ░██  ██   ██                               ░░                 ","gold")
-  write (stdout,*) colorify("     ░██ ░░██ ██  ███████   ██████   ██████████  ██  █████   ██████","gold")
-  write (stdout,*) colorify("  ██████  ░░███  ░░██░░░██ ░░░░░░██ ░░██░░██░░██░██ ██░░░██ ██░░░░ ","gold")
-  write (stdout,*) colorify(" ██░░░██   ░██    ░██  ░██  ███████  ░██ ░██ ░██░██░██  ░░ ░░█████ ","gold")
-  write (stdout,*) colorify("░██  ░██   ██     ░██  ░██ ██░░░░██  ░██ ░██ ░██░██░██   ██ ░░░░░██","gold")
-  write (stdout,*) colorify("░░██████  ██      ███  ░██░░████████ ███ ░██ ░██░██░░█████  ██████ ","gold")
-  write (stdout,*) colorify(" ░░░░░░  ░░      ░░░   ░░  ░░░░░░░░ ░░░  ░░  ░░ ░░  ░░░░░  ░░░░░░  ","gold")
+  write (stdout,*) " ------------------------------------------------- "
+  write (stdout,*) " #####  #   # #    #   ##   #    # #  ####   ####  "
+  write (stdout,*) " #    #  # #  ##   #  #  #  ##  ## # #    # #      "
+  write (stdout,*) " #    #   #   # #  # #    # # ## # # #       ####  "
+  write (stdout,*) " #    #   #   #  # # ###### #    # # #           # "
+  write (stdout,*) " #    #   #   #   ## #    # #    # # #    # #    # "
+  write (stdout,*) " #####    #   #    # #    # #    # #  ####   ####  "
+  write (stdout,*) " ------------------------------------------------- "
   write (stdout,*)
 
 !========================================================================================!

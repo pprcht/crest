@@ -32,7 +32,7 @@ subroutine crest_optimization(env,tim)
   use crest_calculator
   use strucrd
   use optimize_module
-  use iomod, only:colorify
+  use iomod,only:colorify
   implicit none
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
@@ -50,14 +50,14 @@ subroutine crest_optimization(env,tim)
 
 ! ══════════════════════════════════════════════════════════════════════════════
   write (stdout,*)
-  write (stdout,*) colorify("                    ██   ██             ██               ","gold")
-  write (stdout,*) colorify("          ██████   ░██  ░░             ░░                ","gold")
-  write (stdout,*) colorify("  ██████ ░██░░░██ ██████ ██ ██████████  ██ ██████  █████ ","gold")
-  write (stdout,*) colorify(" ██░░░░██░██  ░██░░░██░ ░██░░██░░██░░██░██░░░░██  ██░░░██","gold")
-  write (stdout,*) colorify("░██   ░██░██████   ░██  ░██ ░██ ░██ ░██░██   ██  ░███████","gold")
-  write (stdout,*) colorify("░██   ░██░██░░░    ░██  ░██ ░██ ░██ ░██░██  ██   ░██░░░░ ","gold")
-  write (stdout,*) colorify("░░██████ ░██       ░░██ ░██ ███ ░██ ░██░██ ██████░░██████","gold")
-  write (stdout,*) colorify(" ░░░░░░  ░░         ░░  ░░ ░░░  ░░  ░░ ░░ ░░░░░░  ░░░░░░ ","gold")
+  write (stdout,*) " -------------------------------------------- "
+  write (stdout,*) "  ####  #####  ##### # #    # # ###### ###### "
+  write (stdout,*) " #    # #    #   #   # ##  ## #     #  #      "
+  write (stdout,*) " #    # #    #   #   # # ## # #    #   #####  "
+  write (stdout,*) " #    # #####    #   # #    # #   #    #      "
+  write (stdout,*) " #    # #        #   # #    # #  #     #      "
+  write (stdout,*) "  ####  #        #   # #    # # ###### ###### "
+  write (stdout,*) " -------------------------------------------- "
   write (stdout,*)
 
 !========================================================================================!
