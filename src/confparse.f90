@@ -1441,6 +1441,33 @@ subroutine parseflags(env,arg,nra)
         env%gfnver = '--gxtb'
         write (stdout,'(2x,a)') 'Note: --gxtb_dev is deprecated, redirecting to --gxtb.'
 
+      case ('-orca') !> set up a single ORCA driver level: --orca <template> <exe>
+        processedarg(i) = .true.
+        env%legacy = .false. !> new calculators only!
+        ! ── both the template and the executable are mandatory ──────────
+        if (arg1 == '' .or. arg1(1:1) == '-' .or. &
+        &   arg2 == '' .or. arg2(1:1) == '-') then
+          write (stdout,'(/,2x,a)') '┌─[ --orca: missing argument(s) ]'
+          write (stdout,'(2x,a)')   '│ The --orca flag sets up an ORCA driver and expects'
+          write (stdout,'(2x,a)')   '│ exactly two arguments, in this order:'
+          write (stdout,'(2x,a)')   '│   1) an ORCA input template'
+          write (stdout,'(2x,a)')   '│   2) the path to the ORCA executable'
+          write (stdout,'(2x,a)')   '│ The template must define ORCA EnGrad jobs ONLY'
+          write (stdout,'(2x,a)')   '│ (no opt/freq/md) - CREST drives the SP/opt loop.'
+          write (stdout,'(2x,a)')   '│ Example:'
+          write (stdout,'(2x,a)')   '│   crest struc.xyz --orca ORCA.in /path/to/orca'
+          write (stdout,'(2x,a,/)') '└────────────────────────────────────────────────'
+          call creststop(status_config)
+        end if
+        env%orca_template = trim(arg1)
+        env%orca_cmd = trim(arg2)
+        processedarg(i+1) = .true.
+        processedarg(i+2) = .true.
+        env%gfnver = '--orca'
+        write (stdout,'(2x,a)') '--orca : Use of ORCA driver requested.'
+        write (stdout,'(4x,a,1x,a)') 'template  :',trim(env%orca_template)
+        write (stdout,'(4x,a,1x,a)') 'executable:',trim(env%orca_cmd)
+
       case ('-refine','-rsp','-ropt') !> add one refinement step (via cmd only one is possible)
         processedarg(i) = .true.
         env%legacy = .false. !> new calculators only!

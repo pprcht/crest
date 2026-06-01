@@ -55,7 +55,8 @@ subroutine env2calc(env,calc,molin)
   !> except for SP runtype (from command line!)
   if (env%crestver == crest_sp) then
     cal%rdgrad = env%gradsp
-    if (cal%id .ne. jobtype%turbomole) then
+    !> ORCA/Turbomole drivers do not provide WBOs/dipoles/charges to read
+    if (cal%id .ne. jobtype%turbomole .and. cal%id .ne. jobtype%orca) then
       cal%rdwbo = .true.
       cal%rddip = .true.
       cal%rdqat = .true.
@@ -80,6 +81,16 @@ subroutine env2calc(env,calc,molin)
 
   !> do not reset parameters between calculations (opt for speed)
   cal%apiclean = .false.
+
+  ! ── ORCA driver set up from CLI (--orca <template> <exe>) ───────────
+  if (trim(env%gfnver) == '--orca') then
+    cal%id = jobtype%orca
+    if (allocated(env%orca_cmd)) then
+      cal%ORCA%cmd = trim(env%orca_cmd)
+      cal%binary = trim(env%orca_cmd)
+    end if
+    if (allocated(env%orca_template)) call cal%ORCA%read(trim(env%orca_template))
+  end if
 
   call cal%autocomplete(1)
   call calc%add(cal)

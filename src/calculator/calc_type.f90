@@ -1554,7 +1554,7 @@ contains  !>--- Module routines start here
         self%id = jobtype%xtbsys
         self%other = '--gxtb'
       end if
-    case ('orca')
+    case ('orca','--orca')
       self%id = jobtype%orca
 
     case ('generic')

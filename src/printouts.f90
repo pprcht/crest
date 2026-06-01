@@ -226,6 +226,8 @@ subroutine confscript_morehelp(flag)
     call help_opt('-gfn0',fw,'Use GFN0-xTB')
     call help_opt('-gff/-gfnff',fw,'Use GFN-FF  (bond constraints applied automatically)')
     call help_opt('-gxtb',fw,'Use g-xTB  (requires special build)')
+    call help_opt('-orca <tmpl> <exe>',fw, &
+    & 'Use an ORCA driver: <tmpl> is an ORCA input template (EnGrad jobs only), <exe> the ORCA executable')
     call help_opt('-A//B  -A/sp/B',fw,'sampling at B; inline SP re-ranking at A  (e.g. -gfn2//gfnff)')
     call help_opt('-A/opt/B',fw,'sampling at B; inline geometry refinement at A')
     call help_opt('-A@B',fw,'sampling at B; post-search re-optimization of ensemble at A')

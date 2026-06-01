@@ -417,6 +417,8 @@ module crest_data
     character(len=:),allocatable :: solv !> the entrie gbsa flag including solvent
     character(len=20)  :: gfnver = ''        !> GFN version
     character(len=20)  :: gfnver2 = ''       !> GFN version (multilevel)
+    character(len=:),allocatable :: orca_template !> ORCA input template (--orca)
+    character(len=:),allocatable :: orca_cmd      !> ORCA executable path (--orca)
     character(len=40)  :: rerank_lvl = ''    !> method for post-search SP reranking (--rerank)
     character(len=40)  :: reopt_lvl  = ''    !> method for post-search geo-opt standalone (--reopt)
     character(len=20)  :: lmover = ''        !> GFN version for LMO computation in xtb_lmo subroutine
