@@ -117,7 +117,7 @@ contains !>  MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine lbfgs_optimize(mol,calc,etot,grd,pr,io)
+  subroutine lbfgs_optimize(mol,calc,etot,grd,pr,io,logfile)
     !**************************************************************************
     !* L-BFGS Optimization Routine
     !*
@@ -134,6 +134,7 @@ contains !>  MODULE PROCEDURES START HERE
     !*     the history using a shifting strategy when full.
     !*
     !* @param io       Integer. Output status variable (0 indicates success).
+    !* @param logfile  name of the trajectory logfile (default crestopt.log.xyz).
     !**************************************************************************
     implicit none
     !> INPUT
@@ -142,6 +143,7 @@ contains !>  MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: etot
     real(wp),intent(inout) :: grd(3,mol%nat)
     logical,intent(in)     :: pr
+    character(len=*),intent(in) :: logfile
     !> OUTPUT
     integer,intent(out)    :: io
     !> LOCAL
@@ -170,7 +172,7 @@ contains !>  MODULE PROCEDURES START HERE
     converged = .false.
     mol%wrextxyz = calc%logextxyz
 
-    open (newunit=ilog,file='crestopt.log.xyz')
+    open (newunit=ilog,file=logfile)
     if(calc%logextxyz)then
       mol%gradient = grd
     endif

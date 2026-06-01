@@ -49,13 +49,21 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine optimize_geometry(mol,molnew,calc,etot,grd,pr,wr,iostatus)
+  subroutine optimize_geometry(mol,molnew,calc,etot,grd,pr,wr,iostatus,logfile)
+    !**********************************************************************
+    !* Driver that dispatches to the selected geometry optimizer engine.
+    !*
+    !* logfile - optional name for the step-by-step trajectory logfile;
+    !*           defaults to 'crestopt.log.xyz' when absent. Only written
+    !*           when the engine's wr flag is set.
+    !**********************************************************************
     implicit none
     !> Input
     type(coord)    :: mol
     type(calcdata) :: calc
     logical,intent(in)        :: pr
     logical,intent(in)        :: wr
+    character(len=*),intent(in),optional :: logfile
     !> Output
     type(coord)   :: molnew
     integer,intent(out)       :: iostatus
@@ -65,9 +73,17 @@ contains  !> MODULE PROCEDURES START HERE
     integer :: nat3,io,idx,nrt
     real(wp),allocatable :: hess(:),g_hess(:), g_hess_full(:,:), int_temps(:)
     logical :: pr2
+    character(len=:),allocatable :: logfile_l
 
-    
-    !write(stdout,*) "RUNNING AN OPT" 
+
+    !write(stdout,*) "RUNNING AN OPT"
+
+    !> resolve the logfile name (default if not provided)
+    if (present(logfile)) then
+      logfile_l = logfile
+    else
+      logfile_l = 'crestopt.log.xyz'
+    end if
 
     iostatus = -1
     !> do NOT overwrite original geometry
@@ -100,20 +116,20 @@ contains  !> MODULE PROCEDURES START HERE
     !> optimization
     select case (calc%opt_engine)
     case (0)
-      call ancopt(molnew,calc,etot,grd,pr,wr,iostatus)
+      call ancopt(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
     case (1)
       !> l-bfgs goes here
       !write(stdout,'(a)') 'L-BFGS currently not implemented'
       !stop
-      call lbfgs_optimize(molnew,calc,etot,grd,pr,iostatus)
+      call lbfgs_optimize(molnew,calc,etot,grd,pr,iostatus,logfile_l)
     case (2)
       !> rfo goes here
-      call rfopt(molnew,calc,etot,grd,pr,wr,iostatus)
+      call rfopt(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
     case (3)
       !> newton-raphson step goes here, this is a newton step with updated hessians, i.e. quasi Newton
-      call newton_raphson(molnew,calc,etot,grd,pr,wr,iostatus)
+      call newton_raphson(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
     case (-1)
-      call gradientdescent(molnew,calc,etot,grd,pr,wr,iostatus)
+      call gradientdescent(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
     case default
       write (stdout,'(a)') 'Unknown optimization engine!'
       stop

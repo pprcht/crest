@@ -47,7 +47,7 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine rfopt(mol,calc,etot,grd,pr,wr,iostatus)
+  subroutine rfopt(mol,calc,etot,grd,pr,wr,iostatus,logfile)
 !*************************************************************************
 !> subroutine rfopt
 !> Implementation of the standard rational function optimizer (RFO)
@@ -62,9 +62,10 @@ contains  !> MODULE PROCEDURES START HERE
 !>             on output final energy
 !>      grd  - Cartesian gradient
 !>       pr  - printout bool
-!>       wr  - logfile (crestopt.log.xyz) bool
+!>       wr  - logfile bool (name given by logfile, default crestopt.log.xyz)
 !>  iostatus - return status of the routine
 !>             (success=0, error<0, not converged>0)
+!>   logfile - name of the trajectory logfile to write when wr is set
 !!***********************************************************************
     implicit none
     !> INPUT/OUTPUT
@@ -75,6 +76,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,intent(in) :: pr
     logical,intent(in) :: wr
     integer,intent(out) :: iostatus
+    character(len=*),intent(in) :: logfile
     !> LOCAL
     integer  :: tight
     real(wp) :: eel
@@ -224,7 +226,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- initialize .log file, if desired
     ilog = 942
     if (wr) then
-      open (newunit=ilog,file='crestopt.log.xyz')
+      open (newunit=ilog,file=logfile)
     end if
 
 !>--- The ANCOPT iteration loop. "iter" is updated in relax() subroutine
