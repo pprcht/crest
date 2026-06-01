@@ -41,6 +41,16 @@ option('static',
   description : 'Attempt a fully static binary (includes OpenMP + LAPACK runtime)',
 )
 
+# ── Static subproject linking ─────────────────────────────────────────────────
+# Link subprojects (tblite, gfn0, gfnff, pvol, lwoniom, toml-f, …) as static
+# archives without forcing a fully static binary.  System runtimes stay dynamic.
+# Implied by -Dstatic=true.
+option('static-deps',
+  type    : 'boolean',
+  value   : true,
+  description : 'Link subprojects statically without a fully static binary',
+)
+
 # ── Optional computational chemistry libraries ─────────────────────────────────
 option('tblite',
   type    : 'feature',

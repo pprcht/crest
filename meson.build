@@ -258,7 +258,7 @@ tomlf_dep = dependency('toml-f',
   version  : '>=0.2.4',
   fallback : ['toml-f', 'tomlf_dep'],
   required : get_option('toml-f'),
-  static   : static_build,
+  static   : link_deps_static,
 )
 with_tomlf = tomlf_dep.found()
 if with_tomlf
@@ -269,7 +269,7 @@ tblite_dep = dependency('tblite',
   version  : '>=0.3.0',
   fallback : ['tblite', 'tblite_dep'],
   required : get_option('tblite'),
-  static   : static_build,
+  static   : link_deps_static,
   default_options: ['api=false'],
 )
 with_tblite = tblite_dep.found()
@@ -288,7 +288,7 @@ endif
 gfnff_dep = dependency('gfnff',
   fallback : ['gfnff', 'gfnff_dep'],
   required : get_option('gfnff'),
-  static   : static_build,
+  static   : link_deps_static,
   default_options : ['tests=false'],
 )
 with_gfnff = gfnff_dep.found()
@@ -299,7 +299,7 @@ endif
 gfn0_dep = dependency('gfn0',
   fallback : ['gfn0', 'gfn0_dep'],
   required : get_option('gfn0'),
-  static   : static_build,
+  static   : link_deps_static,
 )
 with_gfn0 = gfn0_dep.found()
 if with_gfn0
@@ -309,7 +309,7 @@ endif
 libpvol_dep = dependency('libpvol',
   fallback : ['pvol', 'libpvol_dep'],
   required : get_option('libpvol'),
-  static   : static_build,
+  static   : link_deps_static,
   default_options : ['tests=false'],
 )
 with_libpvol = libpvol_dep.found()
@@ -320,7 +320,7 @@ endif
 lwoniom_dep = dependency('lwoniom',
   fallback : ['lwoniom', 'lwoniom_dep'],
   required : get_option('lwoniom'),
-  static   : static_build,
+  static   : link_deps_static,
 )
 with_lwoniom = lwoniom_dep.found()
 if with_lwoniom
@@ -330,7 +330,7 @@ endif
 fmlip_dep = dependency('fmlip_relay',
   fallback : ['fmlip_relay', 'fmlip_relay_dep'],
   required : get_option('fmlip-relay'),
-  static   : static_build,
+  static   : link_deps_static,
 )
 with_fmlip = fmlip_dep.found()
 if with_fmlip
@@ -342,7 +342,7 @@ if get_option('tests')
     version  : '>=0.4.0',
     fallback : ['test-drive', 'testdrive_dep'],
     required : true,
-    static   : static_build,
+    static   : link_deps_static,
   )
 endif
 

@@ -107,6 +107,11 @@ endif
 
 static_build = get_option('static')
 
+# Static subproject linking: selects static archives for subproject deps
+# (tblite, gfn0, toml-f, …) without the fully-static `-static` syslib linking.
+# A fully static build (-Dstatic) implies it.
+link_deps_static = static_build or get_option('static-deps')
+
 if fc_id == 'intel-llvm'
   ## -lifport  : POSIX intrinsics (getcwd, chdir, …) not auto-linked by ifx.
   ##             In static builds -static-intel already bundles libifport.a, so
