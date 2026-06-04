@@ -73,6 +73,9 @@ module molecule_type
     !>-- atomic charges
     real(wp),allocatable :: qat(:)
 
+    !>-- atom ids (for iRMSDs)
+    integer,allocatable :: id(:)
+
     !>-- (optional) PDB data
     type(pdbdata) :: pdb
 
