@@ -322,6 +322,7 @@ module calc_type
   contains
     procedure :: reset => calculation_reset
     procedure :: init => calculation_init
+    procedure :: create => calcdata_create_shortcut
     generic,public :: add => calculation_add_constraint,calculation_add_settings, &
     & calculation_add_scan,calculation_add_constraintlist
     procedure,private :: calculation_add_constraint,calculation_add_settings, &
@@ -441,6 +442,52 @@ contains  !>--- Module routines start here
 
     return
   end subroutine calculation_add_settings
+
+!=========================================================================================!
+
+  subroutine calcdata_create_shortcut(self,levelstring, &
+      & chrg,uhf,solvmodel,solvent)
+!*********************************************************************
+!* subroutine calcdata_create_shortcut called with %create(...)
+!* Quick clean setup of a *fresh* calcdata object holding exactly
+!* one calculation level. The calcdata is reset first, then a single
+!* calculation_settings object is built (via its own %create) for the
+!* requested level of theory and registered in self%calcs(1).
+!*
+!* This is the calcdata-level counterpart to the %create shortcut of
+!* the calculation_settings type and exists as an internal code
+!* shortcut only (it does not sanity-check the chosen settings).
+!*
+!* Required argument:
+!*  - levelstring : level of theory, passed on to settings%create
+!* Optional arguments (forwarded to settings%create):
+!*  - chrg        : molecular charge  (integer)
+!*  - uhf         : uhf parameter     (integer)
+!*  - solvmodel   : solvation model   (only together with solvent)
+!*  - solvent     : implicit solvent  (only together with solvmodel)
+!*********************************************************************
+    implicit none
+    class(calcdata),intent(inout) :: self
+    character(len=*),intent(in) :: levelstring
+    integer,intent(in),optional :: chrg
+    integer,intent(in),optional :: uhf
+    character(len=*),intent(in),optional :: solvmodel
+    character(len=*),intent(in),optional :: solvent
+    type(calculation_settings) :: job
+
+    ! ── start from a clean calcdata object ──────────────────────────
+    call self%reset()
+
+    ! ── build the single calculation level (absent optionals are ────
+    ! ── forwarded as absent to settings%create) ─────────────────────
+    call job%create(levelstring,chrg=chrg,uhf=uhf, &
+    &               solvmodel=solvmodel,solvent=solvent)
+
+    ! ── register it as the only level in this calcdata ──────────────
+    call self%add(job)
+
+    return
+  end subroutine calcdata_create_shortcut
 
 !=========================================================================================!
 

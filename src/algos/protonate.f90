@@ -54,7 +54,6 @@ subroutine crest_new_protonate(env,tim)
   real(wp),allocatable :: grad(:,:)
   type(calcdata),allocatable :: tmpcalc
   type(calcdata),allocatable :: tmpcalc_ff
-  type(calculation_settings) :: tmpset
   real(wp),allocatable :: protxyz(:,:)
   integer :: natp,pstep,npnew
   integer,allocatable :: atp(:)
@@ -200,12 +199,9 @@ subroutine crest_new_protonate(env,tim)
     write (stdout,'(a)') '  with defined bond-topology can help circumvent this issue.'
     write (stdout,'(a)') '> Setting up force-field structure pre-optimization ...'
     allocate (tmpcalc_ff)
-    tmpcalc_ff%optnewinit = .true.
     env%calc%optnewinit = .true.
+    call tmpcalc_ff%create('gfnff',chrg=env%chrg)
     tmpcalc_ff%optnewinit = .true.
-    call tmpset%create('gfnff')
-    tmpset%chrg = env%chrg
-    call tmpcalc_ff%add(tmpset)
     tmpcalc_ff%maxcycle = 10000
     call tmpcalc_ff%info(stdout)
 
@@ -591,7 +587,6 @@ subroutine crest_new_deprotonate(env,tim)
   real(wp),allocatable :: grad(:,:)
   type(calcdata),allocatable :: tmpcalc
   type(calcdata),allocatable :: tmpcalc_ff
-  type(calculation_settings) :: tmpset
   integer :: natp,pstep,npnew
   integer,allocatable :: atp(:)
   real(wp),allocatable :: xyzp(:,:,:)
@@ -687,12 +682,9 @@ subroutine crest_new_deprotonate(env,tim)
     write (stdout,'(a)') '  with defined bond-topology can help circumvent this issue.'
     write (stdout,'(a)') '> Setting up force-field structure pre-optimization ...'
     allocate (tmpcalc_ff)
-    tmpcalc_ff%optnewinit = .true.
     env%calc%optnewinit = .true.
+    call tmpcalc_ff%create('gfnff',chrg=env%chrg)
     tmpcalc_ff%optnewinit = .true.
-    call tmpset%create('gfnff')
-    tmpset%chrg = env%chrg
-    call tmpcalc_ff%add(tmpset)
     tmpcalc_ff%maxcycle = 10000
     call tmpcalc_ff%info(stdout)
 
@@ -999,7 +991,6 @@ subroutine crest_new_tautomerize(env,tim)
   real(wp),allocatable :: grad(:,:)
   type(calcdata),allocatable :: tmpcalc
   type(calcdata),allocatable :: tmpcalc_ff
-  type(calculation_settings) :: tmpset
   integer :: natp,pstep,npnew
   integer :: tautiter,structiter
   integer,allocatable :: atp(:)
@@ -1169,12 +1160,9 @@ subroutine crest_new_tautomerize(env,tim)
     write (stdout,'(a)') '  with defined bond-topology can help circumvent this issue.'
     write (stdout,'(a)') '> Setting up force-field structure pre-optimization ...'
     allocate (tmpcalc_ff)
-    tmpcalc_ff%optnewinit = .true.
     env%calc%optnewinit = .true.
+    call tmpcalc_ff%create('gfnff',chrg=env%chrg)
     tmpcalc_ff%optnewinit = .true.
-    call tmpset%create('gfnff')
-    tmpset%chrg = env%chrg
-    call tmpcalc_ff%add(tmpset)
     tmpcalc_ff%maxcycle = 10000
     tmpcalc_ff%anopt=.true.
     call tmpcalc_ff%info(stdout)

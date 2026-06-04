@@ -65,7 +65,6 @@ subroutine new_wrsdfens(env,fname,oname,conf)
   !> local
   type(coord),allocatable :: structures(:)
   type(calcdata) :: tmpcalc
-  type(calculation_settings) :: cal
   real(wp),allocatable :: wbo(:,:)
   real(wp),allocatable :: grad(:,:)
   real(wp),allocatable :: icharges(:)
@@ -82,12 +81,8 @@ subroutine new_wrsdfens(env,fname,oname,conf)
   nat = structures(1)%nat
 
   ! ── set up a minimal GFN0 singlepoint calculator for WBOs ─────────────
-  call cal%create('gfn0')
-  cal%chrg = env%chrg
-  cal%uhf = env%uhf
-  cal%rdwbo = .true.
-  call cal%autocomplete(1)
-  call tmpcalc%add(cal)
+  call tmpcalc%create('gfn0',chrg=env%chrg,uhf=env%uhf)
+  tmpcalc%calcs(1)%rdwbo = .true.
   allocate (wbo(nat,nat),grad(3,nat),source=0.0_wp)
   energy = 0.0_wp
 

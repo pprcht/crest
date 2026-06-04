@@ -22,7 +22,6 @@ contains
     real(wp),optional,intent(in) :: hguess
     logical,intent(in) :: pr
     type(calcdata),allocatable :: newcalc
-    type(calculation_settings) :: clevel
     type(mhparam) :: mhset
     integer :: k,i,j,idx,io,nat3
 
@@ -64,29 +63,25 @@ contains
     case (1)
       !$omp critical
       !write(stdout,*) calc%calcs(1)%chrg
-      call clevel%create('gfnff',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
-      call newcalc%add(clevel)
+      call newcalc%create('gfnff',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
       !$omp end critical
       call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
       call dsqtoh(nat3,hess_full(:,:),hess(:)) !>Pack Hessian
     case (2)
         !$omp critical
-      call clevel%create('gfn0',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
-      call newcalc%add(clevel)
+      call newcalc%create('gfn0',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
       !$omp end critical
       call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
       call dsqtoh(nat3,hess_full(:,:),hess(:))
     case (3)
         !$omp critical
-      call clevel%create('gfn1',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
-      call newcalc%add(clevel)
+      call newcalc%create('gfn1',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
       !$omp end critical
       call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
       call dsqtoh(nat3,hess_full(:,:),hess(:))
     case (4)
         !$omp critical
-      call clevel%create('gfn2',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
-      call newcalc%add(clevel)
+      call newcalc%create('gfn2',chrg=calc%calcs(1)%chrg,uhf=calc%calcs(1)%uhf) !> Different levels?? and what happens to solvent??
       !$omp end critical
       call numhess1(nat,at,xyz,newcalc,hess_full(:,:),io)
       call dsqtoh(nat3,hess_full(:,:),hess(:))
