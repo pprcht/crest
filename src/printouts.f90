@@ -1088,6 +1088,100 @@ end subroutine gxtb_syscall_warning
 !========================================================================================!
 !========================================================================================!
 
+subroutine gxtb_solvation_guard(env)
+!**************************************************************************
+!* g-xTB does not (yet) support dedicated implicit solvation. This guard
+!* is meant to be called right after input parsing (CLI and/or TOML),
+!* once the dedicated env%calc object is populated.
+!*
+!* It scans all requested calculation levels (both the native tblite
+!* g-xTB level and the xtb-subprocess driver) as well as the legacy CLI
+!* selection. If a g-xTB level is combined with a request for implicit
+!* solvation, CREST is terminated safely with an explanatory message.
+!*
+!* State of the g-xTB implementation: 05/2026 (development version) — no
+!* solvation support, neither via the native tblite interface nor via the
+!* xtb subprocess driver.
+!*
+!*   env  -  CREST system data (read-only here; holds env%calc)
+!**************************************************************************
+  use crest_parameters
+  use crest_data
+  use crest_calculator,only:jobtype
+  use tblite_api,only:xtblvl,have_gxtb
+  use iomod,only:drawbox
+  implicit none
+  type(systemdata),intent(in) :: env
+  integer :: i
+  logical :: usesgxtb,wantssolv
+  integer,parameter :: bw = 72   !> box width
+
+  usesgxtb = .false.
+  wantssolv = .false.
+
+  ! ── legacy CLI selection (env-level) ────────────────────────────────
+  if (index(env%gfnver,'gxtb') .ne. 0) usesgxtb = .true.
+  if (env%gbsa) wantssolv = .true.
+
+  ! ── per-calculation levels collected in env%calc ────────────────────
+  if (associated(env%calc)) then
+    do i = 1,env%calc%ncalculations
+      associate (job => env%calc%calcs(i))
+        !> native tblite g-xTB level
+        if (job%id == jobtype%tblite .and. job%tblitelvl == xtblvl%gxtb) then
+          usesgxtb = .true.
+        end if
+        !> g-xTB run as an xtb subprocess (--gxtb flag or gxtb binary)
+        if (allocated(job%other)) then
+          if (index(job%other,'gxtb') .ne. 0) usesgxtb = .true.
+        end if
+        if (allocated(job%binary)) then
+          if (index(job%binary,'gxtb') .ne. 0) usesgxtb = .true.
+        end if
+        !> any implicit solvation request on this level
+        if (allocated(job%solvmodel) .or. allocated(job%solvent)) then
+          wantssolv = .true.
+        end if
+      end associate
+    end do
+  end if
+
+  !> the unsupported combination is g-xTB AND implicit solvation
+  if (.not. (usesgxtb .and. wantssolv)) return
+
+  ! ── unsupported combination → print box and terminate safely ────────
+  write (stdout,*)
+  call drawbox(stdout,'',width=bw,charset=6,procedual=0)
+  call drawbox(stdout,'g-xTB: IMPLICIT SOLVATION NOT SUPPORTED',width=bw, &
+  &            charset=6,procedual=1)
+  call drawbox(stdout,'',width=bw,charset=6,procedual=3)
+  call gsg_line('')
+  call gsg_line('You requested g-xTB together with an implicit solvation model.')
+  call gsg_line('')
+  call gsg_line('The current g-xTB implementation (development version, 05/2026)')
+  call gsg_line('does not support dedicated implicit solvation yet, neither via')
+  call gsg_line('the native tblite interface nor via the xtb subprocess driver.')
+  call gsg_line('')
+  call gsg_line('Please run g-xTB in the gas phase (drop --alpb / --gbsa or the')
+  call gsg_line('corresponding TOML solvation keywords), or pick a different')
+  call gsg_line('level of theory for solvated calculations.')
+  call drawbox(stdout,'',width=bw,charset=6,procedual=2)
+  write (stdout,*)
+
+  call creststop(status_safety)
+
+contains
+  subroutine gsg_line(txt)
+    !> emit a single left-aligned content line of the warning box
+    use iomod,only:drawbox
+    character(len=*),intent(in) :: txt
+    call drawbox(stdout,txt,width=bw,charset=6,procedual=1,padl=2)
+  end subroutine gsg_line
+end subroutine gxtb_solvation_guard
+
+!========================================================================================!
+!========================================================================================!
+
 subroutine crest_no_runtype_selected()
   !*****************************************************
   !* Print an error when no runtype has been selected, *

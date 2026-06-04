@@ -58,6 +58,13 @@ program CREST
   end do
   call parseflags(env,arg,args)
   deallocate (arg)
+
+!=========================================================================================!
+!> post-parsing sanity checks on the assembled env%calc object
+!=========================================================================================!
+!>--- g-xTB (05/2026) has no implicit solvation; stop safely if requested
+  call gxtb_solvation_guard(env)
+
 !=========================================================================================!
 !> scratch dir handling
 
