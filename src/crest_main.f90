@@ -356,6 +356,10 @@ program CREST
   call crest_output_summary(env)
 
 !=========================================================================================!
+!> Repeat the g-xTB syscall note (non-WITH_GXTB path) if g-xTB was requested
+  if (env%gfnver == '--gxtb') call gxtb_syscall_warning()
+
+!=========================================================================================!
 !> Evaluate and print timings, then stop the program
   call eval_timer(tim)
   call creststop(env%iostatus_meta)

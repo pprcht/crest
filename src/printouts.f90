@@ -1068,21 +1068,40 @@ subroutine gxtb_syscall_warning
 !*************************************************************
 !* Warn the user that this build runs g-xTB by invoking the
 !* xtb binary via system calls (slow, temporary workaround).
-!* Printed only when compiled with WITH_GXTB.
-!* A proper tblite-native implementation is pending.
+!* Only prints in the non-WITH_GXTB call path (have_gxtb=F),
+!* i.e. when no native tblite g-xTB build is available.
+!* Points the user to the static xtb binary of the g-xTB
+!* development release and to the (much faster) static CREST
+!* binary with a tblite g-xTB build available upon request.
 !*************************************************************
   use crest_parameters,only:stdout
   use tblite_api,only:have_gxtb
   implicit none
+  integer,parameter :: w = 70  !> inner box width (ASCII content)
+  character(len=*),parameter :: hz = '─'
+  character(len=*),parameter :: vt = '│'
   if (have_gxtb) return
   write (stdout,*)
-  write (stdout,'(1x,a)') repeat('!',68)
-  write (stdout,'(1x,a)') '! Note: g-xTB is currently invoked via the xtb binary              !'
-  write (stdout,'(1x,a)') '!       (system calls). This is a temporary implementation and     !'
-  write (stdout,'(1x,a)') '!       may be slow. A native interface via the tblite package     !'
-  write (stdout,'(1x,a)') '!       is planned for an upcoming release.                        !'
-  write (stdout,'(1x,a)') repeat('!',68)
+  write (stdout,'(1x,a)') '╭'//repeat(hz,w)//'╮'
+  call boxline('Note: g-xTB is currently invoked via the xtb binary (system')
+  call boxline('calls). This is a temporary implementation and may be slow.')
+  call boxline('')
+  call boxline('* A static xtb binary providing g-xTB is available from the')
+  call boxline('  g-xTB development release at:')
+  call boxline('    https://github.com/grimme-lab/g-xtb')
+  call boxline('')
+  call boxline('* A static CREST binary with a native tblite development build')
+  call boxline('  of g-xTB (much faster than the bespoke xtb system call) is')
+  call boxline('  available upon request.')
+  write (stdout,'(1x,a)') '╰'//repeat(hz,w)//'╯'
   write (stdout,*)
+contains
+  subroutine boxline(text)
+    character(len=*),intent(in) :: text
+    character(len=w) :: buf
+    buf = '  '//text
+    write (stdout,'(1x,a)') vt//buf//vt
+  end subroutine boxline
 end subroutine gxtb_syscall_warning
 
 !========================================================================================!
