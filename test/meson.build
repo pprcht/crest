@@ -11,6 +11,7 @@ tests = [
   'molecular_dynamics',
   'getsym',
   'irmsd',
+  'graphs',
 ]
 
 test_srcs = files(

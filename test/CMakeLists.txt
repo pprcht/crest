@@ -10,6 +10,7 @@ set(
   "molecular_dynamics"
   "getsym"
   "irmsd"
+  "graphs"
 )
 set(
   test-srcs

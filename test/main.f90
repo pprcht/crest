@@ -12,6 +12,7 @@ program tester
   use test_molecular_dynamics, only: collect_mol_dynamics
   use test_getsym, only: collect_getsym
   use test_irmsd, only: collect_irmsd
+  use test_graphs, only: collect_graphs
   implicit none
   integer :: stat, is
   character(len=:), allocatable :: suite_name, test_name
@@ -36,7 +37,8 @@ program tester
     new_testsuite("getsym", collect_getsym),   & 
     new_testsuite("optimization", collect_optimization), &
     new_testsuite("molecular_dynamics", collect_mol_dynamics), &
-    new_testsuite("irmsd", collect_irmsd) &
+    new_testsuite("irmsd", collect_irmsd), &
+    new_testsuite("graphs", collect_graphs) &
   ]
 !&>
 
