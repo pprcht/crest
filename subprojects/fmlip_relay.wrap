@@ -3,7 +3,7 @@
 # the submodule is checked out under subprojects/fmlip_relay/.
 [wrap-git]
 url = https://github.com/pprcht/fmlip-relay
-revision = df72296254383d5b4e1ff10d7bd461c5447bc0da
+revision = 06608dea8b7deb53f4a25630f6dcb8be0cdc6e76
 clone-recursive = true
 
 [provide]

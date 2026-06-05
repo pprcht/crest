@@ -1,7 +1,7 @@
 set(_lib "fmlip_relay")
 set(_pkg "FMLIP_RELAY")
 set(_url "https://github.com/pprcht/fmlip-relay")
-set(_branch "df72296254383d5b4e1ff10d7bd461c5447bc0da")
+set(_branch "06608dea8b7deb53f4a25630f6dcb8be0cdc6e76")
 
 # Discovery method order can be overridden by the parent project, e.g.:
 #   set(FMLIP_RELAY_FIND_METHOD "subproject" "cmake")
