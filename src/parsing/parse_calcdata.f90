@@ -219,6 +219,10 @@ contains !> MODULE PROCEDURES START HERE
       job%ngrid = kv%value_i
     case ('vdwset','pvol_vdwset')
       job%vdwset = kv%value_i
+    case ('mlip_port','mlip_base_port')
+      job%MPAR%BASE_PORT = kv%value_i
+    case ('mlip_timeout','mlip_timeout_sec')
+      job%MPAR%TIMEOUT_SEC = kv%value_i
     case ('config')
       call job%addconfig(kv%value_ia)
 
@@ -371,6 +375,15 @@ contains !> MODULE PROCEDURES START HERE
 
     case ('mlip_modelsize','mlip_modelname')
       job%MPAR%modelsize = kv%value_c
+
+    case ('mlip_device')
+      job%MPAR%device = kv%value_c
+
+    case ('mlip_uma_model','mlip_umamodel')
+      job%MPAR%umamodel = kv%value_c
+
+    case ('mlip_uma_task','mlip_umatask')
+      job%MPAR%umatask = kv%value_c
 
     case ('orca_cmd')
       job%id = jobtype%orca

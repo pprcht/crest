@@ -48,3 +48,5 @@ It is assumed that the `crest` binary is available in `$PATH`.
 | **14** | Metal/ion adducts (Cs+) | alpha-D-glucose |
 | **15** | Tautomer screening | guanine |
 | **16** | fmlip-relay: geometry optimisation with LJ potential | Ar4 cluster |
+| **17** | fmlip-relay: geometry optimisation with FairChem UMA model | caffeine |
+| **18** | fmlip-relay: geometry optimisation with MACE-OFF23 model | caffeine |

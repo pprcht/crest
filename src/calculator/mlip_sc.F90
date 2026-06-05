@@ -42,6 +42,11 @@ module mlip_sc
     character(len=:),allocatable :: backend
     character(len=:),allocatable :: modelpath
     character(len=:),allocatable :: modelsize
+    !> shared neural-network options (mace* / uma backends)
+    character(len=:),allocatable :: device    !> torch device: cpu | cuda | cuda:0
+    !> FairChem UMA backend options (--backend uma)
+    character(len=:),allocatable :: umamodel  !> checkpoint, e.g. uma-s-1p2 (default), uma-m-1
+    character(len=:),allocatable :: umatask   !> task head: omol | omat | omc | oc20 | odac
     integer :: iid = 0
   end type mlip_params
 
@@ -113,14 +118,25 @@ contains  !>--- Module routines start here
           write (stdout,*)
           call creststop(20)
         end if
-        write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a),1x,a)') basebin,'--port',tmpport,'--backend', &
-          & 'mace','--model',trim(MPAR%modelpath),trim(cmd_1)
+        !> a user-provided checkpoint is served through the generic 'mace' backend
+        cmd_0 = '--backend mace --model '//trim(MPAR%modelpath)
       else
-        cmd_0 = ''
-        if (allocated(MPAR%modelsize)) write (cmd_0,'(a,1x,a)') '--mace-model',trim(MPAR%modelsize)
-        write (cmd,'(a,1x,a,1x,i0,2(1x,a,1x,a),1x,a)') basebin,'--port',tmpport,'--backend', &
-        & trim(MPAR%backend),trim(cmd_0),'',trim(cmd_1)
+        cmd_0 = '--backend '//trim(MPAR%backend)
+        if (allocated(MPAR%modelsize)) cmd_0 = trim(cmd_0)//' --mace-model '//trim(MPAR%modelsize)
       end if
+      if (allocated(MPAR%device)) cmd_0 = trim(cmd_0)//' --device '//trim(MPAR%device)
+      write (cmd,'(a,1x,a,1x,i0,1x,a,1x,a)') basebin,'--port',tmpport,trim(adjustl(cmd_0)),trim(cmd_1)
+
+    case ('uma')
+      !> FairChem UMA foundation model (fairchem-core v2). Charge and spin
+      !> multiplicity are forwarded per-call via the relay protocol; only the
+      !> checkpoint, task head and torch device are fixed at server startup.
+      cmd_0 = ''
+      if (allocated(MPAR%umamodel)) cmd_0 = trim(cmd_0)//' --uma-model '//trim(MPAR%umamodel)
+      if (allocated(MPAR%umatask))  cmd_0 = trim(cmd_0)//' --uma-task '//trim(MPAR%umatask)
+      if (allocated(MPAR%device))   cmd_0 = trim(cmd_0)//' --device '//trim(MPAR%device)
+      write (cmd,'(a,1x,a,1x,i0,1x,a,1x,a,1x,a)') basebin,'--port',tmpport, &
+        & '--backend uma',trim(adjustl(cmd_0)),trim(cmd_1)
 
     case default
 
