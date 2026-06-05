@@ -47,6 +47,7 @@ subroutine env2calc(env,calc,molin)
   end if
 
   cal%uhf = env%uhf
+  call cal%sync_multiplicity()   !> keep the multiplicity store aligned with uhf
   cal%chrg = env%chrg
   cal%spin_polarized = env%spin_polarized
 !>-- obtain WBOs OFF by default
@@ -55,12 +56,14 @@ subroutine env2calc(env,calc,molin)
   !> except for SP runtype (from command line!)
   if (env%crestver == crest_sp) then
     cal%rdgrad = env%gradsp
-    !> ORCA/Turbomole drivers do not provide WBOs/dipoles/charges to read
-    if (cal%id .ne. jobtype%turbomole .and. cal%id .ne. jobtype%orca) then
+    !> ORCA/Turbomole drivers and fmlip-relay MLIPs do not provide
+    !> WBOs/dipoles/charges to read back
+    if (cal%id .ne. jobtype%turbomole .and. cal%id .ne. jobtype%orca &
+    &   .and. cal%id .ne. jobtype%mlip) then
       cal%rdwbo = .true.
       cal%rddip = .true.
       cal%rdqat = .true.
-    else
+    else if (cal%id == jobtype%turbomole .or. cal%id == jobtype%orca) then
       if (.not.env%gradsp) then
         cal%other = ''
       end if

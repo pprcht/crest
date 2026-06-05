@@ -228,6 +228,8 @@ subroutine confscript_morehelp(flag)
     call help_opt('-gxtb',fw,'Use g-xTB  (requires special build)')
     call help_opt('-orca <tmpl> <exe>',fw, &
     & 'Use an ORCA driver: <tmpl> is an ORCA input template (EnGrad jobs only), <exe> the ORCA executable')
+    call help_opt('-mlip <backend>',fw, &
+    & 'Use an fmlip-relay ML potential: <backend> is uma (omol task) or maceoff (MACE-OFF23 medium)')
     call help_opt('-A//B  -A/sp/B',fw,'sampling at B; inline SP re-ranking at A  (e.g. -gfn2//gfnff)')
     call help_opt('-A/opt/B',fw,'sampling at B; inline geometry refinement at A')
     call help_opt('-A@B',fw,'sampling at B; post-search re-optimization of ensemble at A')

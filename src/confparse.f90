@@ -1442,6 +1442,30 @@ subroutine parseflags(env,arg,nra)
         env%gfnver = '--gxtb'
         write (stdout,'(2x,a)') 'Note: --gxtb_dev is deprecated, redirecting to --gxtb.'
 
+      case ('-mlip') !> quick setup of an fmlip-relay ML potential: --mlip <uma|maceoff>
+        processedarg(i) = .true.
+        env%legacy = .false. !> new calculators only!
+        select case (trim(arg1))
+        case ('uma')
+          env%gfnver = 'uma'
+          processedarg(i+1) = .true.
+          write (stdout,'(2x,a)') '--mlip uma : FairChem UMA (omol task) via fmlip-relay requested.'
+        case ('maceoff','mace-off','mace_off')
+          env%gfnver = 'maceoff'
+          processedarg(i+1) = .true.
+          write (stdout,'(2x,a)') '--mlip maceoff : MACE-OFF23 (medium) via fmlip-relay requested.'
+        case default
+          write (stdout,'(/,2x,a)') '┌─[ --mlip: missing or unknown backend ]'
+          write (stdout,'(2x,a)')   '│ The --mlip flag selects an fmlip-relay ML potential'
+          write (stdout,'(2x,a)')   '│ and expects one backend keyword:'
+          write (stdout,'(2x,a)')   '│   uma      FairChem UMA foundation model (omol task)'
+          write (stdout,'(2x,a)')   '│   maceoff  MACE-OFF23 organic force field (medium)'
+          write (stdout,'(2x,a)')   '│ For finer control (model size, task, device, custom'
+          write (stdout,'(2x,a)')   '│ checkpoints) use the TOML [[calculation.level]] block.'
+          write (stdout,'(2x,a,/)') '└────────────────────────────────────────────────'
+          call creststop(status_config)
+        end select
+
       case ('-orca') !> set up a single ORCA driver level: --orca <template> <exe>
         processedarg(i) = .true.
         env%legacy = .false. !> new calculators only!

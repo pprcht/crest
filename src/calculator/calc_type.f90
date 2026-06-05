@@ -1497,6 +1497,92 @@ contains  !>--- Module routines start here
         write (iunit,fmt4) 'Charge Extended Hückel (CEH) model'
       end select
     end if
+
+    !> MLIP (fmlip-relay) backend details — print only what is meaningful
+    !> for the selected backend
+    if (self%id == jobtype%mlip) then
+      block
+        character(len=:),allocatable :: bk
+        bk = 'unknown'
+        if (allocated(self%MPAR%backend)) bk = trim(self%MPAR%backend)
+        ! ── friendly backend headline ───────────────────────────────────────
+        select case (bk)
+        case ('uma')
+          write (iunit,fmt4) 'FairChem UMA foundation model (fairchem)'
+        case ('mace_off')
+          write (iunit,fmt4) 'MACE-OFF23 organic force field'
+        case ('mace_mp')
+          write (iunit,fmt4) 'MACE-MP foundation model (Materials Project)'
+        case ('mace')
+          write (iunit,fmt4) 'Custom MACE model'
+        case ('lj')
+          write (iunit,fmt4) 'Lennard-Jones potential'
+        case ('dummy')
+          write (iunit,fmt4) 'Dummy (zero) potential'
+        case default
+          write (iunit,fmt4) 'fmlip-relay backend: '//bk
+        end select
+        write (atmp,*) 'MLIP backend'
+        write (iunit,fmt3) atmp,bk
+        ! ── backend-specific model / task selection ─────────────────────────
+        select case (bk)
+        case ('uma')
+          write (atmp,*) 'UMA model'
+          if (allocated(self%MPAR%umamodel)) then
+            write (iunit,fmt3) atmp,trim(self%MPAR%umamodel)
+          else
+            write (iunit,fmt3) atmp,'uma-s-1p2 (default)'
+          end if
+          write (atmp,*) 'UMA task'
+          if (allocated(self%MPAR%umatask)) then
+            write (iunit,fmt3) atmp,trim(self%MPAR%umatask)
+          else
+            write (iunit,fmt3) atmp,'omol (default)'
+          end if
+        case ('mace_off','mace_mp')
+          if (allocated(self%MPAR%modelpath)) then
+            write (atmp,*) 'MACE model file'
+            write (iunit,fmt3) atmp,trim(self%MPAR%modelpath)
+          else
+            write (atmp,*) 'MACE model size'
+            if (allocated(self%MPAR%modelsize)) then
+              write (iunit,fmt3) atmp,trim(self%MPAR%modelsize)
+            else
+              write (iunit,fmt3) atmp,'medium (default)'
+            end if
+          end if
+        case default
+          if (allocated(self%MPAR%modelpath)) then
+            write (atmp,*) 'Model file'
+            write (iunit,fmt3) atmp,trim(self%MPAR%modelpath)
+          end if
+        end select
+        ! ── compute device: always shown for the torch-based backends ───────
+        select case (bk)
+        case ('uma','mace_off','mace_mp','mace')
+          write (atmp,*) 'Compute device'
+          if (allocated(self%MPAR%device)) then
+            write (iunit,fmt3) atmp,trim(self%MPAR%device)
+          else
+            write (iunit,fmt3) atmp,'cpu (default)'
+          end if
+        case default
+          !> lj / dummy etc. have no torch device; show only if explicitly set
+          if (allocated(self%MPAR%device)) then
+            write (atmp,*) 'Compute device'
+            write (iunit,fmt3) atmp,trim(self%MPAR%device)
+          end if
+        end select
+        if (self%MPAR%BASE_PORT /= 54320) then
+          write (atmp,*) 'Socket base port'
+          write (iunit,fmt1) atmp,self%MPAR%BASE_PORT
+        end if
+        if (self%MPAR%TIMEOUT_SEC /= 120) then
+          write (atmp,*) 'Server timeout [s]'
+          write (iunit,fmt1) atmp,self%MPAR%TIMEOUT_SEC
+        end if
+      end block
+    end if
     if (any((/jobtype%orca,jobtype%xtbsys,jobtype%turbomole, &
     &  jobtype%generic,jobtype%terachem/) == self%id)) then
       if (index(self%binary,'gxtb') .ne. 0) then
@@ -1528,10 +1614,22 @@ contains  !>--- Module routines start here
     !> system data
     write (atmp,*) 'Molecular charge'
     write (iunit,fmt1) atmp,self%chrg
-    if (self%uhf /= 0) then
-      write (atmp,*) 'UHF parameter'
-      write (iunit,fmt1) atmp,self%uhf
-    end if
+    !> spin: ORCA and the UMA (omol) backend consume a multiplicity (2S+1)
+    !> from the multiplicity store, the xtb-type methods consume uhf = Nα-Nβ
+    block
+      logical :: use_mult
+      use_mult = (self%id == jobtype%orca)
+      if (self%id == jobtype%mlip .and. allocated(self%MPAR%backend)) then
+        if (trim(self%MPAR%backend) == 'uma') use_mult = .true.
+      end if
+      if (use_mult) then
+        write (atmp,*) 'Multiplicity'
+        write (iunit,fmt1) atmp,self%multiplicity
+      else if (self%uhf /= 0) then
+        write (atmp,*) 'UHF parameter'
+        write (iunit,fmt1) atmp,self%uhf
+      end if
+    end block
     if (self%id == jobtype%tblite .and. self%spin_polarized) then
       write (atmp,*) 'Spin-polarization'
       write (iunit,fmt3) atmp,'yes'
@@ -1640,6 +1738,18 @@ contains  !>--- Module routines start here
       end if
     case ('orca','--orca')
       self%id = jobtype%orca
+
+    case ('uma','--uma')
+      !> FairChem UMA via fmlip-relay; default to the molecular (omol) task head
+      self%id = jobtype%mlip
+      self%MPAR%backend = 'uma'
+      self%MPAR%umatask = 'omol'
+
+    case ('maceoff','mace-off','mace_off','--maceoff')
+      !> MACE-OFF23 organic force field via fmlip-relay; default to medium size
+      self%id = jobtype%mlip
+      self%MPAR%backend = 'mace_off'
+      self%MPAR%modelsize = 'medium'
 
     case ('generic')
       self%id = jobtype%generic
