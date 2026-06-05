@@ -216,7 +216,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-tautomerize',fw,'Tautomer generation')
     call help_opt('-qcg',fw,'Quantum Cluster Growth workflows  (see '//colorify('--help qcg','gold')//')')
     call help_opt('-msreact',fw,'MS fragment generator  (see '//colorify('--help msreact','gold')//')')
-    call help_opt('-bh/-GMIN',fw,'Basin-hopping global optimization')
+    !call help_opt('-bh/-GMIN',fw,'Basin-hopping global optimization')
     call help_opt('-sort/-cregen',fw,'Ensemble sorting, comparison, clustering  (see '//colorify('--help compare','gold')//')')
     write (stdout,*)
     fw = 22
@@ -1286,6 +1286,8 @@ subroutine crest_output_summary(env)
 
   case (crest_mdopt)
     call wfe('crest_ensemble.xyz','ensemble output with optimized geometries')
+    if (allocated(env%refine_queue)) &
+    & call wfe('crest_ensemble.xyz.refine','refined ensemble (after the requested --refine step)')
 
     ! ── standalone CREGEN sorting ─────────────────
   case (crest_sorting)
@@ -1361,6 +1363,6 @@ subroutine crest_output_summary(env)
 contains
   subroutine wfe(fname,descr)
     character(len=*),intent(in) :: fname,descr
-    write (stdout,'(1x,a,t26,''│ '',a)') fname,trim(descr)
+    write (stdout,'(1x,a,t30,''│ '',a)') fname,trim(descr)
   end subroutine wfe
 end subroutine crest_output_summary
