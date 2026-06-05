@@ -268,6 +268,7 @@ subroutine parseflags(env,arg,nra)
   end if
   inquire (file='.UHF',exist=ex)
   if (any(index(arg,'-uhf') .ne. 0)) ex = .false.
+  if (any(index(arg,'-mult') .ne. 0)) ex = .false.
   if (ex) then
     write(stdout,*) '**ERROR** CREST will not read .UHF files following version 3.0.2'
     write(stdout,*) 'Please use --uhf or the input file specifications.'
@@ -1654,6 +1655,21 @@ subroutine parseflags(env,arg,nra)
           env%uhf = nint(xx(1))
           env%ref%uhf = env%uhf
           write (ich,'(i0)') nint(xx(1))
+          close (ich)
+          write (stdout,'(2x,a,1x,a)') trim(arg(i)),arg1
+        else
+          call parseflags_missing(argument)
+        end if
+
+      case ('-mult','-multiplicity')   !> spin multiplicity (2S+1); stored as uhf = mult-1
+        processedarg(i) = .true.
+        call readl(arg1,xx,j)
+        if (j > 0) then
+          processedarg(i+1) = .true.
+          env%uhf = nint(xx(1))-1
+          env%ref%uhf = env%uhf
+          open (newunit=ich,file='.uhf')
+          write (ich,'(i0)') env%uhf
           close (ich)
           write (stdout,'(2x,a,1x,a)') trim(arg(i)),arg1
         else

@@ -92,7 +92,9 @@ module calc_type
     integer :: refine_lvl = 0 !> to allow defining different refinement levels
 
     integer :: chrg = 0          !> molecular charge
-    integer :: uhf = 0           !> uhf parameter (xtb) or multiplicity (other)
+    integer :: uhf = 0           !> uhf = Nα-Nβ = 2S (xtb/tblite/gfn0/gfnff/turbomole)
+    integer :: multiplicity = 1  !> spin multiplicity = 2S+1 = uhf+1 (ORCA, fmlip-relay)
+                                 !> kept aligned with uhf via sync_multiplicity/set_multiplicity
     logical :: active = .true.   !> active setting to disable the calculation (this is different from weight=0)
     real(wp) :: weight = 1.0_wp  !> calculation weight (when adding them up)
 
@@ -210,6 +212,8 @@ module calc_type
     procedure :: norestarts => calculation_settings_norestarts
     procedure :: dumpdipgrad => calculation_dump_dipgrad
     procedure :: copy => calculation_settings_copy
+    procedure :: sync_multiplicity => calc_sync_multiplicity
+    procedure :: set_multiplicity => calc_set_multiplicity
   end type calculation_settings
 
 !=========================================================================================!
@@ -1205,6 +1209,7 @@ contains  !>--- Module routines start here
 ! ── system ───────────────────────────────────────────────────────────────────
     self%chrg       = src%chrg
     self%uhf        = src%uhf
+    self%multiplicity = src%multiplicity
     self%active     = src%active
     self%weight     = src%weight
 
@@ -1339,6 +1344,9 @@ contains  !>--- Module routines start here
     self%description = trim(jobdescription(self%id+1))
     call calculation_settings_shortflag(self)
 
+    !> ── keep the spin multiplicity aligned with the uhf carrier ─────────────────
+    call self%sync_multiplicity()
+
     if (.not.allocated(self%calcspace)) then
       !> I've decided to perform all calculations in a separate directory to
       !> avoid accumulation of files in the main workspace
@@ -1350,6 +1358,35 @@ contains  !>--- Module routines start here
       self%prch = self%prch+id
     end if
   end subroutine calculation_settings_autocomplete
+
+!========================================================================================!
+
+  subroutine calc_sync_multiplicity(self)
+    !***************************************************************
+    !* Align the spin multiplicity with the uhf carrier:          *
+    !* multiplicity = uhf + 1 = (Nα-Nβ) + 1 = 2S+1.               *
+    !* uhf is the single source of truth that survives copies and *
+    !* direct assignments; call this before any interface that    *
+    !* consumes a multiplicity (ORCA, fmlip-relay).               *
+    !***************************************************************
+    implicit none
+    class(calculation_settings) :: self
+    self%multiplicity = self%uhf+1
+  end subroutine calc_sync_multiplicity
+
+!========================================================================================!
+
+  subroutine calc_set_multiplicity(self,mult)
+    !***************************************************************
+    !* Set the spin state from a multiplicity (2S+1) value while  *
+    !* keeping the uhf carrier (=2S=Nα-Nβ) aligned: uhf = mult-1. *
+    !***************************************************************
+    implicit none
+    class(calculation_settings) :: self
+    integer,intent(in) :: mult
+    self%multiplicity = mult
+    self%uhf = mult-1
+  end subroutine calc_set_multiplicity
 
 !>--- create a short calculation info flag
   subroutine calculation_settings_shortflag(self)

@@ -185,7 +185,7 @@ contains  !>--- Module routines start here
 
     chrg = 0
     spn = 1
-    if (present(charge)) chrg = chrg
+    if (present(charge)) chrg = charge
     if (present(spin)) spn = spin
     instance_id = MPAR%iid
     if (present(iid)) instance_id = iid

@@ -155,8 +155,9 @@ contains  !>--- Module routines start here
     else
       fname = calc%calcfile
     end if
-    if(calc%uhf < 1) calc%uhf = 1 !> ORCA uses multiplicity, not n_alpha - n_beta!
-    call calc%ORCA%write(fname,mol,calc%chrg,calc%uhf)
+    !> ORCA uses the spin multiplicity (2S+1), not uhf = Nα-Nβ
+    call calc%sync_multiplicity()
+    call calc%ORCA%write(fname,mol,calc%chrg,calc%multiplicity)
     deallocate (fname)
 
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!

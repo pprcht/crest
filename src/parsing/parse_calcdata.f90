@@ -204,8 +204,11 @@ contains !> MODULE PROCEDURES START HERE
       job%efield(:) = kv%value_fa(:)
 
 !>--- integers
-    case ('uhf','multiplicity')
+    case ('uhf')
       job%uhf = kv%value_i
+      call job%sync_multiplicity()
+    case ('multiplicity','mult')
+      call job%set_multiplicity(kv%value_i)
     case ('chrg','charge')
       job%chrg = kv%value_i
     case ('id')

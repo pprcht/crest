@@ -534,8 +534,10 @@ contains    !> MODULE PROCEDURES START HERE
 
 !>--- do the engrad call
     call initsignal()
+    !> fmlip-relay expects the spin multiplicity (2S+1), not uhf = Nα-Nβ
+    call calc%sync_multiplicity()
     call mlip_engrad_core(mol,calc%MPAR,energy,grad,iostatus, &
-      &                   charge=calc%chrg,spin=calc%uhf,iid=iid)
+      &                   charge=calc%chrg,spin=calc%multiplicity,iid=iid)
     if (iostatus /= 0) return
 
 !>--- printout
