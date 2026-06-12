@@ -270,7 +270,7 @@ tblite_dep = dependency('tblite',
   fallback : ['tblite', 'tblite_dep'],
   required : get_option('tblite'),
   static   : link_deps_static,
-  default_options: ['api=false'],
+  default_options: ['api=false', 'ddx=false', 'hdf5=disabled', 'trexio=disabled'],
 )
 with_tblite = tblite_dep.found()
 if with_tblite

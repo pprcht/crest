@@ -17,7 +17,7 @@
 set(_lib "dftd4")
 set(_pkg "DFTD4")
 set(_url "https://github.com/dftd4/dftd4")
-set(_branch "53cb17549a937e893c411e5679d741036dd4fbe6")
+set(_branch "6e1f59c3f39d919a2dbef0601d2576727c8b30e8")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")

@@ -17,7 +17,7 @@
 set(_lib "s-dftd3")
 set(_pkg "SDFTD3")
 set(_url "https://github.com/dftd3/simple-dftd3")
-set(_branch "87efc010cd74f84d273909ce1470eb63ddb07305")
+set(_branch "6f0b06fbfa8653a23ca55c453772ce3af4420706")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
