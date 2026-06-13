@@ -35,6 +35,7 @@ module api_engrad
   use gfn0_api
   use gfnff_api
   use crest_solvation,only:solvation_setup,solvation_core
+  use crest_electrostatic,only:electrostatic_core
   use libpvol_api
   use lj
   use approxg_module
@@ -54,6 +55,7 @@ module api_engrad
   public :: mlip_engrad
   public :: preinit_mlip_parallel
   public :: solvation_engrad
+  public :: electrostatic_engrad
 
 !=========================================================================================!
 !=========================================================================================!
@@ -156,6 +158,37 @@ contains    !> MODULE PROCEDURES START HERE
 
     return
   end subroutine solvation_engrad
+
+!========================================================================================!
+
+  subroutine electrostatic_engrad(mol,calc,energy,grad,iostatus)
+!*********************************************************************
+!* Interface singlepoint call for the charge-equilibration calculator
+!*********************************************************************
+    implicit none
+    type(coord) :: mol
+    type(calculation_settings) :: calc
+    real(wp),intent(inout) :: energy
+    real(wp),intent(inout) :: grad(3,mol%nat)
+    integer,intent(out) :: iostatus
+    character(len=:),allocatable :: model
+
+    iostatus = 0
+    if (.not.allocated(calc%eeq)) then
+      iostatus = 1
+      return
+    end if
+    model = 'eeqbc'
+    if (allocated(calc%eeq%charge_model)) model = calc%eeq%charge_model
+
+!>--- energy, gradient and atomic charges (kept on the settings)
+    if (.not.allocated(calc%qat)) allocate (calc%qat(mol%nat))
+    call electrostatic_core(mol,calc%chrg,model,energy,grad,calc%qat,iostatus)
+    if (iostatus /= 0) return
+    if (.not.calc%prstdout) call api_print_e_grd(.false.,calc%prch,mol,energy,grad)
+
+    return
+  end subroutine electrostatic_engrad
 
 !========================================================================================!
 

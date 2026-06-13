@@ -25,6 +25,7 @@ module calc_type
   use tblite_api
   use gfn0_api
   use crest_solvation,only:solvation_data
+  use crest_electrostatic,only:electrostatic_data
   use gfnff_api,only:gfnff_data
   use libpvol_api,only:libpvol_calculator
 !>--- other types
@@ -58,10 +59,11 @@ module calc_type
     integer :: penalty   = 13
     integer :: mlip      = 14
     integer :: solvation = 15
+    integer :: electrostatic = 16
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(16) = [ &
+  character(len=45),parameter,private :: jobdescription(17) = [ &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -77,7 +79,8 @@ module calc_type
      & 'Approximate free energy computation         ', &
      & 'Empirical penalty function                  ', &
      & 'MLIP via persistent python socket           ', &
-     & 'Standalone implicit solvation contribution  ']
+     & 'Standalone implicit solvation contribution  ', &
+     & 'Charge-equilibration electrostatics         ']
 !&>
 
 !=========================================================================================!
@@ -188,8 +191,11 @@ module calc_type
     real(wp) :: pvradscal = 1.0_wp     !> Scaling factor for SAS radii
     type(libpvol_calculator),allocatable :: libpvol
 
-!>--- implicit solvation composite data      
-    type(solvation_data),allocatable :: solv 
+!>--- implicit solvation composite data
+    type(solvation_data),allocatable :: solv
+
+!>--- charge-equilibration electrostatics data
+    type(electrostatic_data),allocatable :: eeq
 
 !>--- approxg data
     type(approxg_params) :: ag
@@ -1164,6 +1170,7 @@ contains  !>--- Module routines start here
     if (allocated(self%tblite)) deallocate (self%tblite)
     if (allocated(self%g0calc)) deallocate (self%g0calc)
     if (allocated(self%solv)) deallocate (self%solv)
+    if (allocated(self%eeq)) deallocate (self%eeq)
     if (allocated(self%ff_dat)) deallocate (self%ff_dat)
     if (allocated(self%libpvol)) deallocate (self%libpvol)
 
@@ -1240,6 +1247,7 @@ contains  !>--- Module routines start here
     if (allocated(src%refcharges))     self%refcharges     = src%refcharges
     if (allocated(src%tbliteparam))    self%tbliteparam    = src%tbliteparam
     if (allocated(src%solv))           self%solv           = src%solv
+    if (allocated(src%eeq))            self%eeq            = src%eeq
 
 ! ── gradient settings ────────────────────────────────────────────────────────
     self%numgrad    = src%numgrad
@@ -1452,6 +1460,12 @@ contains  !>--- Module routines start here
         if (allocated(self%solv%solvent)) &
         & self%shortflag = self%shortflag//'('//trim(self%solv%solvent)//')'
       end if
+    case (jobtype%electrostatic)
+      self%shortflag = 'EEQ'
+      if (allocated(self%eeq)) then
+        if (allocated(self%eeq%charge_model)) &
+        & self%shortflag = trim(self%eeq%charge_model)
+      end if
     case default
       self%shortflag = 'undefined'
     end select
@@ -1628,6 +1642,15 @@ contains  !>--- Module routines start here
         write (iunit,fmt3) atmp,'on'
       else
         write (iunit,fmt3) atmp,'off'
+      end if
+    end if
+
+    !> charge-equilibration electrostatics details
+    if (self%id == jobtype%electrostatic .and. allocated(self%eeq)) then
+      write (iunit,fmt4) 'Charge-equilibration electrostatics (multicharge)'
+      if (allocated(self%eeq%charge_model)) then
+        write (atmp,*) 'charge model'
+        write (iunit,fmt3) atmp,trim(self%eeq%charge_model)
       end if
     end if
 

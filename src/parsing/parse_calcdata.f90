@@ -290,6 +290,10 @@ contains !> MODULE PROCEDURES START HERE
       case ('solvation','solvator')
         job%id = jobtype%solvation
         if (.not.allocated(job%solv)) allocate (job%solv)
+      case ('eeq','eeqbc','electrostatic')
+        job%id = jobtype%electrostatic
+        if (.not.allocated(job%eeq)) allocate (job%eeq)
+        if (kv%value_c /= 'electrostatic') job%eeq%charge_model = kv%value_c
       case default
         job%id = jobtype%unknown
         !>--- keyword was recognized, but invalid argument supplied
@@ -413,6 +417,11 @@ contains !> MODULE PROCEDURES START HERE
     case ('solv_hbond')
       if (.not.allocated(job%solv)) allocate (job%solv)
       job%solv%do_hbond = kv%value_b
+
+!>--- charge-equilibration electrostatics calculator settings
+    case ('eeq_model','charge_model')
+      if (.not.allocated(job%eeq)) allocate (job%eeq)
+      job%eeq%charge_model = kv%value_c
 
     case ('refine','refinement')
       select case (kv%value_c)

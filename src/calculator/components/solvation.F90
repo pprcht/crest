@@ -37,7 +37,7 @@ module crest_solvation
   use crest_parameters
   use strucrd,only:coord
 #ifdef WITH_DDX
-  use crest_electrostatic,only:electrostatic_engrad
+  use crest_electrostatic,only:electrostatic_core
   use crest_ddx_pc,only:ddx_pc_engrad
   use crest_surface,only:surface_engrad
   use mctc_env,only:error_type
@@ -149,7 +149,7 @@ contains
     allocate (qat(nat),dqdr(3,nat,nat),gtmp(3,nat),sasa(nat),dsdr(3,nat,nat))
 
     ! ── charges + dq/dR from the electrostatic component ─────────────────────
-    call electrostatic_engrad(mol,chrg,solv%charge_model,edum,gtmp,qat,iostatus,dqdr=dqdr)
+    call electrostatic_core(mol,chrg,solv%charge_model,edum,gtmp,qat,iostatus,dqdr=dqdr)
     if (iostatus /= 0) return
 
     ! ── polar (ddX) free energy + gradient (incl. dq/dR chain term) ──────────

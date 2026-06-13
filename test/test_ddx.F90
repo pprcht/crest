@@ -5,7 +5,7 @@ module test_ddx
   use crest_testmol
 #ifdef WITH_DDX
   use crest_ddx_pc,only:ddx_pc_engrad
-  use crest_electrostatic,only:electrostatic_engrad
+  use crest_electrostatic,only:electrostatic_core
   use crest_surface,only:surface_engrad
   use crest_solvation,only:solvation_data,solvation_setup,solvation_core
 #endif
@@ -132,16 +132,16 @@ contains  !> Unit tests for the standalone ddX point-charge solvation engine
     h = 1.0e-4_wp
     call get_testmol('cytosine',mol)
     allocate (grad(3,mol%nat),qat(mol%nat),g(3,mol%nat))
-    call electrostatic_engrad(mol,0,'eeqbc',energy,grad,qat,io)
+    call electrostatic_core(mol,0,'eeqbc',energy,grad,qat,io)
     call check(error,io,0)
     if (allocated(error)) return
     rms = 0.0_wp; n = 0
     do iat = 1,mol%nat
       do k = 1,3
         mol%xyz(k,iat) = mol%xyz(k,iat)+h
-        call electrostatic_engrad(mol,0,'eeqbc',er,g,qat,io)
+        call electrostatic_core(mol,0,'eeqbc',er,g,qat,io)
         mol%xyz(k,iat) = mol%xyz(k,iat)-2.0_wp*h
-        call electrostatic_engrad(mol,0,'eeqbc',el,g,qat,io)
+        call electrostatic_core(mol,0,'eeqbc',el,g,qat,io)
         mol%xyz(k,iat) = mol%xyz(k,iat)+h
         dev = (er-el)/(2.0_wp*h)-grad(k,iat)
         rms = rms+dev*dev; n = n+1
@@ -199,7 +199,7 @@ contains  !> Unit tests for the standalone ddX point-charge solvation engine
     call get_testmol('cytosine',mol)
     allocate (grad(3,mol%nat),geeq(3,mol%nat),qat(mol%nat),dqdr(3,mol%nat,mol%nat))
     !> analytic full gradient: charges + dq/dR from EEQ-BC, fed into ddX
-    call electrostatic_engrad(mol,0,'eeqbc',eeq,geeq,qat,io,dqdr=dqdr)
+    call electrostatic_core(mol,0,'eeqbc',eeq,geeq,qat,io,dqdr=dqdr)
     call ddx_pc_engrad(mol,qat,'cpcm',eps_water,energy,grad,io,dqdr=dqdr)
     call check(error,io,0)
     if (allocated(error)) return
@@ -229,7 +229,7 @@ contains  !> Unit tests for the standalone ddX point-charge solvation engine
     real(wp),allocatable   :: q(:),g(:,:)
     real(wp) :: eeq
     allocate (q(mol%nat),g(3,mol%nat))
-    call electrostatic_engrad(mol,0,'eeqbc',eeq,g,q,io)
+    call electrostatic_core(mol,0,'eeqbc',eeq,g,q,io)
     call ddx_e(mol,q,energy,io)
   end subroutine solv_e
 

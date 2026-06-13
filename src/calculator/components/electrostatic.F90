@@ -38,12 +38,18 @@ module crest_electrostatic
   implicit none
   private
 
-  public :: electrostatic_engrad
+  public :: electrostatic_data
+  public :: electrostatic_core
+
+!> Bundled electrostatic settings (stored on calculation_settings)
+  type :: electrostatic_data
+    character(len=:),allocatable :: charge_model  !> 'eeq' | 'eeqbc'
+  end type electrostatic_data
 
 contains
 !========================================================================================!
 
-  subroutine electrostatic_engrad(mol,chrg,model,energy,gradient,qat,iostatus,dqdr)
+  subroutine electrostatic_core(mol,chrg,model,energy,gradient,qat,iostatus,dqdr)
     !***********************************************************************
     !* Charge-equilibration energy, gradient and atomic charges.
     !*
@@ -121,7 +127,7 @@ contains
     qat(:) = 0.0_wp
     if (present(dqdr)) dqdr(:,:,:) = 0.0_wp
 #endif
-  end subroutine electrostatic_engrad
+  end subroutine electrostatic_core
 
 !========================================================================================!
 end module crest_electrostatic
