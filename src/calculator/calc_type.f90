@@ -24,6 +24,7 @@ module calc_type
 !>--- api types
   use tblite_api
   use gfn0_api
+  use crest_solvation,only:solvation_data
   use gfnff_api,only:gfnff_data
   use libpvol_api,only:libpvol_calculator
 !>--- other types
@@ -56,10 +57,11 @@ module calc_type
     integer :: approxg   = 12
     integer :: penalty   = 13
     integer :: mlip      = 14
+    integer :: solvation = 15
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(15) = [ &
+  character(len=45),parameter,private :: jobdescription(16) = [ &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -74,7 +76,8 @@ module calc_type
      & 'Lennard-Jones potential calculation         ', &
      & 'Approximate free energy computation         ', &
      & 'Empirical penalty function                  ', &
-     & 'MLIP via persistent python socket           ']
+     & 'MLIP via persistent python socket           ', &
+     & 'Standalone implicit solvation contribution  ']
 !&>
 
 !=========================================================================================!
@@ -184,6 +187,9 @@ module calc_type
     integer  :: vdwset = 0             !> Type of VDW radii -> 0 (default) D3, 1 -> Bondi
     real(wp) :: pvradscal = 1.0_wp     !> Scaling factor for SAS radii
     type(libpvol_calculator),allocatable :: libpvol
+
+!>--- implicit solvation composite data      
+    type(solvation_data),allocatable :: solv 
 
 !>--- approxg data
     type(approxg_params) :: ag
@@ -1157,6 +1163,7 @@ contains  !>--- Module routines start here
     if (allocated(self%solvent)) deallocate (self%solvent)
     if (allocated(self%tblite)) deallocate (self%tblite)
     if (allocated(self%g0calc)) deallocate (self%g0calc)
+    if (allocated(self%solv)) deallocate (self%solv)
     if (allocated(self%ff_dat)) deallocate (self%ff_dat)
     if (allocated(self%libpvol)) deallocate (self%libpvol)
 
@@ -1232,6 +1239,7 @@ contains  !>--- Module routines start here
     if (allocated(src%refgeo))         self%refgeo         = src%refgeo
     if (allocated(src%refcharges))     self%refcharges     = src%refcharges
     if (allocated(src%tbliteparam))    self%tbliteparam    = src%tbliteparam
+    if (allocated(src%solv))           self%solv           = src%solv
 
 ! ── gradient settings ────────────────────────────────────────────────────────
     self%numgrad    = src%numgrad

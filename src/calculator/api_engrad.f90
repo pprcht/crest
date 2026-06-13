@@ -34,6 +34,7 @@ module api_engrad
   use tblite_api
   use gfn0_api
   use gfnff_api
+  use crest_solvation,only:solvation_setup,solvation_core
   use libpvol_api
   use lj
   use approxg_module
@@ -52,6 +53,7 @@ module api_engrad
   public :: rmsd_engrad
   public :: mlip_engrad
   public :: preinit_mlip_parallel
+  public :: solvation_engrad
 
 !=========================================================================================!
 !=========================================================================================!
@@ -124,6 +126,36 @@ contains    !> MODULE PROCEDURES START HERE
 
     return
   end subroutine tblite_engrad
+
+!========================================================================================!
+
+  subroutine solvation_engrad(mol,calc,energy,grad,iostatus)
+!*********************************************************************
+!* Interface singlepoint call for the composite solvation calculator
+!*********************************************************************
+    implicit none
+    type(coord) :: mol
+    type(calculation_settings) :: calc
+    real(wp),intent(inout) :: energy
+    real(wp),intent(inout) :: grad(3,mol%nat)
+    integer,intent(out) :: iostatus
+
+    iostatus = 0
+    if (.not.allocated(calc%solv)) then
+      iostatus = 1
+      return
+    end if
+
+!>--- lazily resolve dielectric constant + GFN2/ALPB parameters
+    call solvation_setup(mol,calc%solv,iostatus)
+    if (iostatus /= 0) return
+
+!>--- stitched energy + gradient
+    call solvation_core(mol,calc%chrg,calc%solv,energy,grad,iostatus)
+    if (.not.calc%prstdout) call api_print_e_grd(.false.,calc%prch,mol,energy,grad)
+
+    return
+  end subroutine solvation_engrad
 
 !========================================================================================!
 

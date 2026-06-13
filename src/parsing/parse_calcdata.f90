@@ -287,6 +287,9 @@ contains !> MODULE PROCEDURES START HERE
         nullify (job%penalty%biaslist)
       case ('mlip','fmlip_relay')
         job%id = jobtype%mlip
+      case ('solvation','solvator')
+        job%id = jobtype%solvation
+        if (.not.allocated(job%solv)) allocate (job%solv)
       case default
         job%id = jobtype%unknown
         !>--- keyword was recognized, but invalid argument supplied
@@ -396,6 +399,20 @@ contains !> MODULE PROCEDURES START HERE
     case ('gbsa','alpb','cpcm','cosmo','pcm')
       job%solvmodel = kv%key
       job%solvent = kv%value_c
+
+!>--- composite solvation calculator (method = "solvation") settings
+    case ('solvent')
+      if (.not.allocated(job%solv)) allocate (job%solv)
+      job%solv%solvent = kv%value_c
+    case ('solv_model')
+      if (.not.allocated(job%solv)) allocate (job%solv)
+      job%solv%smodel = kv%value_c
+    case ('solv_charges')
+      if (.not.allocated(job%solv)) allocate (job%solv)
+      job%solv%charge_model = kv%value_c
+    case ('solv_hbond')
+      if (.not.allocated(job%solv)) allocate (job%solv)
+      job%solv%do_hbond = kv%value_b
 
     case ('refine','refinement')
       select case (kv%value_c)

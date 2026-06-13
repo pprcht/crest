@@ -42,6 +42,9 @@ srcs += files(
   'penalty.f90',
   'mlip_sc.F90',
   'hessian_reconstruct.f90',
+  'components/rmsdpot.f90',
   'components/ddx_pc.F90',
   'components/electrostatic.F90',
+  'components/surface.F90',
+  'components/solvation.F90',
 )
