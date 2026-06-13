@@ -28,7 +28,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 set(temp_with_tests ${WITH_TESTS}) # Save the current value of WITH_TESTS
 set(WITH_TESTS FALSE CACHE BOOL "Temporarily disable tests for the tblite subproject" FORCE)
 set(WITH_API FALSE)
-set(WITH_DDX FALSE)
+set(WITH_DDX TRUE)
 crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 set(found FALSE)

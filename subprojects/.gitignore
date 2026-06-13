@@ -17,6 +17,7 @@ jonquil.wrap
 !mstore
 !multicharge
 !s-dftd3
+!ddx
 
 !packagefiles
 !packagefiles/tblite

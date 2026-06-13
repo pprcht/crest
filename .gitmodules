@@ -44,3 +44,7 @@
 [submodule "subprojects/s-dftd3"]
 	path = subprojects/s-dftd3
 	url = https://github.com/dftd3/simple-dftd3
+[submodule "subprojects/ddx"]
+	path = subprojects/ddx
+	url = https://github.com/ddsolvation/ddX.git
+	branch = main

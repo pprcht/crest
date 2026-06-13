@@ -393,7 +393,7 @@ contains !> MODULE PROCEDURES START HERE
       job%id = jobtype%orca
       call job%ORCA%read(kv%value_c)
 
-    case ('gbsa','alpb','cpcm')
+    case ('gbsa','alpb','cpcm','cosmo','pcm')
       job%solvmodel = kv%key
       job%solvent = kv%value_c
 

@@ -8,6 +8,6 @@ tblite = tblite_dep
 
 [default_options]
 api = false
-ddx = false
+ddx = true
 hdf5 = disabled
 trexio = disabled

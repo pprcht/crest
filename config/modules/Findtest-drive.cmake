@@ -25,6 +25,10 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
+# test-drive is imported unconditionally (see CMakeLists.txt) so that other
+# subprojects reuse the bundled copy.  Disable its own test suite here so the
+# import only contributes the library target, never its self-tests.
+set(TEST_DRIVE_BUILD_TESTING OFF CACHE BOOL "Disable test-drive self-tests" FORCE)
 crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
 if(TARGET "${_lib}::${_lib}")

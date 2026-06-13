@@ -222,17 +222,22 @@ if with_openblas
   add_project_arguments('-DWITH_OPENBLAS', language : ['c', 'fortran'])
 endif
 
-# ── Static-build guard: pin BLAS/LAPACK for subprojects ───────────────────────
+# ── BLAS/LAPACK pinning for subprojects ───────────────────────────────────────
 # When building statically, subprojects must not resolve BLAS/LAPACK to shared
-# libraries.  meson.override_dependency() is global: all subsequent dependency()
-# calls in this project AND every subproject get the static dep we already found.
-if static_build
+# libraries.  With MKL the pinning is also applied to dynamic builds, so that
+# subprojects resolving the generic dependency('lapack')/dependency('blas')
+# (e.g. ddX with its 'netlib' backend) link against the same MKL instead of
+# mixing the system reference libraries into the link line.  This is safe
+# because the MKL path above never queried these dependency names itself.
+# meson.override_dependency() is global: all subsequent dependency() calls in
+# this project AND every subproject get the dep we already found.
+if static_build or with_mkl
   meson.override_dependency('lapack', lapack_dep)
   meson.override_dependency('blas',   blas_dep)
   if with_openblas
     meson.override_dependency('openblas', blas_dep)
   endif
-  if with_mkl
+  if with_mkl and static_build
     # Override mkl-sdl so subprojects (gfnff, gfn0, …) don't reintroduce -lmkl_rt
     # when we resolved MKL statically (dependency() was never called for mkl-sdl
     # in the static path above, so the override is still allowed here).
@@ -259,18 +264,41 @@ tomlf_dep = dependency('toml-f',
   fallback : ['toml-f', 'tomlf_dep'],
   required : get_option('toml-f'),
   static   : link_deps_static,
+  default_options : ['tests=false'],
 )
 with_tomlf = tomlf_dep.found()
 if with_tomlf
   add_project_arguments('-DWITH_TOMLF', language : ['c', 'fortran'])
 endif
 
+# ── ddX continuum solvation library (used by tblite) ──────────────────────────
+# Resolved explicitly *before* tblite so that crest controls the subproject
+# options: ddX's builtin MKL detection relies on fc.find_library(), which is
+# broken with ifx (meson cannot query the compiler's library search dirs).
+# The 'netlib' backend instead resolves the generic dependency('lapack') /
+# dependency('blas'), which the override above pins to the BLAS/LAPACK
+# provider crest already found.
+# NOTE: ddX's own CMake build forces -fp-model=precise for Intel compilers,
+# but its meson build does not, and meson offers no way to inject the flag
+# into a single subproject from here.  Under ifx default fast math three of
+# ddX's strict self-tests fail (ddx_core/ddx_operators/force_0) while all
+# functional solver and gradient tests pass; crest-level results match the
+# (precise) CMake build.  Known upstream issue, accepted for now.
+ddx_dep = dependency('ddx',
+  version  : '>=0.8.0',
+  fallback : ['ddx', 'ddx_dep'],
+  required : get_option('tblite'),
+  static   : link_deps_static,
+  default_options : ['default_library=static', 'lapack=netlib'],
+)
+with_ddx = ddx_dep.found()
+
 tblite_dep = dependency('tblite',
   version  : '>=0.3.0',
   fallback : ['tblite', 'tblite_dep'],
   required : get_option('tblite'),
   static   : link_deps_static,
-  default_options: ['api=false', 'ddx=false', 'hdf5=disabled', 'trexio=disabled'],
+  default_options: ['api=false', 'ddx=true', 'hdf5=disabled', 'trexio=disabled'],
 )
 with_tblite = tblite_dep.found()
 if with_tblite
@@ -411,6 +439,11 @@ if get_option('tests')
   subdir('test')
 endif
 
+add_test_setup('crest',
+  is_default     : true,
+  exclude_suites : ['ddx','toml-f'],
+)
+
 install_data(
   'COPYING', 'COPYING.LESSER',
   install_dir : get_option('datadir') / 'licenses' / meson.project_name(),
@@ -428,6 +461,7 @@ summary({
   'MKL'              : with_mkl,
   'OpenBLAS'         : with_openblas,
   'tblite'           : with_tblite,
+  'ddX (via tblite)' : with_ddx,
   'toml-f'           : with_tomlf,
   'GFN-FF'           : with_gfnff,
   'GFN0-xTB'         : with_gfn0,

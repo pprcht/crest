@@ -85,8 +85,13 @@ if(LAPACK_LIBRARIES OR BLAS_LIBRARIES)
   endif()
 endif()
 
-# Fortran unit test interface (also used by other subprojects)
-if(NOT TARGET "test-drive::test-drive" AND WITH_TESTS)
+# Fortran unit test interface.  Imported unconditionally (not gated on
+# WITH_TESTS): several subprojects build their test suites without a guard and
+# pull in test-drive themselves.  By resolving the bundled subprojects/test-drive
+# here first, the `test-drive::test-drive` target already exists when those
+# subprojects look for it, so they reuse the local copy instead of falling back
+# to fetching/downloading it.
+if(NOT TARGET "test-drive::test-drive")
    find_package("test-drive" REQUIRED)
 endif()
 
@@ -103,6 +108,7 @@ if(NOT TARGET "tblite::tblite" AND WITH_TBLITE)
    find_package("multicharge" REQUIRED)
    find_package("dftd4"       REQUIRED)
    find_package("s-dftd3"     REQUIRED)
+   find_package("ddx"         REQUIRED)
    find_package("tblite"      REQUIRED)
    add_compile_definitions(WITH_TBLITE)
 endif()

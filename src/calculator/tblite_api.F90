@@ -258,6 +258,7 @@ contains  !> MODULE PROCEDURES START HERE
     &                         solvent_data,get_solvent_data,solvation_input,  &
     &                         ddx_input,ddx_solvation_model,alpb_input,alpb_solvation, &
     &                         cds_input,new_solvation_cds,shift_input,new_solvation_shift
+    use tblite_features,only:get_tblite_feature
 #endif
     implicit none
     type(coord),intent(in)  :: mol
@@ -309,8 +310,8 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     solv_data = get_solvent_data(solvdum)
     if (solv_data%eps <= 0.0_wp) then
-      if (pr) call tblite%ctx%message("tblite> Unknown solvent!")
-      return
+      write (stdout,'(a)') 'Error: unknown solvent "'//solvdum//'" for tblite implicit solvation!'
+      error stop
     end if
     allocate (solv_inp)
     select case (trim(smodel))
@@ -330,12 +331,24 @@ contains  !> MODULE PROCEDURES START HERE
       shift_tmp%solvent = solv_data%solvent
       !shift_tmp%method=method
       allocate (solv_inp%shift,source=shift_tmp)
-    case ('cpcm')
-      !> CPCM is provided via the ddX library since tblite 0.6.x and
-      !> requires tblite to be compiled with ddX support (ddx=true)
-      if (pr) call tblite%ctx%message("tblite> using CPCM/"//solvdum)
+    case ('cpcm','cosmo','pcm')
+      !> Continuum solvation models are provided via the ddX library since
+      !> tblite 0.6.x and require tblite compiled with ddX support (ddx=true)
+      if (.not.get_tblite_feature('ddx')) then
+        write (stdout,'(a)') 'Error: "'//trim(smodel)//'" solvation requires '// &
+        &                    'tblite compiled with ddX support!'
+        error stop
+      end if
+      if (pr) call tblite%ctx%message("tblite> using "//trim(smodel)//"/"//solvdum)
       allocate (solv_inp%ddx)
-      solv_inp%ddx = ddx_input(ddx_solvation_model%cpcm,solv_data%eps)
+      select case (trim(smodel))
+      case ('cosmo')
+        solv_inp%ddx = ddx_input(ddx_solvation_model%cosmo,solv_data%eps)
+      case ('pcm')
+        solv_inp%ddx = ddx_input(ddx_solvation_model%pcm,solv_data%eps)
+      case default !> cpcm
+        solv_inp%ddx = ddx_input(ddx_solvation_model%cpcm,solv_data%eps)
+      end select
     case ('alpb')
       if (pr) call tblite%ctx%message("tblite> using ALPB/"//solvdum)
       alpb_tmp%dielectric_const = solv_data%eps
@@ -353,15 +366,15 @@ contains  !> MODULE PROCEDURES START HERE
       !shift_tmp%method=method
       allocate (solv_inp%shift,source=shift_tmp)
     case default
-      if (pr) call tblite%ctx%message("tblite> Unknown tblite implicit solvation model!")
-      return
+      write (stdout,'(a)') 'Error: unknown tblite implicit solvation model "'//trim(smodel)//'"!'
+      error stop
     end select
 
 !>--- add electrostatic (Born part) to calculator
     call new_solvation(solv,mctcmol,solv_inp,error,method)
     if (allocated(error)) then
-      if (pr) call tblite%ctx%message("tblite> failed to set up tblite implicit solvation!")
-      return
+      write (stdout,'(a)') 'Error: failed to set up tblite implicit solvation: '//error%message
+      error stop
     end if
     call move_alloc(solv,cont)
     call tblite%calc%push_back(cont)

@@ -14,10 +14,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
-set(_lib "toml-f")
-set(_pkg "TOML-F")
-set(_url "https://github.com/toml-f/toml-f")
-set(_branch "d5e92701d28b647323ce05ecbcbf302dd19792f7")
+set(_lib "ddx")
+set(_pkg "DDX")
+set(_url "https://github.com/ddsolvation/ddX")
+set(_branch "4d79e3d9caeae5e602683572a71cb550414f9b09")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
@@ -25,19 +25,20 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/crest-utils.cmake")
 
-# toml-f gates its test suite on the standard CTest BUILD_TESTING flag
-# (include(CTest) defaults it to ON); pre-set it OFF so the subproject skips
-# its tests.  crest's own tests use WITH_TESTS and are unaffected.
-set(BUILD_TESTING OFF CACHE BOOL "Disable subproject test suites" FORCE)
+# ddX builds its examples, tests and driver by default; only the library is
+# needed here.  The options are forced off for the subproject build.
+set(EXAMPLES OFF CACHE BOOL "Disable ddx examples" FORCE)
+set(TESTS OFF CACHE BOOL "Disable ddx tests" FORCE)
+set(WARNING_FLAGS OFF CACHE BOOL "Disable ddx warning flags" FORCE)
 crest_find_package("${_lib}" "${${_pkg}_FIND_METHOD}" "${_url}" "${_branch}")
 
-if(TARGET "toml-f::toml-f")
+set(found FALSE)
+if(TARGET "ddx::ddx")
   set (found TRUE)
-else()
-  set (found FALSE)
 endif()
-message(STATUS "Found toml-f: ${found}")
+message(STATUS "Found ddx: ${found}")
 
 unset(_lib)
 unset(_pkg)
 unset(_url)
+unset(_branch)
