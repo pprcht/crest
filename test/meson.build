@@ -12,6 +12,7 @@ tests = [
   'getsym',
   'irmsd',
   'graphs',
+  'ddx',
 ]
 
 test_srcs = files(

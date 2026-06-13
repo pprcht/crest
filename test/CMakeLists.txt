@@ -11,6 +11,7 @@ set(
   "getsym"
   "irmsd"
   "graphs"
+  "ddx"
 )
 set(
   test-srcs

@@ -45,6 +45,8 @@ list(APPEND srcs
   "${dir}/approxg.f90"
   "${dir}/penalty.f90"
   "${dir}/mlip_sc.F90"
+  "${dir}/components/ddx_pc.F90"
+  "${dir}/components/electrostatic.F90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

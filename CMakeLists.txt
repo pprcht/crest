@@ -111,6 +111,9 @@ if(NOT TARGET "tblite::tblite" AND WITH_TBLITE)
    find_package("ddx"         REQUIRED)
    find_package("tblite"      REQUIRED)
    add_compile_definitions(WITH_TBLITE)
+   # ddX is a hard requirement of this block, so its modules are available to
+   # crest sources here; WITH_DDX guards the standalone solvation components.
+   add_compile_definitions(WITH_DDX)
 endif()
 
 # g-xTB via tblite

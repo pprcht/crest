@@ -305,6 +305,14 @@ if with_tblite
   add_project_arguments('-DWITH_TBLITE', language : ['c', 'fortran'])
 endif
 
+# WITH_DDX guards crest sources that use the ddX modules directly (the
+# standalone continuum-solvation components).  ddX is pulled in via tblite, so
+# it requires tblite to be present as well; this is distinct from WITH_TBLITE
+# so that a tblite built without ddX (-Dtblite:ddx=false) does not break them.
+if with_ddx and with_tblite
+  add_project_arguments('-DWITH_DDX', language : ['c', 'fortran'])
+endif
+
 with_gxtb = get_option('gxtb')
 if with_gxtb
   if not with_tblite
@@ -384,6 +392,7 @@ metadata_conf.set('tomlfvar',   with_tomlf.to_string())
 metadata_conf.set('gfn0var',    with_gfn0.to_string())
 metadata_conf.set('gfnffvar',   with_gfnff.to_string())
 metadata_conf.set('tblitevar',  with_tblite.to_string())
+metadata_conf.set('ddxvar',     with_ddx.to_string())
 metadata_conf.set('libpvolvar', with_libpvol.to_string())
 metadata_conf.set('lwoniomvar', with_lwoniom.to_string())
 metadata_conf.set('fmliprelayvar', with_fmlip.to_string())

@@ -103,6 +103,8 @@ set(tomlfvar "${WITH_TOMLF}")
 set(gfn0var "${WITH_GFN0}")
 set(gfnffvar "${WITH_GFNFF}")
 set(tblitevar "${WITH_TBLITE}")
+# ddX is a hard requirement of the tblite block, so it tracks WITH_TBLITE here
+set(ddxvar "${WITH_TBLITE}")
 set(libpvolvar "${WITH_LIBPVOL}")
 set(lwoniomvar "${WITH_LWONIOM}")
 set(fmliprelayvar "${WITH_FMLIP_RELAY}")
