@@ -32,7 +32,7 @@ list(APPEND srcs
   "${dir}/api_helpers.F90"
   "${dir}/api_engrad.f90"
   "${dir}/gradreader.f90"
-  "${dir}/libpvol.F90"
+  "${dir}/components/libpvol.F90"
   "${dir}/subprocess_types.f90"
   "${dir}/xtb_sc.f90"
   "${dir}/orca_sc.f90"
