@@ -50,3 +50,4 @@ It is assumed that the `crest` binary is available in `$PATH`.
 | **16** | fmlip-relay: geometry optimisation with LJ potential | Ar4 cluster |
 | **17** | fmlip-relay: geometry optimisation with FairChem UMA model | caffeine |
 | **18** | fmlip-relay: geometry optimisation with MACE-OFF23 model | caffeine |
+| **19** | Implicit-solvation add-on (ddX/EEQ-BC composite, GFN2 parent) | 1-propanol |

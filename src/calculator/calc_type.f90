@@ -1435,9 +1435,23 @@ contains  !>--- Module routines start here
     case (jobtype%gfnff)
       self%shortflag = 'GFN-FF'
     case (jobtype%libpvol)
-      self%shortflag = 'LIVPVOL'
+      self%shortflag = 'libpvol'
     case (jobtype%lj)
       self%shortflag = 'LJ'
+    case (jobtype%approxg)
+      self%shortflag = 'model Hessian gradient'
+    case (jobtype%penalty)
+      self%shortflag = 'penalty potential'
+    case (jobtype%mlip)
+      self%shortflag = 'MLIP'
+    case (jobtype%solvation)
+      self%shortflag = 'solvation'
+      if (allocated(self%solv)) then
+        if (allocated(self%solv%smodel)) &
+        & self%shortflag = self%shortflag//'/'//trim(self%solv%smodel)
+        if (allocated(self%solv%solvent)) &
+        & self%shortflag = self%shortflag//'('//trim(self%solv%solvent)//')'
+      end if
     case default
       self%shortflag = 'undefined'
     end select
@@ -1591,6 +1605,32 @@ contains  !>--- Module routines start here
         end if
       end block
     end if
+
+    !> composite implicit-solvation calculator details
+    if (self%id == jobtype%solvation .and. allocated(self%solv)) then
+      write (iunit,fmt4) 'Composite implicit solvation (ddX-based)'
+      if (allocated(self%solv%solvent)) then
+        write (atmp,*) 'solvent'
+        write (iunit,fmt3) atmp,trim(self%solv%solvent)
+      end if
+      if (allocated(self%solv%smodel)) then
+        write (atmp,*) 'continuum model'
+        write (iunit,fmt3) atmp,trim(self%solv%smodel)
+      end if
+      if (allocated(self%solv%charge_model)) then
+        write (atmp,*) 'charge model'
+        write (iunit,fmt3) atmp,trim(self%solv%charge_model)
+      end if
+      write (atmp,*) 'nonpolar params'
+      write (iunit,fmt3) atmp,'GFN2/ALPB'
+      write (atmp,*) 'H-bond term'
+      if (self%solv%do_hbond) then
+        write (iunit,fmt3) atmp,'on'
+      else
+        write (iunit,fmt3) atmp,'off'
+      end if
+    end if
+
     if (any((/jobtype%orca,jobtype%xtbsys,jobtype%turbomole, &
     &  jobtype%generic,jobtype%terachem/) == self%id)) then
       if (index(self%binary,'gxtb') .ne. 0) then
