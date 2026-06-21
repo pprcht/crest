@@ -12,6 +12,7 @@ set(
   "irmsd"
   "graphs"
   "ddx"
+  "external"
 )
 set(
   test-srcs

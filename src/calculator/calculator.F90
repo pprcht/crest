@@ -20,6 +20,7 @@
 module crest_calculator
 !>--- types and readers
   use iso_fortran_env,only:wp => real64,int64
+  use crest_external_engrad  !> host-supplied potential interface
   use strucrd
   use calc_type
   use crest_calculator_printout
@@ -41,6 +42,7 @@ module crest_calculator
   public :: calcdata              !> calculator main object
   public :: calculation_settings  !> different calculation objects (levels) within calcdata
   public :: jobtype               !> calculation type ID's
+  public :: engrad_interface      !> abstract interface for host-supplied potentials
   public :: get_dipoles
 !>--- RE-EXPORT of constraints
   public :: constraint
@@ -414,12 +416,35 @@ contains  !> MODULE PROCEDURES START HERE
 
     case (jobtype%electrostatic)
       call electrostatic_engrad(molptr,calc%calcs(id),calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus)
+
+    case (jobtype%external)
+      !> externally supplied potential (host-program callback)
+      if (associated(calc%calcs(id)%ext_engrad)) then
+        if (associated(calc%calcs(id)%ext_userdata)) then
+          call calc%calcs(id)%ext_engrad(molptr%nat,molptr%at,molptr%xyz, &
+          &    calc%calcs(id)%chrg,calc%calcs(id)%uhf, &
+          &    calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus, &
+          &    calc%calcs(id)%ext_userdata)
+        else
+          call calc%calcs(id)%ext_engrad(molptr%nat,molptr%at,molptr%xyz, &
+          &    calc%calcs(id)%chrg,calc%calcs(id)%uhf, &
+          &    calc%etmp(id),calc%grdtmp(:,1:pnat,id),iostatus)
+        end if
+      else
+        write (stdout,'(a)') '**ERROR** jobtype%external selected but no callback registered!'
+        calc%etmp(id) = 0.0_wp
+        calc%grdtmp(:,:,id) = 0.0_wp
+        iostatus = 1
+      end if
+
     case default
       calc%etmp(id) = 0.0_wp
       calc%grdtmp(:,:,id) = 0.0_wp
     end select
 
   end subroutine potential_core
+
+!========================================================================================!
 
   subroutine numgrad_core(molptr,calc,id,iostatus)
 !*******************************************************

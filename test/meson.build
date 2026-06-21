@@ -13,6 +13,7 @@ tests = [
   'irmsd',
   'graphs',
   'ddx',
+  'external',
 ]
 
 test_srcs = files(

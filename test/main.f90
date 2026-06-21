@@ -14,6 +14,7 @@ program tester
   use test_irmsd, only: collect_irmsd
   use test_graphs, only: collect_graphs
   use test_ddx, only: collect_ddx
+  use test_external, only: collect_external
   implicit none
   integer :: stat, is
   character(len=:), allocatable :: suite_name, test_name
@@ -40,7 +41,8 @@ program tester
     new_testsuite("molecular_dynamics", collect_mol_dynamics), &
     new_testsuite("irmsd", collect_irmsd), &
     new_testsuite("graphs", collect_graphs), &
-    new_testsuite("ddx", collect_ddx) &
+    new_testsuite("ddx", collect_ddx), &
+    new_testsuite("external", collect_external) &
   ]
 !&>
 

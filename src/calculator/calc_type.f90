@@ -19,6 +19,7 @@
 
 module calc_type
   use iso_fortran_env,only:wp => real64,stdout => output_unit
+  use crest_external_engrad,only:engrad_interface
   use constraints
   use strucrd,only:coord
 !>--- api types
@@ -60,10 +61,11 @@ module calc_type
     integer :: mlip      = 14
     integer :: solvation = 15
     integer :: electrostatic = 16
+    integer :: external  = 17
   end type enum_jobtype
   type(enum_jobtype), parameter,public :: jobtype = enum_jobtype()
 
-  character(len=45),parameter,private :: jobdescription(17) = [ &
+  character(len=45),parameter,private :: jobdescription(18) = [character(len=45) :: &
      & 'Unknown calculation type                    ', &
      & 'xTB calculation via external binary         ', &
      & 'Generic script execution                    ', &
@@ -80,8 +82,14 @@ module calc_type
      & 'Empirical penalty function                  ', &
      & 'MLIP via persistent python socket           ', &
      & 'Standalone implicit solvation contribution  ', &
-     & 'Charge-equilibration electrostatics         ']
+     & 'Charge-equilibration electrostatics         ', &
+     & 'Externally supplied potential (host callback)']
 !&>
+
+!=========================================================================================!
+!>--- RE-EXPORT of the externally-supplied-potential interface
+!>    (defined in module crest_external_engrad)
+  public :: engrad_interface
 
 !=========================================================================================!
 
@@ -213,9 +221,15 @@ module calc_type
 !>--- MLIP settings
     type(mlip_params) :: MPAR
 
+!>--- externally supplied potential (host-program callback)
+!>    native Fortran procedure pointer + unlimited polymorphic context
+    procedure(engrad_interface),pointer,nopass :: ext_engrad => null()
+    class(*),pointer :: ext_userdata => null()  !> opaque host context
+
 !>--- Type procedures
   contains
     procedure :: deallocate => calculation_settings_deallocate
+    procedure :: set_external => calculation_settings_set_external
     procedure :: addconfig => calculation_settings_addconfig
     procedure :: autocomplete => calculation_settings_autocomplete
     procedure :: printid => calculation_settings_printid
@@ -1174,6 +1188,10 @@ contains  !>--- Module routines start here
     if (allocated(self%ff_dat)) deallocate (self%ff_dat)
     if (allocated(self%libpvol)) deallocate (self%libpvol)
 
+    !> external callback: drop the references (we do not own the targets)
+    self%ext_engrad => null()
+    self%ext_userdata => null()
+
     self%id = 0
     self%prch = stdout
     self%chrg = 0
@@ -1312,10 +1330,48 @@ contains  !>--- Module routines start here
     self%MPAR     = src%MPAR
     self%MPAR%iid = 0  !> reset instance ID for parallelization
 
+! ── external callback ─────────────────────────────────────────────────────────
+!>  Pointer-copy the host callback and its context: both copies refer to the
+!>  same host-side routine/data (the targets are owned by the host program).
+    self%ext_engrad    => src%ext_engrad
+    self%ext_userdata  => src%ext_userdata
+
 !>  NOTE: API handle objects (tblite, g0calc, ff_dat, libpvol) are NOT copied;
 !>        they hold C-level state and are re-initialized on first use.
     return
   end subroutine calculation_settings_copy
+
+!=========================================================================================!
+
+  subroutine calculation_settings_set_external(self,fptr,userdata)
+!*********************************************************************
+!* Register an externally supplied energy+gradient routine on this
+!* calculation level. This is the public entry point for a host
+!* program that links CREST as a library: provide a routine matching
+!* the engrad_interface and (optionally) an opaque context object,
+!* and the level is switched to jobtype%external.
+!*
+!*  fptr     : procedure matching engrad_interface (required)
+!*  userdata : optional opaque host context. Must have the TARGET or
+!*             POINTER attribute on the caller side and must outlive
+!*             all engrad calls; CREST only stores a reference to it
+!*             and passes it back to fptr verbatim.
+!*********************************************************************
+    implicit none
+    class(calculation_settings) :: self
+    procedure(engrad_interface)              :: fptr
+    class(*),pointer,intent(in),optional     :: userdata
+
+    self%id = jobtype%external
+    self%ext_engrad => fptr
+    if (present(userdata)) then
+      self%ext_userdata => userdata
+    else
+      self%ext_userdata => null()
+    end if
+
+    call self%autocomplete(self%id)
+  end subroutine calculation_settings_set_external
 
 !=========================================================================================!
 
@@ -1466,6 +1522,8 @@ contains  !>--- Module routines start here
         if (allocated(self%eeq%charge_model)) &
         & self%shortflag = trim(self%eeq%charge_model)
       end if
+    case (jobtype%external)
+      self%shortflag = 'external (host callback)'
     case default
       self%shortflag = 'undefined'
     end select
@@ -1654,6 +1712,23 @@ contains  !>--- Module routines start here
       end if
     end if
 
+    !> externally supplied (host-program) potential details
+    if (self%id == jobtype%external) then
+      write (iunit,fmt4) 'Externally supplied potential (host callback)'
+      write (atmp,*) 'callback'
+      if (associated(self%ext_engrad)) then
+        write (iunit,fmt3) atmp,'Fortran procedure'
+      else
+        write (iunit,fmt3) atmp,'NOT associated (!)'
+      end if
+      write (atmp,*) 'user context'
+      if (associated(self%ext_userdata)) then
+        write (iunit,fmt3) atmp,'provided'
+      else
+        write (iunit,fmt3) atmp,'none'
+      end if
+    end if
+
     if (any((/jobtype%orca,jobtype%xtbsys,jobtype%turbomole, &
     &  jobtype%generic,jobtype%terachem/) == self%id)) then
       if (index(self%binary,'gxtb') .ne. 0) then
@@ -1824,6 +1899,10 @@ contains  !>--- Module routines start here
 
     case ('generic')
       self%id = jobtype%generic
+
+    case ('external','--external')
+      !> the host program must still register its callback via %set_external
+      self%id = jobtype%external
 
     end select
 

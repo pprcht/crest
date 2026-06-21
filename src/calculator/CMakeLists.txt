@@ -18,6 +18,7 @@ set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
   "${dir}/calculator.F90"
+  "${dir}/external_engrad.f90"
   "${dir}/calc_type.f90"
   "${dir}/printouts.F90"
   "${dir}/constraints.f90"

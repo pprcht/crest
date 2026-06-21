@@ -16,6 +16,7 @@
 
 srcs += files(
   'calculator.F90',
+  'external_engrad.f90',
   'calc_type.f90',
   'printouts.F90',
   'constraints.f90',
