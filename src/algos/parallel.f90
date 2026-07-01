@@ -31,7 +31,7 @@ module parallel_interface
 !*******************************************************
   implicit none
   interface
-    subroutine crest_sploop(env,nat,nall,at,xyz,eread)
+    subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
       use crest_parameters,only:wp,stdout,sep
       use crest_calculator
       use omp_lib
@@ -45,11 +45,12 @@ module parallel_interface
       integer,intent(in)  :: at(nat)
       real(wp),intent(inout) :: eread(nall)
       integer,intent(in) :: nat,nall
+      logical,intent(in),optional :: silent
     end subroutine crest_sploop
   end interface
 
   interface
-    subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
+    subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
       use crest_parameters,only:wp,stdout,sep
       use crest_calculator
       use omp_lib
@@ -65,6 +66,7 @@ module parallel_interface
       integer,intent(in) :: nat,nall
       logical,intent(in) :: dump
       type(calcdata),intent(in),target,optional :: customcalc
+      logical,intent(in),optional :: silent
     end subroutine crest_oloop
   end interface
 
@@ -95,12 +97,13 @@ end module parallel_interface
 !> Routines for concurrent singlepoint evaluations
 !========================================================================================!
 !========================================================================================!
-subroutine crest_sploop(env,nat,nall,at,xyz,eread)
+subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
 !***************************************************************
 !* subroutine crest_sploop
 !* This subroutine performs concurrent singlepoint evaluations
 !* for the given ensemble. Input eread is overwritten
 !* xyz must be in Bohrs
+!* silent - suppress the progress bar (optional, default .false.)
 !***************************************************************
   use crest_parameters,only:wp,stdout,sep
   use crest_calculator
@@ -116,10 +119,11 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   integer,intent(in)  :: at(nat)
   real(wp),intent(inout) :: eread(nall)
   integer,intent(in) :: nat,nall
+  logical,intent(in),optional :: silent
 
   type(coord),allocatable :: mols(:)
   integer :: i,j,k,l,io,ich,ich2,c,z,job_id,zcopy
-  logical :: pr,wr,ex
+  logical :: pr,wr,ex,quiet
   type(calcdata),allocatable :: calculations(:)
   real(wp) :: energy,gnorm
   real(wp),allocatable :: grad(:,:),grads(:,:,:)
@@ -167,13 +171,17 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
 !>--- printout directions and timer initialization
   pr = .false. !> stdout printout
   wr = .false. !> write crestopt.log.xyz
+  quiet = .false.
+  if (present(silent)) quiet = silent
   call profiler%init(1)
   call profiler%start(1)
 
 !>--- initialize progress bar
-  call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
-    &                suffix="",show_time=.true.,show_eta=.false.)
-  call progress_update(env%ps,0,nall)
+  if (.not.quiet) then
+    call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
+      &                suffix="",show_time=.true.,show_eta=.false.)
+    call progress_update(env%ps,0,nall)
+  end if
 
 !>--- shared variables
   allocate (grads(3,nat,T),source=0.0_wp)
@@ -223,7 +231,7 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
     end if
     k = k+1
     !>--- print progress
-    call progress_update(env%ps,k,nall)
+    if (.not.quiet) call progress_update(env%ps,k,nall)
     !$omp end critical
     !$omp end task
   end do
@@ -232,22 +240,24 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread)
   !$omp end parallel
 
 !>--- finalize progress printout
-  call progress_finish(env%ps)
+  if (.not.quiet) call progress_finish(env%ps)
 
 !>--- stop timer
   call profiler%stop(1)
 
 !>--- prepare some summary printout
-  percent = float(c)/float(nall)*100.0_wp
-  write (atmp,'(f5.1,a)') percent,'% success)'
-  write (stdout,'(">",1x,i0,a,i0,a,a)') c,' of ',nall,' structures successfully evaluated (', &
-  &     trim(adjustl(atmp))
-  write (atmp,'(">",1x,a,i0,a)') 'Total runtime for ',nall,' singlepoint calculations:'
-  call profiler%write_timing(stdout,1,trim(atmp),.true.)
-  runtime = profiler%get(1)
-  write (atmp,'(f16.3,a)') runtime/real(nall,wp),' sec'
-  write (stdout,'(a,a,a)') '> Corresponding to approximately ',trim(adjustl(atmp)), &
-  &                       ' per processed structure'
+  if (.not.quiet) then
+    percent = float(c)/float(nall)*100.0_wp
+    write (atmp,'(f5.1,a)') percent,'% success)'
+    write (stdout,'(">",1x,i0,a,i0,a,a)') c,' of ',nall,' structures successfully evaluated (', &
+    &     trim(adjustl(atmp))
+    write (atmp,'(">",1x,a,i0,a)') 'Total runtime for ',nall,' singlepoint calculations:'
+    call profiler%write_timing(stdout,1,trim(atmp),.true.)
+    runtime = profiler%get(1)
+    write (atmp,'(f16.3,a)') runtime/real(nall,wp),' sec'
+    write (stdout,'(a,a,a)') '> Corresponding to approximately ',trim(adjustl(atmp)), &
+    &                       ' per processed structure'
+  end if
 
   deallocate (grads)
   call profiler%clear()
@@ -493,7 +503,7 @@ end subroutine crest_hessloop
 !> Routines for concurrent geometry optimization
 !========================================================================================!
 !========================================================================================!
-subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
+subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
 !*******************************************************************************
 !* subroutine crest_oloop
 !* This subroutine performs concurrent geometry optimizations
@@ -504,6 +514,9 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
 !*              as the input xyz array. However, the overwritten xyz will be!
 !*
 !* customcalc - customized (optional) calculation level data
+!* silent     - suppress the progress bar and summary printout (optional,
+!*              default .false.); used when the caller drives many small
+!*              batches and prints its own progress (e.g. TTConf-light)
 !*
 !* IMPORTANT: xyz should be in Bohr(!) for this routine
 !******************************************************************************
@@ -523,6 +536,8 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   integer,intent(in) :: nat,nall
   logical,intent(in) :: dump
   type(calcdata),intent(in),target,optional :: customcalc
+  logical,intent(in),optional :: silent
+  logical :: quiet
 
   type(coord),allocatable :: mols(:)
   type(coord),allocatable :: molsnew(:)
@@ -545,6 +560,10 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   else
     mycalc => env%calc
   end if
+
+!>--- silent mode? (suppress progress bar + summary printout)
+  quiet = .false.
+  if (present(silent)) quiet = silent
 
 !>--- check if we have any calculation settings allocated
   if (mycalc%ncalculations < 1) then
@@ -593,9 +612,11 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   call profiler%start(1)
 
 !>--- initialize progress bar
-  call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
-    &                suffix="",show_time=.true.,show_eta=.false.)
-  call progress_update(env%ps,0,nall)
+  if (.not.quiet) then
+    call progress_init(env%ps,nall,width=50,prefix=" ↳ ", &
+      &                suffix="",show_time=.true.,show_eta=.false.)
+    call progress_update(env%ps,0,nall)
+  end if
 
 !>--- shared variables
   allocate (grads(3,nat,T),source=0.0_wp)
@@ -662,7 +683,7 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
     end if
     k = k+1
     !>--- print progress
-    call progress_update(env%ps,k,nall)
+    if (.not.quiet) call progress_update(env%ps,k,nall)
     !$omp end critical
     !$omp end task
   end do
@@ -671,22 +692,24 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc)
   !$omp end parallel
 
 !>--- finalize progress printout
-  call progress_finish(env%ps)
+  if (.not.quiet) call progress_finish(env%ps)
 
 !>--- stop timer
   call profiler%stop(1)
 
 !>--- prepare some summary printout
-  percent = float(c)/float(nall)*100.0_wp
-  write (atmp,'(f5.1,a)') percent,'% success)'
-  write (stdout,'(">",1x,i0,a,i0,a,a)') c,' of ',nall,' structures successfully optimized (', &
-  &     trim(adjustl(atmp))
-  write (atmp,'(">",1x,a,i0,a)') 'Total runtime for ',nall,' optimizations:'
-  call profiler%write_timing(stdout,1,trim(atmp),.true.)
-  runtime = profiler%get(1)
-  write (atmp,'(f16.3,a)') runtime/real(nall,wp),' sec'
-  write (stdout,'(a,a,a)') '> Corresponding to approximately ',trim(adjustl(atmp)), &
-  &                       ' per processed structure'
+  if (.not.quiet) then
+    percent = float(c)/float(nall)*100.0_wp
+    write (atmp,'(f5.1,a)') percent,'% success)'
+    write (stdout,'(">",1x,i0,a,i0,a,a)') c,' of ',nall,' structures successfully optimized (', &
+    &     trim(adjustl(atmp))
+    write (atmp,'(">",1x,a,i0,a)') 'Total runtime for ',nall,' optimizations:'
+    call profiler%write_timing(stdout,1,trim(atmp),.true.)
+    runtime = profiler%get(1)
+    write (atmp,'(f16.3,a)') runtime/real(nall,wp),' sec'
+    write (stdout,'(a,a,a)') '> Corresponding to approximately ',trim(adjustl(atmp)), &
+    &                       ' per processed structure'
+  end if
 
 !>--- close files (if they are open)
   if (dump) then

@@ -23,54 +23,41 @@
 !========================================================================================!
 !========================================================================================!
 subroutine crest_rigidconf(env,tim)
-!************************************************************
-!* Standalone runtype for conformer generation
-!* based on chemoinformatic principles.
+!**********************************************************************
+!* DEPRECATED runtype.
+!*
+!* "rigidconf" was a rule-based rigid-rotor conformer generator that
+!* enumerated the dihedral grid and rebuilt every combination from the
+!* z-matrix. That is exactly what the TTConf-light BRUTE-FORCE ORACLE
+!* (crest_ttconf with use_sweep = .false.) does -- only better
+!* integrated (shared classification, ring sites, topology screen,
+!* multilevel optimization + CREGEN). To avoid maintaining two copies
+!* of the same enumerate-and-rebuild path, rigidconf is now a thin
+!* shim that forces the brute-force oracle and forwards to crest_ttconf.
 !*
 !* Input:
 !*    env  - CREST's systemdata
 !*    tim  - CREST's timer object
-!*
-!************************************************************
+!**********************************************************************
   use crest_parameters
   use crest_data
-  use strucrd
   implicit none
   !> INPUT/OUTPUT
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout)      :: tim
-  !> LOCAL
-  type(coord) :: start_mol
 
 !========================================================================================!
   call this_header()
-  call tim%start(14,'rule-based isomer generation')
 
-!>--- some calculation info should be printed out at this point. TODO
+! ── force the TTConf brute-force oracle (full grid enumeration) ─────────────
+  env%ttconf%use_sweep = .false.
 
-!========================================================================================!
-!>--- get structure from reference
-  call env%ref%to(start_mol)
-  write (stdout,*)
-  call smallhead('Input structure:')
-  call start_mol%append(stdout)
-  write (stdout,*)
+! ── carry over the optional user dihedral spec (rigidconf file format) ───────
+  if (allocated(env%rigidconf_userfile)) env%ttconf%userfile = env%rigidconf_userfile
 
-!========================================================================================!
-!>--- pass the structure to the desired algorithm
-  select case (env%rigidconf_algo)
-    !case ( 1 ) !> "genetic crossing"-type algo
+! ── hand off to the TTConf-light runtype ────────────────────────────────────
+  call crest_ttconf(env,tim)
 
-    !
-
-  case default !> straight-forward generation ("tree"-type algo)
-
-    call rigidconf_tree(env,start_mol)
-
-  end select
-
-!========================================================================================!
-  call tim%stop(14)
   return
 !========================================================================================!
 contains
@@ -80,9 +67,11 @@ contains
     write (stdout,'(/)')
     write (stdout,'(7x,"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")')
     write (stdout,'(7x,"┃          R I G I D C O N F           ┃ ")')
-    write (stdout,'(7x,"┃     (name is work-in-progress)       ┃ ")')
-    write (stdout,'(7x,"┃    rule-based conformer generator    ┃")')
+    write (stdout,'(7x,"┃   (deprecated -> TTConf brute force) ┃ ")')
     write (stdout,'(7x,"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")')
+    write (stdout,'(/,7x,a)') '** NOTE ** the rigidconf runtype is deprecated.'
+    write (stdout,'(7x,a)')   'It now redirects to the TTConf-light brute-force oracle'
+    write (stdout,'(7x,a,/)') '(equivalent: runtype = "ttconf" with bruteforce = true).'
   end subroutine this_header
 end subroutine crest_rigidconf
 !========================================================================================!

@@ -262,6 +262,9 @@ program CREST
     case (crest_rigcon) !> rule-based conformer generation
       call crest_rigidconf(env,tim)
 
+    case (crest_ttc) !> tensor-train (light) conformer search
+      call crest_ttconf(env,tim)
+
     case (crest_trialopt) !> test optimization standalone
       call trialOPT(env)
 

@@ -18,14 +18,17 @@ set(dir "${CMAKE_CURRENT_SOURCE_DIR}")
 
 list(APPEND srcs
   "${dir}/rigidconf.f90"
-  "${dir}/tree.f90"
   "${dir}/analyze.f90"
   "${dir}/reconstruct.f90"
   "${dir}/construct.f90"
   "${dir}/construct_list.f90"
   "${dir}/classify.f90"
-  "${dir}/classify_type.f90" 
-  "${dir}/classify_func.f90" 
+  "${dir}/classify_type.f90"
+  "${dir}/classify_func.f90"
+  "${dir}/ttconf_settings.f90"
+  "${dir}/ttconf_ringsample.f90"
+  "${dir}/ttconf_rings.f90"
+  "${dir}/ttconf_light_mod.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

@@ -39,6 +39,8 @@ list(APPEND srcs
   "${dir}/dryrun.f90"
   "${dir}/propcalc.f90"
   "${dir}/term_ui.f90"
+  "${dir}/ttconf_ringmtd.f90"
+  "${dir}/ttconf_light.f90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)

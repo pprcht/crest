@@ -37,4 +37,6 @@ srcs += files(
   'dryrun.f90',
   'propcalc.f90',
   'term_ui.f90',
+  'ttconf_ringmtd.f90',
+  'ttconf_light.f90',
 )

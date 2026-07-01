@@ -63,6 +63,17 @@ subroutine construct_new_zmat(nat,zmat,combi,ndieder,dvalues,dstep,ztod,zmat_new
     end do
   end do
 
+! ── [PLACEHOLDER, rings] geometry-application seam for ring sites ────────────
+!  The loop above handles TORSION sites: one z-matrix dihedral row set by a
+!  uniform step. A RING site instead owns a BLOCK of z-matrix rows (the ring
+!  atoms) and grid index combi(i) selects template combi(i), whose stored
+!  internal coordinates are copied into those rows, e.g.
+!     zmat_new(1:3, ring_rows) = ztempl(1:3, :, combi(i))
+!  After that, reconstruct_zmat_to_mol/GMETRY2 rebuilds Cartesians unchanged.
+!  Dispatch here on a per-site kind (TORSION|RING) once the ttconf_site
+!  descriptor + ttconf_ring_templates provider exist; nothing downstream needs
+!  to change.
+
   return
 end subroutine construct_new_zmat
 !========================================================================================!

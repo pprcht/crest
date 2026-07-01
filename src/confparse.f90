@@ -60,7 +60,7 @@ subroutine parseflags(env,arg,nra)
   integer :: i,j,k,l,io,ich,idum
   real(wp) :: rdum
   integer :: ctype
-  logical :: ex,bondconst
+  logical :: ex,bondconst,presetok
   character(len=:),allocatable :: argument
   logical,allocatable :: processedarg(:)
   logical,allocatable :: atlist(:)
@@ -894,6 +894,32 @@ subroutine parseflags(env,arg,nra)
         write (stdout,'(2x,a,t15,a)') argument//':','Trial geometry optimization'
         exit
 
+      case ('-ttconf')  !> tensor-train (light) conformer search
+        processedarg(i) = .true.
+        env%preopt = .true.
+        env%crestver = crest_ttc
+        env%runver = crest_ttc
+        env%legacy = .false.
+        !>--- optional argument: a preset (fast/normal/accurate) OR "bruteforce"
+        if (arg1 .ne. ''.and.arg1(1:1) .ne. '-') then
+          select case (arg1)
+          case ('bruteforce','brute','oracle')
+            env%ttconf%use_sweep = .false.
+            processedarg(i+1) = .true.
+          case default
+            call env%ttconf%setpreset(arg1,presetok)
+            if (presetok) processedarg(i+1) = .true.
+          end select
+        end if
+        if (env%ttconf%use_sweep) then
+          write (stdout,'(2x,a,t15,a)') argument//':', &
+            & 'Tensor-train conformer search ['//trim(env%ttconf%preset)//']'
+        else
+          write (stdout,'(2x,a,t15,a)') argument//':', &
+            & 'Tensor-train conformer search [brute-force]'
+        end if
+        exit
+
       case ('-dynamics','-dyn') !> molecular dynamics (uses new calculator routines)
         processedarg(i) = .true.
         env%preopt = .false.
@@ -1362,6 +1388,131 @@ subroutine parseflags(env,arg,nra)
       case ('-dry')             !> "dry" run to print settings
         processedarg(i) = .true.
         env%dryrun = .true.
+
+      case ('-ttnocache')       !> disable the TTConf-light energy cache
+        processedarg(i) = .true.
+        env%ttconf%use_cache = .false.
+        write (stdout,'(2x,a,1x,a)') trim(arg(i)), &
+          & ' : TTConf-light energy cache disabled.'
+
+      case ('-ttsp')            !> TTConf-light: singlepoints only (no opt)
+        processedarg(i) = .true.
+        env%ttconf%sp_only = .true.
+        write (stdout,'(2x,a,1x,a)') trim(arg(i)), &
+          & ' : TTConf-light evaluates singlepoints only (no geometry optimization).'
+
+      case ('-ttringbonds')     !> allow in-ring bonds as TTConf TT variables
+        processedarg(i) = .true.
+        env%ttconf%excl_rings = .false.
+        write (stdout,'(2x,a,1x,a)') trim(arg(i)), &
+          & ' : TTConf-light treats in-ring bonds as TT variables.'
+
+      case ('-ttrings')         !> sample ring templates as TTConf TT sites
+        processedarg(i) = .true.
+        env%ttconf%ring_sample = .true.
+        write (stdout,'(2x,a,1x,a)') trim(arg(i)), &
+          & ' : TTConf-light samples ring templates as TT sites.'
+
+      case ('-ttseed')          !> fix the TTConf-light RNG seed (reproducible)
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) idum
+          if (io .eq. 0) then
+            env%ttconf%seed = idum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,i0,a)') trim(arg(i)), &
+          & ' : TTConf-light RNG seed = ',env%ttconf%seed,'.'
+
+      case ('-ttrank')          !> TTConf-light TT rank r
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) idum
+          if (io .eq. 0) then
+            env%ttconf%rank = idum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,i0,a)') trim(arg(i)), &
+          & ' : TTConf-light TT rank = ',env%ttconf%rank,'.'
+
+      case ('-ttsweeps')        !> TTConf-light number of sweeps s
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) idum
+          if (io .eq. 0) then
+            env%ttconf%sweeps = idum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,i0,a)') trim(arg(i)), &
+          & ' : TTConf-light sweeps = ',env%ttconf%sweeps,'.'
+
+      case ('-ttgrid')          !> TTConf-light dihedral grid points
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) idum
+          if (io .eq. 0) then
+            env%ttconf%ngrid = idum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,i0,a)') trim(arg(i)), &
+          & ' : TTConf-light dihedral grid points = ',env%ttconf%ngrid,'.'
+
+      case ('-ttninit')         !> TTConf-light number of random tail seeds
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) idum
+          if (io .eq. 0) then
+            env%ttconf%ninit = idum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,i0,a)') trim(arg(i)), &
+          & ' : TTConf-light initial tail seeds = ',env%ttconf%ninit,'.'
+
+      case ('-ttewin')          !> TTConf-light conformer energy window (kcal/mol)
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) rdum
+          if (io .eq. 0) then
+            env%ttconf%ewin = rdum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,f0.2,a)') trim(arg(i)), &
+          & ' : TTConf-light energy window = ',env%ttconf%ewin,' kcal/mol.'
+
+      case ('-ttkt')            !> TTConf-light maxvol weight temperature (kcal/mol)
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          read (ctmp,*,iostat=io) rdum
+          if (io .eq. 0) then
+            env%ttconf%kt = rdum
+            processedarg(i+1) = .true.
+          end if
+        end if
+        write (stdout,'(2x,a,1x,a,f0.2,a)') trim(arg(i)), &
+          & ' : TTConf-light maxvol temperature = ',env%ttconf%kt,' kcal/mol.'
+
+      case ('-ttringmethod')    !> TTConf-light ring-conformation generator
+        processedarg(i) = .true.
+        ctmp = arg1
+        if (ctmp(1:1) .ne. '-'.and.len_trim(ctmp) .ge. 1) then
+          env%ttconf%ring_method = trim(ctmp)
+          processedarg(i+1) = .true.
+        end if
+        write (stdout,'(2x,a,1x,a,a,a)') trim(arg(i)), &
+          & ' : TTConf-light ring method = ',trim(env%ttconf%ring_method),'.'
 
       case ('-nozs')
         processedarg(i) = .true.

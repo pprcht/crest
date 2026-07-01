@@ -54,6 +54,8 @@ subroutine confscript_head(vers)
   write (*,'(  3x,''  Angew. Chem. Int. Ed. 2023, 62, e202214477.'')')
   write (*,'(/,3x,''for works involving MECP screening cite'')')
   write (*,'(/,3x,''• P.Pracht, C.Bannwarth, JCTC, 2022, 18 (10), 6370-6385.'')')
+  write (*,'(/,3x,''for works involving the TTConf reimplementaiton cite'')')
+  write (*,'(/,3x,''• C.Zurek, et al., JCTC, 2025, 21, 1459-1475.'')')
   write (*,*)
 
   write (*,'(3x,a)') 'Original code'
@@ -218,6 +220,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-msreact',fw,'MS fragment generator  (see '//colorify('--help msreact','gold')//')')
     !call help_opt('-bh/-GMIN',fw,'Basin-hopping global optimization')
     call help_opt('-sort/-cregen',fw,'Ensemble sorting, comparison, clustering  (see '//colorify('--help compare','gold')//')')
+    call help_opt('-ttcon',fw,'TTConf conformational sampling (see '//colorify('--help conf','gold')//')')
     write (stdout,*)
     fw = 22
     call help_section('Method selection:')
@@ -233,7 +236,7 @@ subroutine confscript_morehelp(flag)
     call help_opt('-A//B  -A/sp/B',fw,'sampling at B; inline SP re-ranking at A  (e.g. -gfn2//gfnff)')
     call help_opt('-A/opt/B',fw,'sampling at B; inline geometry refinement at A')
     call help_opt('-A@B',fw,'sampling at B; post-search re-optimization of ensemble at A')
-    write(stdout,'(9x,a)') 'A, B in: gfn0, gfn1, gfn2, gxtb, gfnff'
+    write (stdout,'(9x,a)') 'A, B in: gfn0, gfn1, gfn2, gxtb, gfnff'
     call help_opt('-rerank <method>',fw,'Post-search SP re-ranking of conformer ensemble at <method>')
     call help_opt('-reopt <method>',fw,'Post-search geometry optimization of conformer ensemble at <method>')
     call help_opt('-finalhess',fw,'Post-search Hessians on final ensemble, re-sort by Gibbs free energy')
@@ -323,9 +326,25 @@ subroutine confscript_morehelp(flag)
   case ('conf','sampling')
     fw = 20
     call help_section('Conformer search algorithms:')
-    call help_opt('-v3/-v2i',fw,'iMTD-GC (iterative MTD-GC)  [default]')
+    call help_opt('-v3/-imtdgc',fw,'iMTD-GC (iterative MTD-GC)  [default]')
     call help_opt('-v4',fw,'iMTD-sMTD (entropy-focused search)')
     call help_opt('-entropy',fw,'Same as -v4, specialized for conformational entropy')
+    call help_opt('-ttconf [<preset>]',fw,'TTConf conformational sampling, where <preset> is one of [fast,normal,accurate] or [bruteforce]')
+
+    write (stdout,*)
+    call help_section('TTConf-light parameters:')
+    call help_opt('-ttrank <int>',fw,'TT rank r  [default: 3]')
+    call help_opt('-ttsweeps <int>',fw,'Number of TT-cross sweeps s  [default: 8]')
+    call help_opt('-ttgrid <int>',fw,'Dihedral grid points (360/n degree steps)  [default: 6]')
+    call help_opt('-ttninit <int>',fw,'Number of random initial tail seeds  [default: 3]')
+    call help_opt('-ttewin <float>',fw,'Conformer energy window in kcal/mol  [default: 6.0]')
+    call help_opt('-ttkt <float>',fw,'Maxvol weight temperature in kcal/mol  [default: 6.0]')
+    call help_opt('-ttseed <int>',fw,'Fix the RNG seed (reproducible run)')
+    call help_opt('-ttsp',fw,'Evaluate singlepoints only (no geometry optimization)')
+    call help_opt('-ttnocache',fw,'Disable the TTConf energy cache')
+    call help_opt('-ttringbonds',fw,'Treat in-ring bonds as TT variables')
+    call help_opt('-ttrings',fw,'Sample ring conformations as TT sites')
+    call help_opt('-ttringmethod <str>',fw,'Ring-conformation generator  [default: mtd]')
 
     write (stdout,*)
     call help_section('MD / MTD parameters:')
@@ -590,6 +609,8 @@ subroutine crestcite
   write (*,'(/5x,''• P.Pracht, S.Grimme, JPCA, 2021, 125, 5681-5692'')')
   write (*,'(/5x,''• J.Gorges, S.Grimme, A.Hansen, P.Pracht,'')')
   write (*,'(5x, ''  PCCP, 2022,24, 12249-12259.'')')
+  write (*,'(/5x,''• C.Zurek, R.A.Malleav, A.C.Paul, N.van Staalduinen, et al.,'')')
+  write (*,'(5x, ''  J. Chem. Theory Comput. 2025, 21, 3, 1459-1475.'')')
 
   write (*,'(/,/)')
   write (*,'(3x,''Please cite work conducted with this code appropriately.'')')
@@ -1151,7 +1172,7 @@ subroutine gxtb_solvation_guard(env)
     do i = 1,env%calc%ncalculations
       associate (job => env%calc%calcs(i))
         !> native tblite g-xTB level
-        if (job%id == jobtype%tblite .and. job%tblitelvl == xtblvl%gxtb) then
+        if (job%id == jobtype%tblite.and.job%tblitelvl == xtblvl%gxtb) then
           usesgxtb = .true.
         end if
         !> g-xTB run as an xtb subprocess (--gxtb flag or gxtb binary)
@@ -1162,7 +1183,7 @@ subroutine gxtb_solvation_guard(env)
           if (index(job%binary,'gxtb') .ne. 0) usesgxtb = .true.
         end if
         !> any implicit solvation request on this level
-        if (allocated(job%solvmodel) .or. allocated(job%solvent)) then
+        if (allocated(job%solvmodel).or.allocated(job%solvent)) then
           wantssolv = .true.
         end if
       end associate
@@ -1170,7 +1191,7 @@ subroutine gxtb_solvation_guard(env)
   end if
 
   !> the unsupported combination is g-xTB AND implicit solvation
-  if (.not. (usesgxtb .and. wantssolv)) return
+  if (.not. (usesgxtb.and.wantssolv)) return
 
   ! ── unsupported combination → print box and terminate safely ────────
   write (stdout,*)
@@ -1234,8 +1255,10 @@ subroutine crest_no_runtype_selected()
   write (stdout,'(5x,a,t30,a)') '--tautomerize','Tautomer generation'
   write (stdout,'(5x,a,t30,a)') '--qcg','QCG workflows'
   write (stdout,'(5x,a,t30,a)') '--msreact','MSREACT workflows'
-  write (stdout,'(5x,a,t30,a)') '--bh','Basin-hopping global optimization'
+  !write (stdout,'(5x,a,t30,a)') '--bh','Basin-hopping global optimization'
   write (stdout,'(5x,a,t30,a)') '--sort','Ensemble sorting (CREGEN)'
+  write (stdout,'(5x,a,t30,a)') '--ttconf','TTConf conformational sampling'
+
   write (stdout,*)
   write (stdout,'(3x,a)') 'For TOML input files use:  crest --input <file.toml>'
   write (stdout,'(3x,a)') 'For the full option list:  crest --help'
@@ -1259,7 +1282,7 @@ subroutine crest_output_summary(env)
   logical :: lexists
 
   select case (env%crestver)
-  case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
+  case (crest_imtd,crest_imtd2,crest_ttc,crest_screen,crest_mdopt, &
       & crest_sorting,crest_optimize,crest_trialopt,crest_rigcon, &
       & crest_moldyn,crest_bh,crest_bhpt,crest_protonate,crest_deprotonate, &
       & crest_tautomerize,crest_numhessian,crest_ensemblehess)
@@ -1277,6 +1300,13 @@ subroutine crest_output_summary(env)
     call wfe('crest_best.xyz','lowest-energy conformer')
     call wfe('cregen.full','full CREGEN output (written when terminal output is abbreviated)')
     call wfe('crest.restart','restart/checkpoint file for the iMTD-GC algorithm')
+
+    ! ── TTConf-light (tensor-train) conformer search ──
+  case (crest_ttc)
+    call wfe('crest_conformers.xyz','unique conformers (1 per rotamer group), energy-sorted')
+    call wfe('crest_rotamers.xyz','all structures including rotamers, with Boltzmann weights')
+    call wfe('crest_best.xyz','lowest-energy conformer')
+    call wfe('cregen.full','full CREGEN output (written when terminal output is abbreviated)')
 
     ! ── ensemble screening / MDOPT ────────────────
   case (crest_screen)
@@ -1348,12 +1378,12 @@ subroutine crest_output_summary(env)
   ! ── if PCA clustering was performed, report the cluster file ─────────────────
   select case (env%crestver)
   case (crest_imtd,crest_imtd2,crest_sorting)
-    inquire(file=clusterfile,exist=lexists)
+    inquire (file=clusterfile,exist=lexists)
     if (lexists) call wfe(clusterfile,'representative structures from PCA/k-means clustering')
   end select
 
   select case (env%crestver)
-  case (crest_imtd,crest_imtd2,crest_screen,crest_mdopt, &
+  case (crest_imtd,crest_imtd2,crest_ttc,crest_screen,crest_mdopt, &
       & crest_sorting,crest_optimize,crest_trialopt,crest_rigcon, &
       & crest_moldyn,crest_bh,crest_bhpt,crest_protonate,crest_deprotonate, &
       & crest_tautomerize,crest_numhessian,crest_ensemblehess)

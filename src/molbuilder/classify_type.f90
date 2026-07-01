@@ -38,6 +38,17 @@ module molbuilder_classify_type
     procedure :: copy => copy_func_group
   end type functional_group
 
+  type :: mol_ring
+    !> one ring (cycle) of the molecular graph. The member atom
+    !> indices are stored sorted ascending so that two rings can be
+    !> compared for identity by a simple element-wise comparison.
+    integer :: size = 0             !> number of member atoms
+    integer,allocatable :: atoms(:) !> member atom indices, sorted ascending
+  contains
+    procedure :: set    => mol_ring_set
+    procedure :: equals => mol_ring_equals
+  end type mol_ring
+
   type,private:: dihedral_types
     integer :: unknown = 0
     integer :: single = 1
@@ -65,6 +76,14 @@ module molbuilder_classify_type
     integer :: nfuncs = 0
     type(functional_group),allocatable :: funcgroups(:)
 
+    !> covalent fragments (connected components of the molecular graph)
+    integer :: nfrag = 0                !> number of disconnected fragments
+    integer,allocatable :: fragment(:) !> per-atom fragment id (1..nfrag)
+
+    !> ring library (unique cycles of the molecular graph)
+    integer :: nrings = 0
+    type(mol_ring),allocatable :: ringlist(:)
+
     !> internal coordinates
     integer :: ndieder = 0
     real(wp),allocatable :: zmat(:,:)
@@ -86,12 +105,15 @@ module molbuilder_classify_type
     procedure :: from_zmat => coord_classify_reconstruct_from_zmat
     procedure :: update_zmat => coord_classify_update_zmat
     procedure :: check_dihedrals => coord_classify_check_dihedrals
+    procedure :: collect_rings => coord_classify_collect_rings
     procedure :: print_funcgroups => coord_classify_print_functional
     procedure :: print_zmat => coord_classify_print_zmat
+    procedure :: print_rings => coord_classify_print_rings
   end type coord_classify
 
   public :: coord_classify   !> the extended coord type
   public :: functional_group !> subtype of coord_classify
+  public :: mol_ring         !> a single molecular-graph ring
   public :: setup_classify   !> setup a coord_classify from coord
   public :: atinfo_classify  !> add atinfo string to a coord_classify
 
@@ -239,7 +261,52 @@ contains  !> MODULE PROCEDURES START HERE
       molc%nhn(ii) = sum(molc%Ah(:,ii))
     end do
 
+    !> label covalent fragments (connected components of the graph)
+    call coord_classify_fragments(molc)
+
+    !> collect the unique rings of the molecular graph
+    call molc%collect_rings()
+
   end subroutine setup_classify
+
+  subroutine coord_classify_fragments(molc)
+    !***************************************************************
+    !* Label the covalent fragments (connected components) of the
+    !* molecular graph molc%bond, filling molc%fragment(1:nat) with
+    !* a fragment id per atom and molc%nfrag with the component
+    !* count. An iterative flood fill over the adjacency matrix;
+    !* nfrag = 1 for a single connected molecule.
+    !***************************************************************
+    implicit none
+    type(coord_classify),intent(inout) :: molc
+    integer :: nat,i,j,head,tail,a
+    integer,allocatable :: stack(:)
+
+    nat = molc%nat
+    molc%nfrag = 0
+    if (allocated(molc%fragment)) deallocate (molc%fragment)
+    if (nat < 1.or..not.allocated(molc%bond)) return
+    allocate (molc%fragment(nat),source=0)
+    allocate (stack(nat),source=0)
+
+    do i = 1,nat
+      if (molc%fragment(i) /= 0) cycle           !> already in a fragment
+      molc%nfrag = molc%nfrag+1
+! ── flood fill the component reachable from atom i ───────────────────────────
+      head = 1; tail = 1; stack(1) = i
+      molc%fragment(i) = molc%nfrag
+      do while (head <= tail)
+        a = stack(head); head = head+1
+        do j = 1,nat
+          if (molc%bond(j,a) > 0.and.molc%fragment(j) == 0) then
+            molc%fragment(j) = molc%nfrag
+            tail = tail+1; stack(tail) = j
+          end if
+        end do
+      end do
+    end do
+    deallocate (stack)
+  end subroutine coord_classify_fragments
 
   subroutine atinfo_classify(molc)
     !*****************************************
@@ -598,6 +665,148 @@ contains  !> MODULE PROCEDURES START HERE
     call print_zmat(prch,self%nat,self%at,self%zmat, &
     &    self%zmap(:,1),self%zmap(:,2),self%zmap(:,3),.true.)
   end subroutine coord_classify_print_zmat
+
+!=============================================================================!
+!#############################################################################!
+!=============================================================================!
+
+!> RING-LIBRARY PROCEDURES
+
+  subroutine mol_ring_set(self,members)
+    !************************************************************
+    !* Store a ring from its member atom indices, sorting them
+    !* ascending so that rings can be compared element-wise.
+    !************************************************************
+    implicit none
+    class(mol_ring),intent(inout) :: self
+    integer,intent(in) :: members(:)
+    integer :: n,i,j,key
+    n = size(members)
+    if (allocated(self%atoms)) deallocate (self%atoms)
+    allocate (self%atoms(n))
+    self%atoms(:) = members(:)
+    self%size = n
+    !> insertion sort (rings are small, so this is plenty fast)
+    do i = 2,n
+      key = self%atoms(i)
+      j = i-1
+      do while (j >= 1)
+        if (self%atoms(j) <= key) exit
+        self%atoms(j+1) = self%atoms(j)
+        j = j-1
+      end do
+      self%atoms(j+1) = key
+    end do
+  end subroutine mol_ring_set
+
+  logical function mol_ring_equals(self,other) result(eq)
+    !************************************************************
+    !* Two rings are identical iff they have the same size and
+    !* the same (sorted) member atoms.
+    !************************************************************
+    implicit none
+    class(mol_ring),intent(in) :: self
+    type(mol_ring),intent(in) :: other
+    integer :: i
+    eq = .false.
+    if (self%size /= other%size) return
+    if (.not.allocated(self%atoms).or..not.allocated(other%atoms)) return
+    do i = 1,self%size
+      if (self%atoms(i) /= other%atoms(i)) return
+    end do
+    eq = .true.
+  end function mol_ring_equals
+
+  subroutine ring_add_unique(self,newring)
+    !************************************************************
+    !* Append "newring" to the molecule's ring library unless an
+    !* identical ring is already stored (duplicate suppression).
+    !************************************************************
+    implicit none
+    type(coord_classify),intent(inout) :: self
+    type(mol_ring),intent(in) :: newring
+    type(mol_ring),allocatable :: tmp(:)
+    integer :: k
+    do k = 1,self%nrings
+      if (self%ringlist(k)%equals(newring)) return   !> already known
+    end do
+    if (.not.allocated(self%ringlist)) then
+      allocate (self%ringlist(1))
+      self%ringlist(1) = newring
+    else
+      allocate (tmp(self%nrings+1))
+      tmp(1:self%nrings) = self%ringlist(1:self%nrings)
+      tmp(self%nrings+1) = newring
+      call move_alloc(tmp,self%ringlist)
+    end if
+    self%nrings = self%nrings+1
+  end subroutine ring_add_unique
+
+  subroutine coord_classify_collect_rings(self)
+    !************************************************************
+    !* Build the molecule's ring library from its adjacency
+    !* graph. check_rings_min flags every directly bonded vertex
+    !* pair (M,N) that still shares a path once their bond is
+    !* removed (i.e. lies on a ring); get_ring_min then returns
+    !* the smallest such ring. Iterating over all ring-bearing
+    !* bonds and discarding duplicates yields the set of unique
+    !* smallest rings (a smallest-set-of-smallest-rings flavour).
+    !************************************************************
+    implicit none
+    class(coord_classify),intent(inout) :: self
+    logical,allocatable :: ringmask(:,:)
+    integer,allocatable :: path(:)
+    integer :: nat,i,j,nring
+    type(mol_ring) :: newring
+
+    self%nrings = 0
+    if (allocated(self%ringlist)) deallocate (self%ringlist)
+    nat = self%nat
+    if (nat < 3.or..not.allocated(self%bond)) return
+
+    call check_rings_min(nat,self%bond,ringmask)
+    allocate (path(nat),source=0)
+    do i = 1,nat
+      do j = 1,i-1
+        if (.not.ringmask(i,j)) cycle           !> bond (i,j) not on a ring
+        call get_ring_min(nat,self%bond,i,j,path,nring)
+        if (nring < 3) cycle                     !> not a valid ring
+        call newring%set(path(1:nring))
+        call ring_add_unique(self,newring)
+      end do
+    end do
+    deallocate (path)
+    if (allocated(ringmask)) deallocate (ringmask)
+  end subroutine coord_classify_collect_rings
+
+  subroutine coord_classify_print_rings(self,prch)
+    !************************************************************
+    !* Print a short summary of the detected ring library.
+    !************************************************************
+    implicit none
+    class(coord_classify) :: self
+    integer,intent(in) :: prch
+    integer :: ii,jj,a
+    character(len=:),allocatable :: line
+    character(len=16) :: tok
+
+    if (self%nrings < 1) then
+      write (prch,'(/,1x,a)') 'Ring perception: no rings detected.'
+      return
+    end if
+    write (prch,'(/,1x,a,i0,a)') 'Ring perception: ',self%nrings, &
+    &  ' unique ring(s) detected'
+    do ii = 1,self%nrings
+      line = ''
+      do jj = 1,self%ringlist(ii)%size
+        a = self%ringlist(ii)%atoms(jj)
+        write (tok,'(a,i0)') trim(i2e(self%at(a))),a
+        line = trim(line)//' '//trim(tok)
+      end do
+      write (prch,'(3x,a,i0,a,i0,a,a)') 'ring ',ii,'  (',self%ringlist(ii)%size, &
+      &  '-membered):',trim(line)
+    end do
+  end subroutine coord_classify_print_rings
 
 !=============================================================================!
 !#############################################################################!

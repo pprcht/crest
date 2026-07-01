@@ -246,6 +246,11 @@ contains   !> MODULE PROCEDURES START HERE
         env%crestver = crest_rigcon
         env%runver = crest_rigcon
 
+      case ('ttconf')
+        env%preopt = .true.
+        env%crestver = crest_ttc
+        env%runver = crest_ttc
+
       case ('protonate')
         env%properties = p_protonate
         env%crestver = crest_protonate
@@ -348,8 +353,179 @@ contains   !> MODULE PROCEDURES START HERE
       call parse_thermo(env,blk,istat)
     case ('protonation')
       call parse_protonation(env,blk,istat)
+    case ('ttconf')
+      call parse_ttconf(env,blk,istat)
     end select
   end subroutine parse_main_blk
+
+!========================================================================================!
+  subroutine parse_ttconf(env,blk,istat)
+!*******************************************************
+!* parse detailed settings for the TTConf-light runtype
+!* ([ttconf] block). A "preset" is applied first, then
+!* individual keys may override it.
+!*******************************************************
+    implicit none
+    type(systemdata) :: env
+    type(datablock) :: blk
+    type(keyvalue) :: kv
+    integer,intent(inout) :: istat
+    integer :: i
+    logical :: ok
+!>--- apply a preset first (if present), so explicit keys override it
+    do i = 1,blk%nkv
+      if (blk%kv_list(i)%key == 'preset') then
+        call env%ttconf%setpreset(blk%kv_list(i)%value_c,ok)
+        if (.not.ok) write (stdout,'(1x,a)') &
+        &  '**WARNING** unknown [ttconf] preset: '//trim(blk%kv_list(i)%value_c)
+      end if
+    end do
+!>--- parse the remaining keys
+    do i = 1,blk%nkv
+      kv = blk%kv_list(i)
+      select case (kv%key)
+      case ('preset')                  !> already handled above
+        continue
+      case ('rank','r')
+        env%ttconf%rank = kv%value_i
+      case ('sweeps','s')
+        env%ttconf%sweeps = kv%value_i
+      case ('grid','ngrid')
+        env%ttconf%ngrid = kv%value_i
+      case ('ninit')
+        env%ttconf%ninit = kv%value_i
+      case ('ewin')
+        env%ttconf%ewin = kv%value_f
+      case ('kt','temperature')
+        env%ttconf%kt = kv%value_f
+      case ('bruteforce','oracle')
+        env%ttconf%use_sweep = .not.kv%value_b
+      case ('sp','singlepoint','sponly') !> singlepoints only (no geometry opt)
+        env%ttconf%sp_only = kv%value_b
+      case ('cache','ecache')
+        env%ttconf%use_cache = kv%value_b
+      case ('ringbonds')              !> treat in-ring bonds as TT variables?
+        env%ttconf%excl_rings = .not.kv%value_b
+      case ('ringsample')             !> sample ring templates as TT sites?
+        env%ttconf%ring_sample = kv%value_b
+      case ('ringmethod','ringsampler') !> which ring-conformation generator
+        env%ttconf%ring_method = trim(kv%value_c)
+      case ('seed')
+        env%ttconf%seed = kv%value_i
+      case ('bonds','userbonds')      !> force atom pairs to be TT variables
+        call parse_ttconf_bonds(env,kv)
+      case default
+        istat = istat+1
+        write (stdout,fmturk) '[ttconf]-block',kv%key
+      end select
+    end do
+  end subroutine parse_ttconf
+
+!========================================================================================!
+  subroutine parse_ttconf_bonds(env,kv)
+!*******************************************************
+!* Parse the [ttconf] "bonds" key: atom pairs (optionally
+!* with a per-bond grid-point count) that the user wants
+!* treated as TT variables, e.g.
+!*    bonds = [[1,2], [3,4,12]]
+!* Each entry is [A,B] or [A,B,npoints]. They are stored as
+!* env%ttconf%userbonds(3,:) = (A,B,npoints), npoints = 0
+!* meaning "use the default grid". A single pair may also be
+!* given flat, e.g. bonds = [1,2].
+!*
+!* NOTE: the toml reader expands the nested form [[..],[..]]
+!* into one int-array key per sub-array, so this routine may
+!* be called repeatedly for the same key -- bonds therefore
+!* ACCUMULATE (each call appends) rather than overwrite.
+!*******************************************************
+    implicit none
+    type(systemdata),intent(inout) :: env
+    type(keyvalue),intent(in) :: kv
+    integer :: k,a,b,np
+    character(len=:),allocatable :: s
+
+    if (kv%id == valuetypes%int_array) then
+!>--- a flat pair: bonds = [1,2] or [1,2,12] (also each [[..]] sub-array)
+      if (kv%na < 2) then
+        write (stdout,'(1x,a)') '**WARNING** [ttconf] bonds entry needs >=2 atoms; ignored'
+        return
+      end if
+      np = 0
+      if (kv%na >= 3) np = abs(kv%value_ia(3))
+      call append_userbond(env,kv%value_ia(1),kv%value_ia(2),np)
+    else if (kv%id == valuetypes%raw_array) then
+!>--- a raw list of sub-arrays: bonds = [[1,2],[3,4,12]]
+      do k = 1,kv%na
+        s = trim(adjustl(kv%value_rawa(k)))
+        call read_bracketed_triplet(s,a,b,np)
+        if (a <= 0.or.b <= 0) then
+          write (stdout,'(1x,a,a)') '**WARNING** could not parse [ttconf] bond entry: ', &
+          &  trim(kv%value_rawa(k))
+          cycle
+        end if
+        call append_userbond(env,a,b,np)
+      end do
+    else
+      write (stdout,'(1x,a)') '**WARNING** [ttconf] bonds must be a list of atom pairs; ignored'
+    end if
+  end subroutine parse_ttconf_bonds
+
+!========================================================================================!
+  subroutine append_userbond(env,a,b,np)
+!*******************************************************
+!* Append one (atomA, atomB, npoints) bond to the growing
+!* env%ttconf%userbonds(3,:) list.
+!*******************************************************
+    implicit none
+    type(systemdata),intent(inout) :: env
+    integer,intent(in) :: a,b,np
+    integer,allocatable :: tmp(:,:)
+    integer :: n
+    if (.not.allocated(env%ttconf%userbonds)) then
+      allocate (env%ttconf%userbonds(3,1))
+      env%ttconf%userbonds(:,1) = [a,b,np]
+      return
+    end if
+    n = size(env%ttconf%userbonds,2)
+    allocate (tmp(3,n+1))
+    tmp(:,1:n) = env%ttconf%userbonds(:,1:n)
+    tmp(:,n+1) = [a,b,np]
+    call move_alloc(tmp,env%ttconf%userbonds)
+  end subroutine append_userbond
+
+!========================================================================================!
+  subroutine read_bracketed_triplet(str,a,b,np)
+!*******************************************************
+!* Read up to three integers from a "[A,B]" / "[A,B,N]"
+!* bracketed substring. Missing values come back as 0.
+!*******************************************************
+    implicit none
+    character(len=*),intent(in) :: str
+    integer,intent(out) :: a,b,np
+    character(len=:),allocatable :: clean
+    integer :: i,io
+    a = 0; b = 0; np = 0
+    clean = ''
+    do i = 1,len_trim(str)
+      select case (str(i:i))
+      case ('[',']')
+        cycle                          !> drop brackets
+      case (',')
+        clean = clean//' '             !> commas -> blanks for list-directed read
+      case default
+        clean = clean//str(i:i)
+      end select
+    end do
+    read (clean,*,iostat=io) a,b,np    !> try three
+    if (io /= 0) then
+      np = 0
+      read (clean,*,iostat=io) a,b     !> fall back to two
+      if (io /= 0) then
+        a = 0; b = 0
+      end if
+    end if
+    np = abs(np)
+  end subroutine read_bracketed_triplet
 
 !========================================================================================!
   subroutine parse_cregen(env,blk,istat)

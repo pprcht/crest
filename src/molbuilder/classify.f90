@@ -25,6 +25,7 @@ module molbuilder_classify
 
   !> RE-EXEPORTS
   public :: coord_classify  !> the extended coord type
+  public :: mol_ring        !> a single molecular-graph ring
   public :: setup_classify  !> setup a coord_classify from coord
   public :: atinfo_classify !> add atinfo string to a coord_classify
   public :: functional_group_classify !> try to determine some functional groups

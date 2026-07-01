@@ -16,12 +16,15 @@
 
 srcs += files(
   'rigidconf.f90',
-  'tree.f90',
   'analyze.f90',
   'reconstruct.f90',
   'construct.f90',
   'construct_list.f90',
   'classify.f90',
-  'classify_type.f90', 
-  'classify_func.f90', 
+  'classify_type.f90',
+  'classify_func.f90',
+  'ttconf_settings.f90',
+  'ttconf_ringsample.f90',
+  'ttconf_rings.f90',
+  'ttconf_light_mod.f90',
 )
