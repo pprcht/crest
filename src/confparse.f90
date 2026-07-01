@@ -3592,6 +3592,7 @@ subroutine inputcoords(env,arg)
   type(zmolecule) :: zmol
   integer :: i,idiff
   integer,allocatable :: tmpinclude(:)
+  real(wp),allocatable :: savelat(:,:)   !> preserve input lattice across coord round-trip
 
 !>--- Redirect for QCG input reading
   if (env%QCG) then
@@ -3616,6 +3617,7 @@ subroutine inputcoords(env,arg)
   end if
   if (ex.and.arg(1:1) .ne. '-') then
     call mol%open(arg)
+    if (allocated(mol%lat)) savelat = mol%lat
     call mol%write('coord')
     call mol%write('crest_input_copy.xyz')
     call mol%deallocate()
@@ -3636,8 +3638,12 @@ subroutine inputcoords(env,arg)
 !>-- after this point there should always be an coord file present
   if (.not.allocated(env%inputcoords)) env%inputcoords = 'coord'
   call mol%open('coord')
+  if (allocated(savelat)) call move_alloc(savelat,mol%lat)
 !>-- shift to CMA and/or align according to rot.const. We have to be careful about this.
-  if (any((/crest_sp,crest_optimize,crest_numhessian,crest_trialopt, &
+  if (allocated(mol%lat)) then
+    !> periodic systems must not be rotated/translated
+    continue
+  else if (any((/crest_sp,crest_optimize,crest_numhessian,crest_trialopt, &
   &         crest_ensemblesp,crest_ensemblehess/) == env%crestver)) then
     !> some runtypes should only do a CMA translation, but no rotation
     call CMAtrf(mol%nat,mol%nat,mol%at,mol%xyz)
@@ -3659,6 +3665,15 @@ subroutine inputcoords(env,arg)
   env%ref%nat = mol%nat
   env%ref%at = mol%at
   env%ref%xyz = mol%xyz
+  if (allocated(mol%lat)) then
+    env%ref%lat = mol%lat
+!>-- the genetic crossing (GC) step operates on bare internal coordinates and is
+!>-- not defined under periodic boundary conditions -> disable it for PBC input
+    if (env%performCross) then
+      env%performCross = .false.
+      write (stdout,'(a)') '> Periodic system detected: genetic crossing (GC) step disabled.'
+    end if
+  end if
   env%ref%ichrg = env%chrg
   env%ref%uhf = env%uhf
 !>-- topology save

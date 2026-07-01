@@ -28,7 +28,6 @@ module optimize_utils
   use crest_calculator
   use axis_module
   use strucrd
-  use ls_rmsd
 
   use optimize_type
   use optimize_maths

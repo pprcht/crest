@@ -330,6 +330,7 @@ module crest_data
     integer :: nat
     integer,allocatable :: at(:)
     real(wp),allocatable :: xyz(:,:)
+    real(wp),allocatable :: lat(:,:)    !> lattice vectors (PBC, optional)
     integer :: ichrg = 0
     integer :: uhf = 0
     integer :: ntopo = 0
@@ -965,6 +966,7 @@ contains  !> MODULE PROCEDURES START HERE
     mol%nat = self%nat
     if (allocated(self%at)) mol%at = self%at
     if (allocated(self%xyz)) mol%xyz = self%xyz
+    if (allocated(self%lat)) mol%lat = self%lat
     mol%chrg = self%ichrg
     mol%uhf = self%uhf
     return
@@ -978,6 +980,11 @@ contains  !> MODULE PROCEDURES START HERE
     self%nat = mol%nat
     self%at = mol%at
     self%xyz = mol%xyz
+    if (allocated(mol%lat)) then
+      self%lat = mol%lat
+    else if (allocated(self%lat)) then
+      deallocate (self%lat)
+    end if
     self%ichrg = mol%chrg
     self%uhf = mol%uhf
     return

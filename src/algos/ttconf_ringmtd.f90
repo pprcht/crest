@@ -224,7 +224,7 @@ contains
       eread(i) = structures(i)%energy
     end do
     write(stdout,'(/,"> Optimizing ",i0," ring snapshots")') nall
-    call crest_oloop(s_env,nat,nall,at,xyz,eread,.false.,gff,.false.)
+    call crest_oloop(s_env,nat,nall,at,xyz,eread,.false.,gff)
 
 ! ── topology filter against the cut-out reference connectivity ──────────────
     allocate (keep(nall),source=0)

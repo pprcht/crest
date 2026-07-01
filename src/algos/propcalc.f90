@@ -104,8 +104,7 @@ subroutine crest_multilevel_reopt(iname,env,tim)
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout) :: tim
   integer :: nat,nall,T,Tn
-  real(wp),allocatable :: xyz(:,:,:),eread(:)
-  integer,allocatable  :: at(:)
+  type(coord),allocatable :: structures(:)
   character(len=*),parameter :: outname = 'crest_reopt.xyz'
   logical :: ex
 
@@ -123,10 +122,7 @@ subroutine crest_multilevel_reopt(iname,env,tim)
     call tim%stop(16)
     return
   end if
-  allocate(xyz(3,nat,nall),at(nat),eread(nall))
-  call rdensemble(iname,nat,nall,at,xyz,eread)
-! ── crest_oloop requires Bohr ────────────────────────────────────
-  xyz = xyz/bohr
+  call rdensemble(iname,nall,structures)
 
   call new_ompautoset(env,'auto',nall,T,Tn)
 
@@ -136,11 +132,10 @@ subroutine crest_multilevel_reopt(iname,env,tim)
     & 'Re-optimizing ',nall,' structures of file ',trim(iname)
 
 ! ── refine_stage is set by the caller; run geo-opt ───────────────
-  call crest_oloop(env,nat,nall,at,xyz,eread,.true.)
+  call crest_oloop(env,nall,structures,.true.)
 
-! ── back to Angstrom, write output ───────────────────────────────
-  xyz = xyz*bohr
-  call wrensemble(outname,nat,nall,at,xyz,eread)
+! ── write output ─────────────────────────────────────────────────
+  call wrensemble(outname,nall,structures)
 
   write(stdout,'(/,a,a,a)') 'Re-optimized ensemble written to <',outname,'>'
 
@@ -148,7 +143,7 @@ subroutine crest_multilevel_reopt(iname,env,tim)
   call newcregen(env,0,outname)
   call catdel('cregen.out.tmp')
 
-  deallocate(xyz,at,eread)
+  deallocate(structures)
   call tim%stop(16)
 end subroutine crest_multilevel_reopt
 
@@ -178,8 +173,7 @@ subroutine crest_rerank_sp(iname,env,tim)
   type(systemdata),intent(inout) :: env
   type(timer),intent(inout) :: tim
   integer :: nat,nall,T,Tn,old_stage
-  real(wp),allocatable :: xyz(:,:,:),eread(:)
-  integer,allocatable  :: at(:)
+  type(coord),allocatable :: structures(:)
   character(len=*),parameter :: outname = 'crest_reopt.xyz'
   logical :: ex
 
@@ -197,10 +191,7 @@ subroutine crest_rerank_sp(iname,env,tim)
     call tim%stop(16)
     return
   end if
-  allocate(xyz(3,nat,nall),at(nat),eread(nall))
-  call rdensemble(iname,nat,nall,at,xyz,eread)
-! ── crest_sploop requires coordinates in Bohr ────────────────────
-  xyz = xyz/bohr
+  call rdensemble(iname,nall,structures)
 
   call new_ompautoset(env,'auto',nall,T,Tn)
 
@@ -213,13 +204,12 @@ subroutine crest_rerank_sp(iname,env,tim)
   old_stage = env%calc%refine_stage
   env%calc%refine_stage = refine%post_sp
 
-  call crest_sploop(env,nat,nall,at,xyz,eread)
+  call crest_sploop(env,nall,structures)
 
   env%calc%refine_stage = old_stage
 
-! ── back to Angstrom, write output ───────────────────────────────
-  xyz = xyz*bohr
-  call wrensemble(outname,nat,nall,at,xyz,eread)
+! ── write output ─────────────────────────────────────────────────
+  call wrensemble(outname,nall,structures)
 
   write(stdout,'(/,a,a,a)') 'Re-ranked ensemble written to <',outname,'>'
 
@@ -227,7 +217,7 @@ subroutine crest_rerank_sp(iname,env,tim)
   call newcregen(env,0,outname)
   call catdel('cregen.out.tmp')
 
-  deallocate(xyz,at,eread)
+  if (allocated(structures)) deallocate(structures)
   call tim%stop(16)
 end subroutine crest_rerank_sp
 

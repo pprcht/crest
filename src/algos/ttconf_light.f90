@@ -331,16 +331,26 @@ subroutine ttconf_light_core(env,mol)
       block
         use parallel_interface,only:crest_sploop
         use utilities,only:checkname_xyz
-        integer :: spnat,spnall
+        use strucrd,only:coord
+        integer :: spnat,spnall,i
         integer,allocatable :: spat(:)
         real(wp),allocatable :: spxyz(:,:,:),speread(:)
+        type(coord),allocatable :: spmols(:)
         character(len=128) :: inpnam,outnam
         call rdensembleparam(rawfile,spnat,spnall)
         if (spnall > 0) then
           allocate (spat(spnat),spxyz(3,spnat,spnall),speread(spnall))
           call rdensemble(rawfile,spnat,spnall,spat,spxyz,speread)
           spxyz = spxyz/bohr                   !> crest_sploop expects Bohr
-          call crest_sploop(env,spnat,spnall,spat,spxyz,speread)
+!>--- marshal into a coord list (canonical crest_sploop API)
+          allocate (spmols(spnall))
+          do i = 1,spnall
+            spmols(i)%nat = spnat
+            spmols(i)%at = spat
+            spmols(i)%xyz = spxyz(:,:,i)
+          end do
+          call crest_sploop(env,spnall,spmols,speread)
+          deallocate (spmols)
           spxyz = spxyz/angstrom               !> ensemble file must be Angstrom
 !>--- seed the crest_rotamers_* sequence, then sort it like the opt path does
 !>    (sort_and_check sets env%nat and runs CREGEN in conformer-search mode)

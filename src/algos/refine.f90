@@ -101,16 +101,29 @@ subroutine crest_refine(env,input,output)
       select case (refine_stage)
       case (refine%singlepoint)
         write (stdout,'("> Singlepoint re-ranking for ",i0," structures")') nall
-        call crest_sploop(env,nat,nall,at,xyz,eread)
+        do j = 1,nall
+          structures(j)%xyz(1:3,1:nat) = xyz(1:3,1:nat,j)
+        end do
+        call crest_sploop(env,nall,structures,eread)
 
       case (refine%correction)
         write (stdout,'("> Additive correction for ",i0," structures")') nall
-        call crest_sploop(env,nat,nall,at,xyz,etmp)
+        do j = 1,nall
+          structures(j)%xyz(1:3,1:nat) = xyz(1:3,1:nat,j)
+        end do
+        call crest_sploop(env,nall,structures,etmp)
         eread(:) = eread(:)+etmp(:)
 
       case (refine%geoopt)
         write (stdout,'("> Geometry optimization of ",i0," structures")') nall
-        call crest_oloop(env,nat,nall,at,xyz,eread,.false.)
+        do j = 1,nall
+          structures(j)%xyz(1:3,1:nat) = xyz(1:3,1:nat,j)
+        end do
+        call crest_oloop(env,nall,structures,.false.)
+        do j = 1,nall
+          xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
+          eread(j) = structures(j)%energy
+        end do
 
       case (refine%deltaG)
         write (stdout,'("> Free energy correction (δG) for ",i0," structures")') nall

@@ -28,6 +28,7 @@ list(APPEND srcs
   "${dir}/hungarian.f90"
   "${dir}/irmsd_module.f90"
   "${dir}/ls_rmsd.f90"
+  "${dir}/pbc_fingerprint.f90"
   "${dir}/quicksort.f90"
   "${dir}/rotcompare.f90"
 "${dir}/unionize.f90"

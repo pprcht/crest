@@ -70,7 +70,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(inout)    :: etot
     real(wp),intent(inout)    :: grd(3,mol%nat)
     real(wp),allocatable :: H_init(:,:),freq(:)
-    integer :: nat3,io,idx,nrt
+    integer :: nat3,io,idx,nrt,engine
     real(wp),allocatable :: hess(:),g_hess(:), g_hess_full(:,:), int_temps(:)
     logical :: pr2
     character(len=:),allocatable :: logfile_l
@@ -92,6 +92,7 @@ contains  !> MODULE PROCEDURES START HERE
     molnew%xyz = mol%xyz
     molnew%nat = mol%nat
     molnew%wrextxyz = .true.
+    if (allocated(mol%lat)) molnew%lat = mol%lat
     !$omp end critical
     nat3 = 3*mol%nat
 
@@ -114,14 +115,21 @@ contains  !> MODULE PROCEDURES START HERE
     call engrad(molnew,calc,etot,grd,iostatus)
     if (calc%do_HR .or. calc%deform_opt_hess) calc%chess%track_step = .true.
     !> optimization
-    select case (calc%opt_engine)
+    engine = calc%opt_engine
+    !> periodic systems: the model-Hessian/ANC engines project out global
+    !> rotation (invalid against a fixed lattice), so fall back to L-BFGS
+    if (allocated(molnew%lat).and.engine /= 1) then
+      if (pr) write (stdout,'(a)') '> periodic system detected: using L-BFGS optimizer'
+      engine = 1
+    end if
+    select case (engine)
     case (0)
       call ancopt(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
     case (1)
       !> l-bfgs goes here
       !write(stdout,'(a)') 'L-BFGS currently not implemented'
       !stop
-      call lbfgs_optimize(molnew,calc,etot,grd,pr,iostatus,logfile_l)
+      call lbfgs_optimize(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
     case (2)
       !> rfo goes here
       call rfopt(molnew,calc,etot,grd,pr,wr,iostatus,logfile_l)
@@ -134,6 +142,7 @@ contains  !> MODULE PROCEDURES START HERE
       write (stdout,'(a)') 'Unknown optimization engine!'
       stop
     end select
+    if (allocated(mol%lat).and..not.allocated(molnew%lat)) molnew%lat = mol%lat
     molnew%energy = etot
 
     if (calc%do_HR  .and. iostatus .eq. 0) then !> Hessian reconstruction and post-processing happen here, only do it if geometry relaxation successful

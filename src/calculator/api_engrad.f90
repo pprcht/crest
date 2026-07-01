@@ -318,7 +318,6 @@ contains    !> MODULE PROCEDURES START HERE
     logical :: loadnew,pr
     integer :: i,j,k,l,ich,och,io
     logical :: ex
-    character(len=:),allocatable :: tmpchrgs
     real(wp),allocatable :: q(:)
     iostatus = 0
     pr = .false.
@@ -332,20 +331,21 @@ contains    !> MODULE PROCEDURES START HERE
     if (loadnew) then
       if (calc%ceh_guess) then
         if (pr) then
-          write (calc%prch,'(/,a)') 'Initializing (fragement) charges from CEH model'
+          write (calc%prch,'(/,a)') 'Initializing atomic reference charges from CEH model'
         end if
-        !> A bit hacky and additional I/O, but would need adjusting submodule code otherwise
+        !> Compute CEH atomic charges and pass them to GFN-FF (in-memory) as the
+        !> reference topology charges (qa) used in the force-field construction.
         call tblite_quick_ceh_q(mol,q,calc%chrg,pr=pr,prch=calc%prch)
-        tmpchrgs = dump_array_to_tmp(q)
-        calc%ff_dat%refcharges = tmpchrgs
+        call gfnff_set_refcharges(calc%ff_dat,q)
+        deallocate (q)
+      end if
+
+      !> hand any user-defined fragmentation to GFN-FF before topology setup
+      if (allocated(calc%gff_fragments)) then
+        call gfnff_set_fragments(calc%ff_dat,mol%nat,calc%gff_fragments)
       end if
 
       call gfnff_api_setup(mol,calc%chrg,calc%ff_dat,iostatus,pr,calc%prch)
-
-      if (calc%ceh_guess) then
-        call remove(tmpchrgs)
-        deallocate (q)
-      end if
     end if
     !$omp end critical
     if (iostatus /= 0) return

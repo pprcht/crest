@@ -28,7 +28,7 @@ module ancopt_module
   use crest_calculator
   use axis_module
   use strucrd
-  use ls_rmsd
+  use irmsd_module,only:rmsd,rmsd_core_cache
 
   use optimize_type
   use optimize_maths
@@ -85,8 +85,10 @@ contains  !> MODULE PROCEDURES START HERE
     logical :: fail
     !> Local objects
     type(coord)   :: molopt
+    type(coord)   :: molref   !> pre-relax reference geometry for the RMSD probe
     type(optimizer)  :: OPT
     type(mhparam) :: mhset
+    type(rmsd_core_cache) :: rcache
 
     real(wp) :: step,amu2au,au2cm,dumi,dumj,damp,hlow,edum,s6,thr
     real(wp) :: maxdispl,gthr,ethr,hmax,energy,rij(3),t1,t0,w1,w0
@@ -104,9 +106,8 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: iwork(:)
     integer,allocatable :: totsym(:)
     real(wp),allocatable :: pmode(:,:)
-    real(wp),allocatable :: grmsd(:,:)
     type(convergence_log),allocatable :: avconv
-    real(wp) :: U(3,3),x_center(3),y_center(3),rmsdval
+    real(wp) :: rmsdval
     integer :: modef
     logical :: ex,converged,linear
     real(wp) :: estart,esave
@@ -149,7 +150,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     !$omp critical
-    allocate (pmode(nat3,1),grmsd(3,mol%nat)) ! dummy allocated
+    allocate (pmode(nat3,1)) ! dummy allocated
     !$omp end critical
 
 !>--- print a summary of settings, if desired
@@ -170,6 +171,12 @@ contains  !> MODULE PROCEDURES START HERE
     molopt%at = mol%at
     molopt%xyz = mol%xyz
     molopt%wrextxyz = calc%logextxyz
+    !> lightweight reference coord + RMSD scratch cache reused for the
+    !> per-iteration RMSD probe (local -> thread-safe under parallel opt)
+    molref%nat = mol%nat
+    molref%at = mol%at
+    allocate (molref%xyz(3,mol%nat),source=mol%xyz)
+    call rcache%allocate(mol%nat)
     estart = etot
 
 !>--- initialize .log file, if desired
@@ -238,8 +245,9 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- update max. iterations for next relax() call
       maxmicro = min(int(float(maxmicro)*1.1_wp),2*calc%micro_opt)
 
-!>--- check structural change by RMSD
-      call rmsd(molopt%nat,OPT%xyz,molopt%xyz,1,U,x_center,y_center,rmsdval,.false.,grmsd)
+!>--- check structural change by RMSD (pre-relax OPT%xyz vs. relaxed molopt)
+      molref%xyz = OPT%xyz
+      rmsdval = rmsd(molref,molopt,ccache=rcache)
       if (.not.converged.and.pr) then
         write (*,'(" * RMSD in coord.:",f14.7,1x,"α")',advance='no') rmsdval
         write (*,'(6x,"energy gain",e16.7,1x,"Eh")') etot-esave
@@ -257,7 +265,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- if the relaxation converged properly do this
       iostatus = 0
       if (pr) then
-        call rmsd(mol%nat,mol%xyz,molopt%xyz,1,U,x_center,y_center,rmsdval,.false.,grmsd)
+        rmsdval = rmsd(mol,molopt,ccache=rcache)
         write (*,'(/,3x,"***",1x,a,1x,i0,1x,a,1x,"***",/)') &
           "GEOMETRY OPTIMIZATION CONVERGED AFTER",iter,"ITERATIONS"
         write (*,'(72("-"))')
@@ -290,7 +298,6 @@ contains  !> MODULE PROCEDURES START HERE
 
 !> deallocate data
     !$omp critical
-    if (allocated(grmsd)) deallocate (grmsd)
     if (allocated(pmode)) deallocate (pmode)
     if (allocated(h)) deallocate (h)
     if (allocated(hess)) deallocate (hess)

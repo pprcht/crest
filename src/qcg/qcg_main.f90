@@ -1025,9 +1025,19 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
     clus%xyz(1:3,1:clus%nat) = ens%xyz(1:3,1:ens%nat,1)*aatoau
     call qcg_envcalc_reinit(env,clus,.true.,.true.)
 
-    ens%xyz = ens%xyz*aatoau
-    call crest_sploop(env,ens%nat,ens%nall,ens%at,ens%xyz,ens%er)
-    ens%xyz = ens%xyz*autoaa
+    !> build the coord list (in Bohr) for the internal parallel loop
+    block
+      type(coord),allocatable :: structures(:)
+      integer :: isp
+      allocate (structures(ens%nall))
+      do isp = 1,ens%nall
+        structures(isp)%nat = ens%nat
+        structures(isp)%at = ens%at
+        structures(isp)%xyz = ens%xyz(1:3,1:ens%nat,isp)*aatoau
+      end do
+      call crest_sploop(env,ens%nall,structures,ens%er)
+      deallocate (structures)
+    end block
   end if
 
 !-------------------------------------------------------------

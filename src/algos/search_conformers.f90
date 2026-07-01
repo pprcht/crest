@@ -391,9 +391,6 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in,mtd_iter_in)
   logical,intent(in) :: multilevel_in(6)
   integer,intent(in) :: mtd_iter_in
   integer :: nat,nall
-  real(wp),allocatable :: eread(:)
-  real(wp),allocatable :: xyz(:,:,:)
-  integer,allocatable  :: at(:)
   logical :: dump,pr
   character(len=128) :: inpnam,outnam
   integer :: i,l,k,T,Tn,j
@@ -447,21 +444,7 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in,mtd_iter_in)
     env%iostatus_meta = status_failed
     return
   end if
-  allocate (xyz(3,nat,nall),at(nat),eread(nall))
-!  call rdensemble(ensnam,nat,nall,at,xyz,eread)
-!!>--- track ensemble for restart
-!  !call trackensemble(ensnam,nat,nall,at,xyz,eread)
-!!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!!>--- Important: crest_oloop requires coordinates in Bohrs
-!  xyz = xyz/bohr
-!!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
   call rdensemble(ensnam,nall,structures)
-  at(:) = structures(1)%at(:)
-  do j = 1,nall
-    eread(j) = structures(j)%energy
-    xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
-  end do
-  deallocate (structures)
 
   write (stdout,'(1x,a,i0,a,a,a)') 'Optimizing all ',nall, &
   & ' structures from file "',trim(ensnam),'" ...'
@@ -475,8 +458,8 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in,mtd_iter_in)
       !>--- set optimization parameters
       call set_multilevel_options(env,i,.true.)
       !>--- run parallel optimizations
-      call crest_oloop(env,nat,nall,at,xyz,eread,dump)
-      deallocate (eread,at,xyz)
+      call crest_oloop(env,nall,structures,dump)
+      deallocate (structures)
       !>--- rename ensemble and sort
       call checkname_xyz(crefile,inpnam,outnam)
       call rename(ensemblefile,trim(inpnam))
@@ -510,19 +493,7 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in,mtd_iter_in)
         return
       end if
       !>--- read new ensemble for next iteration
-      allocate (xyz(3,nat,nall),at(nat),eread(nall))
-      !call rdensemble(trim(inpnam),nat,nall,at,xyz,eread)
-      !!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-      !!>--- Important: crest_oloop requires coordinates in Bohrs
-      !xyz = xyz/bohr
-      !!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
       call rdensemble(trim(inpnam),nall,structures)
-      at(:) = structures(1)%at(:)
-      do j = 1,nall
-        eread(j) = structures(j)%energy
-        xyz(1:3,1:nat,j) = structures(j)%xyz(1:3,1:nat)
-      end do
-      deallocate (structures)
 
       !>--- restore default sorting thresholds
       env%ewin = ewinbackup
@@ -533,9 +504,7 @@ subroutine crest_multilevel_oloop(env,ensnam,multilevel_in,mtd_iter_in)
     end if
   end do
 
-  if (allocated(eread)) deallocate (eread)
-  if (allocated(at)) deallocate (at)
-  if (allocated(xyz)) deallocate (xyz)
+  if (allocated(structures)) deallocate (structures)
   return
 contains
   subroutine set_multilevel_options(env,i,pr)

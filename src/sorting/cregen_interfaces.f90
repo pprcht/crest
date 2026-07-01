@@ -130,6 +130,37 @@ module cregen_subroutines
       integer,intent(in),optional :: ch
     end subroutine cregen_CRE_new
 
+    function cregen_majority_periodic(structures) result(periodic)
+      use crest_parameters
+      use strucrd
+      implicit none
+      type(coord),intent(in) :: structures(:)
+      logical :: periodic
+    end function cregen_majority_periodic
+
+    subroutine cregen_discard_periodic(ch,structures)
+      use crest_parameters
+      use strucrd
+      implicit none
+      integer,intent(in) :: ch
+      type(coord),intent(inout),allocatable :: structures(:)
+    end subroutine cregen_discard_periodic
+
+    subroutine cregen_CRE_periodic(env,nall,structures,groups,rthresh,ethr,printlvl,ch)
+      use crest_parameters
+      use crest_data
+      use strucrd
+      implicit none
+      type(systemdata),intent(inout) :: env
+      integer,intent(inout) :: nall
+      type(coord),intent(inout),allocatable,target :: structures(:)
+      integer,intent(out),allocatable :: groups(:)
+      real(wp),intent(in) :: RTHRESH
+      real(wp),intent(in) :: ETHR
+      integer,intent(in),optional :: printlvl
+      integer,intent(in),optional :: ch
+    end subroutine cregen_CRE_periodic
+
     subroutine cregen_rmsdalign(nall,structures)
       use crest_parameters
       use irmsd_module

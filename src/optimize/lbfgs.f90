@@ -117,7 +117,7 @@ contains !>  MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine lbfgs_optimize(mol,calc,etot,grd,pr,io,logfile)
+  subroutine lbfgs_optimize(mol,calc,etot,grd,pr,wr,io,logfile)
     !**************************************************************************
     !* L-BFGS Optimization Routine
     !*
@@ -143,6 +143,7 @@ contains !>  MODULE PROCEDURES START HERE
     real(wp),intent(inout) :: etot
     real(wp),intent(inout) :: grd(3,mol%nat)
     logical,intent(in)     :: pr
+    logical,intent(in)     :: wr   !> write the trajectory logfile?
     character(len=*),intent(in) :: logfile
     !> OUTPUT
     integer,intent(out)    :: io
@@ -172,11 +173,16 @@ contains !>  MODULE PROCEDURES START HERE
     converged = .false.
     mol%wrextxyz = calc%logextxyz
 
-    open (newunit=ilog,file=logfile)
-    if(calc%logextxyz)then
-      mol%gradient = grd
-    endif
-    call mol%appendlog(ilog,etot)
+!>--- only write the trajectory log when requested (wr). The logfile name is
+!>    fixed, so an unconditional open/write races across threads in the parallel
+!>    ensemble optimization (where wr=.false.). Mirrors the ancopt behaviour.
+    if (wr) then
+      open (newunit=ilog,file=logfile)
+      if (calc%logextxyz) then
+        mol%gradient = grd
+      end if
+      call mol%appendlog(ilog,etot)
+    end if
 
     !$omp critical
     !> Allocate the vectors for position, gradient, and search direction.
@@ -244,7 +250,7 @@ contains !>  MODULE PROCEDURES START HERE
           call transform_mol('v2cart',mol,nvar,x_new)
           grd = 0.0_wp
           call engrad(mol,calc,energy,gtmp,io)
-          call mol%appendlog(ilog,energy)
+          if (wr) call mol%appendlog(ilog,energy)
           !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
           !====================================================================!
           if (io /= 0) exit
@@ -306,6 +312,9 @@ contains !>  MODULE PROCEDURES START HERE
     !> Final trafo
     call transform_mol('v2cart',mol,nvar,x_new)
     call transform_grd('v2cart',mol,grd,nvar,g_new)
+
+    !> close the trajectory logfile (if it was opened)
+    if (wr) close (ilog)
 
     !> Deallocate all temporary arrays.
     deallocate (x_new,g_new,d,g,x)

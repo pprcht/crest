@@ -1071,7 +1071,7 @@ contains  !> MODULE PROCEDURES START HERE
       read (val_str,*) lat_raw
       lattice = reshape(lat_raw, (/3,3/))
       allocate (lat(3,3))
-      lat = lattice
+      lat = lattice*aatoau
     end if
 
     ! Extract and Parse Properties Signature

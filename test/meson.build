@@ -9,6 +9,8 @@ tests = [
   'CN',
   'optimization',
   'molecular_dynamics',
+  'metadynamics',
+  'pbc_cregen',
   'getsym',
   'irmsd',
   'graphs',

@@ -189,6 +189,11 @@ module calc_type
 
 !>--- GFN-FF data
     type(gfnff_data),allocatable :: ff_dat
+    !> optional user-defined fragmentation (one atom-range string per fragment,
+    !> e.g. ["1-432","433-458"]). Atoms not covered by any string form one
+    !> additional "rest" fragment. Passed to GFN-FF to prevent artificial bonds
+    !> between fragments. Resolved to a per-atom list once nat is known.
+    character(len=:),allocatable :: gff_fragments(:)
 
 !>--- libpvol data
     integer  :: pvmodel = 1            !> libpvol model type (0=XHCFF, 1=PV)
@@ -1186,6 +1191,7 @@ contains  !>--- Module routines start here
     if (allocated(self%solv)) deallocate (self%solv)
     if (allocated(self%eeq)) deallocate (self%eeq)
     if (allocated(self%ff_dat)) deallocate (self%ff_dat)
+    if (allocated(self%gff_fragments)) deallocate (self%gff_fragments)
     if (allocated(self%libpvol)) deallocate (self%libpvol)
 
     !> external callback: drop the references (we do not own the targets)
@@ -1263,6 +1269,7 @@ contains  !>--- Module routines start here
     if (allocated(src%restartfile))    self%restartfile    = src%restartfile
     if (allocated(src%refgeo))         self%refgeo         = src%refgeo
     if (allocated(src%refcharges))     self%refcharges     = src%refcharges
+    if (allocated(src%gff_fragments))  self%gff_fragments  = src%gff_fragments
     if (allocated(src%tbliteparam))    self%tbliteparam    = src%tbliteparam
     if (allocated(src%solv))           self%solv           = src%solv
     if (allocated(src%eeq))            self%eeq            = src%eeq

@@ -493,6 +493,20 @@ contains !> MODULE PROCEDURES START HERE
         call creststop(status_config)
       end if
 
+    case ('fragment','fragments')
+      !>--- user-defined fragmentation, e.g. fragments = ["1-432","433-458"]
+      !>    each entry is an atom-range string defining one fragment.
+      !>    A single string (one fragment) is also accepted.
+      if (allocated(kv%value_ca)) then
+        job%gff_fragments = kv%value_ca
+      else if (allocated(kv%value_c)) then
+        allocate (character(len=len(kv%value_c)) :: job%gff_fragments(1))
+        job%gff_fragments(1) = kv%value_c
+      else
+        write (stderr,'(a)') 'could not read fragment definition'
+        call creststop(status_config)
+      end if
+
     case ('print')
       select case (kv%id)
       case (2)

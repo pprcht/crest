@@ -40,9 +40,7 @@ subroutine crest_search_1(env,tim)
 
   character(len=:),allocatable :: ensnam
   integer :: nat,nall,T,Tn
-  real(wp),allocatable :: eread(:)
-  real(wp),allocatable :: xyz(:,:,:)
-  integer,allocatable  :: at(:)
+  type(coord),allocatable :: structures(:)
   logical :: dump,doreturn
 
 !===========================================================!
@@ -98,23 +96,18 @@ subroutine crest_search_1(env,tim)
     env%iostatus_meta = status_failed
     return
   endif
-  allocate (xyz(3,nat,nall),at(nat),eread(nall))
-  call rdensemble(ensnam,nat,nall,at,xyz,eread)
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: crest_oloop requires coordinates in Bohrs
-  xyz = xyz / bohr
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
- 
+  call rdensemble(ensnam,nall,structures)
+
   write(stdout,'(1x,a,i0,a,a,a)')'Optimizing all ',nall, &
   & ' structures from file "',trim(ensnam),'" ...'
 
 !>--- set threads
-  call new_ompautoset(env,'auto',nall,T,Tn) 
+  call new_ompautoset(env,'auto',nall,T,Tn)
 
 !>--- optimize
   call tim%start(3,'Geometry optimization')
   dump = .true.
-  call crest_oloop(env,nat,nall,at,xyz,eread,dump)
+  call crest_oloop(env,nall,structures,dump)
   call tim%stop(3)
 
 !==========================================================!

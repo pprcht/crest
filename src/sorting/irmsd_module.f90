@@ -228,11 +228,24 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),pointer :: grdptr(:,:)
     real(wp),pointer :: scratchptr(:,:,:)
     integer :: ic,k
+    logical :: periodic
+    real(wp) :: latuse(3,3)
 
     !> initialize to large value
     rmsdval = bigval
     !> check structure consistency
     if (mol%nat .ne. ref%nat) return
+
+    !> periodic? if either structure carries a lattice, evaluate the RMSD under
+    !> the minimum-image convention (no rotation fit). Prefer the probe's cell.
+    periodic = .false.
+    if (allocated(mol%lat)) then
+      periodic = .true.
+      latuse = mol%lat
+    else if (allocated(ref%lat)) then
+      periodic = .true.
+      latuse = ref%lat
+    end if
 
     !> get rotation matrix?
     getrotmat = 0
@@ -285,16 +298,25 @@ contains  !> MODULE PROCEDURES START HERE
       end do
 
       !> calculate
-      call rmsd_core(nat,scratchptr(1:3,1:nat,1),scratchptr(1:3,1:nat,2), &
-      &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr)
+      if (periodic) then
+        call rmsd_core(nat,scratchptr(1:3,1:nat,1),scratchptr(1:3,1:nat,2), &
+        &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr,lat=latuse)
+      else
+        call rmsd_core(nat,scratchptr(1:3,1:nat,1),scratchptr(1:3,1:nat,2), &
+        &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr)
+      end if
 
-      !> go backwards through gradient (if necessary) to restore atom order
+      !> scatter the compact gradient (columns 1:nat) back onto the full atom
+      !> order: the k-th selected atom sits at column k and must move to its
+      !> true position ic. Iterate high->low so no value is overwritten before
+      !> use; only clear a vacated source column (ic /= k). Unselected columns
+      !> stay zero from the gradient(:,:) = 0 initialization above.
       if (getgrad) then
         k = nat
-        do ic = nat,1,-1
+        do ic = ref%nat,1,-1
           if (mask(ic)) then
             grdptr(1:3,ic) = grdptr(1:3,k)
-            grdptr(1:3,k) = 0.0_wp
+            if (ic /= k) grdptr(1:3,k) = 0.0_wp
             k = k-1
           end if
         end do
@@ -304,9 +326,14 @@ contains  !> MODULE PROCEDURES START HERE
       if (allocated(tmpscratch)) deallocate (tmpscratch)
 
     else
-!>--- standard calculation (quaternion algorithm, no mask)
-      call rmsd_core(ref%nat,mol%xyz,ref%xyz, &
-      &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr)
+!>--- standard calculation (no mask)
+      if (periodic) then
+        call rmsd_core(ref%nat,mol%xyz,ref%xyz, &
+        &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr,lat=latuse)
+      else
+        call rmsd_core(ref%nat,mol%xyz,ref%xyz, &
+        &          calc_u,Udum,rmsdval,getgrad,grdptr(1:3,:),ccptr)
+      end if
     end if
 
     !> pass on rotation matrix if asked for
@@ -316,12 +343,25 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine rmsd_core(nat,xyz1,xyz2,calc_u,U,error,calc_g,grad,ccache)
+  subroutine rmsd_core(nat,xyz1,xyz2,calc_u,U,error,calc_g,grad,ccache,lat)
     !**********************************************************
     !* Rewrite or RMSD code with modified memory management
     !* Adapted from ls_rmsd, and using some of its subroutines
     !* The goal is to offload memory allocation to outside
     !* the routine in case it is repeadetly called
+    !*
+    !* If the optional lattice "lat" is given, the RMSD is
+    !* evaluated under periodic boundary conditions: the probe
+    !* (xyz1) is first minimum-image "unwrapped" relative to the
+    !* reference (xyz2), x'_i = xyz2_i + MIC(xyz1_i - xyz2_i),
+    !* which reassembles a molecule that wrapped around a cell
+    !* face (and is a no-op for a compact molecule in a large
+    !* box). The usual Kabsch superposition then removes BOTH
+    !* translation and rotation, so the metric stays invariant to
+    !* rigid-body motion (essential for the MTD conformer bias —
+    !* otherwise the dynamics would just spin the molecule in the
+    !* box). The integer image shift is piecewise-constant, so the
+    !* gradient w.r.t xyz1 equals the standard Kabsch gradient.
     !**********************************************************
     use ls_rmsd,only:dstmev,rotation_matrix
     implicit none
@@ -334,6 +374,7 @@ contains  !> MODULE PROCEDURES START HERE
     logical,intent(in) :: calc_g
     real(wp),intent(inout) :: grad(:,:)
     type(rmsd_core_cache),intent(inout) :: ccache
+    real(wp),intent(in),optional :: lat(3,3) !> cell -> periodic (MIC) RMSD
 
     !> LOCAL
     integer :: i,j
@@ -344,13 +385,24 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: S(4,4)
     real(wp) :: q(4)
     real(wp) :: tmp(3),rnat
+    real(wp) :: latinv(3,3),sfrac(3)
     integer :: io
 
     !> associate
     associate (x => ccache%x,y => ccache%y,xi => ccache%xi,yi => ccache%yi)
 
-      !> make copies of the original coordinates
-      x(1:3,1:nat) = xyz1(1:3,1:nat)
+      !> make copies of the original coordinates; under PBC the probe is
+      !> minimum-image unwrapped onto the reference before the Kabsch fit
+      if (present(lat)) then
+        latinv = inv3x3(lat)
+        do i = 1,nat
+          sfrac = matmul(latinv,xyz1(1:3,i)-xyz2(1:3,i))
+          sfrac = sfrac-anint(sfrac)
+          x(1:3,i) = xyz2(1:3,i)+matmul(lat,sfrac)
+        end do
+      else
+        x(1:3,1:nat) = xyz1(1:3,1:nat)
+      end if
       y(1:3,1:nat) = xyz2(1:3,1:nat)
 
       !> calculate the barycenters, centroidal coordinates, and the norms
@@ -428,6 +480,30 @@ contains  !> MODULE PROCEDURES START HERE
 
     end associate
   end subroutine rmsd_core
+
+!========================================================================================!
+
+  pure function inv3x3(a) result(ainv)
+    !**********************************************************
+    !* Analytic inverse of a 3x3 matrix (cofactor / adjugate).
+    !**********************************************************
+    implicit none
+    real(wp),intent(in) :: a(3,3)
+    real(wp) :: ainv(3,3)
+    real(wp) :: det,detinv
+    ainv(1,1) = a(2,2)*a(3,3)-a(2,3)*a(3,2)
+    ainv(2,1) = a(2,3)*a(3,1)-a(2,1)*a(3,3)
+    ainv(3,1) = a(2,1)*a(3,2)-a(2,2)*a(3,1)
+    ainv(1,2) = a(1,3)*a(3,2)-a(1,2)*a(3,3)
+    ainv(2,2) = a(1,1)*a(3,3)-a(1,3)*a(3,1)
+    ainv(3,2) = a(1,2)*a(3,1)-a(1,1)*a(3,2)
+    ainv(1,3) = a(1,2)*a(2,3)-a(1,3)*a(2,2)
+    ainv(2,3) = a(1,3)*a(2,1)-a(1,1)*a(2,3)
+    ainv(3,3) = a(1,1)*a(2,2)-a(1,2)*a(2,1)
+    det = a(1,1)*ainv(1,1)+a(1,2)*ainv(2,1)+a(1,3)*ainv(3,1)
+    detinv = 1.0_wp/det
+    ainv = ainv*detinv
+  end function inv3x3
 
 !========================================================================================!
   subroutine rmsd_align(ref,mol,mask)

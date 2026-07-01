@@ -31,26 +31,25 @@ module parallel_interface
 !*******************************************************
   implicit none
   interface
-    subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
+    subroutine crest_sploop(env,nall,structures,eread,silent)
       use crest_parameters,only:wp,stdout,sep
       use crest_calculator
       use omp_lib
       use crest_data
       use strucrd
-      use optimize_module
-      use iomod,only:makedir,directory_exist,remove
       implicit none
       type(systemdata),intent(inout) :: env
-      real(wp),intent(inout) :: xyz(3,nat,nall)
-      integer,intent(in)  :: at(nat)
-      real(wp),intent(inout) :: eread(nall)
-      integer,intent(in) :: nat,nall
+      integer,intent(in) :: nall
+      type(coord),intent(inout) :: structures(nall)
+      real(wp),intent(inout),optional :: eread(nall)
       logical,intent(in),optional :: silent
     end subroutine crest_sploop
   end interface
 
-  interface
-    subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
+  !> crest_oloop is generic: the coord-list form is canonical (PBC-capable),
+  !> the flat (nat,nall,at,xyz) form is a legacy adapter onto it.
+  interface crest_oloop
+    subroutine crest_oloop_struc(env,nall,structures,dump,customcalc,eread,silent)
       use crest_parameters,only:wp,stdout,sep
       use crest_calculator
       use omp_lib
@@ -60,15 +59,29 @@ module parallel_interface
       use iomod,only:makedir,directory_exist,remove
       implicit none
       type(systemdata),target,intent(inout) :: env
-      real(wp),intent(inout) :: xyz(3,nat,nall)
-      integer,intent(in)  :: at(nat)
-      real(wp),intent(inout) :: eread(nall)
-      integer,intent(in) :: nat,nall
+      integer,intent(in) :: nall
+      type(coord),intent(inout) :: structures(nall)
       logical,intent(in) :: dump
       type(calcdata),intent(in),target,optional :: customcalc
+      real(wp),intent(inout),optional :: eread(nall)
       logical,intent(in),optional :: silent
-    end subroutine crest_oloop
-  end interface
+    end subroutine crest_oloop_struc
+
+    subroutine crest_oloop_xyz(env,nat,nall,at,xyz,eread,dump,customcalc)
+      use crest_parameters,only:wp
+      use crest_calculator
+      use crest_data
+      use strucrd
+      implicit none
+      type(systemdata),target,intent(inout) :: env
+      integer,intent(in) :: nat,nall
+      integer,intent(in) :: at(nat)
+      real(wp),intent(inout) :: xyz(3,nat,nall)
+      real(wp),intent(inout) :: eread(nall)
+      logical,intent(in) :: dump
+      type(calcdata),intent(in),target,optional :: customcalc
+    end subroutine crest_oloop_xyz
+  end interface crest_oloop
 
   interface
     subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
@@ -97,42 +110,42 @@ end module parallel_interface
 !> Routines for concurrent singlepoint evaluations
 !========================================================================================!
 !========================================================================================!
-subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
-!***************************************************************
+subroutine crest_sploop(env,nall,structures,eread,silent)
+!****************************************************************
 !* subroutine crest_sploop
-!* This subroutine performs concurrent singlepoint evaluations
-!* for the given ensemble. Input eread is overwritten
-!* xyz must be in Bohrs
+!* Concurrent singlepoint evaluations for a list of structures
+!* passed as an array of coord objects. Each coord carries its
+!* own %lat/%chrg/%uhf, so periodic and heterogeneous systems
+!* are handled. xyz must be in Bohr.
+!* Energies are stored in structures(i)%energy; the optional
+!* eread array, if present, additionally receives them.
 !* silent - suppress the progress bar (optional, default .false.)
-!***************************************************************
+!****************************************************************
   use crest_parameters,only:wp,stdout,sep
   use crest_calculator
   use omp_lib
   use crest_data
   use strucrd
-  use optimize_module
   use iomod,only:makedir,directory_exist,remove
   use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata),intent(inout) :: env
-  real(wp),intent(inout) :: xyz(3,nat,nall)
-  integer,intent(in)  :: at(nat)
-  real(wp),intent(inout) :: eread(nall)
-  integer,intent(in) :: nat,nall
+  integer,intent(in) :: nall
+  type(coord),intent(inout) :: structures(nall)
+  real(wp),intent(inout),optional :: eread(nall)
   logical,intent(in),optional :: silent
 
   type(coord),allocatable :: mols(:)
-  integer :: i,j,k,l,io,ich,ich2,c,z,job_id,zcopy
-  logical :: pr,wr,ex,quiet
+  integer :: i,j,io,c,k,z,zcopy
+  logical :: ex,quiet
   type(calcdata),allocatable :: calculations(:)
-  real(wp) :: energy,gnorm
-  real(wp),allocatable :: grad(:,:),grads(:,:,:)
+  real(wp) :: energy
+  real(wp),allocatable :: grad(:,:)
   integer :: thread_id,vz,job
   character(len=80) :: atmp
   real(wp) :: percent,runtime
-
   type(timer) :: profiler
-  integer :: T,Tn  !> threads and threads per core
+  integer :: T,Tn
   logical :: nested
 
 !>--- check if we have any calculation settings allocated
@@ -146,13 +159,11 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
   nested = env%omp_allow_nested
 
 !>--- prepare objects for parallelization
-  T = env%threads
-  allocate (calculations(T),source=env%calc)
+  allocate (calculations(T))
   allocate (mols(T))
   do i = 1,T
-    call calculations(T)%copy(env%calc)
+    call calculations(i)%copy(env%calc)
     do j = 1,env%calc%ncalculations
-      calculations(i)%calcs(j) = env%calc%calcs(j)
       !>--- directories and io preparation
       ex = directory_exist(env%calc%calcs(j)%calcspace)
       if (.not.ex) then
@@ -165,14 +176,13 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
       call calculations(i)%calcs(j)%printid(i,j)
     end do
     calculations(i)%pr_energies = .false.
-    allocate (mols(i)%at(nat),mols(i)%xyz(3,nat))
   end do
 
-!>--- printout directions and timer initialization
-  pr = .false. !> stdout printout
-  wr = .false. !> write crestopt.log.xyz
+!>--- silent mode? (suppress progress bar + summary printout)
   quiet = .false.
   if (present(silent)) quiet = silent
+
+!>--- timer initialization
   call profiler%init(1)
   call profiler%start(1)
 
@@ -184,24 +194,20 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
   end if
 
 !>--- shared variables
-  allocate (grads(3,nat,T),source=0.0_wp)
-  c = 0  !> counter of successfull optimizations
-  k = 0  !> counter of total optimization (fail+success)
-  z = 0  !> counter to perform optimization in right order (1...nall)
-  eread(:) = 0.0_wp
-  grads(:,:,:) = 0.0_wp
+  c = 0  !> counter of successful evaluations
+  k = 0  !> counter of total evaluations (fail+success)
+  z = 0  !> counter to process structures in order (1...nall)
 !>--- pre-start server-based calculators before forking OMP threads
   call preinit_mlip_parallel(calculations,T)
-!>--- loop over ensemble
+!>--- loop over the structures
   !$omp parallel &
-  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr) &
-  !$omp shared(ich,ich2,mols, nested,Tn)
+  !$omp shared(env,calculations,nall,structures,c,k,z,mols,nested,Tn)
   !$omp single
   do i = 1,nall
 
     call initsignal()
     vz = i
-    !$omp task firstprivate( vz ) private(i,j,job,energy,io,thread_id,zcopy)
+    !$omp task firstprivate( vz ) private(i,j,job,energy,grad,io,thread_id,zcopy)
     call initsignal()
 
     !>--- OpenMP nested region threads
@@ -209,35 +215,43 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
 
     thread_id = OMP_GET_THREAD_NUM()
     job = thread_id+1
-    !>--- modify calculation spaces
+    !>--- deep-copy this structure into the thread-local working mol
     !$omp critical
     z = z+1
     zcopy = z
-    mols(job)%nat = nat
-    mols(job)%at(:) = at(:)
-    mols(job)%xyz(:,:) = xyz(:,:,z)
+    call mols(job)%copy(structures(zcopy))
     !$omp end critical
 
-    !>-- engery+gradient call
-    call engrad(mols(job),calculations(job),energy,grads(:,:,job),io)
+    allocate (grad(3,mols(job)%nat),source=0.0_wp)
+
+    !>-- energy+gradient call
+    call engrad(mols(job),calculations(job),energy,grad,io)
 
     !$omp critical
     if (io == 0) then
-      !>--- successful optimization (io==0)
       c = c+1
-      eread(zcopy) = energy
+      structures(zcopy)%energy = energy
     else
-      eread(zcopy) = 0.0_wp
+      structures(zcopy)%energy = 0.0_wp
     end if
     k = k+1
     !>--- print progress
     if (.not.quiet) call progress_update(env%ps,k,nall)
     !$omp end critical
+
+    deallocate (grad)
     !$omp end task
   end do
   !$omp taskwait
   !$omp end single
   !$omp end parallel
+
+!>--- energies are stored in the structures; optionally also return them
+  if (present(eread)) then
+    do i = 1,nall
+      eread(i) = structures(i)%energy
+    end do
+  end if
 
 !>--- finalize progress printout
   if (.not.quiet) call progress_finish(env%ps)
@@ -259,7 +273,6 @@ subroutine crest_sploop(env,nat,nall,at,xyz,eread,silent)
     &                       ' per processed structure'
   end if
 
-  deallocate (grads)
   call profiler%clear()
   deallocate (calculations)
   if (allocated(mols)) deallocate (mols)
@@ -503,22 +516,22 @@ end subroutine crest_hessloop
 !> Routines for concurrent geometry optimization
 !========================================================================================!
 !========================================================================================!
-subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
+subroutine crest_oloop_struc(env,nall,structures,dump,customcalc,eread,silent)
 !*******************************************************************************
-!* subroutine crest_oloop
-!* This subroutine performs concurrent geometry optimizations
-!* for the given ensemble. Inputs xyz and eread are overwritten
-!* env        - contains parallelization and other program settings
-!* dump       - decides on whether to dump an ensemble file
-!*              WARNING: the ensemble file will NOT be in the same order
-!*              as the input xyz array. However, the overwritten xyz will be!
+!* subroutine crest_oloop_struc
+!* Concurrent geometry optimizations for a list of coord objects.
+!* Optimized geometries and energies are written back into structures;
+!* the optional eread array, if present, additionally receives the energies.
+!* Each coord carries its own %lat/%chrg/%uhf, so periodic and heterogeneous
+!* systems are handled.
 !*
+!* dump       - dump an ensemble file (NOT in the input order)
 !* customcalc - customized (optional) calculation level data
 !* silent     - suppress the progress bar and summary printout (optional,
 !*              default .false.); used when the caller drives many small
 !*              batches and prints its own progress (e.g. TTConf-light)
 !*
-!* IMPORTANT: xyz should be in Bohr(!) for this routine
+!* IMPORTANT: structures xyz must be in Bohr(!)
 !******************************************************************************
   use crest_parameters,only:wp,stdout,sep
   use crest_calculator
@@ -530,22 +543,21 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
   use term_ui,only:progress_init,progress_update,progress_finish
   implicit none
   type(systemdata),target,intent(inout) :: env
-  real(wp),intent(inout) :: xyz(3,nat,nall)
-  integer,intent(in)  :: at(nat)
-  real(wp),intent(inout) :: eread(nall)
-  integer,intent(in) :: nat,nall
+  integer,intent(in) :: nall
+  type(coord),intent(inout) :: structures(nall)
   logical,intent(in) :: dump
   type(calcdata),intent(in),target,optional :: customcalc
+  real(wp),intent(inout),optional :: eread(nall)
   logical,intent(in),optional :: silent
   logical :: quiet
 
   type(coord),allocatable :: mols(:)
   type(coord),allocatable :: molsnew(:)
-  integer :: i,j,k,l,io,ich,ich2,c,z,job_id,zcopy
+  integer :: i,j,io,ich,ich2,c,k,z,zcopy
   logical :: pr,wr,ex
   type(calcdata),allocatable :: calculations(:)
   real(wp) :: energy,gnorm
-  real(wp),allocatable :: grads(:,:,:)
+  real(wp),allocatable :: grad(:,:)
   integer :: thread_id,vz,job
   character(len=80) :: atmp
   real(wp) :: percent,runtime
@@ -576,12 +588,11 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
   nested = env%omp_allow_nested
 
 !>--- prepare objects for parallelization
-  allocate (calculations(T))!,source=mycalc)
+  allocate (calculations(T))
   allocate (mols(T),molsnew(T))
   do i = 1,T
     call calculations(i)%copy(mycalc)
     do j = 1,mycalc%ncalculations
-      !calculations(i)%calcs(j) = mycalc%calcs(j)
       !>--- directories and io preparation
       ex = directory_exist(mycalc%calcs(j)%calcspace)
       if (.not.ex) then
@@ -597,8 +608,6 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
       call calculations(i)%calcs(j)%printid(i,j)
     end do
     calculations(i)%pr_energies = .false.
-    allocate (mols(i)%at(nat),mols(i)%xyz(3,nat))
-    allocate (molsnew(i)%at(nat),molsnew(i)%xyz(3,nat))
   end do
 
 !>--- printout directions and timer initialization
@@ -619,24 +628,21 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
   end if
 
 !>--- shared variables
-  allocate (grads(3,nat,T),source=0.0_wp)
   c = 0  !> counter of successfull optimizations
   k = 0  !> counter of total optimization (fail+success)
   z = 0  !> counter to perform optimization in right order (1...nall)
-  eread(:) = 0.0_wp
-  grads(:,:,:) = 0.0_wp
 !>--- pre-start server-based calculators before forking OMP threads
   call preinit_mlip_parallel(calculations,T)
 !>--- loop over ensemble
   !$omp parallel &
-  !$omp shared(env,calculations,nat,nall,at,xyz,eread,grads,c,k,z,pr,wr,dump) &
-  !$omp shared(ich,ich2,mols,molsnew, nested,Tn)
+  !$omp shared(env,calculations,nall,structures,c,k,z,pr,wr,dump) &
+  !$omp shared(ich,ich2,mols,molsnew,nested,Tn)
   !$omp single
   do i = 1,nall
 
     call initsignal()
     vz = i
-    !$omp task firstprivate( vz ) private(j,job,energy,io,atmp,gnorm,thread_id,zcopy)
+    !$omp task firstprivate( vz ) private(j,job,energy,grad,io,atmp,gnorm,thread_id,zcopy)
     call initsignal()
 
     !>--- OpenMP nested region threads
@@ -644,47 +650,45 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
 
     thread_id = OMP_GET_THREAD_NUM()
     job = thread_id+1
-    !>--- modify calculation spaces
+    !>--- deep-copy this structure into the thread-local working mol
     !$omp critical
     z = z+1
     zcopy = z
-    mols(job)%nat = nat
-    mols(job)%at(:) = at(:)
-    mols(job)%xyz(:,:) = xyz(:,:,z)
-
-    molsnew(job)%nat = nat
-    molsnew(job)%at(:) = at(:)
-    molsnew(job)%xyz(:,:) = xyz(:,:,z)
+    call mols(job)%copy(structures(zcopy))
     !$omp end critical
 
+    allocate (grad(3,mols(job)%nat),source=0.0_wp)
+
     !>-- geometry optimization
-    call optimize_geometry(mols(job),molsnew(job),calculations(job),energy,grads(:,:,job),pr,wr,io)
+    call optimize_geometry(mols(job),molsnew(job),calculations(job),energy,grad,pr,wr,io)
 
     !$omp critical
     if (io == 0) then
       !>--- successful optimization (io==0)
       c = c+1
+      structures(zcopy)%xyz = molsnew(job)%xyz
+      structures(zcopy)%energy = energy
       if (dump) then
-        gnorm = norm2(grads(:,:,job))
+        gnorm = norm2(grad)
         write (atmp,'(1x,"energy=",f16.10,1x,"g norm=",f12.8)') energy,gnorm
         molsnew(job)%comment = trim(atmp)
         call molsnew(job)%append(ich)
         call calc_eprint(calculations(job),energy,calculations(job)%etmp,gnorm,ich2)
       end if
-      eread(zcopy) = energy
-      xyz(:,:,zcopy) = molsnew(job)%xyz(:,:)
     else if (io == calculations(job)%maxcycle.and.calculations(job)%anopt) then
       !>--- allow partial optimization?
       c = c+1
-      eread(zcopy) = energy
-      xyz(:,:,zcopy) = molsnew(job)%xyz(:,:)
+      structures(zcopy)%xyz = molsnew(job)%xyz
+      structures(zcopy)%energy = energy
     else
-      eread(zcopy) = 1.0_wp
+      structures(zcopy)%energy = 1.0_wp
     end if
     k = k+1
     !>--- print progress
     if (.not.quiet) call progress_update(env%ps,k,nall)
     !$omp end critical
+
+    deallocate (grad)
     !$omp end task
   end do
   !$omp taskwait
@@ -696,6 +700,13 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
 
 !>--- stop timer
   call profiler%stop(1)
+
+!>--- energies are stored in the structures; optionally also return them
+  if (present(eread)) then
+    do i = 1,nall
+      eread(i) = structures(i)%energy
+    end do
+  end if
 
 !>--- prepare some summary printout
   if (.not.quiet) then
@@ -717,13 +728,56 @@ subroutine crest_oloop(env,nat,nall,at,xyz,eread,dump,customcalc,silent)
     close (ich2)
   end if
 
-  deallocate (grads)
   call profiler%clear()
   deallocate (calculations)
   if (allocated(mols)) deallocate (mols)
   if (allocated(molsnew)) deallocate (molsnew)
   return
-end subroutine crest_oloop
+end subroutine crest_oloop_struc
+
+!========================================================================================!
+!> Flat-array adapter for crest_oloop. Marshals the (nat,nall,at,xyz) ensemble
+!> into a coord list, runs the optimization loop, and copies the optimized
+!> coordinates and energies back. Kept for the legacy (non-periodic) callers;
+!> new code should use the coord-list crest_oloop directly.
+!========================================================================================!
+subroutine crest_oloop_xyz(env,nat,nall,at,xyz,eread,dump,customcalc)
+  use crest_parameters,only:wp
+  use crest_calculator
+  use crest_data
+  use strucrd
+  use parallel_interface,only:crest_oloop
+  implicit none
+  type(systemdata),target,intent(inout) :: env
+  integer,intent(in) :: nat,nall
+  integer,intent(in) :: at(nat)
+  real(wp),intent(inout) :: xyz(3,nat,nall)
+  real(wp),intent(inout) :: eread(nall)
+  logical,intent(in) :: dump
+  type(calcdata),intent(in),target,optional :: customcalc
+
+  type(coord),allocatable :: structures(:)
+  integer :: i
+
+  allocate (structures(nall))
+  do i = 1,nall
+    structures(i)%nat = nat
+    structures(i)%at = at
+    structures(i)%xyz = xyz(1:3,1:nat,i)
+  end do
+
+  if (present(customcalc)) then
+    call crest_oloop(env,nall,structures,dump,customcalc,eread)
+  else
+    call crest_oloop(env,nall,structures,dump,eread=eread)
+  end if
+
+  do i = 1,nall
+    xyz(1:3,1:nat,i) = structures(i)%xyz(1:3,1:nat)
+  end do
+  deallocate (structures)
+  return
+end subroutine crest_oloop_xyz
 
 !========================================================================================!
 !========================================================================================!
@@ -829,6 +883,8 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
     moltmps(job)%nat = mol%nat
     moltmps(job)%at = mol%at
     moltmps(job)%xyz = mol%xyz
+    !>--- carry the lattice (PBC) through to the per-thread MD copy
+    if (allocated(mol%lat)) moltmps(job)%lat = mol%lat
     !$omp end critical
     !>--- startup printout (thread safe)
     call parallel_md_block_printout(mddats(vz),vz)
@@ -1124,6 +1180,8 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
     moltmps(job)%nat = mols(vz)%nat
     moltmps(job)%at = mols(vz)%at
     moltmps(job)%xyz = mols(vz)%xyz
+    !>--- carry the per-structure lattice (PBC); moltmps was sourced from mols(1)
+    if (allocated(mols(vz)%lat)) moltmps(job)%lat = mols(vz)%lat
     !$omp end critical
     !>--- startup printout (thread safe)
     call parallel_md_block_printout(mddats(vz),vz)

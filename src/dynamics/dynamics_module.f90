@@ -330,7 +330,9 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     !$omp critical
     if (dat%wrtrj) open (newunit=trj,file=trajectory)
-    mol%wrextxyz = calc%logextxyz
+    !>--- under PBC force extxyz trajectory output so the lattice (Lattice=...)
+    !>    survives into any downstream re-read/re-optimization of the frames
+    mol%wrextxyz = calc%logextxyz .or. allocated(mol%lat)
     !$omp end critical
 
 !>--- begin printout
@@ -513,7 +515,8 @@ contains  !> MODULE PROCEDURES START HERE
       velo = vel
 
       !>--- remove translational and rotational componetnts of the velocity
-      call rmrottr(mol%nat,mass,velo,mol%xyz)
+      !>    (under PBC the fixed cell forbids rotation removal -> translation only)
+      call rmrottr(mol%nat,mass,velo,mol%xyz,allocated(mol%lat))
 
       !>>-- Update averages and counter
       edum = edum+epot+ekin
@@ -1092,57 +1095,73 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 ! subroutine rmrottr
 ! some MATHs to remove translational and rotational velocities
-  subroutine rmrottr(natoms,mass,vel_atom,c)
+  subroutine rmrottr(natoms,mass,vel_atom,c,pbc)
+    !***********************************************************
+    !* Remove the net translational (and, in free space, the
+    !* net rotational) component of the atomic velocities.
+    !* Under periodic boundary conditions (pbc=.true.) the cell
+    !* is fixed, so rigid-body rotation is not a true symmetry;
+    !* only the translational drift is projected out then.
+    !***********************************************************
     implicit none
     integer :: natoms
     real(wp) :: vel_atom(3,natoms),c(3,natoms),mass(natoms)
+    logical,intent(in),optional :: pbc !> periodic cell -> translation only
     real(wp) :: rlm(3),ram(3),omega(3)
     real(wp) :: ixx,iyy,izz,ixy,ixz,iyz,dummy
     real(wp) :: fixx,fiyy,fizz,fixy,fixz,fiyz,COM(3)
     real(wp) :: inertia(3,3),angmom(3)
     real(wp) :: tmass
     integer :: i
+    logical :: rmrot
+
+    !> under PBC remove translation only (rotation is invalid vs. a fixed cell)
+    rmrot = .true.
+    if (present(pbc)) rmrot = .not.pbc
 
     rlm = 0.0
     ram = 0.0
+    omega = 0.0
     call centerofmass(natoms,c,mass,tmass,COM)
     angmom = 0.0
-    do i = 1,natoms
-      c(1,i) = c(1,i)-COM(1)
-      c(2,i) = c(2,i)-COM(2)
-      c(3,i) = c(3,i)-COM(3)
-      angmom(1) = angmom(1)+mass(i)*(c(2,i)*vel_atom(3,i)-&
-         &                                      c(3,i)*vel_atom(2,i))
-      angmom(2) = angmom(2)+mass(i)*(c(3,i)*vel_atom(1,i)-&
-         &                                      c(1,i)*vel_atom(3,i))
-      angmom(3) = angmom(3)+mass(i)*(c(1,i)*vel_atom(2,i)-&
-         &                                      c(2,i)*vel_atom(1,i))
-    end do
-    ixx = 0.0
-    iyy = 0.0
-    izz = 0.0
-    ixy = 0.0
-    ixz = 0.0
-    iyz = 0.0
-    do i = 1,natoms
-      ixx = ixx+mass(i)*(c(2,i)*c(2,i)+c(3,i)*c(3,i))
-      iyy = iyy+mass(i)*(c(3,i)*c(3,i)+c(1,i)*c(1,i))
-      izz = izz+mass(i)*(c(1,i)*c(1,i)+c(2,i)*c(2,i))
-      ixy = ixy-mass(i)*c(1,i)*c(2,i)
-      ixz = ixz-mass(i)*c(1,i)*c(3,i)
-      iyz = iyz-mass(i)*c(2,i)*c(3,i)
-    end do
-    inertia(1,1) = ixx
-    inertia(2,2) = iyy
-    inertia(3,3) = izz
-    inertia(1,2) = ixy
-    inertia(2,1) = ixy
-    inertia(1,3) = ixz
-    inertia(3,1) = ixz
-    inertia(2,3) = iyz
-    inertia(3,2) = iyz
-    call dmatinv(inertia,3,3,dummy)
-    omega = matmul(inertia,angmom)
+    if (rmrot) then
+      do i = 1,natoms
+        c(1,i) = c(1,i)-COM(1)
+        c(2,i) = c(2,i)-COM(2)
+        c(3,i) = c(3,i)-COM(3)
+        angmom(1) = angmom(1)+mass(i)*(c(2,i)*vel_atom(3,i)-&
+           &                                      c(3,i)*vel_atom(2,i))
+        angmom(2) = angmom(2)+mass(i)*(c(3,i)*vel_atom(1,i)-&
+           &                                      c(1,i)*vel_atom(3,i))
+        angmom(3) = angmom(3)+mass(i)*(c(1,i)*vel_atom(2,i)-&
+           &                                      c(2,i)*vel_atom(1,i))
+      end do
+      ixx = 0.0
+      iyy = 0.0
+      izz = 0.0
+      ixy = 0.0
+      ixz = 0.0
+      iyz = 0.0
+      do i = 1,natoms
+        ixx = ixx+mass(i)*(c(2,i)*c(2,i)+c(3,i)*c(3,i))
+        iyy = iyy+mass(i)*(c(3,i)*c(3,i)+c(1,i)*c(1,i))
+        izz = izz+mass(i)*(c(1,i)*c(1,i)+c(2,i)*c(2,i))
+        ixy = ixy-mass(i)*c(1,i)*c(2,i)
+        ixz = ixz-mass(i)*c(1,i)*c(3,i)
+        iyz = iyz-mass(i)*c(2,i)*c(3,i)
+      end do
+      inertia(1,1) = ixx
+      inertia(2,2) = iyy
+      inertia(3,3) = izz
+      inertia(1,2) = ixy
+      inertia(2,1) = ixy
+      inertia(1,3) = ixz
+      inertia(3,1) = ixz
+      inertia(2,3) = iyz
+      inertia(3,2) = iyz
+      call dmatinv(inertia,3,3,dummy)
+      omega = matmul(inertia,angmom)
+    end if
     do i = 1,natoms
       rlm(1) = rlm(1)+mass(i)*vel_atom(1,i)
       rlm(2) = rlm(2)+mass(i)*vel_atom(2,i)
@@ -1157,9 +1176,12 @@ contains  !> MODULE PROCEDURES START HERE
       vel_atom(2,i) = vel_atom(2,i)-rlm(2)/tmass-ram(2)
       vel_atom(3,i) = vel_atom(3,i)-rlm(3)/tmass-ram(3)
 
-      c(1,i) = c(1,i)+COM(1)
-      c(2,i) = c(2,i)+COM(2)
-      c(3,i) = c(3,i)+COM(3)
+      !> restore the COM offset only if we centered for the rotation part
+      if (rmrot) then
+        c(1,i) = c(1,i)+COM(1)
+        c(2,i) = c(2,i)+COM(2)
+        c(3,i) = c(3,i)+COM(3)
+      end if
     end do
 
   contains

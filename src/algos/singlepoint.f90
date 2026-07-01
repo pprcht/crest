@@ -214,6 +214,7 @@ subroutine crest_ensemble_singlepoints(env,tim)
   use crest_calculator
   use strucrd
   use optimize_module
+  use parallel_interface,only:crest_sploop
   use utilities,only:dumpenergies
   implicit none
   type(systemdata),intent(inout) :: env
@@ -230,8 +231,7 @@ subroutine crest_ensemble_singlepoints(env,tim)
   character(len=:),allocatable :: ensnam
   integer :: nat,nall,T,Tn
   real(wp),allocatable :: eread(:)
-  real(wp),allocatable :: xyz(:,:,:)
-  integer,allocatable  :: at(:)
+  type(coord),allocatable :: structures(:)
   character(len=80) :: atmp
   real(wp) :: percent
   character(len=52) :: bar
@@ -250,19 +250,15 @@ subroutine crest_ensemble_singlepoints(env,tim)
 !>--- start the timer
   call tim%start(14,'Ensemble singlepoints')
 
-!>---- read the input ensemble
-  call rdensembleparam(ensnam,nat,nall)
+!>---- read the input ensemble as a list of coord objects (in Bohr)
+  call rdensemble(ensnam,nall,structures)
   if (nall .lt. 1) then
     write (stdout,*) '**ERROR** empty ensemble file.'
     env%iostatus_meta = status_input
     return
   end if
-  allocate (xyz(3,nat,nall),at(nat),eread(nall))
-  call rdensemble(ensnam,nat,nall,at,xyz,eread)
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: crest_oloop requires coordinates in Bohrs
-  xyz = xyz/bohr
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+  nat = structures(1)%nat
+  allocate (eread(nall),source=0.0_wp)
 
 !>--- set OMP parallelization
   call new_ompautoset(env,'auto',nall,T,Tn)
@@ -275,21 +271,18 @@ subroutine crest_ensemble_singlepoints(env,tim)
   write (stdout,'(10x,"┕",49("━"),"┙")')
   write (stdout,*)
   write (stdout,'(1x,a,i0,a,1x,a)') 'Evaluationg all ',nall,' structures of file',trim(ensnam)
-  !>--- call the loop
-  call crest_sploop(env,nat,nall,at,xyz,eread,.true.)
+  !>--- call the parallel singlepoint loop
+  call crest_sploop(env,nall,structures,eread)
 
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: ensemble file must be written in AA
-  xyz = xyz/angstrom
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 !>--- write output ensemble
-  call wrensemble(ensemblefile,nat,nall,at,xyz,eread)
+  call wrensemble(ensemblefile,nall,structures)
   write (stdout,'(/,a,a,a)') 'Ensemble with updated energies written to <',ensemblefile,'>'
 
   call dumpenergies('crest.energies',eread)
   write (stdout,'(/,a,a,a)') 'List of energies written to <','crest.energies','>'
 
-  deallocate (eread,at,xyz)
+  deallocate (eread)
+  if (allocated(structures)) deallocate (structures)
 !========================================================================================!
   call tim%stop(14)
   return

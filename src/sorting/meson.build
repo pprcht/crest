@@ -26,6 +26,7 @@ srcs += files(
   'hungarian.f90',
   'irmsd_module.f90',
   'ls_rmsd.f90',
+  'pbc_fingerprint.f90',
   'quicksort.f90',
   'rotcompare.f90',
 'unionize.f90',

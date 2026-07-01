@@ -206,9 +206,7 @@ subroutine crest_ensemble_optimization(env,tim)
 
   character(len=:),allocatable :: ensnam
   integer :: nat,nall
-  real(wp),allocatable :: eread(:)
-  real(wp),allocatable :: xyz(:,:,:)
-  integer,allocatable  :: at(:)
+  type(coord),allocatable :: structures(:)
   character(len=80) :: atmp
   real(wp) :: percent
   character(len=52) :: bar
@@ -227,19 +225,13 @@ subroutine crest_ensemble_optimization(env,tim)
 !>--- start the timer
   call tim%start(14,'Ensemble optimization')
 
-!>---- read the input ensemble
-  call rdensembleparam(ensnam,nat,nall)
+!>---- read the input ensemble as a list of coord objects (in Bohr)
+  call rdensemble(ensnam,nall,structures)
   if (nall .lt. 1) then
     write (stdout,*) '**ERROR** empty ensemble file.'
     env%iostatus_meta = status_input
     return
   end if
-  allocate (xyz(3,nat,nall),at(nat),eread(nall))
-  call rdensemble(ensnam,nat,nall,at,xyz,eread)
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
-!>--- Important: crest_oloop requires coordinates in Bohrs
-  xyz = xyz/bohr
-!>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
 
 !>--- set OMP parallelization
   call new_ompautoset(env,'auto',nall,T,Tn)
@@ -252,31 +244,19 @@ subroutine crest_ensemble_optimization(env,tim)
   write (stdout,'(10x,"┕",49("━"),"┙")')
   write (stdout,*)
   write (stdout,'(1x,a,i0,a,1x,a)') 'Optimizing all ',nall,' structures of file',trim(ensnam)
-!>--- call the loop
-  call crest_oloop(env,nat,nall,at,xyz,eread,.true.)
+!>--- call the loop (optimized geometries and energies are written into structures)
+  call crest_oloop(env,nall,structures,.false.)
 
 !========================================================================================!
 !>--- output
   write (stdout,'(/,a,a,a)') 'Rewriting ',ensemblefile,' in the correct order'// &
   & ' (failed optimizations are assigned an energy of +1.0)'
-!>--- write the optimized ensemble in extxyz format (consistent with the
-!>    refined ensemble). coord%xyz keeps the internal Bohr convention; the
-!>    extxyz writer converts to Angstroem on output.
-  block
-    type(coord),allocatable :: structures(:)
-    allocate (structures(nall))
-    do i = 1,nall
-      structures(i)%nat = nat
-      structures(i)%at = at
-      structures(i)%xyz = xyz(:,:,i)
-      structures(i)%energy = eread(i)
-      structures(i)%wrextxyz = .true.
-    end do
-    call wrensemble(ensemblefile,nall,structures)
-    deallocate (structures)
-  end block
-
-  deallocate (eread,at,xyz)
+!>--- write the optimized ensemble in extxyz format
+  do i = 1,nall
+    structures(i)%wrextxyz = .true.
+  end do
+  call wrensemble(ensemblefile,nall,structures)
+  deallocate (structures)
   write (stdout,'(/,a,a,a)') 'Optimized ensemble written to <',ensemblefile,'>'
 
 !========================================================================================!

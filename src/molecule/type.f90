@@ -96,6 +96,7 @@ module molecule_type
     procedure :: dihedral => coord_getdihedral  !> calculate dihedral angle between four atoms
     procedure :: cutout => coord_getcutout      !> create a substructure
     procedure :: get_CN => coord_get_CN         !> calculate coordination number
+    procedure :: cellvol => coord_cellvol       !> cell volume |det(lat)| in Bohr³
     procedure :: get_z => coord_get_z           !> calculate nuclear charge
     procedure :: cn_to_bond => coord_cn_to_bond !> generate neighbour matrix from CN
     procedure :: swap => atswp                  !> swap two atoms coordinates and their at() entries
@@ -367,9 +368,36 @@ contains  !> MODULE PROCEDURES START HERE
     if (self%nat <= 0) return
     if (.not.allocated(self%xyz).or..not.allocated(self%at)) return
     allocate (cn(self%nat),source=0.0_wp)
-    call calculate_CN(self%nat,self%at,self%xyz,cn, &
-    & cntype=cn_type,cnthr=cn_thr,dcndr=dcndr)
+    if (allocated(self%lat)) then
+      call calculate_CN(self%nat,self%at,self%xyz,cn, &
+      & cntype=cn_type,cnthr=cn_thr,dcndr=dcndr,lat=self%lat)
+    else
+      call calculate_CN(self%nat,self%at,self%xyz,cn, &
+      & cntype=cn_type,cnthr=cn_thr,dcndr=dcndr)
+    end if
   end subroutine coord_get_CN
+
+! ──────────────────────────────────────────────────────────────────────────────
+  function coord_cellvol(self) result(vol)
+    !********************************************************************
+    !* Cell volume of a periodic structure as the absolute value of the
+    !* lattice determinant (triple product of the three lattice vectors).
+    !* The lattice columns are the lattice vectors, matching the
+    !* convention used elsewhere (e.g. matmul(lat, sfrac) in irmsd_module).
+    !* Returns 0.0 in Bohr³ if no lattice is allocated (non-periodic).
+    !********************************************************************
+    implicit none
+    class(coord) :: self
+    real(wp) :: vol
+    real(wp) :: a(3,3)
+    vol = 0.0_wp
+    if (.not.allocated(self%lat)) return
+    a = self%lat
+    vol = a(1,1)*(a(2,2)*a(3,3)-a(2,3)*a(3,2)) &
+      & -a(1,2)*(a(2,1)*a(3,3)-a(2,3)*a(3,1)) &
+      & +a(1,3)*(a(2,1)*a(3,2)-a(2,2)*a(3,1))
+    vol = abs(vol)
+  end function coord_cellvol
 
 ! ──────────────────────────────────────────────────────────────────────────────
   subroutine coord_get_z(self,z)
@@ -397,8 +425,13 @@ contains  !> MODULE PROCEDURES START HERE
     if (self%nat <= 0) return
     if (.not.allocated(self%xyz).or..not.allocated(self%at)) return
     allocate (cn(self%nat),source=0.0_wp)
-    call calculate_CN(self%nat,self%at,self%xyz,cn, &
-    & cntype=cn_type,cnthr=cn_thr,bond=bond)
+    if (allocated(self%lat)) then
+      call calculate_CN(self%nat,self%at,self%xyz,cn, &
+      & cntype=cn_type,cnthr=cn_thr,bond=bond,lat=self%lat)
+    else
+      call calculate_CN(self%nat,self%at,self%xyz,cn, &
+      & cntype=cn_type,cnthr=cn_thr,bond=bond)
+    end if
   end subroutine coord_cn_to_bond
 
 ! ══════════════════════════════════════════════════════════════════════════════
@@ -435,7 +468,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     if (allocated(self%lat)) then
       write (iunit,'(a)',advance='no') 'Lattice="'
-      write (iunit,'(9f15.8)',advance='no') reshape(self%lat, [9])
+      write (iunit,'(9f15.8)',advance='no') reshape(self%lat*autoaa, [9])
       write (iunit,'(a)',advance='no') '"  pbc="T T T"  '
     end if
     if (allocated(self%gradient)) then

@@ -27,7 +27,7 @@ module rfo_module
   use crest_calculator
   use axis_module
   use strucrd
-  use ls_rmsd
+  use irmsd_module,only:rmsd,rmsd_core_cache
 
   use optimize_type
   use optimize_maths
@@ -105,7 +105,6 @@ contains  !> MODULE PROCEDURES START HERE
     integer,allocatable :: iwork(:)
     integer,allocatable :: totsym(:)
     real(wp),allocatable :: pmode(:,:)
-    real(wp),allocatable :: grmsd(:,:)
     real(wp),allocatable :: grd1(:)
     real(wp),allocatable :: gold(:)
     real(wp),allocatable :: displ(:)
@@ -114,7 +113,8 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),allocatable :: Uaug(:,:)
     real(wp),allocatable :: Aaug(:)
     type(convergence_log),allocatable :: avconv
-    real(wp) :: U(3,3),x_center(3),y_center(3),rmsdval
+    real(wp) :: rmsdval
+    type(rmsd_core_cache) :: rcache
     integer :: modef
     logical :: ex,converged,linear,exact
     logical :: econverged,gconverged,lowered
@@ -177,7 +177,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     !$omp critical
-    allocate (pmode(nat3,1),grmsd(3,mol%nat)) ! dummy allocated
+    allocate (pmode(nat3,1)) ! dummy allocated
     !$omp end critical
 
 !>--- print a summary of settings, if desired
@@ -466,7 +466,8 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- if the relaxation converged properly do this
       iostatus = 0
       if (pr) then
-        call rmsd(mol%nat,mol%xyz,molopt%xyz,1,U,x_center,y_center,rmsdval,.false.,grmsd)
+        call rcache%allocate(mol%nat)
+        rmsdval = rmsd(mol,molopt,ccache=rcache)
         write (*,'(/,3x,"***",1x,a,1x,i0,1x,a,1x,"***",/)') &
           "GEOMETRY OPTIMIZATION CONVERGED AFTER",iter,"ITERATIONS"
         write (*,'(72("-"))')
@@ -505,7 +506,6 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(Uaug)) deallocate (Uaug)
     if (allocated(eaug)) deallocate (eaug)
     if (allocated(Aaug)) deallocate (Aaug)
-    if (allocated(grmsd)) deallocate (grmsd)
     if (allocated(pmode)) deallocate (pmode)
     if (allocated(h)) deallocate (h)
     if (allocated(hess)) deallocate (hess)

@@ -24,7 +24,7 @@ module gradientdescent_module
   use crest_calculator
   use axis_module
   use strucrd
-  use ls_rmsd
+  use irmsd_module,only:rmsd,rmsd_core_cache
 
   use optimize_type
   use optimize_maths
@@ -94,9 +94,10 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: depred,echng,dummy,maxd,alp,gchng,gnold
 
     real(wp),allocatable :: displ(:,:),grdold(:,:),ddispl(:,:)
-    real(wp),allocatable :: grmsd(:,:),gdiff(:,:)
+    real(wp),allocatable :: gdiff(:,:)
     type(convergence_log),allocatable :: avconv
-    real(wp) :: U(3,3),x_center(3),y_center(3),rmsdval
+    real(wp) :: rmsdval
+    type(rmsd_core_cache) :: rcache
     integer :: modef
     logical :: ex,converged,linear,econverged,gconverged,lowered
     real(wp) :: esave
@@ -132,10 +133,6 @@ contains  !> MODULE PROCEDURES START HERE
       nvar = nat3-3*calc%nfreeze-3
       if (nvar .le. 0) nvar = 1
     end if
-
-    !$omp critical
-    allocate (grmsd(3,mol%nat))
-    !$omp end critical
 
 !>--- print a summary of settings, if desired
     if (pr) then
@@ -291,7 +288,8 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- if the relaxation converged properly do this
       iostatus = 0
       if (pr) then
-        call rmsd(mol%nat,mol%xyz,molopt%xyz,1,U,x_center,y_center,rmsdval,.false.,grmsd)
+        call rcache%allocate(mol%nat)
+        rmsdval = rmsd(mol,molopt,ccache=rcache)
         write (*,'(/,3x,"***",1x,a,1x,i0,1x,a,1x,"***",/)') &
           "GEOMETRY OPTIMIZATION CONVERGED AFTER",iter,"ITERATIONS"
         write (*,'(72("-"))')
@@ -328,7 +326,6 @@ contains  !> MODULE PROCEDURES START HERE
     if (allocated(grdold)) deallocate (grdold)
     if (allocated(ddispl)) deallocate (ddispl)
     if (allocated(displ)) deallocate (displ)
-    if (allocated(grmsd)) deallocate (grmsd)
     if (allocated(molopt%at)) deallocate (molopt%at)
     if (allocated(molopt%xyz)) deallocate (molopt%xyz)
     !$omp end critical

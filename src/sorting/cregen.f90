@@ -87,6 +87,7 @@ subroutine newcregen(env,quickset,infile,structurelist)
   logical :: anal
   logical :: saveelow
   logical :: userinput
+  logical :: periodic   !> periodic (fixed-cell) ensemble?
 
 !>--- printout directions
   integer :: prch  !> the main printout channel
@@ -152,6 +153,21 @@ subroutine newcregen(env,quickset,infile,structurelist)
     call move_alloc(structurelist,structures)
   end if
 
+!>--- decide periodic vs molecular ensemble (majority vote on lattices).
+!>    Under PBC the alignment-based comparisons (axis/rotational constants,
+!>    superposition RMSD, rotamers) are ill-defined, so we switch to the
+!>    alignment-free fingerprint path. A gas-phase ensemble, conversely,
+!>    discards any stray frames that carry a lattice.
+  periodic = cregen_majority_periodic(structures)
+  if (periodic) then
+    write (prch,'(" CREGEN periodic (fixed-cell) mode",t35,":",a10)') ' enabled'
+    checkez = .false.   !> C=C E/Z check is not used under PBC
+    anal = .false.      !> nuclear-equivalency analysis relies on alignment
+  else
+    call cregen_discard_periodic(prch,structures)
+    nallref = size(structures,1)
+  end if
+
 !>--- track ensemble for restart
   !call trackensemble(fname,nat,nallref,at,xyz,comments)
 
@@ -183,8 +199,15 @@ subroutine newcregen(env,quickset,infile,structurelist)
     nall = nallnew !> update
   end if
 
-!>--- do the rotational constants and RMSD check
-  if (sortRMSD) then
+!>--- classify duplicates: periodic fingerprint OR rot.const/RMSD
+  if (periodic) then
+!>--- alignment-free duplicate detection (energy + cell volume + SVD fingerprint)
+    call cregen_CRE_periodic(env,nall,structures,group,rthr, &
+    &                        ethr/autokcal,printlvl=2,ch=prch)
+    ng = group(0)
+    allocate (degen(3,ng))
+    call cregen_groupinfo(nall,ng,group,degen)
+  else if (sortRMSD) then
     call cregen_CRE_new(env,nall,structures,group,rthr, &
     &                   ethr/autokcal,bthr,printlvl=2,ch=prch)
 !>--- get group info to degen
@@ -211,7 +234,8 @@ subroutine newcregen(env,quickset,infile,structurelist)
 !=====================================================================!
 
 !>--- align all structures to the first structure using the RMSD
-  call cregen_rmsdalign(nall,structures)
+!>    (skipped under PBC, where superposition is ill-defined)
+  if (.not.periodic) call cregen_rmsdalign(nall,structures)
 
 !>--- write new file with ALL remaining structures
   if (newfile) then
@@ -1282,6 +1306,290 @@ subroutine cregen_CRE_new(env,nall,structures,groups,rthresh,ethr,bthr, &
   if (allocated(rot)) deallocate (rot)
   if (allocated(prune_table)) deallocate (prune_table)
 end subroutine cregen_CRE_new
+
+!=========================================================================================!
+
+function cregen_majority_periodic(structures) result(periodic)
+!**************************************************************
+!* Decide whether an ensemble is periodic (fixed-cell) or
+!* molecular (gas-phase) by a simple majority vote: a structure
+!* counts as periodic if it carries an allocated, non-zero
+!* lattice. Returns .true. if at least half of the structures
+!* are periodic.
+!**************************************************************
+  use crest_parameters
+  use strucrd
+  implicit none
+  type(coord),intent(in) :: structures(:)
+  logical :: periodic
+  integer :: ii,nall,nper
+  nall = size(structures,1)
+  nper = 0
+  do ii = 1,nall
+    if (allocated(structures(ii)%lat)) then
+      if (any(abs(structures(ii)%lat) > 1.0e-8_wp)) nper = nper+1
+    end if
+  end do
+  periodic = (nall > 0).and. (2*nper >= nall)
+end function cregen_majority_periodic
+
+!=========================================================================================!
+
+subroutine cregen_discard_periodic(ch,structures)
+!**************************************************************
+!* Remove any structures that carry a (non-zero) lattice from
+!* a molecular (gas-phase) ensemble. Stray PBC frames would
+!* otherwise contaminate the alignment-based comparisons.
+!**************************************************************
+  use crest_parameters
+  use strucrd
+  implicit none
+  integer,intent(in) :: ch
+  type(coord),intent(inout),allocatable :: structures(:)
+  integer :: ii,jj,nall,nkeep
+  logical,allocatable :: drop(:)
+  type(coord),allocatable :: tmpstructures(:)
+  nall = size(structures,1)
+  allocate (drop(nall),source=.false.)
+  do ii = 1,nall
+    if (allocated(structures(ii)%lat)) then
+      if (any(abs(structures(ii)%lat) > 1.0e-8_wp)) drop(ii) = .true.
+    end if
+  end do
+  nkeep = count(.not.drop)
+  if (nkeep < nall) then
+    write (ch,'(" number of discarded PBC frames",t35,":",i10)') nall-nkeep
+    allocate (tmpstructures(nkeep))
+    jj = 0
+    do ii = 1,nall
+      if (.not.drop(ii)) then
+        jj = jj+1
+        tmpstructures(jj) = structures(ii)
+      end if
+    end do
+    call move_alloc(tmpstructures,structures)
+  end if
+  deallocate (drop)
+end subroutine cregen_discard_periodic
+
+!=========================================================================================!
+
+subroutine cregen_CRE_periodic(env,nall,structures,groups,rthresh,ethr,printlvl,ch)
+!**************************************************************************************
+!* Duplicate/rotamer classification for periodic (fixed-cell) ensembles.
+!*
+!* Two-stage scheme mirroring the molecular cregen_CRE_new, but with periodic-safe
+!* descriptors:
+!*   Stage 1 (grouping): candidate structures are pre-grouped by an alignment-free
+!*     SVD "fingerprint" of the symmetric minimum-image distance matrix (Σ, the
+!*     singular values, cf. Pracht/Morgan/Wales, J. Chem. Phys. 159, 064801 (2023))
+!*     together with the cell volume. The fingerprint replaces the rotational
+!*     constants of the molecular code as the cheap rotamer pre-filter, using a
+!*     *loose* threshold (SIGTHR_GROUP) so that all rotamers of a conformer land
+!*     in one group.
+!*   Stage 2 (pruning): within each group, true duplicates are removed by the
+!*     minimum-image RMSD (MIC-unwrap + Kabsch, via irmsd_module::rmsd, which is
+!*     automatically periodic when the structures carry a lattice). RTHR is the
+!*     authoritative duplicate threshold, exactly as in the molecular case.
+!*
+!* Input arguments:
+!*         env - CREST systemdata
+!*        nall - total number of structures (updated on output)
+!*  structures - the (energy-sorted) structures; pruned/clustered on output
+!*     rthresh - RMSD duplicate threshold (ANGSTRÖM)
+!*        ethr - inter-structure energy threshold (HARTREE) for the comparison window
+!* Optionals:
+!*    printlvl - print verbosity (0=minimal, 1=verbose)
+!*          ch - print channel
+!* Output:
+!*      groups - group assignment (dimension 0:nall), groups(0) = number of groups
+!*************************************************************************************
+  use crest_parameters
+  use crest_data
+  use strucrd
+  use pbc_fingerprint_module
+  use irmsd_module,only:rmsd,rmsd_cache
+  implicit none
+  !> INPUT
+  type(systemdata),intent(inout) :: env
+  integer,intent(inout) :: nall
+  type(coord),intent(inout),allocatable,target :: structures(:)
+  integer,intent(out),allocatable :: groups(:)
+  real(wp),intent(in) :: RTHRESH
+  real(wp),intent(in) :: ETHR
+  integer,intent(in),optional :: printlvl
+  integer,intent(in),optional :: ch
+  !> LOCAL
+  integer :: ii,jj,kk,nat,gcount,ggcount,nallnew,cc
+  integer :: prlvl,prch
+  real(wp) :: eii,ediff,frac,RTHR,rmsdval
+  integer,allocatable :: prune_table(:)
+  real(wp),allocatable :: sig(:,:),sigtmp(:),vol(:)
+  integer,allocatable :: tmpgroups(:),double(:)
+  type(coord),allocatable :: tmpstructures(:)
+  logical :: heavy,substruc
+  logical,allocatable :: mask(:)
+  type(rmsd_cache) :: rcache
+
+!>--- handle optional arguments
+  if (present(printlvl)) then
+    prlvl = printlvl
+  else
+    prlvl = 1
+  end if
+  if (present(ch)) then
+    prch = ch
+  else
+    prch = stdout
+  end if
+
+  nat = structures(1)%nat
+  RTHR = RTHRESH*aatoau  !> RMSD threshold to Bohr (internal units)
+
+  if (prlvl > 0) then
+    write (prch,'(a)') 'Info for periodic CREGEN sorting:'
+    write (prch,'(2x,a,t32,a,f10.5,a)') 'RTHR (MIC-RMSD threshold)',':',RTHR*autoaa,' Å'
+    write (prch,'(2x,a,t32,a,es10.2,a)') 'ETHR (energy threshold)',':',ETHR,' Ha'
+    write (prch,'(2x,a,t32,a,es10.2,a)') 'VOLTHR (cell volume)',':',volthr*autoaa**3,' Å³'
+    write (prch,'(2x,a,t32,a,es10.2,a)') 'SIGTHR (fingerprint group)',':',sigthr_group,' (loose)'
+  end if
+
+!>--- mask setup: we may not include all atoms in the RMSD check
+  heavy = env%heavyrmsd
+  substruc = (nat .ne. env%rednat.and.env%subRMSD.and.allocated(env%includeRMSD))
+  if (heavy.or.substruc) allocate (mask(nat),source=.false.)
+  if (heavy) then
+    do ii = 1,nat
+      if (structures(1)%at(ii) .ne. 1) mask(ii) = .true.
+    end do
+  end if
+  if (substruc) then
+    do ii = 1,nat
+      mask(ii) = (env%includeRMSD(ii) .eq. 1)
+    end do
+  end if
+  call rcache%allocate(nat)
+
+!> ----------------------------------------------
+!> PRE-PROCESSING
+!> ----------------------------------------------
+!>--- energy-based comparison window (structures are energy-sorted already)
+  allocate (prune_table(nall),source=1)
+  do ii = 1,nall
+    eii = structures(ii)%energy
+    do jj = 1,ii
+      ediff = abs(eii-structures(jj)%energy)
+      if (ediff <= ETHR) then
+        prune_table(ii) = jj
+        exit
+      end if
+    end do
+  end do
+
+!>--- precompute fingerprints (singular values) and cell volumes
+  if (prlvl > 0) then
+    write (prch,'(a)',advance='no') 'Computing periodic fingerprints ... '
+    flush (prch)
+  end if
+  allocate (sig(nat,nall),source=0.0_wp)
+  allocate (vol(nall),source=0.0_wp)
+  do ii = 1,nall
+    call pbc_fingerprint(structures(ii),sigtmp)
+    sig(1:nat,ii) = sigtmp(1:nat)
+    deallocate (sigtmp)
+    vol(ii) = structures(ii)%cellvol()
+  end do
+  if (prlvl > 0) write (prch,'(a)') 'done.'
+
+!> ----------------------------------------------
+!> CLASSIFICATION: greedy seed loop. Each unassigned structure becomes a new
+!> unique representative; every later in-window structure is tested against it
+!> by minimum-image RMSD and pruned if within RTHR. The fingerprint is a *loose*
+!> cheap skip-filter (energy + cell volume + Σ): a pair whose fingerprints differ
+!> by more than SIGTHR_GROUP cannot be a duplicate, so the (more expensive) RMSD
+!> is skipped. It restricts nothing — unlike a hard grouping, it never prevents
+!> a genuine duplicate from being compared.
+!> ----------------------------------------------
+  if (prlvl > 0) then
+    write (prch,'(a)',advance='no') 'Running minimum-image RMSDs ... '
+    flush (prch)
+  end if
+  allocate (groups(nall),source=0)
+  gcount = 0
+  do ii = 1,nall
+    if (groups(ii) .ne. 0) cycle
+    gcount = gcount+1
+    groups(ii) = gcount             !> new unique representative
+    do jj = ii+1,nall
+      if (groups(jj) .ne. 0) cycle
+      if (ii < prune_table(jj)) cycle                       !> energy window
+      if (abs(vol(ii)-vol(jj)) >= volthr) cycle             !> cell volume
+      if (fp_distance(sig(:,ii),sig(:,jj)) >= sigthr_group) cycle  !> fingerprint skip
+      if (heavy.or.substruc) then
+        rmsdval = rmsd(structures(ii),structures(jj),mask=mask, &
+        &              scratch=rcache%xyzscratch,ccache=rcache%ccache)
+      else
+        rmsdval = rmsd(structures(ii),structures(jj), &
+        &              scratch=rcache%xyzscratch,ccache=rcache%ccache)
+      end if
+      if (rmsdval < RTHR) groups(jj) = -gcount  !> duplicate of seed ii -> prune
+    end do
+  end do
+  if (prlvl > 0) write (prch,'(a)') 'done.'
+
+!> ----------------------------------------------
+!> resize the ensemble keeping only unique structures (groups > 0)
+!> ----------------------------------------------
+  if (prlvl > 0) then
+    write (prch,'(a,6x,a)',advance='no') 'Discarding duplicates','...'
+    flush (prch)
+  end if
+  gcount = maxval(groups(1:nall))
+  nallnew = count(groups(1:nall) > 0)
+  allocate (tmpstructures(nallnew))
+  allocate (tmpgroups(0:nallnew),source=0)
+  allocate (double(nallnew),source=0)
+  cc = 0
+  do ii = 1,gcount
+    do jj = 1,nall
+      ggcount = groups(jj)
+      if (ggcount .eq. ii.and.ggcount > 0) then
+        cc = cc+1
+        tmpstructures(cc) = structures(jj)
+        tmpgroups(cc) = ggcount
+        do kk = 1,cc-1
+          if (tmpgroups(kk) .eq. ggcount) then
+            double(cc) = kk
+            exit
+          end if
+        end do
+      end if
+    end do
+  end do
+  tmpgroups(0) = gcount
+  call move_alloc(tmpgroups,groups)
+  call move_alloc(tmpstructures,structures)
+  if (prlvl > 0) then
+    write (prch,'(a)') ' done.'
+    frac = real(nall-nallnew,wp)/real(nall,wp)
+    write (prch,'(1x,a,t40,a,i10,a,f6.2,a)') &
+    &      "number of doubles removed by MIC-RMSD",":",nall-nallnew,' (',frac*100.d0,'%)'
+    write (prch,'(1x,a,t40,a,i10,a,f6.2,a)') &
+    &      "number of unique structures remaining",":",nallnew,' (', (1.0d0-frac)*100.d0,'%)'
+    frac = real(gcount,wp)/real(max(nallnew,1),wp)
+    write (prch,'(1x,a,t40,a,i10,a,f6.2,a,i0,a)') &
+    &      "number of unique conformers identified",":",gcount,' (',frac*100.d0,'% of ',nallnew,')'
+  end if
+  nall = nallnew
+
+  !>-- for ENSO write a file with duplicate info (if required)
+  call enso_duplicates(env,nall,double)
+
+  if (allocated(prune_table)) deallocate (prune_table)
+  if (allocated(sig)) deallocate (sig)
+  if (allocated(vol)) deallocate (vol)
+  if (allocated(mask)) deallocate (mask)
+end subroutine cregen_CRE_periodic
 
 !=========================================================================================!
 

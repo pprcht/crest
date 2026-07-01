@@ -23,7 +23,6 @@
 module metadynamics_module
 
   use crest_parameters
-  use ls_rmsd
   use strucrd
 
   implicit none
@@ -452,94 +451,82 @@ contains  !> MODULE PROCEDURES START HERE
 !* of the current structure (mol) to any structure in a list
 !* of documented references.
 !* Optionally, atoms for which the RMSD is to be calculated
-!* can be specified.
+!* can be specified (pot%atinclude -> RMSD mask).
+!* The RMSD (and its Cartesian gradient) are evaluated via the
+!* coord-based interface in irmsd_module, which carries the
+!* lattice on the coord type (enabling periodic/MIC handling)
+!* and reuses a per-thread scratch cache to avoid reallocation.
 !* Since RMSD calculation can be costly for many structures
 !* there is some OMP parallelization going on.
 !**************************************************************
+    use omp_lib
+    use irmsd_module,only:rmsd,rmsd_core_cache
     implicit none
     type(coord) :: mol
     type(mtdpot) :: pot
     real(wp),intent(out) :: ebias
     real(wp),intent(out) :: grdmtd(3,mol%nat)
 
-    real(wp),allocatable :: xyzref(:,:)
-    real(wp),allocatable :: xyzcp(:,:)
+    type(coord),allocatable :: refmols(:)
+    type(rmsd_core_cache),allocatable :: ccaches(:)
     real(wp),allocatable :: grad(:,:)
-    real(wp) :: U(3,3),x_center(3),y_center(3)
     real(wp) :: rmsdval,E,dEdr
-
-    integer :: i,j,k,l
+    logical :: usemask
+    integer :: i,tid,nthreads
 
     ebias = 0.0_wp
     grdmtd = 0.0_wp
 
     if (pot%ncur < 1) return
 
-    if (.not.allocated(pot%atinclude)) then !>-- include all atoms in RMSD
-      allocate (xyzref(3,mol%nat),grad(3,mol%nat),source=0.0_wp)
-      !$omp parallel default(none) &
-      !$omp shared(pot,mol) &
-      !$omp private(grad,xyzref,U,x_center,y_center,rmsdval,E,dEdr) &
-      !$omp reduction(+:ebias,grdmtd)
-      !$omp do schedule(dynamic)
-      do i = 1,pot%ncur
-        grad = 0.0_wp
-        xyzref = pot%cvxyz(:,:,i)
-        call rmsd(mol%nat,mol%xyz,xyzref,1,U,x_center,y_center,rmsdval, &
-        &          .true.,grad)
-        E = pot%kpush*exp(-pot%alpha*rmsdval**2)
-        if (i == pot%ncur.or.pot%mtdtype == cv_rmsd_static) then
-          E = E*pot%damp
-        end if
-        ebias = ebias+E
-        dEdr = -2.0_wp*pot%alpha*e*rmsdval
-        grdmtd = grdmtd+dEdr*grad
-      end do
-      !$omp enddo
-      !$omp end parallel
-      deallocate (grad,xyzref)
-
-    else !>--- use only selected atoms in RMSD
-      k = count(pot%atinclude,1)
-      if (k < 1) return
-      allocate (xyzcp(3,k),xyzref(3,k),grad(3,k),source=0.0_wp)
-      !$omp parallel default(none) &
-      !$omp shared(pot,mol,k) &
-      !$omp private(grad,xyzref,U,x_center,y_center,rmsdval,E,dEdr) &
-      !$omp private(xyzcp,j,l) &
-      !$omp reduction(+:ebias,grdmtd)
-      !$omp do schedule(dynamic)
-      do i = 1,pot%ncur
-        grad = 0.0_wp
-        l = 0
-        do j = 1,mol%nat
-          if (pot%atinclude(j)) then
-            l = l+1
-            xyzcp(:,l) = mol%xyz(:,j)
-            xyzref(:,l) = pot%cvxyz(:,j,i)
-          end if
-        end do
-        call rmsd(k,xyzcp,xyzref,1,U,x_center,y_center,rmsdval, &
-        &          .true.,grad)
-        E = pot%kpush*exp(-pot%alpha*rmsdval**2)
-        if (i == pot%ncur.or.pot%mtdtype == cv_rmsd_static) then
-          E = E*pot%damp
-        end if
-        ebias = ebias+E
-        dEdr = -2.0_wp*pot%alpha*e*rmsdval
-        l = 0
-        do j = 1,mol%nat
-          if (pot%atinclude(j)) then
-            l = l+1
-            grdmtd(:,j) = grdmtd(:,j)+dEdr*grad(:,l)
-          end if
-        end do
-      end do
-      !$omp enddo
-      !$omp end parallel
-      deallocate (grad,xyzref,xyzcp)
+    !> selected atoms only? (pot%atinclude maps directly onto the RMSD mask)
+    usemask = allocated(pot%atinclude)
+    if (usemask) then
+      if (count(pot%atinclude,1) < 1) return
     end if
 
+    !>--- one reference-structure scratch and one RMSD cache per thread, held in
+    !>    shared arrays indexed by thread id. (ifx cannot firstprivate a derived
+    !>    type with allocatable components, so this is the portable pattern: each
+    !>    thread only ever touches its own slot -> no data race.)
+    nthreads = OMP_GET_MAX_THREADS()
+    allocate (refmols(nthreads),ccaches(nthreads))
+    do i = 1,nthreads
+      refmols(i)%nat = mol%nat
+      refmols(i)%at = mol%at
+      if (allocated(mol%lat)) refmols(i)%lat = mol%lat   !> carry the cell (PBC)
+      allocate (refmols(i)%xyz(3,mol%nat),source=0.0_wp)
+      call ccaches(i)%allocate(mol%nat,scratch=.true.)
+    end do
+
+    !$omp parallel default(none) &
+    !$omp shared(pot,mol,usemask,refmols,ccaches) &
+    !$omp private(i,tid,grad,rmsdval,E,dEdr) &
+    !$omp reduction(+:ebias,grdmtd)
+    tid = OMP_GET_THREAD_NUM()+1
+    allocate (grad(3,mol%nat),source=0.0_wp)
+    !$omp do schedule(dynamic)
+    do i = 1,pot%ncur
+      grad = 0.0_wp
+      refmols(tid)%xyz = pot%cvxyz(:,:,i)
+      if (usemask) then
+        rmsdval = rmsd(refmols(tid),mol,mask=pot%atinclude,gradient=grad,ccache=ccaches(tid))
+      else
+        rmsdval = rmsd(refmols(tid),mol,gradient=grad,ccache=ccaches(tid))
+      end if
+      E = pot%kpush*exp(-pot%alpha*rmsdval**2)
+      if (i == pot%ncur.or.pot%mtdtype == cv_rmsd_static) then
+        E = E*pot%damp
+      end if
+      ebias = ebias+E
+      dEdr = -2.0_wp*pot%alpha*E*rmsdval
+      grdmtd = grdmtd+dEdr*grad
+    end do
+    !$omp end do
+    deallocate (grad)
+    !$omp end parallel
+
+    deallocate (refmols,ccaches)
     return
   end subroutine calc_rmsd_mtd
 

@@ -676,6 +676,7 @@ contains
     integer :: nat,j,i,p,dup,nsane
     logical :: sane,hit
     type(coord) :: newmol,tmp
+    type(coord),allocatable :: strucs(:)
     real(wp),allocatable :: xyzc(:,:,:),eread(:)
     integer,allocatable :: map(:),dupof(:)
     integer(int64),allocatable :: keys(:)
@@ -731,15 +732,24 @@ contains
 ! ── optimize the unique survivors in parallel and harvest energies ─────────
     if (nsane > 0) then
       allocate (eread(nsane),source=0.0_wp)
+! ── marshal the unique survivors into a coord list (canonical API) ──────────
+      allocate (strucs(nsane))
+      do i = 1,nsane
+        strucs(i)%nat = nat
+        strucs(i)%at = mol%at
+        strucs(i)%xyz = xyzc(:,:,i)
+      end do
       if (env%ttconf%sp_only) then
-        call crest_sploop(env,nat,nsane,mol%at,xyzc(:,:,1:nsane),eread,silent=.true.)
+        call crest_sploop(env,nsane,strucs,eread,silent=.true.)
       else
-        call crest_oloop(env,nat,nsane,mol%at,xyzc(:,:,1:nsane),eread,.false.,silent=.true.)
+        call crest_oloop(env,nsane,strucs,.false.,silent=.true.,eread=eread)
       end if
       do i = 1,nsane
         j = map(i)
         energies(j) = eread(i)
         if (haskey(j)) call cache%insert(keys(j),eread(i),.true.)
+        !> harvest the (possibly optimized) geometry back
+        xyzc(:,:,i) = strucs(i)%xyz
         call tmp%deallocate()
         tmp%nat = nat
         allocate (tmp%at(nat)); tmp%at = mol%at
@@ -748,6 +758,7 @@ contains
         call tmp%append(rawunit)
         nadd = nadd+1
       end do
+      deallocate (strucs)
 ! ── propagate energies to within-batch duplicates ──────────────────────────
       do j = 1,ncand
         if (dupof(j) > 0) energies(j) = eread(dupof(j))

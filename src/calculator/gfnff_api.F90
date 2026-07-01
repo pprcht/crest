@@ -39,6 +39,8 @@ module gfnff_api
   public :: gfnff_printout
   public :: gfnff_getwbos
   public :: gfnff_dump_sasa
+  public :: gfnff_set_fragments
+  public :: gfnff_set_refcharges
 
 #ifndef WITH_GFNFF
   !> these are placeholders if no gfnff module is used!
@@ -207,6 +209,76 @@ contains  !> MODULE PROCEDURES START HERE
     call gfnff_get_fake_wbo(ff_dat,nat,wbo)
 #endif
   end subroutine gfnff_getwbos
+
+!========================================================================================!
+
+  subroutine gfnff_set_fragments(ff_dat,nat,fragments)
+!***********************************************************************
+!* Resolve a list of atom-range strings into a per-atom fragment index
+!* and hand it to the GFN-FF data object (ff_dat%userinput%fraglist).
+!*
+!* Each entry of fragments(:) is an atom-range string (e.g. "1-432" or
+!* "1,5-9,20") defining one fragment. Fragments are numbered 1..nfrag in
+!* the given order. Any atom not covered by any string is left in
+!* fragment 0 (the implicit "rest" group). GFN-FF will subsequently not
+!* create bonds between atoms of different fragments.
+!*
+!* INPUT:
+!*   nat       - number of atoms
+!*   fragments - array of atom-range strings, one per fragment
+!* IN/OUT:
+!*   ff_dat    - GFN-FF data object; userinput%fraglist is (re)built
+!***********************************************************************
+    implicit none
+    type(gfnff_data),allocatable,intent(inout) :: ff_dat
+    integer,intent(in) :: nat
+    character(len=*),intent(in) :: fragments(:)
+    !> LOCAL
+    integer :: f,nsel
+    integer,allocatable :: fraglist(:),mark(:)
+
+    if (.not.allocated(ff_dat)) return
+
+    allocate (fraglist(nat),source=0)
+    allocate (mark(nat),source=0)
+    do f = 1,size(fragments)
+      call parse_atlist(fragments(f),nsel,nat,mark)
+      where (mark == 1) fraglist = f
+    end do
+    deallocate (mark)
+
+#ifdef WITH_GFNFF
+    if (.not.allocated(ff_dat%userinput)) allocate (ff_dat%userinput)
+    ff_dat%userinput%fraglist = fraglist
+#endif
+    deallocate (fraglist)
+  end subroutine gfnff_set_fragments
+
+!========================================================================================!
+
+  subroutine gfnff_set_refcharges(ff_dat,q)
+!***********************************************************************
+!* Hand a set of atomic reference charges to the GFN-FF data object via
+!* the in-memory bundle (ff_dat%userinput%refq). GFN-FF sums these over
+!* each fragment to set the integer per-fragment net-charge constraint
+!* used by its EEQ model. This is how the CEH guess assigns the correct
+!* charge to each fragment (in-memory equivalent of the older, file-based
+!* refcharges route).
+!*
+!* INPUT:
+!*   q      - atomic reference charges (size = nat)
+!* IN/OUT:
+!*   ff_dat - GFN-FF data object; userinput%refq is (re)set
+!***********************************************************************
+    implicit none
+    type(gfnff_data),allocatable,intent(inout) :: ff_dat
+    real(wp),intent(in) :: q(:)
+    if (.not.allocated(ff_dat)) return
+#ifdef WITH_GFNFF
+    if (.not.allocated(ff_dat%userinput)) allocate (ff_dat%userinput)
+    ff_dat%userinput%refq = q
+#endif
+  end subroutine gfnff_set_refcharges
 
 !========================================================================================!
 
