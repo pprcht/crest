@@ -387,6 +387,24 @@ subroutine CCEGEN(env,pr,fname)
     npc = npc+1
     if (pcsum .ge. pcthr) exit
   end do
+  ! ── fall back if the pcmin cutoff discarded every PC ────────────────────────────
+  !> For floppy systems with many descriptors the variance can be spread so evenly
+  !> that even the largest normalized eigenvalue lies below pcmin, leaving npc=0.
+  !> Clustering on zero dimensions yields a NaN DBI/pSF table and merges everything
+  !> into a single cluster. Redo the selection ignoring pcmin (as with -nopcmin) so
+  !> that at least the pcthr-relevant PCs are kept, and warn the user.
+  if (npc == 0) then
+    write (stdout,'(1x,a,f5.3,a)') 'WARNING: no principal component eigenvalue exceeds pcmin (', &
+    &  pcmin,'); the'
+    write (stdout,'(1x,a)') '         variance is spread too evenly across descriptors. Ignoring the'
+    write (stdout,'(1x,a)') '         pcmin cutoff for this ensemble (equivalent to -nopcmin).'
+    pcsum = 0.0d0
+    do i = 1,mn
+      pcsum = pcsum+pc(i)
+      npc = npc+1
+      if (pcsum .ge. pcthr) exit
+    end do
+  end if
   npc = min(npc,pccap)
   pcsum = 0.0d0
   do i = 1,npc
