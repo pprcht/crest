@@ -1,0 +1,26 @@
+# Geometry optimization driven by an external ORCA subprocess.
+#
+# CREST does not implement DFT itself; instead it can call ORCA as an
+# engrad "black box".  For every optimization step CREST writes the current
+# geometry, launches ORCA, and reads back energy + gradient.  This lets you
+# run the ANCOPT optimizer (and, in principle, MD or conformer searches) on
+# top of any level of theory ORCA provides.
+#
+# The ORCA calculation itself is defined by a template input file
+# (`orca_template`).  CREST reuses that template and only swaps in the
+# updated coordinates, so all method/basis/grid settings live in `ORCA.in`.
+runtype = "ancopt"              # geometry optimization
+input   = "struc.xyz"           # input structure file (n-pentane)
+threads = 6                     # parallelization (CREST-side)
+
+[calculation]
+eprint = true                   # print energies of each level
+elog   = "energies.log"         # write energies to this file
+
+[[calculation.level]]           # ORCA subprocess level
+chrg         = 0                # molecular charge
+orca_template = "ORCA.in"       # ORCA input template (method/basis/grid)
+
+# Path to the ORCA executable.  Adjust this to your local installation --
+# it will NOT run with the placeholder below.
+orca_cmd     = "/PATH/TO/ORCA/orca"
