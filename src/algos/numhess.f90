@@ -92,6 +92,14 @@ subroutine crest_numhess(env,tim)
   call engrad(mol,calc,energy,grad0,io)
   energies0 = calc%etmp
 
+  if (io .ne. 0) then
+    write (stdout,*) 'FAILED! Initial singlepoint calculation did not converge.'
+    env%iostatus_meta = status_failed
+    deallocate (grad0)
+    call tim%stop(15)
+    return
+  end if
+
   write (atmp,'("Energy = ",f25.15," Eh")') energy
   call smallhead(trim(atmp))
   write (stdout,'(a)') repeat(":",80)
@@ -187,6 +195,7 @@ subroutine crest_numhess(env,tim)
 
       if (io .ne. 0) then
         write (stdout,*) 'FAILED!'
+        env%iostatus_meta = status_failed
 
       else
 
@@ -212,6 +221,7 @@ subroutine crest_numhess(env,tim)
 
         if (io .ne. 0) then
           write (stdout,*) 'FAILED!'
+          env%iostatus_meta = status_failed
         else
 
 ! ── project dipole gradient onto normal modes → IR intensities ───────────
@@ -260,6 +270,10 @@ subroutine crest_numhess(env,tim)
 
     !>-- Computes the Frequencies (in cm^-1)
     call frequencies(mol%nat,mol%at,mol%xyz,nat3,ohess(:,:),ofreq(:),io)
+    if (io .ne. 0) then
+      write (stdout,*) 'FAILED!'
+      env%iostatus_meta = status_failed
+    end if
 
     !>-- Prints vibspectrum (cm^-1) with artifical intensities
     call print_vib_spectrum(mol%nat,mol%at,nat3,mol%xyz,ofreq(:), &
