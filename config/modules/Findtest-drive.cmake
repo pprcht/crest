@@ -17,7 +17,7 @@
 set(_lib "test-drive")
 set(_pkg "TEST-DRIVE")
 set(_url "https://github.com/fortran-lang/test-drive")
-set(_branch "e8b7ca492c647ed384c9845d2caed04192af7d02")
+set(_branch "c506771aefd594e7e372240a8027b3fd06d61264")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")

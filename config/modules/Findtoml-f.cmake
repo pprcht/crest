@@ -17,7 +17,7 @@
 set(_lib "toml-f")
 set(_pkg "TOML-F")
 set(_url "https://github.com/toml-f/toml-f")
-set(_branch "d5e92701d28b647323ce05ecbcbf302dd19792f7")
+set(_branch "28f4601fe0992ed17a6b97e230a61289f56bcd8e")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")

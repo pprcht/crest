@@ -1,7 +1,7 @@
 set(_lib "mctc-lib")
 set(_pkg "MCTCLIB")
 set(_url "https://github.com/grimme-lab/mctc-lib")
-set(_branch "8cd0cb4489537fd28bfb2e8094f1647f3e0da284")
+set(_branch "e9de066d89f250d1cfb6de3a33f0c27c0e2f855d")
 
 # Discovery method order can be overridden by the parent project, e.g.:
 #   set(mctc-lib_FIND_METHOD "subproject" "cmake")
