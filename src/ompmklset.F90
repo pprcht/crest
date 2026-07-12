@@ -180,6 +180,53 @@ subroutine new_ompautoset(env,modus,maxjobs,parallel_jobs,cores_per_job)
 end subroutine new_ompautoset
 
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc!
+!c report the parallelization split applied by new_ompautoset
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc!
+
+subroutine ompautoset_summary(env,label,parallel_jobs,cores_per_job)
+!***********************************************************************
+!* Print a one-line summary of the parallelization split that
+!* new_ompautoset just applied: how many jobs run concurrently and
+!* how many cores each job may use, plus whether a subprocess level is
+!* hard-capped (ORCA %pal) or nested OpenMP is active. Bare subroutine
+!* with no optional args -- callers that want silence just don't call it.
+!*
+!*  env           - system data (threads budget + calc levels)
+!*  label         - short task name shown in the line (e.g. 'optimizations')
+!*  parallel_jobs - number of concurrently running jobs (T)
+!*  cores_per_job - cores reserved per job (Tn)
+!***********************************************************************
+  use crest_data
+  use crest_parameters,only:stdout
+  implicit none
+  type(systemdata),intent(in) :: env
+  character(len=*),intent(in) :: label
+  integer,intent(in) :: parallel_jobs,cores_per_job
+  integer :: Tcap
+  character(len=:),allocatable :: jobs_word,cores_word,extra
+
+  ! ── singular/plural wording ──────────────────────────────────
+  jobs_word = ' parallel job'
+  if (parallel_jobs > 1) jobs_word = ' parallel jobs'
+  cores_word = ' core/job'
+  if (cores_per_job > 1) cores_word = ' cores/job'
+
+  ! ── flag hard-capped subprocesses vs. nested OpenMP ──────────
+  Tcap = env%calc%maxthreads_capped()
+  extra = ''
+  if (Tcap > 1) then
+    extra = ', subprocess hard-capped'
+  else if (env%omp_allow_nested .and. cores_per_job > 1) then
+    extra = ', nested OpenMP'
+  end if
+
+  write (stdout,'(1x,"↳ ",a,": ",i0,a," × ",i0,a,"  (",i0," threads",a,")")') &
+    & trim(label),parallel_jobs,trim(jobs_word),cores_per_job,trim(cores_word), &
+    & env%threads,trim(extra)
+
+end subroutine ompautoset_summary
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc!
 !c get omp/mkl automatically from the global variables
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc!
 

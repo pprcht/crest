@@ -2326,6 +2326,15 @@ subroutine parseflags(env,arg,nra)
         write (stdout,'(2x,a,1x,i0,1x,a)') trim(arg(i)),nint(xx(1)), &
         &     '(CPUs/Threads selected)'
 
+      case ('-omp-nested')  !> allow nested OpenMP threading (ON by default)
+        processedarg(i) = .true.
+        env%omp_allow_nested = .true.
+        write (stdout,'(2x,a,1x,a)') trim(arg(i)),': nested OpenMP threading enabled'
+      case ('-no-omp-nested','-omp-nonested')  !> forbid nested OpenMP threading
+        processedarg(i) = .true.
+        env%omp_allow_nested = .false.
+        write (stdout,'(2x,a,1x,a)') trim(arg(i)),': nested OpenMP threading disabled'
+
       case ('-inplace')     !> activate "in-place" mode for optimizations (ON by default)
         processedarg(i) = .true.
         env%inplaceMode = .true.

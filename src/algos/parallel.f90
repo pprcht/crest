@@ -154,9 +154,14 @@ subroutine crest_sploop(env,nall,structures,eread,silent)
     return
   end if
 
+!>--- silent mode? (suppress progress bar + summary printout)
+  quiet = .false.
+  if (present(silent)) quiet = silent
+
 !>--- prepare calculation objects for parallelization (one per thread)
   call new_ompautoset(env,'auto_nested',nall,T,Tn)
   nested = env%omp_allow_nested
+  if (.not.quiet) call ompautoset_summary(env,'singlepoints',T,Tn)
 
 !>--- prepare objects for parallelization
   allocate (calculations(T))
@@ -177,10 +182,6 @@ subroutine crest_sploop(env,nall,structures,eread,silent)
     end do
     calculations(i)%pr_energies = .false.
   end do
-
-!>--- silent mode? (suppress progress bar + summary printout)
-  quiet = .false.
-  if (present(silent)) quiet = silent
 
 !>--- timer initialization
   call profiler%init(1)
@@ -345,9 +346,9 @@ subroutine crest_hessloop(env,nat,nall,at,xyz,eread,gt_out,stot_out)
 !>--- prepare calculation objects for parallelization (one per thread)
   call new_ompautoset(env,'auto_nested',nall,T,Tn)
   nested = env%omp_allow_nested
+  call ompautoset_summary(env,'Hessians',T,Tn)
 
-!>--- prepare objects for parallelization
-  T = env%threads
+!>--- prepare objects for parallelization (one working copy per parallel job)
   allocate (calculations(T))!,source=env%calc)
   allocate (mols(T))
   nat3 = nat*3
@@ -586,6 +587,7 @@ subroutine crest_oloop_struc(env,nall,structures,dump,customcalc,eread,silent)
 !>--- prepare calculation objects for parallelization (one per thread)
   call new_ompautoset(env,'auto_nested',nall,T,Tn)
   nested = env%omp_allow_nested
+  if (.not.quiet) call ompautoset_summary(env,'optimizations',T,Tn)
 
 !>--- prepare objects for parallelization
   allocate (calculations(T))
@@ -828,6 +830,7 @@ subroutine crest_search_multimd(env,mol,mddats,nsim)
 !>--- prepare calculation containers for parallelization (one per thread)
   call new_ompautoset(env,'auto_nested',nsim,T,Tn)
   nested = env%omp_allow_nested
+  call ompautoset_summary(env,'MTD/MD runs',T,Tn)
 
   allocate (calculations(T),source=env%calc)
   allocate (moltmps(T),source=mol)
@@ -1133,6 +1136,7 @@ subroutine crest_search_multimd2(env,mols,mddats,nsim)
 !>--- prepare calculation objects for parallelization (one per thread)
   call new_ompautoset(env,'auto_nested',nsim,T,Tn)
   nested = env%omp_allow_nested
+  call ompautoset_summary(env,'MTD/MD runs',T,Tn)
 
   allocate (calculations(T),source=env%calc)
   allocate (moltmps(T),source=mols(1))
