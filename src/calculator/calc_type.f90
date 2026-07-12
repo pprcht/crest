@@ -111,6 +111,9 @@ module calc_type
                                  !> kept aligned with uhf via sync_multiplicity/set_multiplicity
     logical :: active = .true.   !> active setting to disable the calculation (this is different from weight=0)
     real(wp) :: weight = 1.0_wp  !> calculation weight (when adding them up)
+    integer :: threads = 0       !> max number of cores this level may use per engrad call
+                                 !> (e.g. ORCA %pal nprocs, MLIP server threads).
+                                 !> 0 (or <1) means "unset/inherit" and is ignored.
 
     character(len=:),allocatable :: calcspace  !> subdirectory to perform the calculation in
     character(len=:),allocatable :: calcfile
@@ -376,6 +379,8 @@ module calc_type
     procedure :: increase_charge => calculation_increase_charge
     procedure :: decrease_charge => calculation_decrease_charge
     procedure :: dealloc_params => calculation_deallocate_params
+    procedure :: maxthreads => calculation_maxthreads
+    procedure :: maxthreads_capped => calculation_maxthreads_capped
   end type calcdata
 
   public :: get_dipoles
@@ -451,6 +456,55 @@ contains  !>--- Module routines start here
       end do
     end if
   end subroutine calculation_deallocate_params
+
+!=========================================================================================!
+
+  function calculation_maxthreads(self) result(maxthreads)
+!************************************************************
+!* Return the largest per-level thread count requested by
+!* any active calculation level (default 1). Intended to
+!* inform the outer OMP thread-budgeting (cores per job).
+!************************************************************
+    class(calcdata),intent(in) :: self
+    integer :: maxthreads
+    integer :: i
+    maxthreads = 1
+    if (self%ncalculations > 0) then
+      do i = 1,self%ncalculations
+        if (.not.self%calcs(i)%active) cycle
+        maxthreads = max(maxthreads,self%calcs(i)%threads)
+      end do
+    end if
+  end function calculation_maxthreads
+
+!=========================================================================================!
+
+  function calculation_maxthreads_capped(self) result(maxcap)
+!************************************************************
+!* Largest thread reservation among active levels whose
+!* backend is HARD-CAPPED at that count, i.e. uses exactly
+!* threads cores and does not grow into cores_per_job via the
+!* OMP_NUM_THREADS env var / nested OpenMP. Currently only the
+!* ORCA subprocess is hard-capped (its %pal is written from
+!* threads); internal API calculators and generic subprocesses
+!* pick up cores_per_job instead and thus soak leftover cores.
+!*
+!* Returns 0 if no capped level is active. Used to report
+!* genuinely idle cores (see new_ompautoset).
+!************************************************************
+    class(calcdata),intent(in) :: self
+    integer :: maxcap
+    integer :: i
+    maxcap = 0
+    if (self%ncalculations > 0) then
+      do i = 1,self%ncalculations
+        if (.not.self%calcs(i)%active) cycle
+        if (self%calcs(i)%id == jobtype%orca) then
+          maxcap = max(maxcap,self%calcs(i)%threads)
+        end if
+      end do
+    end if
+  end function calculation_maxthreads_capped
 
 !=========================================================================================!
 
@@ -1250,6 +1304,7 @@ contains  !>--- Module routines start here
     self%multiplicity = src%multiplicity
     self%active     = src%active
     self%weight     = src%weight
+    self%threads    = src%threads
 
 ! ── allocatable strings ──────────────────────────────────────────────────────
     if (allocated(src%calcspace))      self%calcspace      = src%calcspace
@@ -1324,8 +1379,10 @@ contains  !>--- Module routines start here
     self%ONIOM_id          = src%ONIOM_id
 
 ! ── ORCA input block ─────────────────────────────────────────────────────────
-    self%ORCA%mpi    = src%ORCA%mpi
-    self%ORCA%nlines = src%ORCA%nlines
+    self%ORCA%mpi     = src%ORCA%mpi
+    self%ORCA%nlines  = src%ORCA%nlines
+    self%ORCA%maxcore = src%ORCA%maxcore
+    self%ORCA%srckind = src%ORCA%srckind
     if (allocated(src%ORCA%cmd))   self%ORCA%cmd   = src%ORCA%cmd
     if (allocated(src%ORCA%input)) self%ORCA%input = src%ORCA%input
 

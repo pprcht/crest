@@ -314,6 +314,9 @@ contains !> MODULE PROCEDURES START HERE
     case ('calcspace','dir')
       job%calcspace = kv%value_c
 
+    case ('threads','ncores')
+      job%threads = kv%value_i
+
     case ('gradfile')
       job%gradfile = kv%value_c
 
@@ -398,7 +401,21 @@ contains !> MODULE PROCEDURES START HERE
       job%binary = kv%value_c
     case ('orca_template')
       job%id = jobtype%orca
+      if (job%ORCA%srckind == 2) then
+        write (stdout,'(a)') '**ERROR** orca_template and orca_input are mutually exclusive!'
+        call creststop(status_config)
+      end if
       call job%ORCA%read(kv%value_c)
+    case ('orca_input')
+      job%id = jobtype%orca
+      if (job%ORCA%srckind == 1) then
+        write (stdout,'(a)') '**ERROR** orca_template and orca_input are mutually exclusive!'
+        call creststop(status_config)
+      end if
+      call job%ORCA%build(kv%value_c)
+    case ('orca_memory','orca_maxcore')
+      job%id = jobtype%orca
+      job%ORCA%maxcore = kv%value_i
 
     case ('gbsa','alpb','cpcm','cosmo','pcm')
       job%solvmodel = kv%key

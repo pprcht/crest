@@ -6,9 +6,11 @@
 # run the ANCOPT optimizer (and, in principle, MD or conformer searches) on
 # top of any level of theory ORCA provides.
 #
-# The ORCA calculation itself is defined by a template input file
-# (`orca_template`).  CREST reuses that template and only swaps in the
-# updated coordinates, so all method/basis/grid settings live in `ORCA.in`.
+# Here the ORCA input is assembled entirely from this TOML file -- no
+# template file is needed.  CREST takes the short `orca_input` keyword line,
+# strips any runtype keyword and appends `EnGrad`, writes the `%pal` and
+# `%maxcore` blocks from `threads` / `orca_memory`, and finally appends the
+# current coordinates.
 runtype = "ancopt"              # geometry optimization
 input   = "struc.xyz"           # input structure file (n-pentane)
 threads = 6                     # parallelization (CREST-side)
@@ -18,9 +20,11 @@ eprint = true                   # print energies of each level
 elog   = "energies.log"         # write energies to this file
 
 [[calculation.level]]           # ORCA subprocess level
-chrg         = 0                # molecular charge
-orca_template = "ORCA.in"       # ORCA input template (method/basis/grid)
+chrg        = 0                                       # molecular charge
+orca_input  = "! r2scan-3c def2/J TightSCF DefGrid3"  # ORCA simple-input line
+threads     = 4                                       # -> %pal nprocs 4 end
+orca_memory = 3000                                    # -> %maxcore 3000 (per core, MB)
 
 # Path to the ORCA executable.  Adjust this to your local installation --
 # it will NOT run with the placeholder below.
-orca_cmd     = "/PATH/TO/ORCA/orca"
+orca_cmd    = "/PATH/TO/ORCA/orca"
