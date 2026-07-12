@@ -17,7 +17,7 @@
 set(_lib "gfn0")
 set(_pkg "GFN0")
 set(_url "https://github.com/pprcht/gfn0")
-set(_branch "4fbf39bf6790eaef74e06fbb49b98f676db66a2b")
+set(_branch "d77fea885a890eae98939037e1e618e768608bc4")
 
 if(NOT DEFINED "${_pkg}_FIND_METHOD")
   set("${_pkg}_FIND_METHOD" "subproject" "cmake" "fetch" "pkgconf")
