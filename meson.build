@@ -450,7 +450,7 @@ endif
 
 add_test_setup('crest',
   is_default     : true,
-  exclude_suites : ['ddx','toml-f'],
+  exclude_suites : ['ddx','toml-f','jonquil'],
 )
 
 install_data(
