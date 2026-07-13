@@ -1,7 +1,7 @@
 set(_lib "mstore")
 set(_pkg "MSTORE")
 set(_url "https://github.com/grimme-lab/mstore")
-set(_branch "10a3437b3634dd4464557580ae36c1ed72535f6c")
+set(_branch "663245d739be0123da61c917e55116b0c3db4c74")
 
 # Discovery method order can be overridden by the parent project, e.g.:
 #   set(mstore_FIND_METHOD "subproject" "cmake")
