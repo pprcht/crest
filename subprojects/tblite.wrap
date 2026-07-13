@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/tblite/tblite
-revision = 5dc1c97858eb585111affc6627783800bafb87cc
+revision = b244a0f2f9f254781f09711d05573f3225df4eb2
 clone-recursive = true
 
 [provide]
