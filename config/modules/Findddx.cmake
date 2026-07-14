@@ -38,6 +38,16 @@ if(TARGET "ddx::ddx")
 endif()
 message(STATUS "Found ddx: ${found}")
 
+# ddX's own CMake writes its Fortran .mod files into <binary>/subprojects/ddx/src
+# but only exposes an install-interface include dir ($<INSTALL_INTERFACE:include>).
+# In-tree consumers (tblite, crest) therefore cannot locate ddx.mod during the
+# build.  Expose the module output directory through the build interface so the
+# subproject build resolves like the sibling subprojects (mctc-lib, s-dftd3).
+if(TARGET "ddx")
+  target_include_directories("ddx" INTERFACE
+    "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/subprojects/ddx/src>")
+endif()
+
 unset(_lib)
 unset(_pkg)
 unset(_url)
