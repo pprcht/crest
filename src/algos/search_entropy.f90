@@ -132,6 +132,9 @@ subroutine crest_search_entropy(env,tim)
     env%eprivious = rdat%eprivious
     env%nmetadyn = rdat%nmetadyn
     start = .false.
+! ── restore lowest structure as reference geometry ─────────────────
+    call restart_restore_reference(env,rdat%last_file)
+    call env%ref%to(mol)
   end if
   MAINLOOP: do
     call printiter
@@ -228,6 +231,9 @@ subroutine crest_search_entropy(env,tim)
       if (.not.lower) then
         exit mtdloop
       end if
+!>--- a lower conformer was found: seed the next MTD round from it
+!>--- (env%ref is kept at the current lowest by CREGEN)
+      call env%ref%to(mol)
     end do mtdloop
     end if !> end skip_mtdloop guard
     skip_mtdloop = .false.
@@ -320,6 +326,8 @@ subroutine crest_search_entropy(env,tim)
             call elowcheck(lower,env)
             if (lower.and.env%entropic) then
               env%emtd%nbias = bref  !> IMPORTANT, reset for restart
+!>--- restart sampling from the new lowest structure
+              call env%ref%to(mol)
               cycle MAINLOOP
             end if
 
@@ -357,9 +365,8 @@ subroutine crest_search_entropy(env,tim)
   end do MAINLOOP
 
 !==========================================================!
-!>--- checkpoint: run is complete
-  call write_restart_log(env%crestver,'done',env%nreset,0, &
-    &  env%nmetadyn,env%elowest,env%eprivious,conformerfile)
+!>--- run is complete: drop the restart checkpoint
+  call delete_restart_log()
 
 !==========================================================!
 !>--- print CREGEN results and clean up Directory a bit

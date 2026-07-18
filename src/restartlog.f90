@@ -45,6 +45,7 @@ module crest_restartlog
   public :: read_restart_log
   public :: restart_file_exists
   public :: print_restart_info
+  public :: delete_restart_log
 
 !========================================================================================!
 !========================================================================================!
@@ -101,6 +102,24 @@ contains !> MODULE PROCEDURES START HERE
     write(ich,'(a,1x,f25.15)') 'eprivious', eprivious
     close(ich)
   end subroutine write_restart_log
+
+!========================================================================================!
+
+  subroutine delete_restart_log()
+!*************************************
+!* Remove crest.restart from the
+!* current directory. Called on
+!* successful completion of a run so
+!* no stale checkpoint is left behind.
+!*************************************
+    implicit none
+    integer :: ich,io
+    logical :: ex
+    inquire(file=restart_file,exist=ex)
+    if (.not.ex) return
+    open(newunit=ich,file=restart_file,status='old',iostat=io)
+    if (io == 0) close(ich,status='delete')
+  end subroutine delete_restart_log
 
 !========================================================================================!
 

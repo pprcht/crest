@@ -121,6 +121,9 @@ subroutine crest_search_imtdgc(env,tim)
     env%eprivious = rdat%eprivious
     env%nmetadyn = rdat%nmetadyn
     start = .false.
+! ── restore lowest structure as reference geometry ─────────────────
+    call restart_restore_reference(env,rdat%last_file)
+    call env%ref%to(mol)
   end if
   MAINLOOP: do
     call printiter
@@ -217,6 +220,8 @@ subroutine crest_search_imtdgc(env,tim)
       if (.not.lower) then
         exit mtdloop
       end if
+!>--- a lower conformer was found: seed the next MTD round from it
+      call env%ref%to(mol)
     end do mtdloop
     end if !> end skip_mtdloop guard
     skip_mtdloop = .false.
@@ -275,6 +280,8 @@ subroutine crest_search_imtdgc(env,tim)
         call checkname_xyz(crefile,atmp,str)
         call checkname_xyz('.cre',str,btmp)
         call rename(atmp,btmp)
+!>--- restart sampling from the new lowest structure
+        call env%ref%to(mol)
         cycle MAINLOOP
       end if
     end if
@@ -293,7 +300,11 @@ subroutine crest_search_imtdgc(env,tim)
         call checkname_xyz(crefile,atmp,str)
         call checkname_xyz('.cre',str,btmp)
         call rename(atmp,btmp)
-        if (env%iterativeV2) cycle MAINLOOP
+        if (env%iterativeV2) then
+!>--- restart sampling from the new lowest structure
+          call env%ref%to(mol)
+          cycle MAINLOOP
+        end if
       end if
     end if
 
@@ -315,9 +326,8 @@ subroutine crest_search_imtdgc(env,tim)
   if (env%iostatus_meta .ne. 0) return
 
 !==========================================================!
-!>--- checkpoint: run is complete
-  call write_restart_log(crest_imtd,'done',env%nreset,0, &
-    &  env%nmetadyn,env%elowest,env%eprivious,conformerfile)
+!>--- run is complete: drop the restart checkpoint
+  call delete_restart_log()
 
 !==========================================================!
 !>--- final ensemble sorting
@@ -334,6 +344,56 @@ subroutine crest_search_imtdgc(env,tim)
 !==========================================================!
   return
 end subroutine crest_search_imtdgc
+
+!========================================================================================!
+!>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
+!========================================================================================!
+
+subroutine restart_restore_reference(env,fname)
+!****************************************************************
+!* Reload the lowest (first) structure of the last CREGEN-sorted
+!* ensemble into env%ref%xyz on restart.
+!*
+!* During an uninterrupted run CREGEN sets env%ref%xyz to the
+!* lowest conformer (saveelow branch). The crest.restart
+!* checkpoint stores no geometry, so after a restart env%ref%xyz
+!* still holds the input structure. Re-reading it here from the
+!* recorded ensemble restores the reference point a continuous
+!* run would have had. Units match: both env%ref%xyz and the
+!* coord ensemble are in Bohr. Silently returns if the file is
+!* missing/empty; the working 'mol' geometry is not modified.
+!*
+!* Arguments:
+!*   env   - system data (env%ref%xyz is updated in place)
+!*   fname - last ensemble file recorded in the checkpoint
+!****************************************************************
+  use crest_parameters,only:wp,stdout
+  use crest_data
+  use strucrd
+  implicit none
+  type(systemdata),intent(inout) :: env
+  character(len=*),intent(in)    :: fname
+  type(coord),allocatable :: structures(:)
+  integer :: nall
+  logical :: ex
+
+  if (len_trim(fname) == 0) return
+  inquire (file=trim(fname),exist=ex)
+  if (.not.ex) return
+
+  call rdensemble(trim(fname),nall,structures)
+  if (nall < 1) return
+  if (.not.allocated(structures(1)%xyz)) return
+
+!>--- only overwrite when the atom count matches the reference
+  if (allocated(env%ref%xyz)) then
+    if (size(env%ref%xyz,2) == structures(1)%nat) then
+      env%ref%xyz = structures(1)%xyz
+      write (stdout,'(1x,a,a)') &
+        & 'Restart: reference geometry restored from ',trim(fname)
+    end if
+  end if
+end subroutine restart_restore_reference
 
 !========================================================================================!
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<!
