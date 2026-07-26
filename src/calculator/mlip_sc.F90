@@ -47,6 +47,8 @@ module mlip_sc
     !> FairChem UMA backend options (--backend uma)
     character(len=:),allocatable :: umamodel  !> checkpoint, e.g. uma-s-1p2 (default), uma-m-1
     character(len=:),allocatable :: umatask   !> task head: omol | omat | omc | oc20 | odac
+    integer :: max_threads = 0 !> CPU thread cap per server (--max-threads), synced from
+                               !> the level's threads setting; <1 = unset (inherit env)
     integer :: iid = 0
   end type mlip_params
 
@@ -107,6 +109,11 @@ contains  !>--- Module routines start here
     !> options prepping
     tmpport = MPAR%BASE_PORT+iid
     write (cmd_1,'("--dtype float64")')
+    !> cap the server's CPU inference threads (torch/BLAS pools) to the
+    !> per-level core reservation so parallel instances don't oversubscribe
+    if (MPAR%max_threads > 0) then
+      write (cmd_1,'(a,1x,a,1x,i0)') trim(cmd_1),'--max-threads',MPAR%max_threads
+    end if
 
     select case (MPAR%backend)
     case ('mace_off','mace_mp')

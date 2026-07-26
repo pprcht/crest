@@ -563,6 +563,7 @@ contains    !> MODULE PROCEDURES START HERE
     do i = 1,T
       do j = 1,calculations(i)%ncalculations
         if (calculations(i)%calcs(j)%id == jobtype%mlip) then
+          calculations(i)%calcs(j)%MPAR%max_threads = calculations(i)%calcs(j)%threads
           call fmlip_relay_init(calculations(i)%calcs(j)%MPAR,i)
         end if
       end do
@@ -591,6 +592,9 @@ contains    !> MODULE PROCEDURES START HERE
 !>--- each OpenMP thread owns one server instance; init is a no-op if running
     iid = OMP_GET_THREAD_NUM()+1
     !$omp critical
+    !> forward the per-level core reservation as the server's thread cap so
+    !> every instance (also ones started serially) is spawned with the same size
+    calc%MPAR%max_threads = calc%threads
     call fmlip_relay_init(calc%MPAR,iid)
 !>--- printout handling
     call api_handle_output(calc,'mlip.out',mol,pr)

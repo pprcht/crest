@@ -484,8 +484,9 @@ contains  !>--- Module routines start here
 !* Largest thread reservation among active levels whose
 !* backend is HARD-CAPPED at that count, i.e. uses exactly
 !* threads cores and does not grow into cores_per_job via the
-!* OMP_NUM_THREADS env var / nested OpenMP. Currently only the
-!* ORCA subprocess is hard-capped (its %pal is written from
+!* OMP_NUM_THREADS env var / nested OpenMP. Hard-capped are the
+!* ORCA subprocess (its %pal is written from threads) and the
+!* fmlip-relay MLIP servers (spawned with --max-threads from
 !* threads); internal API calculators and generic subprocesses
 !* pick up cores_per_job instead and thus soak leftover cores.
 !*
@@ -499,7 +500,8 @@ contains  !>--- Module routines start here
     if (self%ncalculations > 0) then
       do i = 1,self%ncalculations
         if (.not.self%calcs(i)%active) cycle
-        if (self%calcs(i)%id == jobtype%orca) then
+        if (self%calcs(i)%id == jobtype%orca .or. &
+        &   self%calcs(i)%id == jobtype%mlip) then
           maxcap = max(maxcap,self%calcs(i)%threads)
         end if
       end do
@@ -1731,6 +1733,10 @@ contains  !>--- Module routines start here
             write (iunit,fmt3) atmp,trim(self%MPAR%device)
           end if
         end select
+        if (self%threads > 0) then
+          write (atmp,*) 'Server thread cap'
+          write (iunit,fmt1) atmp,self%threads
+        end if
         if (self%MPAR%BASE_PORT /= 54320) then
           write (atmp,*) 'Socket base port'
           write (iunit,fmt1) atmp,self%MPAR%BASE_PORT

@@ -14,7 +14,7 @@ checkouts).
 | [`gfnff`](https://github.com/pprcht/gfnff) | A GFN-FF standalone library | `-DWITH_GFNFF=true` (default) | `v0.2.0` (`272ed91`) | ✅ | ✅ | ✅ |
 | [`libpvol`](https://github.com/pprcht/libpvol) | Molecular volume/surface library (PV, XHCFF) | `-DWITH_LIBPVOL=true` (default) | branch `build-update` (`010bdda`) | ✅ | ✅ | ✅ |
 | [`lwoniom`](https://github.com/crest-lab/lwoniom) | A lightweight ONIOM implementation | `-DWITH_LWONIOM=true` (default) | `v0.0.1` (`ab66c7e`) | ✅ | ✅ | ✅ |
-| [`fmlip_relay`](https://github.com/pprcht/fmlip-relay) | Relay interface to the fmlip ML/IP potential | `-DWITH_FMLIP_RELAY=true` (default) | branch `main` (`06608de`) | ✅ | ✅ | ✅ |
+| [`fmlip_relay`](https://github.com/pprcht/fmlip-relay) | Relay interface to the fmlip ML/IP potential | `-DWITH_FMLIP_RELAY=true` (default) | branch `main` (`1f29707`) | ✅ | ✅ | ✅ |
 
 **Transitive dependencies** (pulled in automatically by the above — mostly
 through `tblite` — with no separate CREST build option):
