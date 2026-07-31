@@ -52,3 +52,4 @@ It is assumed that the `crest` binary is available in `$PATH`.
 | **18** | fmlip-relay: geometry optimisation with MACE-OFF23 model | caffeine |
 | **19** | Implicit-solvation add-on (ddX/EEQ-BC composite, GFN2 parent) | 1-propanol |
 | **20** | External ORCA subprocess as engrad backend (geometry opt.) | n-pentane |
+| **21** | ONIOM embedding (GFN2 head group in GFN-FF, opt. + freq.) | 1-propanol |

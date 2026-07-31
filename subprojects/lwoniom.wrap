@@ -1,6 +1,6 @@
 [wrap-git]
 url = https://github.com/crest-lab/lwoniom
-revision = ab66c7ebc3066328a8fc313dc783aec9b773cad2
+revision = 9430975e59d759879e157dd1cb9b83468f57fd36
 clone-recursive = true
 
 [provide]

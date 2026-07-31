@@ -328,8 +328,7 @@ module calc_type
 !>--- ONIOM calculator data
     type(lwoniom_data),allocatable :: ONIOM
     type(coord),allocatable :: ONIOMmols(:)
-    integer,allocatable :: ONIOMmap(:) !> map ONIOM fragments to calculation_settings
-    integer,allocatable :: ONIOMrevmap(:) !> map calculation settings to ONIOM frags (or zero)
+    integer,allocatable :: ONIOMmap(:) !> map lwONIOM jobs to calculation_settings
 
 !>--- Hessian Reconstructor and Thermo data
     type(cashed_hessian),allocatable :: chess
@@ -820,7 +819,6 @@ contains  !>--- Module routines start here
 
 ! ── ONIOM integer maps ───────────────────────────────────────────────────────
     if (allocated(src%ONIOMmap))    self%ONIOMmap    = src%ONIOMmap
-    if (allocated(src%ONIOMrevmap)) self%ONIOMrevmap = src%ONIOMrevmap
 
 ! ── thermochemistry ──────────────────────────────────────────────────────────
     self%do_HR              = src%do_HR
@@ -845,7 +843,14 @@ contains  !>--- Module routines start here
     if (allocated(src%gt))   self%gt   = src%gt
     if (allocated(src%stot)) self%stot = src%stot
 
-!>  NOTE: API handle objects (g0calc, ONIOM, ONIOMmols, chess) are NOT copied;
+! ── ONIOM model data ─────────────────────────────────────────────────────────
+    !> lwoniom_data is plain (allocatable-only) Fortran data, so a deep copy
+    !> is safe and REQUIRED: engrad consults calc%ONIOM of the object it is
+    !> called with, and algos like crest_singlepoint work on a copy.
+    !> (The ONIOMmols scratch buffers are recreated on demand in engrad.)
+    if (allocated(src%ONIOM)) self%ONIOM = src%ONIOM
+
+!>  NOTE: API handle objects (g0calc, ONIOMmols, chess) are NOT copied;
 !>        they hold C-level or heavy reconstructed state and are re-initialized.
     return
   end subroutine calculation_copy
@@ -1030,19 +1035,25 @@ contains  !>--- Module routines start here
 
   subroutine calculation_ONIOMexpand(self)
 !*******************************************************
-!* for an ONIOM calculations some of the calculators
-!* have to be duplikated, which is done by this routine
+!* for an ONIOM calculation some of the calculators
+!* have to be duplicated, which is done by this routine.
+!* The canonical list of required calculations is taken
+!* from lwONIOM's job table (lwoniom_get_jobs); crest
+!* only clones its calculation_settings templates
+!* accordingly and records the job -> calculator index
+!* mapping in self%ONIOMmap.
 !*******************************************************
     class(calcdata) :: self
-    integer :: ncalcs
-    integer :: maxid
-    integer :: i,j,k,l,newid,j2
+    type(lwoniom_job),allocatable :: jobs(:)
     type(calculation_settings) :: calculator
-    integer,allocatable :: newids(:,:)
+    integer :: j,ref,newid,maxid
     character(len=40) :: atmp
     if (.not.allocated(self%ONIOM)) return
-    ncalcs = self%ONIOM%ncalcs
-    maxid = maxval(self%ONIOM%calcids(1,:),1)
+
+! ── canonical job list from lwONIOM (frag-major, high before low, root once) ──
+    call lwoniom_get_jobs(self%ONIOM,jobs)
+
+    maxid = maxval(jobs(:)%theoryid,1)
     if (maxid > self%ncalculations) then
       write (stdout,'(a)') '**ERROR** in ONIOM setup: not enough calculators defined!'
       error stop
@@ -1051,78 +1062,46 @@ contains  !>--- Module routines start here
     write (stdout,'(a)',advance='no') 'Assigning and duplicating calculators for ONIOM setup ...'
     flush (stdout)
 
-    allocate (self%ONIOMmap(ncalcs),source=0)
-    allocate (newids(2,self%ONIOM%nfrag),source=0)
-    k = 0
-    do i = 1,self%ONIOM%nfrag
+! ── one crest calculator per job: reuse each template once, then clone ────────
+    if (allocated(self%ONIOMmap)) deallocate (self%ONIOMmap)
+    allocate (self%ONIOMmap(size(jobs)),source=0)
+    do j = 1,size(jobs)
+      !> the reference calculation_settings object (from layerlevel input)
+      ref = jobs(j)%theoryid
+      if (any(self%ONIOMmap(1:j-1) .eq. ref)) then
+        !> template already assigned to another job: duplicate the calculator.
+        !> However, we MUST not use restart I/O options for duplicates!
+        call calculator%deallocate()
+        calculator = self%calcs(ref)
+        call calculator%norestarts()
+        call self%add(calculator)
+        newid = self%ncalculations
+      else
+        !> otherwise (i.e. it's not yet present), we can simply use it in place
+        newid = ref
+      end if
+      self%ONIOMmap(j) = newid
 
-      do l = 1,2
-        !> j is now the ID of the reference calculation_settings object
-        j = self%ONIOM%calcids(l,i)
-        if (l == 2) then
-          !> to exlcude the highest ONIOM layer, we need to cycle
-          j2 = self%ONIOM%calcids(1,i)
-          if (j == j2) then
-            newid = newids(1,i)
-            newids(2,i) = newid
-            self%calcs(newid)%ONIOM_highlowroot = 3
-            self%calcs(newid)%ONIOM_id = i
-            cycle
-          end if
-        end if
+      self%calcs(newid)%ONIOM_id = jobs(j)%fragid
+      self%calcs(newid)%ONIOM_highlowroot = jobs(j)%level
+      select case (jobs(j)%level)
+      case (oniom_high)
+        write (atmp,'(a,i0,a)') 'ONIOM.',jobs(j)%fragid,'.high'
+      case (oniom_low)
+        write (atmp,'(a,i0,a)') 'ONIOM.',jobs(j)%fragid,'.low'
+      case (oniom_root)
+        write (atmp,'(a,i0,a)') 'ONIOM.',jobs(j)%fragid,'.root'
+      end select
+      self%calcs(newid)%calcspace = trim(atmp)
 
-        if (any(self%ONIOMmap(:) .eq. j)) then
-          !> If one of this type is already in the mapping, duplicate the calculator and add it
-          call calculator%deallocate()
-          calculator = self%calcs(j)
-          !> However, we MUST not use restart I/O options for duplicates!
-          call calculator%norestarts()
-          call self%add(calculator)
-          newid = self%ncalculations
-          k = k+1
-          self%ONIOMmap(k) = newid
-        else
-          !> otherwise (i.e. it's not yet present), we can simply add it
-          k = k+1
-          newid = j
-          self%ONIOMmap(k) = newid
-        end if
-        newids(l,i) = newid
+      !> ALWAYS set the weight of ONIOM calcs to 0!
+      self%calcs(newid)%weight = 0.0_wp
 
-        self%calcs(newid)%ONIOM_highlowroot = l
-        self%calcs(newid)%ONIOM_id = i
-        select case (l)
-        case (1)
-          write (atmp,'(a,i0,a)') 'ONIOM.',i,'.high'
-        case (2)
-          write (atmp,'(a,i0,a)') 'ONIOM.',i,'.low'
-        case (3)
-          write (atmp,'(a,i0,a)') 'ONIOM.',i,'.root'
-        end select
-        self%calcs(newid)%calcspace = trim(atmp)
-
-        !> ALWAYS set the weight of ONIOM calcs to 0!
-        self%calcs(newid)%weight = 0.0_wp
-
-        !> Check if the ONIOM fragment has a charge attached!
-        if (allocated(self%ONIOM%fragment(i)%chrg)) then
-          self%calcs(newid)%chrg = self%ONIOM%fragment(i)%chrg
-        end if
-
-      end do
+      !> transfer fragment charge/multiplicity, if attached
+      if (allocated(jobs(j)%chrg)) self%calcs(newid)%chrg = jobs(j)%chrg
+      if (allocated(jobs(j)%uhf)) self%calcs(newid)%uhf = jobs(j)%uhf
     end do
-    self%ONIOM%calcids = newids
-    deallocate (newids)
-
-    if (allocated(self%ONIOMrevmap)) deallocate (self%ONIOMrevmap)
-    allocate (self%ONIOMrevmap(self%ncalculations),source=0)
-    do i = 1,self%ncalculations
-      do j = 1,self%ONIOM%ncalcs
-        if (self%ONIOMmap(j) == i) then
-          self%ONIOMrevmap(i) = j
-        end if
-      end do
-    end do
+    !> NOTE: self%ONIOM%calcids remains untouched (it keeps the theory level ids)
 
     write (stdout,*) 'done.'
   end subroutine calculation_ONIOMexpand

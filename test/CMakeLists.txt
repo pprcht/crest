@@ -15,6 +15,7 @@ set(
   "graphs"
   "ddx"
   "external"
+  "oniom"
 )
 set(
   test-srcs

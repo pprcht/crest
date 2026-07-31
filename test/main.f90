@@ -17,6 +17,7 @@ program tester
   use test_graphs, only: collect_graphs
   use test_ddx, only: collect_ddx
   use test_external, only: collect_external
+  use test_oniom, only: collect_oniom
   implicit none
   integer :: stat, is
   character(len=:), allocatable :: suite_name, test_name
@@ -46,7 +47,8 @@ program tester
     new_testsuite("irmsd", collect_irmsd), &
     new_testsuite("graphs", collect_graphs), &
     new_testsuite("ddx", collect_ddx), &
-    new_testsuite("external", collect_external) &
+    new_testsuite("external", collect_external), &
+    new_testsuite("oniom", collect_oniom) &
   ]
 !&>
 
