@@ -1283,6 +1283,7 @@ contains  !>--- Module routines start here
     self%chrg       = src%chrg
     self%uhf        = src%uhf
     self%multiplicity = src%multiplicity
+    self%spin_polarized = src%spin_polarized
     self%active     = src%active
     self%weight     = src%weight
     self%threads    = src%threads
