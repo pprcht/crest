@@ -166,8 +166,34 @@ contains !> MODULE PROCEDURES START HERE
         write (stdout,fmturk) '[['//blk%header//']]-block',blk%kv_list(i)%key
       end if
     end do
+
+!>-- method-specific defaults, applied only after the entire block was read
+!>   so that they do not depend on the order of the key/value pairs
+    call parse_level_defaults(job)
     return
   end subroutine parse_leveldata
+
+!========================================================================================!
+
+  subroutine parse_level_defaults(job)
+!************************************************************
+!* Apply defaults that depend on the selected method but must
+!* not overwrite anything the user specified explicitly.
+!* Currently only the electronic temperature: g-xTB works with
+!* integer occupations, i.e. Tel = 0 K, whereas the GFNn-xTB
+!* Hamiltonians default to 300 K.
+!************************************************************
+    implicit none
+    type(calculation_settings),intent(inout) :: job
+
+    if (job%tblitelvl == xtblvl%gxtb.and..not.job%etemp_user_set) then
+      job%etemp = 0.0_wp
+    end if
+
+  end subroutine parse_level_defaults
+
+!========================================================================================!
+
   subroutine parse_setting_auto(env,job,kv,rd)
     implicit none
     type(systemdata),intent(inout) :: env
