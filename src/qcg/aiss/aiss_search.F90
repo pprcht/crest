@@ -102,6 +102,7 @@ contains  !> MODULE PROCEDURES START HERE
     n2 = d%n2
     kk = 0
     nclust = 0
+    ll = 0
 
     if (pr) then
       write (iunit,*)
@@ -151,10 +152,10 @@ contains  !> MODULE PROCEDURES START HERE
     comb%chrg = molA%chrg+molB%chrg
     comb%uhf = molA%uhf+molB%uhf
 
-!>-- grid borders; yy1/zz1 subtract the x minimum, as in xtb
+!>-- grid borders
     xx1 = maxval(d%xyz1(1,1:n1))-minval(d%xyz1(1,1:n1))
-    yy1 = maxval(d%xyz1(2,1:n1))-minval(d%xyz1(1,1:n1))
-    zz1 = maxval(d%xyz1(3,1:n1))-minval(d%xyz1(1,1:n1))
+    yy1 = maxval(d%xyz1(2,1:n1))-minval(d%xyz1(2,1:n1))
+    zz1 = maxval(d%xyz1(3,1:n1))-minval(d%xyz1(3,1:n1))
     dum = [xx1,yy1,zz1]
     dx2 = maxval(d%xyz2(1,1:n2))-minval(d%xyz2(1,1:n2))
     dy2 = maxval(d%xyz2(2,1:n2))-minval(d%xyz2(2,1:n2))
@@ -324,16 +325,18 @@ contains  !> MODULE PROCEDURES START HERE
         found_tmp = found2(1:6,i)
         call place_b(found_tmp)
         call optimize_complex(etot,iostat)
-        !> xtb stores every pocket at index kk (only the last survives)
-        xyz_pocket(:,:,kk) = comb%xyz(:,:)
+        xyz_pocket(:,:,i) = comb%xyz(:,:)
         pocket_e(i) = etot
         if (pr) write (iunit,'(''pocket '',i3,'' E /au :'',f9.2)') i,etot
       end do
 
       if (.not.cfg%stack_grid.and..not.cfg%angular_grid) then
-        !> xtb stops here without final optimizations
+        !> pocket-only search: return the lowest pocket structure
+        call sortxyz_e(n,kk,pocket_e,xyz_pocket)
         best = comb
-        best%energy = pocket_e(kk)
+        best%xyz = xyz_pocket(:,:,1)
+        best%energy = pocket_e(1)
+        eint = (pocket_e(1)-molA_e-molB_e)*au
         return
       end if
     end if
@@ -385,10 +388,11 @@ contains  !> MODULE PROCEDURES START HERE
       call qsort(rprob,1,nn,rind)
       if (pr) write (iunit,'(''   lowest found /kcal :'',F8.2)') rprob(1)*au
       do i = 1,nn/100
+        if (nclust >= ndim) exit
         if (rprob(i) .lt. 0.1) then
           nclust = nclust+1
           found(1:6,nclust) = rprobc(1:6,rind(i))
-          found(7,nclust) = rprob(rind(i))
+          found(7,nclust) = rprob(i)*au
         end if
       end do
       ll = nclust
@@ -426,7 +430,8 @@ contains  !> MODULE PROCEDURES START HERE
         end do
         dx = dx+stepr3(1)
       end do
-      cfg%stepa = pi2/float(m1-1)
+      !> m1 distinct angles in [0,2pi)
+      cfg%stepa = pi2/float(m1)
 
       !$omp parallel do default(none) &
       !$omp shared(xyzprob4,maxlow,m1,cfg,xyzprob3,d) &
@@ -440,7 +445,7 @@ contains  !> MODULE PROCEDURES START HERE
               displ(6) = (k-1)*cfg%stepa
               displ(1:3) = xyzprob3(1:3,icycle)
               call iff_e(d,.false.,-1,e,displ)
-              l = k+m1*(j-1)+m1**2*(i-1)+(icycle-1)*maxlow
+              l = k+m1*(j-1)+m1**2*(i-1)+(icycle-1)*m1**3
               xyzprob4(1:6,l) = displ(1:6)
               xyzprob4(7,l) = e
             end do
@@ -451,7 +456,7 @@ contains  !> MODULE PROCEDURES START HERE
       call sort6(nn,xyzprob4)
 
       !> merge stack and angular candidates and rank them
-      ll = 5*cfg%maxparent+nclust
+      ll = min(5*cfg%maxparent+nclust,ndim,nclust+nn)
       !$omp parallel do default(none) &
       !$omp shared(found,ll,xyzprob4,nclust,d) private(i,displ,e)
       do i = 1,ll
@@ -561,7 +566,7 @@ contains  !> MODULE PROCEDURES START HERE
     allocate (xyz_opt(3,n,cfg%n_opt+kk),final_e(cfg%n_opt+kk),source=0.0_wp)
     if (pr) write (iunit,'(/,''Optimizing '',i0,'' best structures with '',a )') cfg%n_opt,cfg%optlvl
     do icycle = 1,cfg%n_opt
-      found_tmp = found2(1:6,icycle)
+      found_tmp = found(1:6,icycle)
       call place_b(found_tmp)
       if (pr) write (iunit,*) icycle
       call optimize_complex(etot,iostat)
@@ -615,6 +620,9 @@ contains  !> MODULE PROCEDURES START HERE
       integer,intent(out)  :: stat
       energy = 0.0_wp
       grad = 0.0_wp
+      !> GFN-FF: fresh topology at the start geometry (xtb restart_gff); the
+      !> fragment split keeps A and B unbonded
+      if (allocated(calc%calcs(1)%ff_dat)) deallocate (calc%calcs(1)%ff_dat)
       call optimize_geometry(comb,molopt,calc,energy,grad,.false.,.false.,stat)
       if (allocated(molopt%xyz)) comb%xyz = molopt%xyz
       if (stat /= 0.and.pr) write (iunit,*) 'Warning: geometry optimization did not converge'

@@ -211,8 +211,9 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine setup_complex_calc(cfg,d,molA,molB,calc,nfix,walls,ucons,io)
     !*****************************************************
     !* Calculator for the complex optimizations. GFN-FF
-    !* keeps A and B as separate topology fragments
-    !* (xtb: topology backup of the separated monomers).
+    !* keeps A and B as separate topology fragments with
+    !* fixed fragment charges (xtb: topology backup of the
+    !* separated monomers).
     !*****************************************************
     type(aiss_config),intent(in) :: cfg
     type(iff_data),intent(in)    :: d
@@ -223,10 +224,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(calcdata),intent(in),optional :: ucons
     integer,intent(out)          :: io
     type(calculation_settings) :: clevel
-    type(coord) :: comb
-    real(wp),allocatable :: grd(:,:)
-    real(wp) :: etmp
-    integer :: i,n,ncons
+    integer :: i,n
     character(len=64) :: frag1,frag2
 
     io = 0
@@ -250,23 +248,6 @@ contains  !> MODULE PROCEDURES START HERE
         call calc%add(ucons%cons(i))
       end do
     end if
-
-    if (cfg%optlvl == 'gfnff') then
-      !>-- topology from the separated fragments (xtb: combine_mol)
-      comb%nat = n
-      allocate (comb%at(n),comb%xyz(3,n),grd(3,n))
-      comb%at(1:d%n1) = molA%at
-      comb%at(d%n1+1:n) = molB%at
-      comb%xyz(:,1:d%n1) = molA%xyz
-      comb%xyz(:,d%n1+1:n) = molB%xyz+d%shift_geo
-      comb%chrg = molA%chrg+molB%chrg
-      comb%uhf = molA%uhf+molB%uhf
-      ncons = calc%nconstraints
-      calc%nconstraints = 0
-      call engrad(comb,calc,etmp,grd,io)
-      calc%nconstraints = ncons
-      if (io /= 0) write (stdout,'(a)') 'Error: GFN-FF setup for the docking complex failed'
-    end if
   end subroutine setup_complex_calc
 
 !========================================================================================!
@@ -274,7 +255,7 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine fragment_energies(cfg,d,molA,molB,walls,molA_e,molB_e,io)
     !*****************************************************
     !* Unoptimized fragment energies: GFN-FF single points
-    !* with walls clipped to the fragment, or the xTB
+    !* with the walls acting on the fragment, or the xTB
     !* precomputation energies at the same level.
     !*****************************************************
     type(aiss_config),intent(in) :: cfg
@@ -290,14 +271,15 @@ contains  !> MODULE PROCEDURES START HERE
       molB_e = d%etot(2)
       return
     end if
-    call fragment_sp(molA,molA_e,io)
+    call fragment_sp(molA,0,molA_e,io)
     if (io /= 0) return
-    call fragment_sp(molB,molB_e,io)
+    call fragment_sp(molB,molA%nat,molB_e,io)
 
   contains
 
-    subroutine fragment_sp(mol,energy,stat)
+    subroutine fragment_sp(mol,offset,energy,stat)
       type(coord),intent(in) :: mol
+      integer,intent(in)     :: offset
       real(wp),intent(out)   :: energy
       integer,intent(out)    :: stat
       type(calcdata) :: fcalc
@@ -307,7 +289,7 @@ contains  !> MODULE PROCEDURES START HERE
       call flevel%create(cfg%optlvl,chrg=mol%chrg,uhf=mol%uhf)
       flevel%etemp = cfg%etemp
       call fcalc%add(flevel)
-      if (cfg%optlvl == 'gfnff'.and.present(walls)) call aiss_add_walls(fcalc,mol%nat,walls)
+      if (cfg%optlvl == 'gfnff'.and.present(walls)) call aiss_add_walls(fcalc,mol%nat,walls,offset)
       molsp = mol
       allocate (grd(3,mol%nat))
       call engrad(molsp,fcalc,energy,grd,stat)
@@ -318,24 +300,29 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine aiss_add_walls(calc,nat,walls)
+  subroutine aiss_add_walls(calc,nat,walls,offset)
     !*****************************************************
     !* xtb polynomial walls (|r/radius|)^30 as CREST
-    !* ellipsoids with k=1, alpha=15; out-of-range list
-    !* entries are dropped.
+    !* ellipsoids with k=1, alpha=15. Wall lists use the
+    !* complex numbering; offset maps them onto a fragment
+    !* (atom j of the fragment is list entry j+offset).
     !*****************************************************
     type(calcdata),intent(inout) :: calc
     integer,intent(in) :: nat
     type(aiss_wall),intent(in) :: walls(:)
+    integer,intent(in),optional :: offset
     type(constraint) :: cons
     logical,allocatable :: atms(:)
-    integer :: i,j
+    integer :: i,j,k,off
+    off = 0
+    if (present(offset)) off = offset
     allocate (atms(nat))
     do i = 1,size(walls)
       if (allocated(walls(i)%list)) then
         atms = .false.
         do j = 1,size(walls(i)%list)
-          if (walls(i)%list(j) <= nat) atms(walls(i)%list(j)) = .true.
+          k = walls(i)%list(j)-off
+          if (k >= 1.and.k <= nat) atms(k) = .true.
         end do
       else
         atms = .true.
