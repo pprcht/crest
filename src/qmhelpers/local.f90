@@ -593,10 +593,8 @@ contains  !> MODULE PROCEDURES START HERE
     !* dip   : packed lower-triangular electronic dipole integrals
     !*         -<mu|r|nu> over the nao AOs, gauge origin at zero
     !* eig   : orbital energies in Hartree
-    !* nlmo  : number of LMO centers with type > 0; lmo(i)/rlmo(1:3,i)
-    !*         are stored at their original index i (gaps where a
-    !*         sigma LMO was removed, as in xtb). lmo and rlmo must be
-    !*         zero-initialized by the caller.
+    !* nlmo  : number of LMO centers with type > 0, stored in
+    !*         lmo(1:nlmo) and rlmo(1:3,1:nlmo)
     !* qct   : HOMO (:,1) and LUMO (:,2) atomic populations
     !* dipol : total dipole moment (au)
     !******************************************************************
@@ -661,8 +659,10 @@ contains  !> MODULE PROCEDURES START HERE
       enlumo = enlumo+eig(nlev)
       call levelpop(nlev,2)
     end do
-    enlumo = enlumo/real(klev,wp)
-    qhl(1:nat,2) = qhl(1:nat,2)/real(klev,wp)
+    if (klev > 0) then
+      enlumo = enlumo/real(klev,wp)
+      qhl(1:nat,2) = qhl(1:nat,2)/real(klev,wp)
+    end if
     if (ilumo .gt. nao) then
       enlumo = 1000.0_wp
       qhl(1:nat,2) = 0.0_wp
@@ -866,13 +866,13 @@ contains  !> MODULE PROCEDURES START HERE
       end if
     end if
 
-!>-- store as in xtb: nlmo counts, but entries keep their index i
+!>-- store the centers with type > 0 contiguously
     nlmo = 0
     do i = 1,n+new
       if (int(rklmo(5,i)) .gt. 0) then
         nlmo = nlmo+1
-        lmo(i) = int(rklmo(5,i))
-        rlmo(1:3,i) = rklmo(1:3,i)
+        lmo(nlmo) = int(rklmo(5,i))
+        rlmo(1:3,nlmo) = rklmo(1:3,i)
       end if
     end do
     qct(1:nat,1:2) = qhl(1:nat,1:2)
