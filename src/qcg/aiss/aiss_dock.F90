@@ -99,6 +99,11 @@ contains  !> MODULE PROCEDURES START HERE
     fz(1:min(nf,size(fz))) = .true.
     if (present(frozen)) fz(1:min(size(frozen),size(fz))) = frozen(1:min(size(frozen),size(fz)))
 
+#ifndef WITH_TBLITE
+    write (stdout,'(a)') 'Error: the aISS docking requires CREST compiled with tblite (dftd4)'
+    io = 1
+    return
+#endif
     cfg = cfg_in
     if (.not.allocated(cfg%optlvl)) cfg%optlvl = 'gfn2'
     if (.not.allocated(cfg%lmolvl)) cfg%lmolvl = 'gfn2'

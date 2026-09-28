@@ -560,10 +560,10 @@ contains  !> MODULE PROCEDURES START HERE
     implicit none
     type(tblite_data),intent(inout) :: tblite
     real(wp),intent(in),allocatable :: efield(:)
-    class(container_type),allocatable :: cont
     logical :: pr
     character(len=90) :: str
 #ifdef WITH_TBLITE
+    class(container_type),allocatable :: cont
     pr = (tblite%ctx%verbosity > 0)
     if (allocated(efield)) then
       if (pr) then
