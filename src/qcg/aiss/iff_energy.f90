@@ -266,7 +266,7 @@ contains  !> MODULE PROCEDURES START HERE
       &   +(d%directed_val(1)/2))
     end if
 
-    if (isnan(e)) e = 1.0_wp**42
+    if (isnan(e)) e = 1.0e42_wp
 
     if (pr.and.e .lt. 10000.2) then
       call rcma(n1,d%xyz1,d%at1,n2,a2,d%at2,r,rmin)
@@ -701,7 +701,7 @@ contains  !> MODULE PROCEDURES START HERE
     eqp = 0
     counter = 0
     qcgpot = (d%ndirected > 0.and.d%directed_type == p_atom_qcg)
-    if (qcgpot) allocate (rab_solu_solv(d%ndirected),source=0.0_wp)
+    if (qcgpot) allocate (rab_solu_solv(d%ndirected),source=huge(1.0_wp))
 
     do i = 1,d%n1
       iat = d%at1(i)
@@ -722,13 +722,13 @@ contains  !> MODULE PROCEDURES START HERE
       dc6 = 1./(r6+r06)+r42/(r6*r2+r08)
       ed = ed+dc6*d%cprob(i)
       if (d%ndirected > 0.and.d%directed_type == p_atom_att) then
-        ed = ed-d%directed_val(i)*(exp(-0.1*((r2-2)**2)))
+        ed = ed-d%directed_val(i)*(exp(-0.1*((r-2)**2)))
       end if
       !> Pauli fitted to the full IFF potential
       rr = -3.85*sqrt(r2/r42)
       ep = ep+val_e(iat)*(erf(rr)+1.)/(r+0.6)
       if (d%ndirected > 0.and.d%directed_type == p_atom_pot) then
-        ep = ep+d%directed_val(i)*(1/r2**pot_expo)*pot_scal
+        ep = ep+d%directed_val(i)*(1/r**pot_expo)*pot_scal
       end if
     end do
 
@@ -740,11 +740,11 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
     e = 8.0d0*ep-ed*0.70d0
-    !> xtb bug kept: +val(1)/2 sits outside the subtracted term
+    !> same erf-shaped QCG attraction as in iff_e
     if (qcgpot) then
-      e = e-(d%directed_val(1)/2) &
+      e = e-((d%directed_val(1)/2) &
       &   *erf(-((d%directed_expo(1)*minval(rab_solu_solv))-(d%directed_expo(2)*d%directed_expo(1)))) &
-      &   +(d%directed_val(1)/2)
+      &   +(d%directed_val(1)/2))
     end if
 
     eqp = eqp*0.1

@@ -205,15 +205,18 @@ contains  !> MODULE PROCEDURES START HERE
         ia1 = lmoatom(2,j,imol)
         vtmp(1:3) = c(1:3,j)-xyz(1:3,ia1)
         s2 = sqrt(vtmp(1)**2+vtmp(2)**2+vtmp(3)**2)
-        !> xtb bug kept: s1 is overwritten instead of summed
-        s1 = vtmp(1)*prxs(1,1)
-        s1 = vtmp(2)*prxs(2,1)
-        s1 = vtmp(3)*prxs(3,1)
+        s1 = dot_product(vtmp,prxs(1:3,1))
         vnew(1:3) = s1*prxs(1:3,1)
         c(1:3,j) = xyz(1:3,ia1)+vnew(1:3)
 
+        !> rescale by 1+sin^2 of the projection angle (cos = 0 for a
+        !> charge perpendicular to the axis)
         s1 = sqrt(vnew(1)**2+vnew(2)**2+vnew(3)**2)
-        aa = (vtmp(1)*vnew(1)+vtmp(2)*vnew(2)+vtmp(3)*vnew(3))/(s1*s2)
+        if (s1*s2 > 1.0e-10_wp) then
+          aa = (vtmp(1)*vnew(1)+vtmp(2)*vnew(2)+vtmp(3)*vnew(3))/(s1*s2)
+        else
+          aa = 0.0_wp
+        end if
         aa = 2.0_wp-aa**2
         ia2 = lmoatom(2,j+1,imol)
         if (ia1 .eq. ia2) then
