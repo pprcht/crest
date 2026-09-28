@@ -15,6 +15,7 @@
 # along with crest.  If not, see <https://www.gnu.org/licenses/>.
 
 srcs += files(
+'qcg_aiss.f90',
 'qcg_coord_type.f90',
 'qcg_main.f90',
 'qcg_misc.f90',

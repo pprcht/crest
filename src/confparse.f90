@@ -2886,6 +2886,16 @@ subroutine parseflags(env,arg,nra)
         processedarg(i) = .true.
         env%docking_qcg_flag = ''
 
+      case ('-aiss_lmo')
+        processedarg(i) = .true.
+        select case (trim(arg1))
+        case ('gfn0','gfn1','gfn2')
+          processedarg(i+1) = .true.
+          env%aiss_lmolvl = trim(arg1)
+        case default
+          call parseflags_missing(argument)
+        end select
+
       case ('-fin_opt_gfn2')
         processedarg(i) = .true.
         env%final_gfn2_opt = .true.

@@ -34,7 +34,7 @@ module aiss_dock
   private
 
   public :: aiss_config,aiss_wall
-  public :: aiss_dock_run
+  public :: aiss_dock_run,aiss_add_walls
 
   character(len=*),parameter :: refqfile = 'aiss_refcharges'
 
@@ -82,9 +82,9 @@ contains  !> MODULE PROCEDURES START HERE
 
     io = 0
     eint = 0.0_wp
-    iu = -1
+    iu = 0
     if (present(iunit)) iu = iunit
-    pr = (iu > 0)
+    pr = (iu /= 0)
     nf = 0
     if (present(nfix)) nf = nfix
 
@@ -99,7 +99,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     if (pr) call dock_header(iu)
     call initrand(cfg%samerand)
-    call set_iff_param(pr)
+    call set_iff_param(iu)
 
     molA = molA_in
     molB = molB_in
@@ -140,7 +140,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     icoord = 0.0_wp
     icoord0 = 0.0_wp
-    call init_iff(d,cfg%nfrag1,icoord,icoord0,pr)
+    call init_iff(d,cfg%nfrag1,icoord,icoord0,iu)
 
     if (present(directed)) then
       if (size(directed) > 0) then
@@ -160,7 +160,7 @@ contains  !> MODULE PROCEDURES START HERE
 !>--- calculators, fragment references and the actual search
     call setup_complex_calc(cfg,d,molA,molB,calc,nf,walls,ucons,io)
     if (io /= 0) return
-    call fragment_energies(cfg,d,molA,molB,nf,walls,molA_e,molB_e,io)
+    call fragment_energies(cfg,d,molA,molB,walls,molA_e,molB_e,io)
     if (io /= 0) return
 
     call aiss_docking_search(cfg,d,molA,molB,calc,molA_e,molB_e,iu,best,eint,io)
@@ -243,7 +243,7 @@ contains  !> MODULE PROCEDURES START HERE
     call calc%add(clevel)
     calc%optlev = 0
 
-    if (present(walls)) call add_walls(calc,n,walls)
+    if (present(walls)) call aiss_add_walls(calc,n,walls)
     if (nfix > 0) call calc%set_freeze(n,1,nfix)
     if (present(ucons)) then
       do i = 1,ucons%nconstraints
@@ -271,7 +271,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine fragment_energies(cfg,d,molA,molB,nfix,walls,molA_e,molB_e,io)
+  subroutine fragment_energies(cfg,d,molA,molB,walls,molA_e,molB_e,io)
     !*****************************************************
     !* Unoptimized fragment energies: GFN-FF single points
     !* with walls clipped to the fragment, or the xTB
@@ -280,7 +280,6 @@ contains  !> MODULE PROCEDURES START HERE
     type(aiss_config),intent(in) :: cfg
     type(iff_data),intent(in)    :: d
     type(coord),intent(in)       :: molA,molB
-    integer,intent(in)           :: nfix
     type(aiss_wall),intent(in),optional :: walls(:)
     real(wp),intent(out)         :: molA_e,molB_e
     integer,intent(out)          :: io
@@ -291,15 +290,14 @@ contains  !> MODULE PROCEDURES START HERE
       molB_e = d%etot(2)
       return
     end if
-    call fragment_sp(molA,min(nfix,molA%nat),molA_e,io)
+    call fragment_sp(molA,molA_e,io)
     if (io /= 0) return
-    call fragment_sp(molB,0,molB_e,io)
+    call fragment_sp(molB,molB_e,io)
 
   contains
 
-    subroutine fragment_sp(mol,nf,energy,stat)
+    subroutine fragment_sp(mol,energy,stat)
       type(coord),intent(in) :: mol
-      integer,intent(in)     :: nf
       real(wp),intent(out)   :: energy
       integer,intent(out)    :: stat
       type(calcdata) :: fcalc
@@ -309,8 +307,7 @@ contains  !> MODULE PROCEDURES START HERE
       call flevel%create(cfg%optlvl,chrg=mol%chrg,uhf=mol%uhf)
       flevel%etemp = cfg%etemp
       call fcalc%add(flevel)
-      if (cfg%optlvl == 'gfnff'.and.present(walls)) call add_walls(fcalc,mol%nat,walls)
-      if (nf > 0) call fcalc%set_freeze(mol%nat,1,nf)
+      if (cfg%optlvl == 'gfnff'.and.present(walls)) call aiss_add_walls(fcalc,mol%nat,walls)
       molsp = mol
       allocate (grd(3,mol%nat))
       call engrad(molsp,fcalc,energy,grd,stat)
@@ -321,7 +318,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine add_walls(calc,nat,walls)
+  subroutine aiss_add_walls(calc,nat,walls)
     !*****************************************************
     !* xtb polynomial walls (|r/radius|)^30 as CREST
     !* ellipsoids with k=1, alpha=15; out-of-range list
@@ -347,7 +344,7 @@ contains  !> MODULE PROCEDURES START HERE
       call cons%ellipsoid(nat,atms,walls(i)%radius,1.0_wp,15.0_wp,.false.)
       call calc%add(cons)
     end do
-  end subroutine add_walls
+  end subroutine aiss_add_walls
 
 !========================================================================================!
 

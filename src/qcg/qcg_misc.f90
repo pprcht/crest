@@ -583,12 +583,14 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
   !*****************************************************************
   !* Dock one solvent molecule (frag2_file) to the cluster
   !* (frag1_file) in each open directory TMPdir<conv(i)>, i=1..NTMP,
-  !* via parallel "xtb dock" system calls.
+  !* via parallel "xtb dock" system calls (legacy), otherwise via the
+  !* in-process aISS port.
   !*****************************************************************
   use crest_parameters
   use iomod
   use crest_data
   use qcg_coord_type
+  use qcg_aiss,only:qcg_aiss_ensemble_dock
 
   implicit none
   type(systemdata)                :: env
@@ -613,6 +615,12 @@ subroutine ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file,n_shell&
   real(wp)                        :: percent
   character(len=2)                :: flag
   integer                         :: funit
+
+  if (.not.env%legacy) then
+    call qcg_aiss_ensemble_dock(env,outer_ell_abc,nfrag1,frag1_file,frag2_file, &
+    &                           n_shell,n_solvent,NTMP,TMPdir,conv)
+    return
+  end if
 
 ! some options
   pipe = '2>/dev/null'

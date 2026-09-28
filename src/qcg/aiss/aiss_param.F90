@@ -256,12 +256,12 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine set_iff_param(pr)
+  subroutine set_iff_param(iunit)
     !*********************************************************
     !* Global IFF parameters. An xtb-style '.param.xtbiff'
     !* in the working directory overrides the defaults.
     !*********************************************************
-    logical,intent(in) :: pr
+    integer,intent(in) :: iunit
     character(len=*),parameter :: fname = '.param.xtbiff'
     logical :: ex
     integer :: i,j,ich
@@ -276,7 +276,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     inquire (file=fname,exist=ex)
     if (ex) then
-      if (pr) write (stdout,*) 'reading parameter file ',fname
+      if (iunit /= 0) write (iunit,*) 'reading parameter file ',fname
       open (newunit=ich,file=fname)
       read (ich,*) par_rep_scal
       read (ich,*) par_d3_a1
@@ -295,7 +295,7 @@ contains  !> MODULE PROCEDURES START HERE
       end do
       close (ich)
     else
-      if (pr) write (stdout,*) 'taking internal default parameters'
+      if (iunit /= 0) write (iunit,*) 'taking internal default parameters'
       par_rep_scal = 0.1232398_wp
       par_d3_a1 = 0.4459020_wp
       par_d3_a2 = 4.4216615_wp

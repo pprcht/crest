@@ -57,7 +57,7 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  subroutine init_iff(d,nfrag1,icoord,icoord0,pr)
+  subroutine init_iff(d,nfrag1,icoord,icoord0,iunit)
     !*****************************************************************
     !* Precompute all IFF pair quantities from the fragment data set
     !* by the LMO precomputation (at, xyz, q, LMOs, CT populations):
@@ -69,7 +69,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(iff_data),intent(inout) :: d
     integer,intent(in)     :: nfrag1
     real(wp),intent(inout) :: icoord(6),icoord0(6)
-    logical,intent(in)     :: pr
+    integer,intent(in)     :: iunit
 
     integer  :: i,j,k,n,n1,n2,np
     real(wp) :: distance,max_distanceA,max_distanceB
@@ -283,11 +283,11 @@ contains  !> MODULE PROCEDURES START HERE
       end do
     end if
 
-    if (pr) then
-      write (stdout,'(''  LUMO energy 1 (read)           :'',F8.3)') d%elumo(1)*27.212
-      write (stdout,'(''  HOMO energy 1 (read)           :'',F8.3)') d%ehomo(1)*27.212
-      write (stdout,'(''  LUMO energy 2 (read)           :'',F8.3)') d%elumo(2)*27.212
-      write (stdout,'(''  HOMO energy 2 (read)           :'',F8.3)') d%ehomo(2)*27.212
+    if (iunit /= 0) then
+      write (iunit,'(''  LUMO energy 1 (read)           :'',F8.3)') d%elumo(1)*27.212
+      write (iunit,'(''  HOMO energy 1 (read)           :'',F8.3)') d%ehomo(1)*27.212
+      write (iunit,'(''  LUMO energy 2 (read)           :'',F8.3)') d%elumo(2)*27.212
+      write (iunit,'(''  HOMO energy 2 (read)           :'',F8.3)') d%ehomo(2)*27.212
     end if
   end subroutine init_iff
 

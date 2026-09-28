@@ -53,19 +53,25 @@ subroutine crest_solvtool(env,tim)
   call qcg_head()
   !>-----------------------------------
 
-!> Check, if xtb is present
-  call checkprog_silent(env%ProgName,.true.,iostat=io)
-  if (io /= 0) error stop 'No xtb found'
+!> the xtb binary is only needed by the legacy (-legacy) system-call route
+  if (env%legacy) then
+    call checkprog_silent(env%ProgName,.true.,iostat=io)
+    if (io /= 0) error stop 'No xtb found'
+  end if
 
 !> Check, if xtbiff is present (if it is required)
   if (env%use_xtbiff) then
     call xtbiff_print_deprecated()
   else
     write (stdout,*)
-    write (stdout,*) ' This program uses the the aISS algorithm as implemnted in xtb.'
-    write (stdout,*) '      The aISS method requires xtb version 6.6.0 or newer.'
-    write (stdout,*) '           Tested with xtb version 6.7.1 (902b313)'
-    !write (stdout,*) '  xTB-IFF can still be used with the --xtbiff flag.'
+    if (env%legacy) then
+      write (stdout,*) ' This program uses the the aISS algorithm as implemnted in xtb.'
+      write (stdout,*) '      The aISS method requires xtb version 6.6.0 or newer.'
+      write (stdout,*) '           Tested with xtb version 6.7.1 (902b313)'
+    else
+      write (stdout,*) ' Docking via the aISS algorithm (in-process port of xtb dock).'
+      write (stdout,*) ' LMO/IFF precomputation level: ',trim(env%aiss_lmolvl)
+    end if
     write (stdout,*)
   end if
 
@@ -596,6 +602,7 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
   use qcg_coord_type
   use strucrd
   use qcg_utils
+  use qcg_aiss,only:qcg_aiss_dock,qcg_opt_cluster
   implicit none
 
   type(systemdata)           :: env
@@ -710,8 +717,12 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 
     CHECKWALL: do while (.not.success) !For restart with larger wall pot
       if (iter .eq. 1) then
-        call xtb_dock(env,'solute','solvent',solu,solv)
-        call check_dock(neg_E)
+        if (env%legacy) then
+          call xtb_dock(env,'solute','solvent',solu,solv)
+          call check_dock(neg_E)
+        else
+          call qcg_aiss_dock(env,'solute','solvent',solu,solv,neg_E)
+        end if
 
 !-- If Interaction Energy is not negativ and existent, wall pot. too small and increase
         if (neg_E) then
@@ -728,8 +739,12 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
           end if
         end if
       else
-        call xtb_dock(env,'cluster.coord','solvent',solu,clus)
-        call check_dock(neg_E)
+        if (env%legacy) then
+          call xtb_dock(env,'cluster.coord','solvent',solu,clus)
+          call check_dock(neg_E)
+        else
+          call qcg_aiss_dock(env,'cluster.coord','solvent',solu,clus,neg_E)
+        end if
 
         if (neg_E) then
           success = .true.
@@ -866,10 +881,17 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
     gfnver_tmp = env%gfnver
     env%gfnver = '--gfn2'
     write (stdout,'(2x,''Final gfn2 optimization'')')
-    call opt_cluster(env,solu,clus,'cluster.coord',.false.)
-    call rdcoord('xtbopt.coord',clus%nat,clus%at,clus%xyz)
-    call clus%write('cluster.coord')
-    call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,clus%energy)
+    if (env%legacy) then
+      call opt_cluster(env,solu,clus,'cluster.coord',.false.)
+      call rdcoord('xtbopt.coord',clus%nat,clus%at,clus%xyz)
+      call clus%write('cluster.coord')
+      call grepval('xtb_sp.out','| TOTAL ENERGY',e_there,clus%energy)
+    else
+      call qcg_opt_cluster(env,'cluster.coord',.false.,clus%energy)
+      call rdcoord('xtbopt.coord',clus%nat,clus%at,clus%xyz)
+      call clus%write('cluster.coord')
+      e_there = .true.
+    end if
     if (.not.e_there) then
       write (stdout,'(1x,a)') 'Total Energy of cluster not found.'
     else
@@ -883,7 +905,11 @@ subroutine qcg_grow(env,solu,solv,clus,tim)
 !--- One optimization without Wall Potential and with implicit model
   gfnver_tmp = env%gfnver
   if (env%final_gfn2_opt) env%gfnver = '--gfn2'
-  call opt_cluster(env,solu,clus,'cluster.xyz',.true.)
+  if (env%legacy) then
+    call opt_cluster(env,solu,clus,'cluster.xyz',.true.)
+  else
+    call qcg_opt_cluster(env,'cluster.xyz',.true.,dum)
+  end if
   env%gfnver = gfnver_tmp
   call rename('xtbopt.xyz','cluster_optimized.xyz')
   call copysub('cluster_optimized.xyz',resultspath)

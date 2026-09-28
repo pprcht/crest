@@ -52,7 +52,7 @@ contains  !> MODULE PROCEDURES START HERE
     !* molA, molB     : CMA-shifted fragments
     !* calc           : calculator for the complex (with constraints)
     !* molA_e,molB_e  : fragment reference energies (Eh)
-    !* iunit          : output unit, negative for silent runs
+    !* iunit          : output unit, 0 for silent runs
     !* best           : lowest optimized complex, best%energy in Eh
     !* eint           : lowest interaction energy (kcal/mol)
     !* io             : 0 on success
@@ -96,7 +96,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     io = 0
     eint = 0.0_wp
-    pr = (iunit > 0)
+    pr = (iunit /= 0)
     n = d%n
     n1 = d%n1
     n2 = d%n2
