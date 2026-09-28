@@ -41,7 +41,6 @@ srcs += files(
   'classes.f90',
   'cleanup.f90',
   'cn.f90',
-  'compress.f90',
   'confparse.f90',
   'crest_pars.f90',
   'eval_timer.f90',

@@ -612,14 +612,6 @@ subroutine parseflags(env,arg,nra)
         exit
         !env%legacy = .true. !> force legacy routines for now
 
-      case ('-compress')
-        processedarg(i) = .true.
-        env%crestver = crest_compr
-        env%runver = 77
-        env%mdstep = 2.5d0
-        env%mddump = 2000
-        env%autozsort = .false.
-        exit
 
       case ('-msreact')
         processedarg(i) = .true.
@@ -988,7 +980,7 @@ subroutine parseflags(env,arg,nra)
 !=========================================================================================!
 !=========================================================================================!
 !>--- options for the xtb Nano-reactor
-  if (any((/crest_nano,crest_compr/) == env%crestver)) then
+  if (env%crestver == crest_nano) then
     env%rdens = -1.0_wp       !> reference density (i.e., =-1 means it is not set here)
     env%preactormtd = .false.  !> prepare reactor mtd?
     env%preactorpot = .false.  !> prepare reactor logfermi?
@@ -2600,21 +2592,6 @@ subroutine parseflags(env,arg,nra)
         env%autozsort = .false.
         env%protb%threshsort = .true.
 
-      case ('-tautomerize2','-exttautomerize')
-        processedarg(i) = .true.
-        if (env%properties == p_propcalc) then
-          env%properties = p_tautomerize2
-        else
-          call env%addjob(abs(p_tautomerize2))
-        end if
-        env%autozsort = .false.
-        env%protb%threshsort = .true.
-        env%runver = 33
-        env%relax = .true.
-        env%performCross = .false.  !> skip the genetic crossing
-        env%trackorigin = .false.
-        env%Maxrestart = 1
-
       case ('-relax')
         processedarg(i) = .true.
         env%runver = 33
@@ -3260,7 +3237,7 @@ subroutine parseflags(env,arg,nra)
 !> settings after user input parsing
 !>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>!
 !========================================================================================!
-  if ((any((/crest_imtd,crest_imtd2,crest_pka,crest_compr,11/) == env%crestver)).and.  &
+  if ((any((/crest_imtd,crest_imtd2,crest_pka,11/) == env%crestver)).and.  &
   &  .not.env%confgo) then
     call defaultGF(env) !set Guiding Force default if none was read
   end if
@@ -3315,7 +3292,7 @@ subroutine parseflags(env,arg,nra)
   end if
 
 !>-- driver for optimization along trajectory, additional settings
-  if (.not.any((/crest_mfmdgc,crest_imtd,crest_imtd2,crest_compr/) == env%crestver) &
+  if (.not.any((/crest_mfmdgc,crest_imtd,crest_imtd2/) == env%crestver) &
       & .OR.(env%qcg_runtype .GT. 0.and.env%ensemble_method .EQ. 0)) then
     env%autozsort = .false.
     env%trackorigin = .false.

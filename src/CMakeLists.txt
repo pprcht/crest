@@ -44,7 +44,6 @@ list(APPEND srcs
   "${dir}/classes.f90"
   "${dir}/cleanup.f90"
   "${dir}/cn.f90"
-  "${dir}/compress.f90"
   "${dir}/confparse.f90"
   "${dir}/crest_pars.f90"
   "${dir}/eval_timer.f90"

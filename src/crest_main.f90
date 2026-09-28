@@ -118,11 +118,6 @@ program CREST
     write (*,*) 'exit.'
     call propquit(tim)
 
-!>--- extended tautomerization
-  case (p_tautomerize2)
-    call tautomerize_ext(env%ensemblename,env,tim)
-    call propquit(tim)
-
 !>--- stereoisomerization
   case (p_isomerize)
     call stereoisomerize(env,tim)
@@ -226,9 +221,6 @@ program CREST
 
     case (crest_nano)
       call reactor(env,tim)      !> NANO-REACTOR
-
-    case (crest_compr)
-      call compress(env,tim)     !> MTD COMPRESS mode
 
     case (crest_msreac)
       call msreact_handler(env,tim) !> MSREACT sub-program
@@ -337,9 +329,6 @@ program CREST
 
       case (abs(p_cluster)) !PCA and clustering
         call ccegen(env,.true.,conformerfile)
-
-      case (abs(p_tautomerize2))
-        call tautomerize_ext(infile,env,tim)
 
       case default
         continue

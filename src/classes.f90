@@ -72,7 +72,6 @@ module crest_data
   integer,parameter,public :: crest_mdopt2   = 33
   integer,parameter,public :: crest_screen   = 4
   integer,parameter,public :: crest_nano     = 7
-  integer,parameter,public :: crest_compr    = 77
   integer,parameter,public :: crest_msreac   = 9
   integer,parameter,public :: crest_pka      = 14
   integer,parameter,public :: crest_solv     = 15
@@ -108,7 +107,6 @@ module crest_data
   integer,parameter,public :: p_deprotonate  = -4
   integer,parameter,public :: p_tautomerize  = -5
   integer,parameter,public :: p_zsort        = -6
-  integer,parameter,public :: p_tautomerize2 = -555
   integer,parameter,public :: p_isomerize    = -92
   integer,parameter,public :: p_reactorset   = -312
   integer,parameter,public :: p_CREentropy   = -45

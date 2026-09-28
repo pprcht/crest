@@ -720,39 +720,6 @@ subroutine mtdatoms(env)
 end subroutine mtdatoms
 
 !-----------------------------------------------------------------------------
-! read file with REACTOR-settings into memory
-!-----------------------------------------------------------------------------
-subroutine rdrcontrol(fname,env)
-  use crest_data
-  use filemod
-  implicit none
-
-  type(systemdata) :: env
-  character(len=*) :: fname
-
-  type(filetype) :: rc
-  integer :: i,n
-
-  if (allocated(env%cts%rctrl)) then
-    deallocate (env%cts%rctrl)
-  end if
-
-  call rc%open(fname)
-
-  n = rc%nlines
-  if (n > 0) then
-    allocate (env%cts%rctrl(n))
-    env%cts%nrctrl = n
-
-    do i = 1,n
-      env%cts%rctrl(i) = trim(rc%line(i))
-    end do
-    env%cts%ureactor = .true.
-  end if
-  call rc%close()
-  return
-end subroutine rdrcontrol
-!-----------------------------------------------------------------------------
 ! append reactor constraints to opened file
 !-----------------------------------------------------------------------------
 subroutine write_cts_rcontrol(ich,cts)
