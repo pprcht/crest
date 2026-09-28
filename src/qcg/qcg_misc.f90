@@ -345,11 +345,6 @@ subroutine xtb_md_ensemble_qcg(env,solu,solv,clus,resultspath)
 !--- Writing jobcall
     write (jobcall,'(a,1x,a,1x,a,'' --md --input xcontrol '',a,1x,a,a)') &
           &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),pipe
-!--- slightly different jobcall for QMDFF usage
-    if (env%useqmdff) then
-      write (jobcall,'(a,1x,a,1x,a,'' --md --input xcontrol --qmdff'',a,1x,a,a)') &
-         &     trim(env%ProgName),trim(fname),trim(env%gfnver),trim(env%solv),pipe
-    end if
 !--- MD
     if (env%ensemble_method .EQ. 1) then
       call normalMD(fname,env,1,newtemp,newmdtime)
