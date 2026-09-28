@@ -19,4 +19,5 @@ srcs += files(
   'iff_lmo.f90',
   'iff_ini.F90',
   'iff_energy.f90',
+  'iff_prepare.F90',
 )
