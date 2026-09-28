@@ -391,6 +391,7 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   use iomod
   use strucrd
   use thermochem_module
+  use bhess_module,only:bhess_frequencies
   implicit none
   !> INPUT
   type(systemdata) :: env
@@ -408,8 +409,9 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
   real(wp),intent(out) :: gt(nt)    !> free energy in Eh
   real(wp),intent(out) :: stot(nt)  !> entropy in cal/molK
   !> LOCAL
-  type(coord) :: mol
+  type(coord) :: mol,molh
   type(calcdata) :: calctmp
+  real(wp) :: kpush
   character(len=10) :: atmp
   logical :: subdir,ex
   integer :: i,io,r,ich
@@ -454,21 +456,18 @@ subroutine thermo_wrap_new(env,pr,nat,at,xyz,dirname, &
 
 !>-- numerical Hessian
 
-  !TODO bhess currently not coded with new calculator
   if (bhess) then
-    write (stdout,'("> ",a)') 'bhess not implemented for calculator routines'
-  end if
-  !else
-  call numhess1(mol%nat,mol%at,mol%xyz,calctmp,hess,io)
-  !end if
-
-  if (io /= 0) then  !if the calc failed
-    return
-  end if
-
+!>-- RMSD-biased Hessian; thermo at the geometry of the Hessian
+    call bhess_frequencies(mol,calctmp,molh,freq,kpush,io,.false.)
+    if (io /= 0) return
+    mol%xyz = molh%xyz
+  else
+    call numhess1(mol%nat,mol%at,mol%xyz,calctmp,hess,io)
+    if (io /= 0) return
 !>-- project and get frequencies
-  call prj_mw_hess(mol%nat,mol%at,nfreq,mol%xyz,hess)
-  call frequencies(mol%nat,mol%at,mol%xyz,nfreq,hess,freq,io)
+    call prj_mw_hess(mol%nat,mol%at,nfreq,mol%xyz,hess)
+    call frequencies(mol%nat,mol%at,mol%xyz,nfreq,hess,freq,io)
+  end if
 
 !>--- get thermodynamics
   et = 0.0_wp

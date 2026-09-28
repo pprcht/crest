@@ -21,4 +21,5 @@ srcs += files(
    'entropic.f90',
    'entropy.f90',
    'thermochem_module.f90',
+   'bhess.f90',
 )
