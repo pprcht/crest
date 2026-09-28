@@ -548,7 +548,7 @@ subroutine parseflags(env,arg,nra)
       case ('-isomerize','-stereomers') !> isomerization tool
         processedarg(i) = .true.
         env%properties = p_isomerize
-        write (stdout,'(2x,a,'' : automated stereoisomerization script'')') trim(arg(i))
+        write (stdout,'(2x,a,'' : automated stereoisomerization script (deprecated, -legacy only)'')') trim(arg(i))
         write (stdout,'(2x,''Note: Use of GFN-FF required for stereoisomer generation.'')')
         exit
 
@@ -998,6 +998,12 @@ subroutine parseflags(env,arg,nra)
   end if
 !>    E.g. stereoisomer sampling or rotamer enhancement for entropy calc.
   if (env%properties == p_isomerize) then
+!>--- deprecated: only available via the legacy xtb system-call route
+    if (.not.env%legacy) then
+      write (stdout,'(/,1x,a)') '**ERROR** The stereoisomerization tool (-isomerize/-stereomers) is deprecated'
+      write (stdout,'(1x,a)') '          and only available with -legacy (requires the xtb binary).'
+      call creststop(status_safety)
+    end if
     env%gfnver = '-gff'    !stereoisomer generation works only with GFN-FF!
   end if
   env%tsplit = 5   !timeframe splitting in conformational search for Entropy extrapolation
