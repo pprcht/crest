@@ -390,7 +390,8 @@ contains  !> MODULE PROCEDURES START HERE
       end select
     end do
 
-!>--- create the potentials
+!>--- create the potentials; xtb's polynomial wall is (|r/radius|)^alpha,
+!>    the CREST ellipsoid raises the squared ellipsoid distance, hence alpha/2
     do i = 1,blk%nkv
       kv => blk%kv_list(i)
       call get_xtb_rawa(kv,kv%rawvalue,io)
@@ -415,7 +416,7 @@ contains  !> MODULE PROCEDURES START HERE
           call cons%deallocate()
           select case (pot)
           case (1) !> polynomial
-            call cons%ellipsoid(mol%nat,atlist,rabc,force_constant,alpha,.false.)
+            call cons%ellipsoid(mol%nat,atlist,rabc,force_constant,0.5_wp*alpha,.false.)
           case (2) !> logfermi
             call cons%ellipsoid(mol%nat,atlist,rabc,T,beta,.true.)
           end select
@@ -447,7 +448,7 @@ contains  !> MODULE PROCEDURES START HERE
           call cons%deallocate()
           select case (pot)
           case (1) !> polynomial
-            call cons%ellipsoid(mol%nat,atlist,rabc,force_constant,alpha,.false.)
+            call cons%ellipsoid(mol%nat,atlist,rabc,force_constant,0.5_wp*alpha,.false.)
           case (2) !> logfermi
             call cons%ellipsoid(mol%nat,atlist,rabc,T,beta,.true.)
           end select

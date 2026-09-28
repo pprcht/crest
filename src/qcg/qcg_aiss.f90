@@ -32,6 +32,7 @@ module qcg_aiss
   public :: qcg_aiss_dock
   public :: qcg_aiss_ensemble_dock
   public :: qcg_opt_cluster
+  public :: qcg_relax_in_walls
 
   character(len=*),parameter :: dockout = 'aiss_dock.out'
 
@@ -225,6 +226,38 @@ contains  !> MODULE PROCEDURES START HERE
     end function level
 
   end subroutine qcg_opt_cluster
+
+!========================================================================================!
+
+  subroutine qcg_relax_in_walls(env,nfreeze,clus)
+    !******************************************************************
+    !* Relax the ensemble start cluster with the ensemble calculator
+    !* (walls, bond constraints), atoms 1..nfreeze frozen as in the MD.
+    !* The grown cluster was optimized without walls and can protrude
+    !* from them, which heats up the first MD/MTD steps explosively.
+    !******************************************************************
+    type(systemdata),intent(inout) :: env
+    integer,intent(in)             :: nfreeze
+    type(coord_qcg),intent(inout)  :: clus
+    type(calcdata) :: calc
+    type(coord) :: mol,molopt
+    real(wp),allocatable :: grd(:,:)
+    real(wp) :: e0,e1
+    integer :: io
+
+    mol = clus%as_coord()
+    calc = env%calc
+    if (nfreeze > 0.and.nfreeze < mol%nat) call calc%set_freeze(mol%nat,1,nfreeze)
+    allocate (grd(3,mol%nat))
+    call engrad(mol,calc,e0,grd,io)
+    if (io /= 0) return
+    e1 = e0
+    call optimize_geometry(mol,molopt,calc,e1,grd,.false.,.false.,io)
+    if (io < 0.or.e1 >= e0) return
+    call clus%from_coord(molopt)
+    write (stdout,'(2x,a,f12.6,a,f12.6,a)') 'Start cluster relaxed in the wall potentials:', &
+    &  e0,' ->',e1,' Eh'
+  end subroutine qcg_relax_in_walls
 
 !========================================================================================!
 

@@ -966,6 +966,7 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   use qcg_utils
   use strucrd
   use utilities
+  use qcg_aiss,only:qcg_relax_in_walls
   use parallel_interface,only:crest_sploop !explicit interface needed (optional arguments)
   implicit none
 
@@ -1090,6 +1091,14 @@ subroutine qcg_ensemble(env,solu,solv,clus,ens,tim,fname_results)
   if (.not.env%legacy) then
     calc_tmp = env%calc
     call qcg_envcalc_reinit(env,clus,.true.,.true.)
+    !> the solute is frozen only in the single MD/MTD runs (ensemble_method 1,2)
+    if (env%solv_md.or.env%ensemble_method < 1) then
+      call qcg_relax_in_walls(env,0,clus)
+    else
+      call qcg_relax_in_walls(env,solu%nat,clus)
+    end if
+    call clus%write('crest_input')
+    call inputcoords(env,'crest_input')
   end if
 
   ENSEMBLEGEN:select case(env%ensemble_method)
