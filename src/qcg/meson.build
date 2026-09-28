@@ -22,3 +22,5 @@ srcs += files(
 'qcg_utils.f90',
 'volume.f90',
 )
+
+subdir('aiss')

@@ -25,4 +25,6 @@ list(APPEND srcs
   "${dir}/qcg_utils.f90"
 )
 
+add_subdirectory("aiss")
+
 set(srcs ${srcs} PARENT_SCOPE)
