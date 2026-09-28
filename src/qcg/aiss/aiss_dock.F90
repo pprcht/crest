@@ -159,9 +159,11 @@ contains  !> MODULE PROCEDURES START HERE
 
 !>--- calculators, fragment references and the actual search
     call setup_complex_calc(cfg,d,molA,molB,calc,nf,walls,ucons,io)
-    if (io /= 0) return
-    call fragment_energies(cfg,d,molA,molB,walls,molA_e,molB_e,io)
-    if (io /= 0) return
+    if (io == 0) call fragment_energies(cfg,molA,molB,nf,walls,molA_e,molB_e,io)
+    if (io /= 0) then
+      call remove_file(refqfile)
+      return
+    end if
 
     call aiss_docking_search(cfg,d,molA,molB,calc,molA_e,molB_e,iu,best,eint,io)
     call remove_file(refqfile)
@@ -252,34 +254,29 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine fragment_energies(cfg,d,molA,molB,walls,molA_e,molB_e,io)
+  subroutine fragment_energies(cfg,molA,molB,nfix,walls,molA_e,molB_e,io)
     !*****************************************************
-    !* Unoptimized fragment energies: GFN-FF single points
-    !* with the walls acting on the fragment, or the xTB
-    !* precomputation energies at the same level.
+    !* Unoptimized fragment energies at the level of the
+    !* final optimizations, with the same wall terms as in
+    !* the complex (walls skip frozen atoms 1..nfix there)
     !*****************************************************
     type(aiss_config),intent(in) :: cfg
-    type(iff_data),intent(in)    :: d
     type(coord),intent(in)       :: molA,molB
+    integer,intent(in)           :: nfix
     type(aiss_wall),intent(in),optional :: walls(:)
     real(wp),intent(out)         :: molA_e,molB_e
     integer,intent(out)          :: io
 
     io = 0
-    if (cfg%optlvl /= 'gfnff'.and.cfg%optlvl == cfg%lmolvl) then
-      molA_e = d%etot(1)
-      molB_e = d%etot(2)
-      return
-    end if
-    call fragment_sp(molA,0,molA_e,io)
+    call fragment_sp(molA,0,nfix,molA_e,io)
     if (io /= 0) return
-    call fragment_sp(molB,molA%nat,molB_e,io)
+    call fragment_sp(molB,molA%nat,0,molB_e,io)
 
   contains
 
-    subroutine fragment_sp(mol,offset,energy,stat)
+    subroutine fragment_sp(mol,offset,nskip,energy,stat)
       type(coord),intent(in) :: mol
-      integer,intent(in)     :: offset
+      integer,intent(in)     :: offset,nskip
       real(wp),intent(out)   :: energy
       integer,intent(out)    :: stat
       type(calcdata) :: fcalc
@@ -289,7 +286,7 @@ contains  !> MODULE PROCEDURES START HERE
       call flevel%create(cfg%optlvl,chrg=mol%chrg,uhf=mol%uhf)
       flevel%etemp = cfg%etemp
       call fcalc%add(flevel)
-      if (cfg%optlvl == 'gfnff'.and.present(walls)) call aiss_add_walls(fcalc,mol%nat,walls,offset)
+      if (present(walls)) call aiss_add_walls(fcalc,mol%nat,walls,offset,nskip)
       molsp = mol
       allocate (grd(3,mol%nat))
       call engrad(molsp,fcalc,energy,grd,stat)
@@ -300,22 +297,26 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine aiss_add_walls(calc,nat,walls,offset)
+  subroutine aiss_add_walls(calc,nat,walls,offset,nskip)
     !*****************************************************
     !* xtb polynomial walls (|r/radius|)^30 as CREST
     !* ellipsoids with k=1, alpha=15. Wall lists use the
     !* complex numbering; offset maps them onto a fragment
     !* (atom j of the fragment is list entry j+offset).
+    !* Atoms 1..nskip are left out, like frozen atoms in
+    !* CREST's wall constraint.
     !*****************************************************
     type(calcdata),intent(inout) :: calc
     integer,intent(in) :: nat
     type(aiss_wall),intent(in) :: walls(:)
-    integer,intent(in),optional :: offset
+    integer,intent(in),optional :: offset,nskip
     type(constraint) :: cons
     logical,allocatable :: atms(:)
-    integer :: i,j,k,off
+    integer :: i,j,k,off,skip
     off = 0
     if (present(offset)) off = offset
+    skip = 0
+    if (present(nskip)) skip = min(nskip,nat)
     allocate (atms(nat))
     do i = 1,size(walls)
       if (allocated(walls(i)%list)) then
@@ -327,6 +328,7 @@ contains  !> MODULE PROCEDURES START HERE
       else
         atms = .true.
       end if
+      atms(1:skip) = .false.
       if (.not.any(atms)) cycle
       call cons%ellipsoid(nat,atms,walls(i)%radius,1.0_wp,15.0_wp,.false.)
       call calc%add(cons)

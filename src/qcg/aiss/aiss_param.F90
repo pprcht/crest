@@ -636,7 +636,11 @@ contains  !> MODULE PROCEDURES START HERE
     real :: x
     do j = 1,6
       call random_number(x)
-      if (x .gt. r) d(j) = x
+      if (x .gt. r) then
+        d(j) = x
+      else
+        d(j) = 0.0_wp
+      end if
     end do
   end subroutine crossover
 

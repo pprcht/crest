@@ -764,7 +764,8 @@ contains  !> MODULE PROCEDURES START HERE
     end do
 
     new = 0
-    if (n > 0) then
+    !> the pi regularization looks up four LMO neighbours
+    if (n >= 4) then
       if (maxval(rklmo(5,1:n)) .ge. 3.0) then
         call atomneigh(n,nat,xyz,ecent,aneigh)
         call lmoneigh(n,rklmo,ecent,aneigh,lneigh)

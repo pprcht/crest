@@ -332,6 +332,11 @@ contains  !> MODULE PROCEDURES START HERE
 
       if (.not.cfg%stack_grid.and..not.cfg%angular_grid) then
         !> pocket-only search: return the lowest pocket structure
+        if (kk == 0) then
+          if (pr) write (iunit,*) 'Error: no pocket found'
+          io = 1
+          return
+        end if
         call sortxyz_e(n,kk,pocket_e,xyz_pocket)
         best = comb
         best%xyz = xyz_pocket(:,:,1)
@@ -532,7 +537,7 @@ contains  !> MODULE PROCEDURES START HERE
       do i = 1,sig_count
         sig = sig+(found(7,i)-av)**2
       end do
-      sig = sqrt(sig/float(sig_count-1))
+      sig = sqrt(sig/float(max(sig_count-1,1)))
       if (pr) write (iunit,'(4x,i0,7x,F7.1,5x,F8.1,5x)') icycle,found(7,1),av
       if (sig .lt. 0.3_wp) exit
     end do
@@ -560,6 +565,7 @@ contains  !> MODULE PROCEDURES START HERE
           exit
         end if
       end do
+      cfg%n_opt = max(cfg%n_opt,1)
     end if
 
 !>-- final optimizations
@@ -625,7 +631,14 @@ contains  !> MODULE PROCEDURES START HERE
       if (allocated(calc%calcs(1)%ff_dat)) deallocate (calc%calcs(1)%ff_dat)
       call optimize_geometry(comb,molopt,calc,energy,grad,.false.,.false.,stat)
       if (allocated(molopt%xyz)) comb%xyz = molopt%xyz
-      if (stat /= 0.and.pr) write (iunit,*) 'Warning: geometry optimization did not converge'
+      if (stat < 0.or.isnan(energy)) then
+        !> failed runs must not compete for the best structure (stat > 0
+        !> only means not converged within maxcycle, kept as in xtb)
+        energy = 1.0e42_wp
+        if (pr) write (iunit,*) 'Warning: geometry optimization failed'
+      else if (stat > 0.and.pr) then
+        write (iunit,*) 'Warning: geometry optimization did not converge'
+      end if
     end subroutine optimize_complex
 
     subroutine write_final(nall)
