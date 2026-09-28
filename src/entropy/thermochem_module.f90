@@ -374,6 +374,11 @@ contains  !> MODULE PROCEDURES STARTE HERE
         nimag = nimag+1
       end if
     end do
+!>--- remaining imaginary modes do not enter the vibrational part (as in xtb)
+    if (nimag > 0) then
+      vibs(1:nvib-nimag) = pack(vibs(1:nvib),vibs(1:nvib) > 0.0_wp)
+      nvib = nvib-nimag
+    end if
 
     if (pr) then
       write (iunit,'(a)')
