@@ -584,7 +584,7 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine local_iff(nat,at,nao,ihomo,xyz,z,focc,s,p,cmo,eig,aoat2,dip, &
-  &                    nlmo,lmo,rlmo,qct,ehomo,elumo,dipol)
+  &                    nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,basat)
     !******************************************************************
     !* Silent xTB-IFF variant of local (xtb src/local.f90): localizes
     !* the occupied MOs and returns the LMO charge centers and types
@@ -597,6 +597,8 @@ contains  !> MODULE PROCEDURES START HERE
     !*         lmo(1:nlmo) and rlmo(1:3,1:nlmo)
     !* qct   : HOMO (:,1) and LUMO (:,2) atomic populations
     !* dipol : total dipole moment (au)
+    !* basat : (optional) atoms carrying a LP or pi LMO, selected as
+    !*         msreact did from the xtb --lmo printout
     !******************************************************************
     implicit none
     integer,intent(in)  :: nat,at(nat),nao,ihomo
@@ -608,6 +610,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(inout)  :: lmo(:)
     real(wp),intent(inout) :: rlmo(:,:)
     real(wp),intent(out) :: qct(nat,2),ehomo,elumo,dipol
+    logical,intent(out),optional :: basat(nat)
 
     real(wp),allocatable :: op(:,:),cca(:),dip2(:),d(:,:),f(:),eiga(:)
     real(wp),allocatable :: xcen(:),qmo(:,:),tmpq(:,:),wbo(:,:),tmp_cmo(:,:)
@@ -752,6 +755,7 @@ contains  !> MODULE PROCEDURES START HERE
     deallocate (tmpq)
 
 !>-- second pass shifts the LP centers (modi=.true.) for the pi regularization
+    if (present(basat)) basat = .false.
     do i = 1,n
       do j = 1,nat
         imem(j) = j
@@ -760,6 +764,21 @@ contains  !> MODULE PROCEDURES START HERE
       if (nat .ne. 1) then
         call lmotype(nat,at,xyz,ecent(i,1),ecent(i,2),ecent(i,3), &
         &            imem(1),imem(2),xcen(i),.true.,pithr,jdum)
+      else
+        jdum = 1
+      end if
+!>-- LP: its atom; pi/delpi: the two main atoms, or one if only one contributes
+      if (present(basat)) then
+        idum = 1
+        do j = 1,nat
+          if (qmo(j,i) .gt. 0.07_wp) idum = j
+        end do
+        if (jdum .ge. 3.and.idum .ge. 2) then
+          basat(imem(1)) = .true.
+          basat(imem(2)) = .true.
+        else if (jdum .ge. 2) then
+          basat(imem(1)) = .true.
+        end if
       end if
     end do
 

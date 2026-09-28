@@ -39,6 +39,7 @@ module aiss_iff_prepare
   private
 
   public :: iff_precomp
+  public :: lmo_basic_atoms
 
 !========================================================================================!
 !========================================================================================!
@@ -113,7 +114,39 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine precomp_tblite(mol,lmolvl,etemp,etot,q,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,io)
+  subroutine lmo_basic_atoms(mol,lmolvl,etemp,basat,io)
+    !***************************************************************
+    !* Atoms with a lone pair or pi LMO (xtb --lmo), e.g. as
+    !* targets for H shifts; mol%chrg/uhf are used
+    !***************************************************************
+    type(coord),intent(in) :: mol
+    character(len=*),intent(in) :: lmolvl
+    real(wp),intent(in) :: etemp
+    logical,intent(out) :: basat(mol%nat)
+    integer,intent(out) :: io
+    integer :: nlmo
+    integer,allocatable  :: lmo(:)
+    real(wp),allocatable :: q(:),rlmo(:,:),qct(:,:)
+    real(wp) :: etot,ehomo,elumo,dipol
+
+    basat = .false.
+    allocate (q(mol%nat),qct(mol%nat,2),source=0.0_wp)
+    allocate (rlmo(4,10*mol%nat),source=0.0_wp)
+    allocate (lmo(10*mol%nat),source=0)
+    select case (lmolvl)
+    case ('gfn2','gfn1')
+      call precomp_tblite(mol,lmolvl,etemp,etot,q,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,io,basat)
+    case ('gfn0')
+      call precomp_gfn0(mol,etemp,etot,q,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,io,basat)
+    case default
+      write (stdout,'(a,a)') 'unknown level for the LMO calculation: ',lmolvl
+      io = 1
+    end select
+  end subroutine lmo_basic_atoms
+
+!========================================================================================!
+
+  subroutine precomp_tblite(mol,lmolvl,etemp,etot,q,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,io,basat)
     !***************************************************************
     !* GFN2/GFN1-xTB singlepoint via tblite, then local_iff
     !***************************************************************
@@ -122,6 +155,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(in) :: etemp
     real(wp),intent(out) :: etot,q(:),rlmo(:,:),qct(:,:),ehomo,elumo,dipol
     integer,intent(out) :: nlmo,lmo(:),io
+    logical,intent(out),optional :: basat(:)
 #ifdef WITH_TBLITE
     type(tblite_data),allocatable :: tb
     type(structure_type) :: mctcmol
@@ -163,7 +197,7 @@ contains  !> MODULE PROCEDURES START HERE
     q(:) = tb%wfn%qat(:,1)
     call local_iff(mol%nat,mol%at,nao,ihomo,mol%xyz,z,tb%wfn%focc(:,1),s, &
     &              tb%wfn%density(:,:,1),tb%wfn%coeff(:,:,1),tb%wfn%emo(:,1), &
-    &              tb%calc%bas%ao2at,dip,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol)
+    &              tb%calc%bas%ao2at,dip,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,basat)
     io = 0
 #else
     etot = 0.0_wp
@@ -178,7 +212,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine precomp_gfn0(mol,etemp,etot,q,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,io)
+  subroutine precomp_gfn0(mol,etemp,etot,q,nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,io,basat)
     !***************************************************************
     !* GFN0-xTB singlepoint via the gfn0 library, then local_iff;
     !* q are the EEQ charges of the non-SCC model, emo eV -> Eh
@@ -187,6 +221,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp),intent(in) :: etemp
     real(wp),intent(out) :: etot,q(:),rlmo(:,:),qct(:,:),ehomo,elumo,dipol
     integer,intent(out) :: nlmo,lmo(:),io
+    logical,intent(out),optional :: basat(:)
 #ifdef WITH_GFN0
     type(gfn0_data),allocatable :: g0
     real(wp),allocatable :: grd(:,:),dip(:,:),z(:),emo(:)
@@ -218,7 +253,7 @@ contains  !> MODULE PROCEDURES START HERE
     q(:) = g0%wfn%q(:)
     call local_iff(mol%nat,mol%at,nao,g0%wfn%ihomo,mol%xyz,z,g0%wfn%focc,g0%wfn%S, &
     &              g0%wfn%P,g0%wfn%C,emo,g0%basis%aoat2,dip(1:nao*(nao+1)/2,:), &
-    &              nlmo,lmo,rlmo,qct,ehomo,elumo,dipol)
+    &              nlmo,lmo,rlmo,qct,ehomo,elumo,dipol,basat)
     io = 0
 #else
     etot = 0.0_wp
