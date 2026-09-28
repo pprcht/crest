@@ -47,6 +47,7 @@ subroutine parseflags(env,arg,nra)
   use parse_inputfile
   use crest_restartlog
   use parse_hybrid
+  use aiss_standalone,only:parse_dock_cli
 
   implicit none
   type(systemdata),intent(inout) :: env
@@ -352,6 +353,9 @@ subroutine parseflags(env,arg,nra)
     call parseinputfile(env,trim(arg(idum)))
     processedarg(idum) = .true.
   end if
+
+!>--- standalone docking takes over its xtb-dock style options first
+  call parse_dock_cli(env,nra,arg,processedarg)
 
 !>--- first arg loop
   do i = 1,nra

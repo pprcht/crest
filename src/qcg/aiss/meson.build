@@ -22,4 +22,5 @@ srcs += files(
   'iff_prepare.F90',
   'aiss_search.F90',
   'aiss_dock.F90',
+  'aiss_standalone.F90',
 )

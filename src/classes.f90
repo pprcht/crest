@@ -31,6 +31,7 @@ module crest_data
   use lwoniom_module,only:lwoniom_input
   use molbuilder_construct_list !> from molbuilder dir
   use ttconf_settings_mod,only:ttconf_settings !> TTConf-light settings
+  use aiss_param,only:aiss_input !> standalone aISS docking settings
   use term_ui,only:progress_state
   implicit none
 
@@ -95,6 +96,7 @@ module crest_data
   integer,parameter,public :: crest_dryrun     = 276
   integer,parameter,public :: crest_ensemblehess = 277
   integer,parameter,public :: crest_ttc        = 278
+  integer,parameter,public :: crest_dock       = 279
 !>> <<!
   integer,parameter,public :: crest_test       = 456
 
@@ -553,6 +555,7 @@ module crest_data
     character(len=:),allocatable :: rigidconf_userfile
     !>--- TTConf-light settings
     type(ttconf_settings) :: ttconf
+    type(aiss_input) :: dock    !> standalone aISS docking (--dock, [dock])
     !>--- refinement queue
     integer,allocatable :: refine_queue(:)
     !>--- lwONIOM input
@@ -1323,6 +1326,7 @@ contains  !> MODULE PROCEDURES START HERE
     self%rigidconf_algo       = src%rigidconf_algo
     self%rigidconf_toposource = src%rigidconf_toposource
     if (allocated(src%rigidconf_userfile)) self%rigidconf_userfile = src%rigidconf_userfile
+    self%dock = src%dock
     self%ttconf = src%ttconf  !> ttconf_settings: allocatables only, intrinsic = is deep
     if (allocated(src%refine_queue))       self%refine_queue       = src%refine_queue
     if (allocated(src%ONIOM_toml))         self%ONIOM_toml         = src%ONIOM_toml

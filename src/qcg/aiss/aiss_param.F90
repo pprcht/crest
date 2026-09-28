@@ -103,6 +103,7 @@ module aiss_param
   type,public :: aiss_wall
     real(wp) :: radius(3) = 0.0_wp
     real(wp) :: center(3) = 0.0_wp
+    integer  :: alpha = 30  !> xtb sphere_alpha, V = (|r/radius|)^alpha
     integer,allocatable :: list(:)
   end type aiss_wall
 
@@ -133,10 +134,26 @@ module aiss_param
     real(wp) :: etemp = 300.0_wp
     integer  :: chrg(2) = 0
     integer  :: uhf(2) = 0
+    !> final optimizations: ANCopt level and optional implicit solvation
+    integer  :: optlev = 0
+    character(len=:),allocatable :: solvmodel,solvent
   contains
     procedure :: set_fast => aiss_config_set_fast
     procedure :: set_qcg => aiss_config_set_qcg
   end type aiss_config
+
+  !> standalone docking input (CLI --dock / TOML [dock])
+  type,public :: aiss_input
+    type(aiss_config) :: cfg
+    character(len=:),allocatable :: fileA,fileB,xcontrol
+    logical :: chrg_set(2) = .false.
+    logical :: uhf_set(2) = .false.
+    logical :: nfinal_set = .false.
+    character(len=:),allocatable :: fix       !> atom list of frozen atoms
+    character(len=:),allocatable :: directed  !> atom list for directed docking
+    integer :: directed_type = p_atom_att
+    real(wp) :: directed_fc = 1.0_wp
+  end type aiss_input
 
   !> IFF state of one docking run (xtb: TIFFData plus docking globals)
   type,public :: iff_data
@@ -831,14 +848,13 @@ contains  !> MODULE PROCEDURES START HERE
 
   subroutine cavity_egrad(nat,xyz,nwalls,walls,efix)
     !*****************************************************
-    !* xtb polynomial wall energy, (|w*(r-c)|/R0)^30 with
+    !* xtb polynomial wall energy, (|w*(r-c)|/R0)^alpha with
     !* w = R0/radius and R0 = max(radius), per wall
     !*****************************************************
     integer,intent(in)  :: nat,nwalls
     real(wp),intent(in) :: xyz(3,nat)
     type(aiss_wall),intent(in) :: walls(:)
     real(wp),intent(inout) :: efix
-    integer,parameter :: alpha = 30
     integer :: i,j,iat,nlist
     real(wp) :: r(3),w(3),dist,r0
 
@@ -859,7 +875,7 @@ contains  !> MODULE PROCEDURES START HERE
         end if
         r = w*(xyz(:,iat)-walls(i)%center)
         dist = sqrt(sum(r**2))
-        efix = efix+(dist/r0)**alpha
+        efix = efix+(dist/r0)**walls(i)%alpha
       end do
     end do
   end subroutine cavity_egrad

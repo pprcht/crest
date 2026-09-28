@@ -25,6 +25,7 @@ program CREST
   use crest_parameters !> Datatypes and constants
   use crest_data !> module for the main data storage (imports systemdata and timer)
   use crest_calculator
+  use aiss_standalone,only:crest_aiss_dock
   USE,INTRINSIC :: IEEE_EXCEPTIONS
   implicit none
   type(systemdata) :: env  !> MAIN STORAGE OF SYSTEM DATA
@@ -264,6 +265,9 @@ program CREST
 
     case (crest_ttc) !> tensor-train (light) conformer search
       call crest_ttconf(env,tim)
+
+    case (crest_dock) !> standalone aISS docking (xtb dock replacement)
+      call crest_aiss_dock(env,tim)
 
     case (crest_trialopt) !> test optimization standalone
       call trialOPT(env)

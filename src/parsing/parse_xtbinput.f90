@@ -49,6 +49,7 @@ module parse_xtbinput
   end interface parse_xtbinputfile
 
   public :: parse_constraints_from_cts
+  public :: get_xtb_constraint_block
 
 !========================================================================================!
 !========================================================================================!

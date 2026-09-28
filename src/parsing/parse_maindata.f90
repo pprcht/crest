@@ -32,6 +32,7 @@ module parse_maindata
   use parse_keyvalue,only:keyvalue,valuetypes
   use parse_block,only:datablock
   use parse_datastruct,only:root_object
+  use aiss_standalone,only:parse_dock_toml
   !> Declarations
   implicit none
   public
@@ -251,6 +252,10 @@ contains   !> MODULE PROCEDURES START HERE
         env%crestver = crest_ttc
         env%runver = crest_ttc
 
+      case ('dock','docking','aiss')
+        env%crestver = crest_dock
+        env%runver = crest_dock
+
       case ('protonate')
         env%properties = p_protonate
         env%crestver = crest_protonate
@@ -355,6 +360,8 @@ contains   !> MODULE PROCEDURES START HERE
       call parse_protonation(env,blk,istat)
     case ('ttconf')
       call parse_ttconf(env,blk,istat)
+    case ('dock')
+      call parse_dock_toml(env,blk,istat)
     end select
   end subroutine parse_main_blk
 

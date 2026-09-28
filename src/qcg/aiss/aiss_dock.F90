@@ -34,7 +34,7 @@ module aiss_dock
   private
 
   public :: aiss_config,aiss_wall
-  public :: aiss_dock_run,aiss_add_walls
+  public :: aiss_dock_run,aiss_add_walls,aiss_level_from_flag
 
   character(len=*),parameter :: refqfile = 'aiss_refcharges'
 
@@ -45,7 +45,8 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 
   subroutine aiss_dock_run(molA_in,molB_in,cfg_in,best,eint,io, &
-  &                        walls,nfix,directed,ucons,iunit)
+  &                        walls,nfix,frozen,directed,directed_type, &
+  &                        directed_fc,ucons,iunit)
     !******************************************************************
     !* Dock molecule B onto molecule A (xtb dock A B).
     !*
@@ -57,7 +58,10 @@ contains  !> MODULE PROCEDURES START HERE
     !* io              : 0 on success
     !* walls           : polynomial ellipsoid walls ($wall)
     !* nfix            : atoms 1..nfix are frozen in the optimizations
+    !* frozen          : frozen atoms of the complex (alternative to nfix)
     !* directed        : atom list of A for directed docking
+    !* directed_type   : p_atom_att (default) or p_atom_pot
+    !* directed_fc     : scaling of the directed potentials
     !* ucons           : further constraints for the complex
     !* iunit           : output unit, silent if absent
     !******************************************************************
@@ -68,7 +72,10 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(out)          :: io
     type(aiss_wall),intent(in),optional :: walls(:)
     integer,intent(in),optional  :: nfix
+    logical,intent(in),optional  :: frozen(:)
     integer,intent(in),optional  :: directed(:)
+    integer,intent(in),optional  :: directed_type
+    real(wp),intent(in),optional :: directed_fc
     type(calcdata),intent(in),optional :: ucons
     integer,intent(in),optional  :: iunit
 
@@ -79,6 +86,7 @@ contains  !> MODULE PROCEDURES START HERE
     real(wp) :: icoord(6),icoord0(6),r(3),e,molA_e,molB_e,etmp
     integer :: i,iu,nf
     logical :: pr
+    logical,allocatable :: fz(:)
 
     io = 0
     eint = 0.0_wp
@@ -87,6 +95,9 @@ contains  !> MODULE PROCEDURES START HERE
     pr = (iu /= 0)
     nf = 0
     if (present(nfix)) nf = nfix
+    allocate (fz(molA_in%nat+molB_in%nat),source=.false.)
+    fz(1:min(nf,size(fz))) = .true.
+    if (present(frozen)) fz(1:min(size(frozen),size(fz))) = frozen(1:min(size(frozen),size(fz)))
 
     cfg = cfg_in
     if (.not.allocated(cfg%optlvl)) cfg%optlvl = 'gfn2'
@@ -149,6 +160,8 @@ contains  !> MODULE PROCEDURES START HERE
           io = 1
           return
         end if
+        if (present(directed_type)) d%directed_type = directed_type
+        if (present(directed_fc)) d%directed_fc = directed_fc
         call setup_directed(d,directed)
       end if
     end if
@@ -158,8 +171,8 @@ contains  !> MODULE PROCEDURES START HERE
     if (pr) write (iu,'(/,''Energy of cold fusion in kcal/mol:'',F8.2)') e*au
 
 !>--- calculators, fragment references and the actual search
-    call setup_complex_calc(cfg,d,molA,molB,calc,nf,walls,ucons,io)
-    if (io == 0) call fragment_energies(cfg,molA,molB,nf,walls,molA_e,molB_e,io)
+    call setup_complex_calc(cfg,d,molA,molB,calc,fz,walls,ucons,io)
+    if (io == 0) call fragment_energies(cfg,molA,molB,fz,walls,molA_e,molB_e,io)
     if (io /= 0) then
       call remove_file(refqfile)
       return
@@ -183,7 +196,6 @@ contains  !> MODULE PROCEDURES START HERE
 
     d%ndirected = size(directed)
     d%directed_atoms = directed
-    d%directed_fc = 1.0_wp
     if (allocated(d%directed_val)) deallocate (d%directed_val)
     if (allocated(d%directed_expo)) deallocate (d%directed_expo)
     allocate (d%directed_val(d%n),d%directed_expo(d%n),source=0.0_wp)
@@ -210,7 +222,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine setup_complex_calc(cfg,d,molA,molB,calc,nfix,walls,ucons,io)
+  subroutine setup_complex_calc(cfg,d,molA,molB,calc,fz,walls,ucons,io)
     !*****************************************************
     !* Calculator for the complex optimizations. GFN-FF
     !* keeps A and B as separate topology fragments with
@@ -221,7 +233,7 @@ contains  !> MODULE PROCEDURES START HERE
     type(iff_data),intent(in)    :: d
     type(coord),intent(in)       :: molA,molB
     type(calcdata),intent(out)   :: calc
-    integer,intent(in)           :: nfix
+    logical,intent(in)           :: fz(:)
     type(aiss_wall),intent(in),optional :: walls(:)
     type(calcdata),intent(in),optional :: ucons
     integer,intent(out)          :: io
@@ -231,8 +243,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     io = 0
     n = d%n
-    call clevel%create(cfg%optlvl,chrg=molA%chrg+molB%chrg,uhf=molA%uhf+molB%uhf)
-    clevel%etemp = cfg%etemp
+    call create_level(cfg,molA%chrg+molB%chrg,molA%uhf+molB%uhf,clevel)
     if (cfg%optlvl == 'gfnff') then
       write (frag1,'(i0,a,i0)') 1,'-',d%n1
       write (frag2,'(i0,a,i0)') d%n1+1,'-',n
@@ -241,10 +252,10 @@ contains  !> MODULE PROCEDURES START HERE
       clevel%refcharges = refqfile
     end if
     call calc%add(clevel)
-    calc%optlev = 0
+    calc%optlev = cfg%optlev
 
-    if (present(walls)) call aiss_add_walls(calc,n,walls)
-    if (nfix > 0) call calc%set_freeze(n,1,nfix)
+    if (present(walls)) call aiss_add_walls(calc,n,walls,skip=fz)
+    if (any(fz)) call calc%set_freeze(fz)
     if (present(ucons)) then
       do i = 1,ucons%nconstraints
         call calc%add(ucons%cons(i))
@@ -254,7 +265,7 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine fragment_energies(cfg,molA,molB,nfix,walls,molA_e,molB_e,io)
+  subroutine fragment_energies(cfg,molA,molB,fz,walls,molA_e,molB_e,io)
     !*****************************************************
     !* Unoptimized fragment energies at the level of the
     !* final optimizations, with the same wall terms as in
@@ -262,31 +273,31 @@ contains  !> MODULE PROCEDURES START HERE
     !*****************************************************
     type(aiss_config),intent(in) :: cfg
     type(coord),intent(in)       :: molA,molB
-    integer,intent(in)           :: nfix
+    logical,intent(in)           :: fz(:)
     type(aiss_wall),intent(in),optional :: walls(:)
     real(wp),intent(out)         :: molA_e,molB_e
     integer,intent(out)          :: io
 
     io = 0
-    call fragment_sp(molA,0,nfix,molA_e,io)
+    call fragment_sp(molA,0,fz(1:molA%nat),molA_e,io)
     if (io /= 0) return
-    call fragment_sp(molB,molA%nat,0,molB_e,io)
+    call fragment_sp(molB,molA%nat,fz(molA%nat+1:),molB_e,io)
 
   contains
 
-    subroutine fragment_sp(mol,offset,nskip,energy,stat)
+    subroutine fragment_sp(mol,offset,skip,energy,stat)
       type(coord),intent(in) :: mol
-      integer,intent(in)     :: offset,nskip
+      integer,intent(in)     :: offset
+      logical,intent(in)     :: skip(:)
       real(wp),intent(out)   :: energy
       integer,intent(out)    :: stat
       type(calcdata) :: fcalc
       type(calculation_settings) :: flevel
       type(coord) :: molsp
       real(wp),allocatable :: grd(:,:)
-      call flevel%create(cfg%optlvl,chrg=mol%chrg,uhf=mol%uhf)
-      flevel%etemp = cfg%etemp
+      call create_level(cfg,mol%chrg,mol%uhf,flevel)
       call fcalc%add(flevel)
-      if (present(walls)) call aiss_add_walls(fcalc,mol%nat,walls,offset,nskip)
+      if (present(walls)) call aiss_add_walls(fcalc,mol%nat,walls,offset,skip)
       molsp = mol
       allocate (grd(3,mol%nat))
       call engrad(molsp,fcalc,energy,grd,stat)
@@ -297,26 +308,26 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine aiss_add_walls(calc,nat,walls,offset,nskip)
+  subroutine aiss_add_walls(calc,nat,walls,offset,skip)
     !*****************************************************
-    !* xtb polynomial walls (|r/radius|)^30 as CREST
-    !* ellipsoids with k=1, alpha=15. Wall lists use the
+    !* xtb polynomial walls (|r/radius|)^alpha as CREST
+    !* ellipsoids with k=1 and exponent alpha/2 on the
+    !* squared ellipsoid distance. Wall lists use the
     !* complex numbering; offset maps them onto a fragment
     !* (atom j of the fragment is list entry j+offset).
-    !* Atoms 1..nskip are left out, like frozen atoms in
-    !* CREST's wall constraint.
+    !* Atoms flagged in skip are left out, like frozen atoms
+    !* in CREST's wall constraint.
     !*****************************************************
     type(calcdata),intent(inout) :: calc
     integer,intent(in) :: nat
     type(aiss_wall),intent(in) :: walls(:)
-    integer,intent(in),optional :: offset,nskip
+    integer,intent(in),optional :: offset
+    logical,intent(in),optional :: skip(:)
     type(constraint) :: cons
     logical,allocatable :: atms(:)
-    integer :: i,j,k,off,skip
+    integer :: i,j,k,off
     off = 0
     if (present(offset)) off = offset
-    skip = 0
-    if (present(nskip)) skip = min(nskip,nat)
     allocate (atms(nat))
     do i = 1,size(walls)
       if (allocated(walls(i)%list)) then
@@ -328,9 +339,9 @@ contains  !> MODULE PROCEDURES START HERE
       else
         atms = .true.
       end if
-      atms(1:skip) = .false.
+      if (present(skip)) atms = atms.and..not.skip(1:nat)
       if (.not.any(atms)) cycle
-      call cons%ellipsoid(nat,atms,walls(i)%radius,1.0_wp,15.0_wp,.false.)
+      call cons%ellipsoid(nat,atms,walls(i)%radius,1.0_wp,0.5_wp*real(walls(i)%alpha,wp),.false.)
       call calc%add(cons)
     end do
   end subroutine aiss_add_walls
@@ -356,6 +367,40 @@ contains  !> MODULE PROCEDURES START HERE
     end do
     close (ich)
   end subroutine write_refcharges
+
+!========================================================================================!
+
+  subroutine create_level(cfg,chrg,uhf,clevel)
+    !> level of the final optimizations, with optional implicit solvation
+    type(aiss_config),intent(in) :: cfg
+    integer,intent(in) :: chrg,uhf
+    type(calculation_settings),intent(out) :: clevel
+    if (allocated(cfg%solvmodel).and.allocated(cfg%solvent)) then
+      call clevel%create(cfg%optlvl,chrg=chrg,uhf=uhf,solvmodel=cfg%solvmodel, &
+      &                  solvent=cfg%solvent)
+    else
+      call clevel%create(cfg%optlvl,chrg=chrg,uhf=uhf)
+    end if
+    clevel%etemp = cfg%etemp
+  end subroutine create_level
+
+!========================================================================================!
+
+  function aiss_level_from_flag(gfnver) result(lvl)
+    !> xtb dock level from an xtb-style method flag (xtb default: GFN2)
+    character(len=*),intent(in) :: gfnver
+    character(len=:),allocatable :: lvl
+    select case (trim(gfnver))
+    case ('--gff','--gfnff','-gff','gfnff')
+      lvl = 'gfnff'
+    case ('--gfn1','gfn1')
+      lvl = 'gfn1'
+    case ('--gfn0','gfn0')
+      lvl = 'gfn0'
+    case default
+      lvl = 'gfn2'
+    end select
+  end function aiss_level_from_flag
 
 !========================================================================================!
 
@@ -389,7 +434,7 @@ contains  !> MODULE PROCEDURES START HERE
     integer,intent(in) :: iu
     write (iu,'(a)') &
     & '      ------------------------------------------------------', &
-    & '      |      aISS docking (xtb dock port, CREST QCG)       |', &
+    & '      |     aISS docking (in-process port of xtb dock)     |', &
     & '      ------------------------------------------------------', &
     & '   Cite this work as:', &
     & '   * C. Plett, S. Grimme, Angew. Chem. Int. Ed. 2023, 62, e202214477.', &

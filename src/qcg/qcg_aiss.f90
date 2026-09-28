@@ -41,21 +41,6 @@ contains  !> MODULE PROCEDURES START HERE
 !========================================================================================!
 !========================================================================================!
 
-  function aiss_optlvl(gfnver) result(lvl)
-    !> xtb dock level from the xtb-style method flag (xtb default: GFN2)
-    character(len=*),intent(in) :: gfnver
-    character(len=:),allocatable :: lvl
-    select case (trim(gfnver))
-    case ('--gff','--gfnff','-gff')
-      lvl = 'gfnff'
-    case ('--gfn1')
-      lvl = 'gfn1'
-    case ('--gfn0')
-      lvl = 'gfn0'
-    case default
-      lvl = 'gfn2'
-    end select
-  end function aiss_optlvl
 
 !========================================================================================!
 
@@ -85,7 +70,7 @@ contains  !> MODULE PROCEDURES START HERE
     call molB%open(fnameB)
     call new_ompautoset(env,'max',1,T,Tn)
 
-    cfg%optlvl = aiss_optlvl(env%gfnver)
+    cfg%optlvl = aiss_level_from_flag(env%gfnver)
     cfg%lmolvl = trim(env%aiss_lmolvl)
     cfg%samerand = env%sameRandomNumber
     if (env%docking_qcg_flag == '--qcg') call cfg%set_qcg()
@@ -158,7 +143,7 @@ contains  !> MODULE PROCEDURES START HERE
 
     call new_ompautoset(env,'max',1,T,Tn)
     call getcwd(thispath)
-    cfg%optlvl = aiss_optlvl(env%gfnver)
+    cfg%optlvl = aiss_level_from_flag(env%gfnver)
     cfg%lmolvl = trim(env%aiss_lmolvl)
     cfg%samerand = env%sameRandomNumber
     call cfg%set_fast()
