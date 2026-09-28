@@ -67,7 +67,8 @@ contains  !> MODULE PROCEDURES START HERE
 
     do ii = 1,nall
 
-      rmsdval = rmsd(mol,ppars%biaslist(ii),gradient=ppars%gradtmp,ccache=ppars%ccache)
+      !> rmsd() differentiates w.r.t. its second argument
+      rmsdval = rmsd(ppars%biaslist(ii),mol,gradient=ppars%gradtmp,ccache=ppars%ccache)
 
       !> energy contribution
       call penalty_potential_gauss(knat,ppars%alpha,rmsdval,etmp,dEdr)
