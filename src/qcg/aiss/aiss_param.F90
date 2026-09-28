@@ -130,6 +130,7 @@ module aiss_param
     logical  :: docking_ens = .false.
     logical  :: qcg = .false.
     logical  :: samerand = .false.
+    logical  :: wrfiles = .true.   !> write best.xyz/final_structures.xyz
     !> 'gfnff','gfn2','gfn1' final optimization level
     character(len=:),allocatable :: optlvl
     !> 'gfn2','gfn1','gfn0' wavefunction for the LMO/IFF precomputation

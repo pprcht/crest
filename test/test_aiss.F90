@@ -295,6 +295,7 @@ contains  !> Unit tests for the aISS docking
     cfg%lmolvl = 'gfn2'
     cfg%n_opt = 2
     cfg%samerand = .true.
+    cfg%wrfiles = .false.
     call aiss_dock_run(molA,molB,cfg,best,eint,io)
     call check(error,io,0)
     if (allocated(error)) return

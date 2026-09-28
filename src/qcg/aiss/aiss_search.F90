@@ -340,7 +340,7 @@ contains  !> MODULE PROCEDURES START HERE
         call sortxyz_e(n,kk,pocket_e,xyz_pocket)
         final_e = pocket_e
         xyz_opt = xyz_pocket
-        call write_final(kk)
+        if (cfg%wrfiles) call write_final(kk)
         best = comb
         best%xyz = xyz_opt(:,:,1)
         best%energy = final_e(1)
@@ -592,7 +592,7 @@ contains  !> MODULE PROCEDURES START HERE
     end if
 
     call sortxyz_e(n,cfg%n_opt+kk,final_e,xyz_opt)
-    call write_final(cfg%n_opt+kk)
+    if (cfg%wrfiles) call write_final(cfg%n_opt+kk)
 
     best = comb
     best%xyz(:,:) = xyz_opt(:,:,1)
