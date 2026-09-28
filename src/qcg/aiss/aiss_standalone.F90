@@ -85,6 +85,8 @@ contains  !> MODULE PROCEDURES START HERE
         dk%fileB = trim(arg(j))
       end if
     end do
+    !> crest --dock A B: A also serves as the general input structure
+    if (allocated(dk%fileA)) env%inputcoords = dk%fileA
 
 !>--- presets first (xtb: --fast and --qcg share one switch, first wins)
     preset_done = .false.

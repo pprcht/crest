@@ -3677,8 +3677,8 @@ subroutine inputcoords(env,arg)
   &         crest_ensemblesp,crest_ensemblehess/) == env%crestver)) then
     !> some runtypes should only do a CMA translation, but no rotation
     call CMAtrf(mol%nat,mol%nat,mol%at,mol%xyz)
-  else if (env%crestver == crest_solv) then
-    !> runtypes like qcg must not modify input coordinates!
+  else if (env%crestver == crest_solv.or.env%crestver == crest_dock) then
+    !> runtypes like qcg and docking must not modify input coordinates!
     continue
   else
     !> all other can align with rot. axis

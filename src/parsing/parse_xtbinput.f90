@@ -411,7 +411,7 @@ contains  !> MODULE PROCEDURES START HERE
             read (kv%rawvalue,*,iostat=io) rdum
             if (io == 0) rabc(:) = rdum
           end if
-          call get_atlist(mol%nat,atlist,kv%rawvalue,mol%at)
+          call get_atlist(mol%nat,atlist,wall_atoms(kv,1),mol%at)
           call cons%deallocate()
           select case (pot)
           case (1) !> polynomial
@@ -439,7 +439,11 @@ contains  !> MODULE PROCEDURES START HERE
               rabc(3) = r3
             end if
           end if
-          call get_atlist(mol%nat,atlist,kv%rawvalue,mol%at)
+          if (trim(kv%value_rawa(1)) .eq. 'auto') then
+            call get_atlist(mol%nat,atlist,wall_atoms(kv,1),mol%at)
+          else
+            call get_atlist(mol%nat,atlist,wall_atoms(kv,3),mol%at)
+          end if
           call cons%deallocate()
           select case (pot)
           case (1) !> polynomial
@@ -457,6 +461,25 @@ contains  !> MODULE PROCEDURES START HERE
       end select
     end do
   end subroutine get_xtb_wall_block
+
+  function wall_atoms(kv,nskip) result(list)
+!*************************************************************
+!* atom list of a $wall sphere/ellipsoid entry: the entries
+!* after the nskip radii (a radius without decimal point would
+!* otherwise be read as an atom index); empty means all atoms
+!*************************************************************
+    implicit none
+    type(keyvalue),intent(in) :: kv
+    integer,intent(in) :: nskip
+    character(len=:),allocatable :: list
+    integer :: i
+    list = ''
+    do i = nskip+1,kv%na
+      if (len(list) > 0) list = list//','
+      list = list//trim(kv%value_rawa(i))
+    end do
+    if (len_trim(list) == 0) list = 'all'
+  end function wall_atoms
 
   subroutine get_xtb_fix_block(calc,mol,blk)
 !**************************************
@@ -828,6 +851,10 @@ contains  !> MODULE PROCEDURES START HERE
           na = na+1
         end if
       end do
+    else
+      !> a single value is a one-element array
+      kv%na = 1
+      allocate (kv%value_rawa(1),source=vtmp)
     end if
   end subroutine get_xtb_rawa
 
