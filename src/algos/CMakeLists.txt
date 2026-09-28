@@ -30,6 +30,7 @@ list(APPEND srcs
   "${dir}/setuptest.f90"
   "${dir}/sorting.f90"
   "${dir}/protonate.f90"
+  "${dir}/acidbase_calc.f90"
   "${dir}/search_conformers.f90"
   "${dir}/search_entropy.f90"
   "${dir}/parallel.f90"

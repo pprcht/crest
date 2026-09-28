@@ -489,9 +489,11 @@ subroutine parseflags(env,arg,nra)
         env%protb%ewin = 15.0d0
         env%gbsa = .true.
         env%solv = '--alpb h2o'
+        env%solvent = 'h2o'
         env%protb%h_acidic = 0
         call pka_argparse(arg(i+1),env%protb%h_acidic)
         if (env%protb%h_acidic == -2) env%protb%pka_baseinp = arg1
+        if (env%protb%h_acidic /= 0) processedarg(i+1) = .true.
 
       case ('-compare')   !> flag for comparing two ensembles, analysis tool
         processedarg(i) = .true.
@@ -843,7 +845,9 @@ subroutine parseflags(env,arg,nra)
             write (stdout,'(1x,a,a)') 'File used for the base: ',trim(ctmp)
           end if
         end if
+        env%gbsa = .true.
         env%solv = '--alpb h2o'
+        env%solvent = 'h2o'
         env%gfnver = '--gfn2'
 
       case ('-redoextrapol')
