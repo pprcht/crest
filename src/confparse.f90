@@ -3342,8 +3342,8 @@ subroutine parseflags(env,arg,nra)
   ctmp = absolute_filepath(trim(env%ProgName))
   env%ProgName = ctmp
 
-!>--- for legacy runtypes, check if xtb is present
-  if (env%legacy.or.env%QCG) then
+!>--- for legacy runtypes, check if xtb is present (QCG only needs it with -legacy)
+  if (env%legacy) then
     call checkprog_silent(env%ProgName,.true.,iostat=io)
     if (io /= 0) error stop
     write (stdout,'(/,a,a)') 'Selected path to xtb binary: ',trim(env%Progname)
