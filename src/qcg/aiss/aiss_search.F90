@@ -338,10 +338,14 @@ contains  !> MODULE PROCEDURES START HERE
           return
         end if
         call sortxyz_e(n,kk,pocket_e,xyz_pocket)
+        final_e = pocket_e
+        xyz_opt = xyz_pocket
+        call write_final(kk)
         best = comb
-        best%xyz = xyz_pocket(:,:,1)
-        best%energy = pocket_e(1)
-        eint = (pocket_e(1)-molA_e-molB_e)*au
+        best%xyz = xyz_opt(:,:,1)
+        best%energy = final_e(1)
+        eint = (final_e(1)-molA_e-molB_e)*au
+        call print_eint(kk)
         return
       end if
     end if
@@ -595,7 +599,15 @@ contains  !> MODULE PROCEDURES START HERE
     best%energy = final_e(1)
     eint = (final_e(1)-molA_e-molB_e)*au
 
-    if (pr) then
+    call print_eint(cfg%n_opt+kk)
+
+  contains
+
+    subroutine print_eint(nall)
+      !> interaction energies of all final structures
+      integer,intent(in) :: nall
+      integer :: ic
+      if (.not.pr) return
       write (iunit,*)
       write (iunit,*) '  ---------------------------'
       write (iunit,*) '     Interaction energies'
@@ -605,12 +617,10 @@ contains  !> MODULE PROCEDURES START HERE
       write (iunit,*)
       write (iunit,'(2x,''Lowest Interaction Energy:'',1x, F10.2, 1x, ''kcal/mol'' )') eint
       write (iunit,*) ' #   E_int (kcal/mol)'
-      do i = 1,cfg%n_opt+kk
-        write (iunit,'(2x,i0,3x,F10.2)') i,(final_e(i)-molA_e-molB_e)*au
+      do ic = 1,nall
+        write (iunit,'(2x,i0,3x,F10.2)') ic,(final_e(ic)-molA_e-molB_e)*au
       end do
-    end if
-
-  contains
+    end subroutine print_eint
 
     subroutine place_b(gene)
       !> comb = A (fixed) + B moved by gene

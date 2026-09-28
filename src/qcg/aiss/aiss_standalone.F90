@@ -387,7 +387,8 @@ contains  !> MODULE PROCEDURES START HERE
     end if
     directed = pack([(i,i=1,comb%nat)],dirsel)
 
-    call print_dock_settings(dk,molA,molB,size(walls),count(frozen),size(directed))
+    call print_dock_settings(dk,molA,molB,size(walls),count(frozen),size(directed), &
+    &                        ucons%nconstraints)
 
     call new_ompautoset(env,'max',1,T,Tn)
     call aiss_dock_run(molA,molB,dk%cfg,best,eint,io,walls=walls,frozen=frozen, &
@@ -633,10 +634,10 @@ contains  !> MODULE PROCEDURES START HERE
 
 !========================================================================================!
 
-  subroutine print_dock_settings(dk,molA,molB,nwalls,nfrozen,ndirected)
+  subroutine print_dock_settings(dk,molA,molB,nwalls,nfrozen,ndirected,ncons)
     type(aiss_input),intent(in) :: dk
     type(coord),intent(in) :: molA,molB
-    integer,intent(in) :: nwalls,nfrozen,ndirected
+    integer,intent(in) :: nwalls,nfrozen,ndirected,ncons
     character(len=*),parameter :: f1 = '(2x,a,t30,a)'
     character(len=*),parameter :: f2 = '(2x,a,t30,i0,1x,a,i0,a,i0,a)'
     write (stdout,'(/,1x,a)') 'aISS docking settings'
@@ -652,6 +653,7 @@ contains  !> MODULE PROCEDURES START HERE
     if (nwalls > 0) write (stdout,'(2x,a,t30,i0)') 'wall potentials:',nwalls
     if (nfrozen > 0) write (stdout,'(2x,a,t30,i0)') 'frozen atoms:',nfrozen
     if (ndirected > 0) write (stdout,'(2x,a,t30,i0)') 'directed docking atoms:',ndirected
+    if (ncons > 0) write (stdout,'(2x,a,t30,i0)') 'user constraints:',ncons
   end subroutine print_dock_settings
 
 !========================================================================================!
