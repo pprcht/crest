@@ -20,4 +20,6 @@ srcs += files(
   'iff_ini.F90',
   'iff_energy.f90',
   'iff_prepare.F90',
+  'aiss_search.F90',
+  'aiss_dock.F90',
 )

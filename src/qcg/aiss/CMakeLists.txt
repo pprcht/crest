@@ -22,6 +22,8 @@ list(APPEND srcs
   "${dir}/iff_ini.F90"
   "${dir}/iff_energy.f90"
   "${dir}/iff_prepare.F90"
+  "${dir}/aiss_search.F90"
+  "${dir}/aiss_dock.F90"
 )
 
 set(srcs ${srcs} PARENT_SCOPE)
