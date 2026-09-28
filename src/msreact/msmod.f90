@@ -873,7 +873,7 @@ contains  !> MODULE PROCEDURES START HERE
               atf(j,k) = mso%pl%mol(i)%at(k)
             end if
           end do
-          sumformula = sumform(nat,atf(j,:))
+          sumformula = sumform(natf(j),pack(atf(j,:),atf(j,:) > 0))
           ! write to directories
           if (lprint) then
             write (fragdir,'(a,i0)') trim(isodir)//"f",j
