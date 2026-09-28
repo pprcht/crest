@@ -17,6 +17,7 @@ tests = [
   'ddx',
   'external',
   'oniom',
+  'aiss',
 ]
 
 test_srcs = files(

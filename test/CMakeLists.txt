@@ -16,6 +16,7 @@ set(
   "ddx"
   "external"
   "oniom"
+  "aiss"
 )
 set(
   test-srcs
