@@ -120,8 +120,6 @@ contains  !> MODULE PROCEDURES START HERE
         dk%cfg%samerand = .true.
       case ('verbose')
         dk%cfg%debug = .true.
-      case ('noind','loose','org')
-        !> accepted for xtb compatibility, without effect there either
       case ('attractive')
         dk%directed_type = p_atom_att
       case ('repulsive')
@@ -407,7 +405,8 @@ contains  !> MODULE PROCEDURES START HERE
   subroutine read_xcontrol(fname,dk,comb,walls,frozen,dirsel,ucons)
     !*****************************************************************
     !* xtb-style detailed input of xtb dock:
-    !*  $wall      polynomial ellipsoid/sphere walls (alpha=, lists)
+    !*  $wall      polynomial|logfermi ellipsoid/sphere walls
+    !*             (alpha=, temp=, beta=, atom lists)
     !*  $fix       atoms: frozen atoms
     !*  $directed  atoms:/elements:, attractive|repulsive,
     !*             scaling factor=
@@ -428,9 +427,9 @@ contains  !> MODULE PROCEDURES START HERE
     character(len=:),allocatable :: blk,key,val
     logical,allocatable :: atl(:)
     type(aiss_wall) :: w
-    real(wp) :: r(3)
-    integer :: ich,io,ie,alpha,i,nr
-    logical :: ex
+    real(wp) :: r(3),temp,beta
+    integer :: ich,io,ie,alpha,i,nr,nw0
+    logical :: ex,logfermi
 
     inquire (file=fname,exist=ex)
     if (.not.ex) then
@@ -438,7 +437,12 @@ contains  !> MODULE PROCEDURES START HERE
       call creststop(status_input)
     end if
 
+    !> $wall settings are global in xtb (all walls, any order)
     alpha = 30
+    logfermi = .false.
+    temp = 300.0_wp
+    beta = 6.0_wp
+    nw0 = size(walls)
     blk = ''
     open (newunit=ich,file=fname)
     do
@@ -466,8 +470,13 @@ contains  !> MODULE PROCEDURES START HERE
         case ('alpha')
           read (val,*,iostat=io) alpha
         case ('potential')
-          if (index(lower(val),'logfermi') > 0) &
-          & write (stdout,'(a)') '**WARNING** logfermi walls are not supported by the docking, using polynomial'
+          logfermi = (index(lower(val),'logfermi') > 0)
+        case ('temp')
+          read (val,*,iostat=io) temp
+        case ('beta')
+          read (val,*,iostat=io) beta
+        case ('sandwich')
+          write (stdout,'(a)') '**WARNING** sandwich walls are not supported by the docking, ignored'
         case ('ellipsoid','sphere')
           nr = 3
           if (key == 'sphere') nr = 1
@@ -478,7 +487,6 @@ contains  !> MODULE PROCEDURES START HERE
           end if
           if (nr == 1) r(2:3) = r(1)
           w%radius = r
-          w%alpha = alpha
           if (allocated(w%list)) deallocate (w%list)
           call get_atlist(comb%nat,atl,after_commas(val,nr),comb%at)
           if (.not.all(atl)) w%list = pack([(i,i=1,comb%nat)],atl)
@@ -506,6 +514,10 @@ contains  !> MODULE PROCEDURES START HERE
       end select
     end do
     close (ich)
+    walls(nw0+1:)%alpha = alpha
+    walls(nw0+1:)%logfermi = logfermi
+    walls(nw0+1:)%temp = temp
+    walls(nw0+1:)%beta = beta
 
 !>--- $constrain blocks through the CREST xtb-input parser
     allocate (dict)

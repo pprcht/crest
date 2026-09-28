@@ -22,7 +22,7 @@
 
 !> Parameters, run state and geometry helpers of the aISS docking (xTB-IFF)
 module aiss_param
-  use crest_parameters,only:wp,sp,stdout
+  use crest_parameters,only:wp,sp,stdout,kB
 #ifdef WITH_TBLITE
   use dftd4_data,only:get_covalent_rad,get_r4r2_val
 #endif
@@ -104,6 +104,10 @@ module aiss_param
     real(wp) :: radius(3) = 0.0_wp
     real(wp) :: center(3) = 0.0_wp
     integer  :: alpha = 30  !> xtb sphere_alpha, V = (|r/radius|)^alpha
+    !> logfermi wall, V = kT*log(1+exp(beta*(|r|-R0))) (xtb sphere_temp/beta)
+    logical  :: logfermi = .false.
+    real(wp) :: temp = 300.0_wp
+    real(wp) :: beta = 6.0_wp
     integer,allocatable :: list(:)
   end type aiss_wall
 
@@ -116,7 +120,6 @@ module aiss_param
     integer  :: mxcma = 1000
     integer  :: mxcent_clust = 500
     integer  :: n_opt = 15
-    integer  :: mode = 0
     integer  :: nfrag1 = 0
     logical  :: cssym = .false.
     logical  :: fulle = .false.
@@ -848,8 +851,9 @@ contains  !> MODULE PROCEDURES START HERE
 
   subroutine cavity_egrad(nat,xyz,nwalls,walls,efix)
     !*****************************************************
-    !* xtb polynomial wall energy, (|w*(r-c)|/R0)^alpha with
-    !* w = R0/radius and R0 = max(radius), per wall
+    !* xtb wall energy with w = R0/radius, R0 = max(radius):
+    !*  polynomial (|w*(r-c)|/R0)^alpha
+    !*  logfermi   kT*log(1+exp(beta*(|w*(r-c)|-R0)))
     !*****************************************************
     integer,intent(in)  :: nat,nwalls
     real(wp),intent(in) :: xyz(3,nat)
@@ -875,7 +879,11 @@ contains  !> MODULE PROCEDURES START HERE
         end if
         r = w*(xyz(:,iat)-walls(i)%center)
         dist = sqrt(sum(r**2))
-        efix = efix+(dist/r0)**walls(i)%alpha
+        if (walls(i)%logfermi) then
+          efix = efix+kB*walls(i)%temp*log(1.0_wp+exp(walls(i)%beta*(dist-r0)))
+        else
+          efix = efix+(dist/r0)**walls(i)%alpha
+        end if
       end do
     end do
   end subroutine cavity_egrad

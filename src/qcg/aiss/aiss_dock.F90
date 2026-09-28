@@ -310,9 +310,10 @@ contains  !> MODULE PROCEDURES START HERE
 
   subroutine aiss_add_walls(calc,nat,walls,offset,skip)
     !*****************************************************
-    !* xtb polynomial walls (|r/radius|)^alpha as CREST
-    !* ellipsoids with k=1 and exponent alpha/2 on the
-    !* squared ellipsoid distance. Wall lists use the
+    !* xtb walls as CREST ellipsoid constraints: polynomial
+    !* (|r/radius|)^alpha with k=1 and exponent alpha/2 on the
+    !* squared ellipsoid distance, or logfermi with the same
+    !* T and beta. Wall lists use the
     !* complex numbering; offset maps them onto a fragment
     !* (atom j of the fragment is list entry j+offset).
     !* Atoms flagged in skip are left out, like frozen atoms
@@ -341,7 +342,11 @@ contains  !> MODULE PROCEDURES START HERE
       end if
       if (present(skip)) atms = atms.and..not.skip(1:nat)
       if (.not.any(atms)) cycle
-      call cons%ellipsoid(nat,atms,walls(i)%radius,1.0_wp,0.5_wp*real(walls(i)%alpha,wp),.false.)
+      if (walls(i)%logfermi) then
+        call cons%ellipsoid(nat,atms,walls(i)%radius,walls(i)%temp,walls(i)%beta,.true.)
+      else
+        call cons%ellipsoid(nat,atms,walls(i)%radius,1.0_wp,0.5_wp*real(walls(i)%alpha,wp),.false.)
+      end if
       call calc%add(cons)
     end do
   end subroutine aiss_add_walls
