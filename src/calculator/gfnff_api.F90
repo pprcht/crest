@@ -23,7 +23,7 @@
 !====================================================!
 
 module gfnff_api
-  use iso_fortran_env,only:wp => real64,stdout => output_unit
+  use iso_fortran_env,only:wp => real64,stdout => output_unit,stderr => error_unit
   use strucrd
 #ifdef WITH_GFNFF
   use gfnff_interface
@@ -41,6 +41,7 @@ module gfnff_api
   public :: gfnff_dump_sasa
   public :: gfnff_set_fragments
   public :: gfnff_set_refcharges
+  public :: gfnff_set_bondmat
 
 #ifndef WITH_GFNFF
   !> these are placeholders if no gfnff module is used!
@@ -279,6 +280,80 @@ contains  !> MODULE PROCEDURES START HERE
     ff_dat%userinput%refq = q
 #endif
   end subroutine gfnff_set_refcharges
+
+!========================================================================================!
+
+  subroutine gfnff_set_bondmat(ff_dat,nat,fname,io)
+!***********************************************************************
+!* Read a user-defined molecular graph from file and hand it to the
+!* GFN-FF data object (ff_dat%userinput%bondmat). GFN-FF then skips its
+!* distance-based bond perception and uses this connectivity instead.
+!*
+!* The file lists one bond per line as "i j [order]" with 1-based atom
+!* indices; the bond order is an optional positive integer (default 1).
+!* Blank lines and lines starting with '#' or '!' are skipped.
+!* GFN-FF currently only uses the zero/nonzero pattern of the matrix.
+!*
+!* INPUT:
+!*   nat    - number of atoms
+!*   fname  - bond list file
+!* IN/OUT:
+!*   ff_dat - GFN-FF data object; userinput%bondmat is (re)built
+!* OUTPUT:
+!*   io     - error status (0 = success)
+!***********************************************************************
+    implicit none
+    type(gfnff_data),allocatable,intent(inout) :: ff_dat
+    integer,intent(in) :: nat
+    character(len=*),intent(in) :: fname
+    integer,intent(out) :: io
+    !> LOCAL
+    integer,allocatable :: bondmat(:,:)
+    character(len=256) :: line
+    integer :: ich,i,j,k,iline
+
+    io = 0
+    if (.not.allocated(ff_dat)) return
+
+    open (newunit=ich,file=fname,status='old',action='read',iostat=io)
+    if (io /= 0) then
+      write (stderr,'(a,a)') 'could not open bond matrix file ',trim(fname)
+      return
+    end if
+
+    allocate (bondmat(nat,nat),source=0)
+    iline = 0
+    do
+      read (ich,'(a)',iostat=io) line
+      if (io /= 0) exit
+      iline = iline+1
+      line = adjustl(line)
+      if (len_trim(line) == 0) cycle
+      if (line(1:1) == '#'.or.line(1:1) == '!') cycle
+      read (line,*,iostat=io) i,j,k
+      if (io /= 0) then
+        read (line,*,iostat=io) i,j
+        k = 1
+      end if
+      if (io /= 0.or.i < 1.or.i > nat.or.j < 1.or.j > nat.or.i == j.or.k < 1) then
+        write (stderr,'(a,i0,a,a,a)') 'invalid bond in line ',iline,' of ',trim(fname), &
+        &                             ': '//trim(line)
+        io = 1
+        exit
+      end if
+      bondmat(i,j) = k
+      bondmat(j,i) = k
+    end do
+    close (ich)
+    if (io > 0) return
+    io = 0
+
+#ifdef WITH_GFNFF
+    if (.not.allocated(ff_dat%userinput)) allocate (ff_dat%userinput)
+    ff_dat%userinput%bondmat = bondmat
+#endif
+    deallocate (bondmat)
+  end subroutine gfnff_set_bondmat
 
 !========================================================================================!
 

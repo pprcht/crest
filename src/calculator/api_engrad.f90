@@ -345,7 +345,14 @@ contains    !> MODULE PROCEDURES START HERE
         call gfnff_set_fragments(calc%ff_dat,mol%nat,calc%gff_fragments)
       end if
 
-      call gfnff_api_setup(mol,calc%chrg,calc%ff_dat,iostatus,pr,calc%prch)
+      !> a user-supplied molecular graph replaces GFN-FF's bond perception
+      if (allocated(calc%gff_bondmat)) then
+        call gfnff_set_bondmat(calc%ff_dat,mol%nat,calc%gff_bondmat,iostatus)
+      end if
+
+      if (iostatus == 0) then
+        call gfnff_api_setup(mol,calc%chrg,calc%ff_dat,iostatus,pr,calc%prch)
+      end if
     end if
     !$omp end critical
     if (iostatus /= 0) return

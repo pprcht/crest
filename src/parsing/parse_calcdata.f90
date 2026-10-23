@@ -536,6 +536,17 @@ contains !> MODULE PROCEDURES START HERE
         call creststop(status_config)
       end if
 
+    case ('bondmat','bond_matrix')
+      !>--- user-defined molecular graph for GFN-FF, a bond list file
+      !>    with one "i j [order]" entry per line
+      inquire (file=kv%value_c,exist=ex)
+      if (ex) then
+        job%gff_bondmat = kv%value_c
+      else
+        write (stderr,'(a,a,a)') 'specified bond matrix file ',kv%value_c,' does not exist'
+        call creststop(status_config)
+      end if
+
     case ('fragment','fragments')
       !>--- user-defined fragmentation, e.g. fragments = ["1-432","433-458"]
       !>    each entry is an atom-range string defining one fragment.

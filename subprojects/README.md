@@ -11,7 +11,7 @@ checkouts).
 | [`tblite`](https://github.com/tblite/tblite) | A lightweight implementation of the GFN1 and GFN2-xTB Hamiltonians | `-DWITH_TBLITE=true` (default) | `v0.7.0` (`b244a0f`) | ✅ | ✅ | ✅ |
 | [`toml-f`](https://github.com/toml-f/toml-f) | A TOML parser for Fortran | `-DWITH_TOMLF=true` (default) | `v0.5.2` (`28f4601`) | ✅ | ✅ | ✅ |
 | [`gfn0`](https://github.com/pprcht/gfn0) | A GFN0-xTB standalone library | `-DWITH_GFN0=true` (default) | `v0.1.1` (`d77fea8`) | ✅ | ✅ | ✅ |
-| [`gfnff`](https://github.com/pprcht/gfnff) | A GFN-FF standalone library | `-DWITH_GFNFF=true` (default) | `v0.2.0` (`272ed91`) | ✅ | ✅ | ✅ |
+| [`gfnff`](https://github.com/pprcht/gfnff) | A GFN-FF standalone library | `-DWITH_GFNFF=true` (default) | `v0.3.1` (`232aa69`) | ✅ | ✅ | ✅ |
 | [`libpvol`](https://github.com/pprcht/libpvol) | Molecular volume/surface library (PV, XHCFF) | `-DWITH_LIBPVOL=true` (default) | branch `build-update` (`010bdda`) | ✅ | ✅ | ✅ |
 | [`lwoniom`](https://github.com/crest-lab/lwoniom) | A lightweight ONIOM implementation | `-DWITH_LWONIOM=true` (default) | `v0.0.1` (`ab66c7e`) | ✅ | ✅ | ✅ |
 | [`fmlip_relay`](https://github.com/pprcht/fmlip-relay) | Relay interface to the fmlip ML/IP potential | `-DWITH_FMLIP_RELAY=true` (default) | branch `main` (`1f29707`) | ✅ | ✅ | ✅ |

@@ -197,6 +197,9 @@ module calc_type
     !> additional "rest" fragment. Passed to GFN-FF to prevent artificial bonds
     !> between fragments. Resolved to a per-atom list once nat is known.
     character(len=:),allocatable :: gff_fragments(:)
+    !> optional bond list file ("i j [order]" per line) that replaces the
+    !> GFN-FF bond perception with a user-defined molecular graph
+    character(len=:),allocatable :: gff_bondmat
 
 !>--- libpvol data
     integer  :: pvmodel = 1            !> libpvol model type (0=XHCFF, 1=PV)
@@ -1227,6 +1230,7 @@ contains  !>--- Module routines start here
     if (allocated(self%eeq)) deallocate (self%eeq)
     if (allocated(self%ff_dat)) deallocate (self%ff_dat)
     if (allocated(self%gff_fragments)) deallocate (self%gff_fragments)
+    if (allocated(self%gff_bondmat)) deallocate (self%gff_bondmat)
     if (allocated(self%libpvol)) deallocate (self%libpvol)
 
     !> external callback: drop the references (we do not own the targets)
@@ -1307,6 +1311,7 @@ contains  !>--- Module routines start here
     if (allocated(src%refgeo))         self%refgeo         = src%refgeo
     if (allocated(src%refcharges))     self%refcharges     = src%refcharges
     if (allocated(src%gff_fragments))  self%gff_fragments  = src%gff_fragments
+    if (allocated(src%gff_bondmat))    self%gff_bondmat    = src%gff_bondmat
     if (allocated(src%tbliteparam))    self%tbliteparam    = src%tbliteparam
     if (allocated(src%solv))           self%solv           = src%solv
     if (allocated(src%eeq))            self%eeq            = src%eeq
