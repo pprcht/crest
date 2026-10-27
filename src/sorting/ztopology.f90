@@ -189,12 +189,15 @@ subroutine simpletopo(n,at,xyz,zmol,verbose,getrings,wbofile)
 
     !--- transfer information to zmol class
     zmol%nat = n      !number of atoms
-    zmol%zat = zat    !list of atoms, including data
+    !>-- move instead of deep copy (ifx 2025.1 ICEs on the derived-type assignment)
+    call move_alloc(zat,zmol%zat)  !list of atoms, including data
     zmol%at = at      !list of atom types (integer)
   end if
-  do i = 1,n
-    call zat(i)%deallocate()
-  end do
+  if (allocated(zat)) then
+    do i = 1,n
+      call zat(i)%deallocate()
+    end do
+  end if
   !if(allocated(zat))deallocate(zat)
 
 !--- analyze system for fragments

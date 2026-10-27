@@ -37,11 +37,11 @@ jobs:
 
           # ---- Linux Intel (ifx/icx) + MKL — CMake debug ------------------
           - { os: ubuntu-latest, build-type: debug,
-              toolchain: { compiler: intel, version: '2025.1', mkl_version: '2025.1', build: cmake } }
+              toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: cmake } }
 
           # ---- Linux Intel (ifx/icx) + MKL — Meson debugoptimized ---------
           - { os: ubuntu-latest, build-type: debugoptimized,
-              toolchain: { compiler: intel, version: '2025.1', mkl_version: '2025.1', build: meson } }
+              toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # ---- macOS GCC + OpenBLAS — CMake debug (GNU only) ---------------
           - { os: macos-latest, build-type: debug,
@@ -232,7 +232,7 @@ jobs:
 
           # Linux x86_64 — Intel LLVM static (Meson; better ifx static support)
           - { os: ubuntu-latest,    build-type: static,
-              toolchain: { compiler: intel, version: '2025.1', mkl_version: '2025.1', build: meson } }
+              toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # Linux aarch64 — GNU static (CMake; Intel oneAPI is x86-only)
           - { os: ubuntu-24.04-arm, build-type: static,
