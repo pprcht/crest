@@ -48,7 +48,10 @@ endif
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Compiler flags
 # ═══════════════════════════════════════════════════════════════════════════════
-_is_debug = get_option('buildtype') in ['debug', 'debugoptimized']
+# Runtime checks and FP traps only for 'debug', as in the CMake build (Debug
+# only): -fpe0 is process-wide and aborts inside MKL dsyev, which relies on
+# IEEE division by zero internally.
+_is_debug = get_option('buildtype') == 'debug'
 
 # --- GNU (gfortran / gcc) -----------------------------------------------------
 if fc_id == 'gcc'
