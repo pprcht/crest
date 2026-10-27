@@ -48,18 +48,21 @@ There are multiple possible ways of installing CREST. Detailed build instruction
 The *statically linked* binaries can be found at the [release page](https://github.com/crest-lab/crest/releases) of this repository.
 The most recent program version is automatically build (both Meson/Intel and CMake/GNU) from the main branch and can be found at the [continous release page](https://github.com/crest-lab/crest/releases/tag/latest), or directly download them here:
 
-[![Download (GNU)](https://img.shields.io/badge/download-GNU_build_binary-green)](https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-12-ubuntu-latest.tar.xz)
-[![Download (ifort)](https://img.shields.io/badge/download-ifort_build_binary-blue.svg)](https://github.com/crest-lab/crest/releases/download/latest/crest-intel-2023.1.0-ubuntu-latest.tar.xz)
+[![Download (GNU, Linux x86_64)](https://img.shields.io/badge/download-GNU_build_binary_(Linux_x86__64)-green)](https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-14-linux-x86_64.tar.xz)
+[![Download (ifx, Linux x86_64)](https://img.shields.io/badge/download-ifx_build_binary_(Linux_x86__64)-blue.svg)](https://github.com/crest-lab/crest/releases/download/latest/crest-intel-2025.3-linux-x86_64.tar.xz)
+[![Download (GNU, Linux aarch64)](https://img.shields.io/badge/download-GNU_build_binary_(Linux_aarch64)-green)](https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-14-linux-aarch64.tar.xz)
+[![Download (GNU, macOS arm64)](https://img.shields.io/badge/download-GNU_build_binary_(macOS_arm64)-lightgrey)](https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-14-darwin-arm64.tar.xz)
 
 Simply unpack the binary  and add it to your *PATH* variable.
 ```bash
-tar -xf crest-gnu-12-ubuntu-latest.tar.xz
+tar -xf crest-gnu-14-linux-x86_64.tar.xz
 ```
 or
 ```bash
-tar -xf crest-intel-2023.1.0-ubuntu-latest.tar.xz
+tar -xf crest-intel-2025.3-linux-x86_64.tar.xz
 ```
-The program should be directly executable.
+The Linux binaries are statically linked and should be directly executable.
+The macOS binary is dynamically linked and requires Homebrew GCC and OpenBLAS at runtime.
 
 ##
 
@@ -86,19 +89,19 @@ The conda-forge distribution is based on a *dynamically linked* CMake/GNU build.
 <h4>Tested builds</h4>
 <!--blank line after HTML-->
 
-![CI workflow](https://github.com/crest-lab/crest/actions/workflows/build.yml/badge.svg)
+![CI workflow](https://github.com/crest-lab/crest/actions/workflows/build-CI.yml/badge.svg)
 
 Working and tested builds of CREST:
 
 | Build System | Compiler | Linear Algebra Backend | Build type | Note |
 |--------------|----------|------------------------|:----------:|:----:|
-| CMake 3.31.6 | GNU (gcc 14.3.0, conda-forge) | [libopenblas 0.3.31](https://anaconda.org/conda-forge/libopenblas) (conda-forge) | dynamic | [![Download (GNU)](https://img.shields.io/badge/download-GNU_build_binary-green)](https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-12-ubuntu-latest.tar.xz) |
-| CMake 3.31.6 | GNU (gcc 14.3.0, conda-forge) | [libopenblas 0.3.31](https://anaconda.org/conda-forge/libopenblas) (conda-forge) | static |  |
+| CMake 3.31.6 | GNU (gcc 14.3.0, conda-forge) | [libopenblas 0.3.31](https://anaconda.org/conda-forge/libopenblas) (conda-forge) | dynamic |  |
+| CMake 3.31.6 | GNU (gcc 14.3.0, conda-forge) | [libopenblas 0.3.31](https://anaconda.org/conda-forge/libopenblas) (conda-forge) | static | [![Download (GNU)](https://img.shields.io/badge/download-GNU_build_binary-green)](https://github.com/crest-lab/crest/releases/download/latest/crest-gnu-14-linux-x86_64.tar.xz) |
 | CMake 3.31.6 | [Intel (`ifx`/`icx` 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/toolkits.html) | [MKL (oneAPI 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) | static | |
 | Meson 1.10.1 | GNU (gcc 14.3.0, conda-forge) | [libopenblas 0.3.31](https://anaconda.org/conda-forge/libopenblas) (conda-forge) | dynamic | |
 | Meson 1.10.1 | GNU (gcc 14.3.0, conda-forge) | [libopenblas 0.3.31](https://anaconda.org/conda-forge/libopenblas) (conda-forge) | static | |
 | Meson 1.10.1 | [Intel (`ifx`/`icx` 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/toolkits.html) | [MKL (oneAPI 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) | dynamic | |
-| Meson 1.10.1 | [Intel (`ifx`/`icx` 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/toolkits.html) | [MKL (oneAPI 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) | static | [![Download (ifx)](https://img.shields.io/badge/download-ifort_build_binary-blue.svg)](https://github.com/crest-lab/crest/releases/download/latest/crest-intel-2023.1.0-ubuntu-latest.tar.xz) |
+| Meson 1.10.1 | [Intel (`ifx`/`icx` 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/toolkits.html) | [MKL (oneAPI 2025.3)](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html) | static | [![Download (ifx)](https://img.shields.io/badge/download-ifx_build_binary-blue.svg)](https://github.com/crest-lab/crest/releases/download/latest/crest-intel-2025.3-linux-x86_64.tar.xz) |
 
 
 Generally, subprojects should be initialized for the *default* build options, which can be done by 
