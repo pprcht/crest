@@ -33,11 +33,11 @@ jobs:
       matrix:
         include:
           # ---- Linux GCC 14 + OpenBLAS — CMake debugoptimized --------------
-          - { os: ubuntu-latest, build-type: debugoptimized,
+          - { os: ubuntu-24.04, build-type: debugoptimized,
               toolchain: { compiler: gcc, version: '14', build: cmake } }
 
           # ---- Linux Intel (ifx/icx) + MKL — Meson debugoptimized ---------
-          - { os: ubuntu-latest, build-type: debugoptimized,
+          - { os: ubuntu-24.04, build-type: debugoptimized,
               toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # ---- macOS GCC 14 + OpenBLAS — CMake debugoptimized --------------

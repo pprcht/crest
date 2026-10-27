@@ -24,23 +24,23 @@ jobs:
       matrix:
         include:
           # ---- Linux GCC + OpenBLAS — CMake debug --------------------------
-          - { os: ubuntu-latest, build-type: debug,
+          - { os: ubuntu-24.04, build-type: debug,
               toolchain: { compiler: gcc, version: '12', build: cmake } }
-          - { os: ubuntu-latest, build-type: debug,
+          - { os: ubuntu-24.04, build-type: debug,
               toolchain: { compiler: gcc, version: '14', build: cmake } }
 
           # ---- Linux GCC + OpenBLAS — Meson debugoptimized -----------------
-          - { os: ubuntu-latest, build-type: debugoptimized,
+          - { os: ubuntu-24.04, build-type: debugoptimized,
               toolchain: { compiler: gcc, version: '12', build: meson } }
-          - { os: ubuntu-latest, build-type: debugoptimized,
+          - { os: ubuntu-24.04, build-type: debugoptimized,
               toolchain: { compiler: gcc, version: '14', build: meson } }
 
           # ---- Linux Intel (ifx/icx) + MKL — CMake debug ------------------
-          - { os: ubuntu-latest, build-type: debug,
+          - { os: ubuntu-24.04, build-type: debug,
               toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: cmake } }
 
           # ---- Linux Intel (ifx/icx) + MKL — Meson debugoptimized ---------
-          - { os: ubuntu-latest, build-type: debugoptimized,
+          - { os: ubuntu-24.04, build-type: debugoptimized,
               toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # ---- macOS GCC + OpenBLAS — CMake debug (GNU only) ---------------
@@ -227,11 +227,11 @@ jobs:
       matrix:
         include:
           # Linux x86_64 — GNU static (CMake)
-          - { os: ubuntu-latest,    build-type: static,
+          - { os: ubuntu-24.04,    build-type: static,
               toolchain: { compiler: gcc,   version: '14',       build: cmake } }
 
           # Linux x86_64 — Intel LLVM static (Meson; better ifx static support)
-          - { os: ubuntu-latest,    build-type: static,
+          - { os: ubuntu-24.04,    build-type: static,
               toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # Linux aarch64 — GNU static (CMake; Intel oneAPI is x86-only)

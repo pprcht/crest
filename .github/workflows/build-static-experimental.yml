@@ -24,11 +24,11 @@ jobs:
       matrix:
         include:
           # Linux x86_64 — GNU static (CMake)
-          - { os: ubuntu-latest,   build-type: static,
+          - { os: ubuntu-24.04,   build-type: static,
               toolchain: { compiler: gcc,   version: '14',       build: cmake } }
 
           # Linux x86_64 — Intel LLVM static (Meson; better ifx static support)
-          - { os: ubuntu-latest,   build-type: static,
+          - { os: ubuntu-24.04,   build-type: static,
               toolchain: { compiler: intel, version: '2025.3', mkl_version: '2025.3', build: meson } }
 
           # Linux aarch64 — GNU static (CMake; Intel oneAPI is x86-only)
