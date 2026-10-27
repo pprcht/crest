@@ -975,14 +975,15 @@ contains
     logical,intent(in) :: usecache
     integer,intent(in) :: seed
     integer,intent(out) :: ntot
-    integer :: nat,r,k,sweepi,hi,g,tj,jc,ncand,rL,rR,nsel,s,ridx,nr,nc
+    integer :: nat,r,k,sweepi,hi,g,tj,jc,ncand,rL,rR,nsel,s,nr,nc
     integer :: rawunit,nadd,nfound,ng,ngmax
     character(len=24) :: dlabel
     character(len=8)  :: skind
     character(len=70) :: hdr
     character(len=70) :: sline
     logical :: fwd
-    integer,allocatable :: Lfull(:,:),Rfull(:,:),Lnew(:,:),Rnew(:,:)
+    integer,allocatable :: Rfull(:,:),Lnew(:,:),Rnew(:,:)
+    integer,allocatable :: Lset(:,:,:), Rset(:,:,:)
     integer,allocatable :: rhoL(:),rhoR(:)
     integer,allocatable :: combis(:,:),rrow(:),rcol(:),isel(:)
     real(wp),allocatable :: energies(:),Amat(:,:),cn(:),Bmat(:,:)
@@ -1000,7 +1001,8 @@ contains
     call mol%cn_to_bond(cn,Bmat,'cov')
     call wbo2adjacency(nat,Bmat,Aref,ttl_athr)
 
-    allocate (Lfull(nsite,r),Rfull(nsite,r),Lnew(nsite,r),Rnew(nsite,r),source=1)
+    allocate (Rfull(nsite,r),Lnew(nsite,r),Rnew(nsite,r),source=1)
+    allocate (Rset(nsite,nsite,r),Lset(nsite,nsite,r),source=0)
     allocate (rhoL(0:nsite),source=1)
     allocate (rhoR(nsite+1),source=1)
     allocate (combis(nsite,r*ngmax*r),source=1)
@@ -1027,6 +1029,11 @@ contains
     rhoR(nsite+1) = 1
     rhoL(0) = 1
 
+! store initialized index sets in individual core tensors
+    do k = 1,nsite-1
+      Rset(k,k+1:nsite,1:nfound) = Rfull(k+1:nsite,1:nfound)
+    enddo
+
 ! ── sweeps ─────────────────────────────────────────────────────────────────
     do sweepi = 1,nsweeps
       fwd = (mod(sweepi,2) == 1)
@@ -1048,9 +1055,9 @@ contains
             do g = 1,ng
               do hi = 1,rL
                 jc = jc+1
-                if (k > 1) combis(1:k-1,jc) = Lfull(1:k-1,hi)
+                if (k > 1) combis(1:k-1,jc) = Lset(k,1:k-1,hi)
                 combis(k,jc) = g
-                if (k < nsite) combis(k+1:nsite,jc) = Rfull(k+1:nsite,tj)
+                if (k < nsite) combis(k+1:nsite,jc) = Rset(k,k+1:nsite,tj)
                 rrow(jc) = hi+(g-1)*rL
                 rcol(jc) = tj
               end do
@@ -1080,14 +1087,10 @@ contains
           end do
           call ttconf_maxvol(Amat,nr,nc,isel,nsel)
           do s = 1,nsel
-            ridx = isel(s)
-            hi = mod(ridx-1,rL)+1
-            g = (ridx-1)/rL+1
-            if (k > 1) Lnew(1:k-1,s) = Lfull(1:k-1,hi)
-            Lnew(k,s) = g
+            Lnew(1:k,s) = combis(1:k, isel(s))
           end do
           rhoL(k) = nsel
-          Lfull(1:k,1:nsel) = Lnew(1:k,1:nsel)
+          if (k<nsite) Lset(k+1,1:k,1:nsel) = Lnew(1:k,1:nsel)
           deallocate (Amat)
         end do
       else
@@ -1100,10 +1103,10 @@ contains
             do g = 1,ng
               do tj = 1,rR
                 jc = jc+1
-                if (k > 1) combis(1:k-1,jc) = Lfull(1:k-1,hi)
+                if (k > 1) combis(1:k-1,jc) = Lset(k,1:k-1,hi)
                 combis(k,jc) = g
-                if (k < nsite) combis(k+1:nsite,jc) = Rfull(k+1:nsite,tj)
-                rrow(jc) = g+(tj-1)*ng
+                if (k < nsite) combis(k+1:nsite,jc) = Rset(k,k+1:nsite,tj)
+                rrow(jc) = tj+(g-1)*rR
                 rcol(jc) = hi
               end do
             end do
@@ -1130,14 +1133,10 @@ contains
           end do
           call ttconf_maxvol(Amat,nr,nc,isel,nsel)
           do s = 1,nsel
-            ridx = isel(s)
-            g = mod(ridx-1,ng)+1
-            tj = (ridx-1)/ng+1
-            Rnew(k,s) = g
-            if (k < nsite) Rnew(k+1:nsite,s) = Rfull(k+1:nsite,tj)
+            Rnew(k:nsite,s) = combis(k:nsite, isel(s))
           end do
           rhoR(k) = nsel
-          Rfull(k:nsite,1:nsel) = Rnew(k:nsite,1:nsel)
+          if (k>1) Rset(k-1,k:nsite,1:nsel) = Rnew(k:nsite,1:nsel)
           deallocate (Amat)
         end do
       end if
@@ -1157,7 +1156,7 @@ contains
     end if
     call cache%destroy()
 
-    deallocate (Lfull,Rfull,Lnew,Rnew,rhoL,rhoR,combis,rrow,rcol,isel,energies)
+    deallocate (Rfull,Lset,Rset,Lnew,Rnew,rhoL,rhoR,combis,rrow,rcol,isel,energies)
     if (allocated(Aref)) deallocate (Aref)
   end subroutine ttconf_sweep
 
